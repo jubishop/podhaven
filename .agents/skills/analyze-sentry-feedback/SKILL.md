@@ -478,8 +478,8 @@ the conclusion, no more.)
 ## Suggested fix
 Prose only — name the suspect file(s) and function(s), describe the change,
 and call out any tests that should accompany it. Do not edit code in this
-skill. If the fix is non-obvious or the root cause is uncertain, recommend
-the next investigative step instead (e.g. "add logging at X", "reproduce by Y").
+skill. If the evidence cannot support a root cause, state that it remains
+unknown and propose the diagnostic code changes required by Step 9.
 
 ## Open questions
 Anything the user could clarify that would sharpen the diagnosis (e.g.
@@ -507,6 +507,25 @@ and live verification workflow. Reuse settled decisions and fetched issue
 data; ask only about unresolved material scope. Pass only sanitized findings
 into its public draft, not the private report or reporter attachments.
 
+If the analysis cannot identify a root cause supported by the evidence, make
+the issue about adding diagnostic code so the next occurrence can reveal the
+cause. Specify the missing evidence, the relevant files/functions, and the
+targeted telemetry, logging, breadcrumbs, or retention changes needed to
+capture it. Explain how those signals would distinguish the remaining
+plausible causes. Keep the cause explicitly unknown; a speculative fix,
+generic investigation, or monitor-only recommendation does not satisfy this
+fallback.
+
+Every proposed evidence-gathering change must automatically capture and send
+the needed evidence to Sentry, including through automatically uploaded log
+attachments where appropriate. Reports come from external users whose devices
+we cannot access. Do not depend on local-only logs, developer device access,
+or manual export or upload by the reporter. Specify what triggers capture and
+upload, and how the evidence will be linked to the relevant incident or feedback.
+Require end-to-end verification that the evidence arrives in Sentry and is
+retrievable for diagnosis; proving only that it was generated locally is
+insufficient.
+
 The existing feedback issue remains canonical even when a new analysis calls
 for reopening it. The markers and managed findings below are required task
 constraints for `create-issue`, including its duplicate handling and draft
@@ -516,7 +535,8 @@ because the handoff ran.
 
 1. If no matching issue exists after duplicate checks, use `create-issue` to
    create one in `jubishop/podhaven` with a concise action-oriented title and
-   the body below. Use `Investigate ...` when the cause is uncertain.
+   the body below. For the diagnostic fallback, use a title such as
+   `Add diagnostics for <symptom>`.
 2. If the canonical issue is an intake placeholder, enrich it by editing its
    title and body directly. Do not post the findings as another comment.
    Preserve a meaningful human-written title and leave the checker's

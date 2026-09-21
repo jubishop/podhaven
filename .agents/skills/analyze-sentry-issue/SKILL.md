@@ -114,9 +114,29 @@ Pass it a public-safe summary with:
 - The Sentry permalink and short ID so later triage can find the tracking issue.
 - Observed versus expected behavior, affected scope, and minimal technical
   evidence. Separate confirmed facts from hypotheses and state confidence.
-- The supported fix or a bounded investigation when the cause is uncertain,
-  with relevant code paths and observable completion or regression criteria.
+- The supported fix or the diagnostic code changes required below when no
+  root cause is supported, with relevant code paths and observable completion
+  or regression criteria.
 - The user's settled constraints and any known related GitHub issues.
+
+If the analysis cannot identify a root cause supported by the evidence, make
+the issue about adding diagnostic code so the next occurrence can reveal the
+cause. Specify the missing evidence, the relevant files/functions, and the
+targeted telemetry, logging, breadcrumbs, or retention changes needed to
+capture it. Explain how those signals would distinguish the remaining
+plausible causes. Keep the cause explicitly unknown; a speculative fix,
+generic investigation, or monitor-only recommendation does not satisfy this
+fallback. Use an action-oriented title such as `Add diagnostics for <symptom>`.
+
+Every proposed evidence-gathering change must automatically capture and send
+the needed evidence to Sentry, including through automatically uploaded log
+attachments where appropriate. Reports come from external users whose devices
+we cannot access. Do not depend on local-only logs, developer device access,
+or manual export or upload by the reporter. Specify what triggers capture and
+upload, and how the evidence will be linked to the relevant incident or feedback.
+Require end-to-end verification that the evidence arrives in Sentry and is
+retrievable for diagnosis; proving only that it was generated locally is
+insufficient.
 
 Require a `Sentry closeout` section in the GitHub issue, with the actual short
 ID, numeric issue ID, and permalink. Pass these instructions to `create-issue`
