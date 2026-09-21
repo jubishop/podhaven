@@ -45,6 +45,101 @@ private let supportsHostedPodcastSettingsInspection = ProcessInfo.processInfo.is
     }
   }
 
+  @Test(
+    "freshness selection aligns with its label and help button",
+    .enabled(if: supportsHostedPodcastSettingsInspection),
+    arguments: [FreshnessCadence?.none, .daily, .twiceWeekly, .evergreen],
+    [DynamicTypeSize.large, .xxxLarge, .accessibility3]
+  )
+  func freshnessSelectionAlignment(cadence: FreshnessCadence?, textSize: DynamicTypeSize)
+    async throws
+  {
+    let podcast = try await Create.podcast(title: "Freshness layout", freshnessCadence: cadence)
+    let displayed = DisplayedPodcast(podcast)
+    let host = TestHostingController(
+      rootView: PodcastSettingsView(
+        viewModel: PodcastDetailViewModel(podcast: displayed),
+        settings: displayed.settings
+      )
+      .environment(\.dynamicTypeSize, textSize)
+      .transaction { $0.disablesAnimations = true }
+    )
+    host.traitOverrides.preferredContentSizeCategory =
+      switch textSize {
+      case .xxxLarge: .extraExtraExtraLarge
+      case .accessibility3: .accessibilityExtraExtraLarge
+      default: .large
+      }
+    try await withHostedTestWindow(host, size: CGSize(width: 320, height: 844)) { window in
+      let scroll = try #require(
+        Self.descendants(of: host.view).compactMap { $0 as? UIScrollView }.first
+      )
+      scroll.setContentOffset(
+        CGPoint(
+          x: 0,
+          y: max(
+            0,
+            scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom
+          )
+        ),
+        animated: false
+      )
+      host.view.layoutIfNeeded()
+      let selection = cadence?.displayName ?? "Auto"
+      try await Wait.until { @MainActor in
+        Self.accessibilityElements(in: window).contains { $0.accessibilityLabel == "Freshness" }
+      } _: {
+        "Freshness setting did not appear"
+      }
+      let elements = Self.accessibilityElements(in: window)
+      let label = try #require(
+        elements.first {
+          $0.accessibilityLabel == "Freshness" && !$0.accessibilityTraits.contains(.button)
+        }
+      )
+      let picker = try #require(
+        elements.first {
+          $0.accessibilityTraits.contains(.button)
+            && ($0.accessibilityLabel?.contains(selection) == true
+              || $0.accessibilityValue == selection)
+        },
+        "Missing selection \(selection): \(elements.map { "\($0.accessibilityLabel ?? "nil"): \($0.accessibilityValue ?? "nil")" })"
+      )
+      let labelFrame = label.accessibilityFrame
+      let pickerFrame = picker.accessibilityFrame
+      #expect(picker.accessibilityLabel?.contains("Freshness") == true)
+      let info = try #require(
+        elements.filter { $0.accessibilityLabel == "More Info" }
+          .min {
+            abs($0.accessibilityFrame.midY - labelFrame.midY)
+              < abs($1.accessibilityFrame.midY - labelFrame.midY)
+          }
+      )
+      #expect(
+        abs(labelFrame.midY - pickerFrame.midY) <= 2,
+        "Freshness label \(labelFrame) and selection \(pickerFrame) should align"
+      )
+      #expect(
+        abs(info.accessibilityFrame.midY - pickerFrame.midY) <= 2,
+        "Freshness help \(info.accessibilityFrame) and selection \(pickerFrame) should align"
+      )
+      #expect(labelFrame.maxX <= pickerFrame.minX)
+      #expect(pickerFrame.maxX <= info.accessibilityFrame.minX)
+      #expect(
+        elements.contains { $0.accessibilityLabel?.hasPrefix("Resolved to ") == true }
+          == (cadence == nil)
+      )
+      let image = UIGraphicsImageRenderer(bounds: window.bounds)
+        .image { _ in
+          window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+      Attachment.record(
+        try #require(image.pngData()),
+        named: "freshness-\(selection)-\(textSize).png"
+      )
+    }
+  }
+
   @Test("stacked toggles use the settings control spacing")
   func stackedTogglesUseTheSettingsControlSpacing() async throws {
     let host = TestHostingController(rootView: StackedToggleSpacingFixture())
