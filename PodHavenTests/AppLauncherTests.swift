@@ -33,6 +33,7 @@ struct AppLauncherTests {
     AppLauncher.configureInitialSentryScope(scope)
 
     #expect(scope.tags["git-commit-hash"] == AppInfo.gitCommitHash)
+    #expect(scope.tags["log-session-id"] == FileLogHandler.sessionID)
     #expect(scope.user?.userId == AppInfo.deviceIdentifier)
     #expect(scope.attachments.count == 2)
     #expect(

@@ -1,9 +1,27 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import Logging
 import Sentry
 import Synchronization
+
+protocol SentryLogEmitting {
+  func trace(_ body: String, attributes: [String: Any])
+  func debug(_ body: String, attributes: [String: Any])
+  func info(_ body: String, attributes: [String: Any])
+  func warn(_ body: String, attributes: [String: Any])
+  func error(_ body: String, attributes: [String: Any])
+  func fatal(_ body: String, attributes: [String: Any])
+}
+
+extension SentryLogger: SentryLogEmitting {}
+
+extension Container {
+  var sentryLogger: Factory<any SentryLogEmitting> {
+    Factory(self) { SentrySDK.logger }.scope(.cached)
+  }
+}
 
 struct SentryLogHandler: LogHandler {
   public var metadata: Logging.Logger.Metadata = [:]
@@ -25,9 +43,9 @@ struct SentryLogHandler: LogHandler {
   }
 
   public func log(event: LogEvent) {
-    let logger = SentrySDK.logger
+    let logger = Container.shared.sentryLogger()
     let message = String(describing: event.message)
-    let attributes =
+    var attributes =
       [
         "severity": event.level,
         "subsystem": subsystem,
@@ -36,7 +54,32 @@ struct SentryLogHandler: LogHandler {
         "buildNumber": AppInfo.buildNumber,
         "buildDate": AppInfo.buildDate,
         "gitCommitHash": AppInfo.gitCommitHash,
+        "logSessionID": FileLogHandler.sessionID,
       ] as [String: Any]
+
+    let metadata = LogKit.merge(
+      handler: self.metadata,
+      provider: metadataProvider,
+      oneOff: event.metadata
+    )
+    if category == "MetricKit", metadata["metricKit.kind"] == "aggregate_exits" {
+      for key in [
+        "metricKit.kind", "metricKit.scope", "metricKit.periodStart", "metricKit.periodEnd",
+        "metricKit.latestVersion", "metricKit.payloadBuild", "metricKit.multipleVersions",
+        "metricKit.attribution",
+      ] {
+        if let value = metadata[key] { attributes[key] = String(value.description.prefix(64)) }
+      }
+      for key in [
+        "normalAppExit", "memoryResourceLimit", "cpuResourceLimit", "memoryPressure",
+        "badAccess", "abnormal", "illegalInstruction", "appWatchdog", "suspendedWithLockedFile",
+        "backgroundTaskAssertionTimeout",
+      ] {
+        if let value = metadata[key] {
+          attributes["metricKit.\(key)"] = String(value.description.prefix(32))
+        }
+      }
+    }
 
     switch event.level {
     case .trace:

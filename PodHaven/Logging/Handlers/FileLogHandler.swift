@@ -9,6 +9,13 @@ import os
 // only to this handler; MultiplexLogHandler siblings (OSLog, Sentry, etc.) are
 // unchanged.
 struct FileLogHandler: LogHandler {
+  static let sessionID = UUID().uuidString
+
+  enum HistoryPolicy {
+    case rolling
+    case preservePreviousSession
+  }
+
   // MARK: - Writer
 
   // Mutation is confined to `queue`; unchecked satisfies Sendable for @Sendable closures.
@@ -34,6 +41,8 @@ struct FileLogHandler: LogHandler {
     let fileURL: URL
     let maxFileSizeBytes: Int
     let targetFileSizeBytes: Int
+    private let historyPolicy: HistoryPolicy
+    private let previousHistory: Data
     private let queue: DispatchQueue
     private let clockNow: @Sendable () -> ContinuousClock.Instant
 
@@ -44,10 +53,31 @@ struct FileLogHandler: LogHandler {
     // Reused across writes; closed and reopened around truncation's inode swap.
     private var appendHandle: FileHandle?
 
-    init(fileURL: URL, maxFileSizeBytes: Int, targetFileSizeBytes: Int) {
+    init(
+      fileURL: URL,
+      maxFileSizeBytes: Int,
+      targetFileSizeBytes: Int,
+      historyPolicy: HistoryPolicy
+    ) {
       self.fileURL = fileURL
       self.maxFileSizeBytes = maxFileSizeBytes
       self.targetFileSizeBytes = targetFileSizeBytes
+      self.historyPolicy = historyPolicy
+      var previousHistory = Data()
+      if case .preservePreviousSession = historyPolicy {
+        do {
+          previousHistory = try Self.completeTail(
+            at: fileURL,
+            maxBytes: min(maxFileSizeBytes / 2, targetFileSizeBytes / 2)
+          )
+          try previousHistory.write(to: fileURL, options: .atomic)
+        } catch {
+          Self.writerOSLog.error(
+            "Failed to prepare previous-session log history: \(error.localizedDescription, privacy: .public)"
+          )
+        }
+      }
+      self.previousHistory = previousHistory
       self.clockNow = Container.shared.continuousClockNow()
       let fileName = fileURL.deletingPathExtension().lastPathComponent
       self.queue = DispatchQueue(
@@ -256,6 +286,20 @@ struct FileLogHandler: LogHandler {
       let fileSize = try reader.seekToEnd()
       guard fileSize > UInt64(maxFileSizeBytes) else { return nil }
 
+      if case .preservePreviousSession = historyPolicy {
+        var retained = previousHistory
+        retained.append(
+          try Self.completeTail(
+            at: fileURL,
+            maxBytes: targetFileSizeBytes - previousHistory.count,
+            sessionID: FileLogHandler.sessionID
+          )
+        )
+        try retained.write(to: fileURL, options: .atomic)
+        closeAppendHandle()
+        return (originalSize: Int(fileSize), newSize: retained.count)
+      }
+
       let bytesToRemove = Int(fileSize) - targetFileSizeBytes
       guard bytesToRemove > 0 else { return nil }
 
@@ -301,6 +345,46 @@ struct FileLogHandler: LogHandler {
       closeAppendHandle()
 
       return (originalSize: Int(fileSize), newSize: Int(fileSize - cutOffset))
+    }
+
+    private static func completeTail(
+      at fileURL: URL,
+      maxBytes: Int,
+      sessionID: String? = nil
+    ) throws -> Data {
+      guard maxBytes > 0, FileManager.default.fileExists(atPath: fileURL.path) else {
+        return Data()
+      }
+      let reader = try FileHandle(forReadingFrom: fileURL)
+      defer { Self.close(reader) }
+      let size = try reader.seekToEnd()
+      let start = size > UInt64(maxBytes) ? size - UInt64(maxBytes) - 1 : 0
+      try reader.seek(toOffset: start)
+      guard var data = try reader.read(upToCount: maxBytes + 1) else { return Data() }
+      if start > 0 || data.count > maxBytes {
+        guard let boundary = data.firstIndex(of: 0x0A) else { return Data() }
+        data.removeSubrange(...boundary)
+      }
+      guard let end = data.lastIndex(of: 0x0A) else { return Data() }
+      data = Data(data[...end])
+      var complete = Data()
+      for line in data.split(separator: 0x0A) {
+        let record: [String: Any]
+        do {
+          guard let object = try JSONSerialization.jsonObject(with: Data(line)) as? [String: Any]
+          else { continue }
+          record = object
+        } catch {
+          Self.writerOSLog.error(
+            "Dropped an invalid prior log record: \(error.localizedDescription, privacy: .public)"
+          )
+          continue
+        }
+        if let sessionID, record["sessionID"] as? String != sessionID { continue }
+        complete.append(contentsOf: line)
+        complete.append(0x0A)
+      }
+      return complete
     }
 
     // MARK: - Rate Limiting
@@ -410,7 +494,11 @@ struct FileLogHandler: LogHandler {
         source: context.source,
         file: context.file,
         function: context.function,
-        line: context.line
+        line: context.line,
+        sessionID: FileLogHandler.sessionID,
+        version: AppInfo.version,
+        buildNumber: AppInfo.buildNumber,
+        gitCommitHash: AppInfo.gitCommitHash
       )
     }
 
@@ -439,6 +527,10 @@ struct FileLogHandler: LogHandler {
     let file: String
     let function: String
     let line: UInt
+    let sessionID: String
+    let version: String
+    let buildNumber: String
+    let gitCommitHash: String
   }
 
   // MARK: - LogHandler
@@ -469,6 +561,7 @@ struct FileLogHandler: LogHandler {
     fileURL: URL,
     maxFileSizeBytes: Int,
     targetFileSizeBytes: Int,
+    historyPolicy: HistoryPolicy = .rolling,
     writeSynchronously: @escaping @Sendable (Logging.Logger.Level) -> Bool
   ) {
     let (subsystem, category) = LogKit.destructureLabel(from: label)
@@ -483,7 +576,8 @@ struct FileLogHandler: LogHandler {
       let writer = Writer(
         fileURL: fileURL,
         maxFileSizeBytes: maxFileSizeBytes,
-        targetFileSizeBytes: targetFileSizeBytes
+        targetFileSizeBytes: targetFileSizeBytes,
+        historyPolicy: historyPolicy
       )
       writers[fileURL] = writer
       return writer
@@ -526,7 +620,11 @@ struct FileLogHandler: LogHandler {
       source: event.source,
       file: event.file,
       function: event.function,
-      line: event.line
+      line: event.line,
+      sessionID: Self.sessionID,
+      version: AppInfo.version,
+      buildNumber: AppInfo.buildNumber,
+      gitCommitHash: AppInfo.gitCommitHash
     )
   }
 

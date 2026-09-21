@@ -1,13 +1,103 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryTesting
 import Foundation
 import Logging
 import Testing
 
 @testable import PodHaven
 
-@Suite("of MetricKitMonitor tests")
+@Suite("of MetricKitMonitor tests", .container)
 struct MetricKitMonitorTests {
+  private struct Payload: MetricKitMetricReporting {
+    var foregroundExitCounts: ForegroundExitCounts?
+    var backgroundExitCounts: BackgroundExitCounts?
+    let reportingPeriod = MetricKitReportingPeriod(
+      begin: Date(timeIntervalSince1970: 1_700_000_000),
+      end: Date(timeIntervalSince1970: 1_700_086_400),
+      latestApplicationVersion: "1.2.1",
+      applicationBuildVersion: "573",
+      includesMultipleApplicationVersions: true
+    )
+  }
+
+  @Test("foreground watchdog and memory-limit counts reach the diagnostic logger")
+  func foregroundExitsReachDiagnosticLogger() {
+    LogCapture.withSink { sink in
+      MetricKitMonitor()
+        .receive(
+          Payload(
+            foregroundExitCounts: ForegroundExitCounts(memoryResourceLimit: 2, appWatchdog: 1),
+            backgroundExitCounts: BackgroundExitCounts(normalAppExit: 4)
+          )
+        )
+      let captured = sink.captured().filter { $0.label == "PodHaven/MetricKit" }
+      #expect(captured.count == 2)
+      #expect(
+        captured.contains {
+          $0.level == .critical && $0.message.contains("foreground-exit")
+            && $0.message.contains("memoryResourceLimit") && $0.message.contains("appWatchdog")
+        }
+      )
+      #expect(captured.contains { $0.message.contains("background-exit") && $0.level == .info })
+      for entry in captured {
+        #expect(entry.metadata["metricKit.kind"] == "aggregate_exits")
+        #expect(entry.metadata["metricKit.periodStart"] == "2023-11-14T22:13:20Z")
+        #expect(entry.metadata["metricKit.periodEnd"] == "2023-11-15T22:13:20Z")
+        #expect(entry.metadata["metricKit.latestVersion"] == "1.2.1")
+        #expect(entry.metadata["metricKit.payloadBuild"] == "573")
+        #expect(entry.metadata["metricKit.multipleVersions"] == "true")
+        #expect(entry.metadata["metricKit.attribution"] == "reporting_period")
+      }
+      let foreground = captured.first { $0.metadata["metricKit.scope"] == "foreground" }
+      #expect(foreground?.metadata["appWatchdog"] == "1")
+      #expect(foreground?.metadata["memoryResourceLimit"] == "2")
+    }
+  }
+
+  @Test(
+    "each abnormal foreground reason is reported",
+    arguments: [
+      ForegroundExitCounts(memoryResourceLimit: 1), ForegroundExitCounts(badAccess: 1),
+      ForegroundExitCounts(abnormal: 1), ForegroundExitCounts(illegalInstruction: 1),
+      ForegroundExitCounts(appWatchdog: 1),
+    ]
+  )
+  func foregroundReasonsAreReported(counts: ForegroundExitCounts) {
+    LogCapture.withSink { sink in
+      MetricKitMonitor().receive(Payload(foregroundExitCounts: counts))
+      #expect(sink.captured().contains { $0.level == .critical })
+    }
+  }
+
+  @Test("routine foreground exits stay local and missing exit metrics emit nothing")
+  func routineAndMissingForegroundMetrics() {
+    LogCapture.withSink { sink in
+      MetricKitMonitor()
+        .receive(Payload(foregroundExitCounts: ForegroundExitCounts(normalAppExit: 3)))
+      #expect(sink.captured().count == 1)
+      #expect(sink.captured().first?.level == .info)
+    }
+    LogCapture.withSink { sink in
+      MetricKitMonitor().receive(Payload())
+      #expect(sink.captured().isEmpty)
+    }
+  }
+
+  @Test("payload attribution remains bounded and does not invent a missing build")
+  func payloadAttributionIsBounded() {
+    let period = MetricKitReportingPeriod(
+      begin: Date(timeIntervalSince1970: 0),
+      end: Date(timeIntervalSince1970: 1),
+      latestApplicationVersion: String(repeating: "v", count: 1000),
+      applicationBuildVersion: nil,
+      includesMultipleApplicationVersions: false
+    )
+    #expect(period.metadata["metricKit.payloadBuild"] == "unknown")
+    #expect(period.metadata["metricKit.latestVersion"]?.description.count == 64)
+    #expect(period.metadata["metricKit.multipleVersions"] == "false")
+    #expect(period.metadata["metricKit.attribution"] == "reporting_period")
+  }
   @Test(
     "each abnormal background-exit reason escalates to .critical",
     arguments: [

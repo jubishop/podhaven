@@ -188,10 +188,12 @@ struct AppLauncher: Sendable {
   private func configureLogging() {
     switch AppInfo.environment {
     case .deployed, .appStore, .testFlight:
-      Self.configureSentry()
       Self.bootstrapOSLogAndFileLog { label in
         [SentryLogHandler(label: label), CrashReportHandler(label: label)]
       }
+      Self.log.debug("configureLogging: starting diagnostic session")
+      FileLogHandler.flush()
+      Self.configureSentry()
       Self.log.debug(
         """
         configureLogging: OSLog, FileLog, CrashReport; Sentry recent log attachments configured: \
@@ -238,6 +240,7 @@ struct AppLauncher: Sendable {
             fileURL: AppInfo.recentLogFileURL,
             maxFileSizeBytes: AppInfo.recentLogMaxFileSizeBytes,
             targetFileSizeBytes: AppInfo.recentLogTargetFileSizeBytes,
+            historyPolicy: .preservePreviousSession,
             writeSynchronously: {
               $0 >= .critical || sharedState.$scenePhase.value == .background
             }
@@ -293,6 +296,7 @@ struct AppLauncher: Sendable {
 
   static func configureInitialSentryScope(_ scope: any SentryScopeConfiguring) {
     scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
+    scope.setTag(value: FileLogHandler.sessionID, key: "log-session-id")
     scope.setUser(Sentry.User(userId: AppInfo.deviceIdentifier))
     scope.addAttachment(
       Sentry.Attachment(

@@ -10,6 +10,7 @@ import Testing
 extension Container: @retroactive AutoRegistering {
   public func autoRegister() {
     LogCapture.installOnce()
+    sentryLogger.context(.test) { FakeSentryLogger() }.scope(.cached)
     siriAuthorized.context(.test) { { true } }
     siriCatalogFile.context(.test) {
       SiriCatalogFile(
