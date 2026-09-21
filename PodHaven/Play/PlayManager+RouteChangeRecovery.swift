@@ -134,12 +134,11 @@ extension PlayManager {
   }
 
   func handleWidgetRouteRecoveryStatus(_ event: PodAVPlayerEvent<PlaybackStatus>) async {
-    guard var recovery = widgetRouteRecovery else { return }
-    guard recovery.playerSource == event.source else {
-      cancelWidgetRouteRecovery(reason: "playerGenerationChanged")
-      return
-    }
+    guard let requestID = widgetRouteRecovery?.requestID else { return }
     let snapshot = await podAVPlayer.playbackSnapshot()
+    guard var recovery = ownedWidgetRouteRecovery(requestID: requestID),
+      recovery.playerSource == event.source
+    else { return }
     guard snapshot.source == recovery.playerSource,
       sharedState.onDeck?.id == recovery.episodeID
     else {
@@ -263,16 +262,16 @@ extension PlayManager {
         return
       }
       guard !Task.isCancelled else { return }
-      widgetRouteRecoveryTask = nil
       await performWidgetRouteRecovery(requestID: recovery.requestID)
     }
   }
 
   private func performWidgetRouteRecovery(requestID: UUID) async {
-    guard var recovery = widgetRouteRecovery, recovery.requestID == requestID,
+    let player = await podAVPlayer
+    let snapshot = await player.playbackSnapshot()
+    guard var recovery = ownedWidgetRouteRecovery(requestID: requestID),
       case .retryScheduled(let waitingAt, let routeChangeID) = recovery.phase
     else { return }
-    let snapshot = await podAVPlayer.playbackSnapshot()
     guard sharedState.onDeck?.id == recovery.episodeID,
       snapshot.source == recovery.playerSource,
       snapshot.isFromCache,
@@ -296,9 +295,10 @@ extension PlayManager {
       """
     )
 
-    await podAVPlayer.play(requestID: requestID)
-    let result = await podAVPlayer.playbackSnapshot()
-    guard let currentRecovery = widgetRouteRecovery, currentRecovery.requestID == requestID else {
+    let result = await player.play(requestID: requestID, ifCurrent: recovery.playerSource)
+    guard let currentRecovery = ownedWidgetRouteRecovery(requestID: requestID) else { return }
+    guard let result else {
+      cancelWidgetRouteRecovery(reason: "retryOwnershipChanged")
       return
     }
     switch result.status {
@@ -331,16 +331,16 @@ extension PlayManager {
         return
       }
       guard !Task.isCancelled else { return }
-      widgetRouteRecoveryTask = nil
       await timeOutWidgetRouteRecovery(requestID: recovery.requestID)
     }
   }
 
   private func timeOutWidgetRouteRecovery(requestID: UUID) async {
-    guard let recovery = widgetRouteRecovery, recovery.requestID == requestID,
+    let player = await podAVPlayer
+    let snapshot = await player.playbackSnapshot()
+    guard let recovery = ownedWidgetRouteRecovery(requestID: requestID),
       case .timingOut = recovery.phase
     else { return }
-    let snapshot = await podAVPlayer.playbackSnapshot()
     guard sharedState.onDeck?.id == recovery.episodeID,
       snapshot.source == recovery.playerSource
     else {
@@ -352,10 +352,20 @@ extension PlayManager {
       return
     }
 
-    await podAVPlayer.pause()
-    setStatus(.paused)
-    guard widgetRouteRecovery?.requestID == requestID else { return }
-    failWidgetRouteRecovery(recovery, reason: "timeout")
+    let paused = await player.pause(requestID: requestID, ifCurrent: recovery.playerSource)
+    guard let currentRecovery = ownedWidgetRouteRecovery(requestID: requestID) else { return }
+    guard paused else {
+      cancelWidgetRouteRecovery(reason: "timeoutOwnershipChanged")
+      return
+    }
+    failWidgetRouteRecovery(currentRecovery, reason: "timeout")
+  }
+
+  private func ownedWidgetRouteRecovery(requestID: UUID) -> WidgetRouteRecovery? {
+    guard playbackRequestRevision == requestID,
+      let recovery = widgetRouteRecovery, recovery.requestID == requestID
+    else { return nil }
+    return recovery
   }
 
   private func skipWidgetRouteRecovery(_ recovery: WidgetRouteRecovery, reason: String) {
