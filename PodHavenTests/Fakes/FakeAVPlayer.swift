@@ -103,6 +103,7 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
   // MARK: - AVPlayable Playback
 
   private(set) var playCallCount = 0
+  private(set) var pauseCallCount = 0
   private var queuedPlayStatuses: [AVPlayer.TimeControlStatus] = []
 
   func play() {
@@ -125,6 +126,7 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
   }
 
   func pause() {
+    pauseCallCount += 1
     timeControlStatus = .paused
     setRate(0.0)
   }

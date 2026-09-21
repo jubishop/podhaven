@@ -458,6 +458,17 @@ struct PodAVPlayerPlaybackSnapshot {
 
   // MARK: - Playback Controls
 
+  func play(requestID: UUID, ifCurrent source: PodAVPlayerEventSource)
+    -> PodAVPlayerPlaybackSnapshot?
+  {
+    guard !Task.isCancelled,
+      Container.shared.playManager().playbackRequestRevision == requestID,
+      isCurrent(source)
+    else { return nil }
+    play(requestID: requestID)
+    return playbackSnapshot()
+  }
+
   func play(requestID: UUID) {
     playbackRequestID = requestID
     Self.log.debug("play: executing (fromCache: \(playingFromCache))")
@@ -466,6 +477,17 @@ struct PodAVPlayerPlaybackSnapshot {
       return
     }
     avPlayer.play()
+  }
+
+  func pause(requestID: UUID, ifCurrent source: PodAVPlayerEventSource) async -> Bool {
+    guard !Task.isCancelled,
+      Container.shared.playManager().playbackRequestRevision == requestID,
+      isCurrent(source)
+    else { return false }
+    await pause()
+    return !Task.isCancelled
+      && Container.shared.playManager().playbackRequestRevision == requestID
+      && isCurrent(source)
   }
 
   func pause() async {
