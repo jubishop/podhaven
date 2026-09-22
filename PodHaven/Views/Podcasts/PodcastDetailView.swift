@@ -319,13 +319,8 @@ struct PodcastDetailView: View {
     }
   }
 
-  @ViewBuilder
   private var descriptionText: some View {
-    if let attributed = viewModel.descriptionAttributedString {
-      Text(attributed)
-        .multilineTextAlignment(.leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    DescriptionText(blocks: viewModel.descriptionBlocks)
   }
 
   var metadataRow: some View {

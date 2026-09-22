@@ -367,26 +367,22 @@ struct EpisodeDetailView: View {
     }
   }
 
-  @ViewBuilder
   private var descriptionText: some View {
-    if let attributed = viewModel.descriptionAttributedString {
-      Text(attributed)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .environment(
-          \.openURL,
-          OpenURLAction { url in
-            guard let timestamp = Timestamp.timestamp(fromURL: url) else { return .systemAction }
-            alert(
-              title: "Play from \(Timestamp.format(timestamp))?",
-              "Start playback from this point."
-            ) {
-              Button("Play") { viewModel.playAt(timestamp: timestamp) }
-              Button("Cancel", role: .cancel) {}
-            }
-            return .handled
+    DescriptionText(blocks: viewModel.descriptionBlocks)
+      .environment(
+        \.openURL,
+        OpenURLAction { url in
+          guard let timestamp = Timestamp.timestamp(fromURL: url) else { return .systemAction }
+          alert(
+            title: "Play from \(Timestamp.format(timestamp))?",
+            "Start playback from this point."
+          ) {
+            Button("Play") { viewModel.playAt(timestamp: timestamp) }
+            Button("Cancel", role: .cancel) {}
           }
-        )
-    }
+          return .handled
+        }
+      )
   }
 
   private var transcriptionView: some View {

@@ -8,6 +8,45 @@ import SwiftUI
 enum HTMLContent {
   // MARK: - Description Builder
 
+  @concurrent
+  static func descriptionBlocks(html: String, font: Font, linkTimestamps: Bool) async
+    -> [DescriptionBlock]
+  {
+    guard
+      let attributed = await descriptionAttributedString(
+        html: html,
+        font: font,
+        linkTimestamps: linkTimestamps
+      )
+    else { return [] }
+
+    let characters = attributed.characters
+    var start = characters.startIndex
+    var blocks: [DescriptionBlock] = []
+    while start < characters.endIndex {
+      let limit =
+        characters.index(start, offsetBy: 1024, limitedBy: characters.endIndex)
+        ?? characters.endIndex
+      var end = limit
+      if limit < characters.endIndex {
+        let candidate = characters[start..<limit]
+        if let boundary = candidate.lastIndex(where: \.isNewline)
+          ?? candidate.lastIndex(where: \.isWhitespace)
+        {
+          end = characters.index(after: boundary)
+        }
+      }
+      blocks.append(
+        DescriptionBlock(
+          content: AttributedString(attributed[start..<end]),
+          continuesOnNextBlock: end < characters.endIndex
+        )
+      )
+      start = end
+    }
+    return blocks
+  }
+
   // Builds a detail-view description's AttributedString off the main actor: the
   // same output as `attributedString`, optionally turning timestamp tokens into
   // tappable links the episode detail view intercepts via openURL (the podcast

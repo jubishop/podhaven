@@ -144,17 +144,17 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
   // Built off the main actor and cached so the description isn't re-parsed on
   // every body evaluation (playback ticks, score/tag updates). The view drives
   // (re)builds via `.task(id:)` keyed on the description.
-  private(set) var descriptionAttributedString: AttributedString?
+  private(set) var descriptionBlocks: [DescriptionBlock] = []
   @ObservationIgnored private var descriptionSource: String?
 
   func prepareDescription(font: Font) async {
     guard let html = episode.description, !html.isEmpty else {
-      descriptionAttributedString = nil
+      descriptionBlocks = []
       descriptionSource = nil
       return
     }
     guard html != descriptionSource else { return }
-    let built = await HTMLContent.descriptionAttributedString(
+    let built = await HTMLContent.descriptionBlocks(
       html: html,
       font: font,
       linkTimestamps: true
@@ -162,7 +162,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
     // A state transition may have swapped the description while we built.
     guard html == episode.description else { return }
     descriptionSource = html
-    descriptionAttributedString = built
+    descriptionBlocks = built
   }
 
   // MARK: - Derived State
