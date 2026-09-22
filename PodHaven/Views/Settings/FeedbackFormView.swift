@@ -26,17 +26,7 @@ struct FeedbackFormView: View {
       }
 
       Section {
-        ForEach(Array(photos.enumerated()), id: \.offset) { index, data in
-          if let uiImage = UIImage(data: data) {
-            Image(uiImage: uiImage)
-              .resizable()
-              .scaledToFit()
-              .frame(maxHeight: 200)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
-              .accessibilityLabel("Attached photo \(index + 1)")
-              .accessibilityValue("\(index + 1) of \(photos.count)")
-          }
-        }
+        FeedbackPhotosView(photos: photos)
 
         if viewModel.isPreparingPhotos {
           ProgressView("Preparing Photos")
