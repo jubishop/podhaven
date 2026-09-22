@@ -226,18 +226,20 @@ struct PodcastSettingsView: View {
                 news-style shows, Twice Weekly or Weekly for most podcasts, Monthly for \
                 less time-sensitive shows, and Evergreen for back-catalog or \
                 narrative-archive content where episode age is immaterial.
-                """
+                """,
+              alignment: .center
             ) {
-              HStack(alignment: .firstTextBaseline) {
+              HStack {
                 Text("Freshness")
                 Spacer()
-                Picker("", selection: $temp.freshnessCadence) {
+                Picker("Freshness", selection: $temp.freshnessCadence) {
                   Text("Auto").tag(FreshnessCadence?.none)
                   ForEach(FreshnessCadence.allCases, id: \.self) { cadence in
                     Text(cadence.displayName).tag(FreshnessCadence?.some(cadence))
                   }
                 }
                 .pickerStyle(.menu)
+                .labelsHidden()
                 .onChange(of: temp.freshnessCadence) {
                   viewModel.updateSettings(temp)
                 }
@@ -437,7 +439,7 @@ struct PodcastSettingsView: View {
   return PreviewWrapper().preview()
 }
 
-#Preview("Evergreen Freshness Cadence") {
+#Preview("Evergreen Freshness Cadence - Large Text") {
   struct PreviewWrapper: View {
     @State private var settings: PodcastSettings?
     @State private var viewModel: PodcastDetailViewModel?
@@ -463,7 +465,10 @@ struct PodcastSettingsView: View {
     }
   }
 
-  return PreviewWrapper().preview()
+  return PreviewWrapper()
+    .frame(width: 320)
+    .environment(\.dynamicTypeSize, .xxxLarge)
+    .preview()
 }
 
 #Preview("Auto Freshness Cadence") {

@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SettingsRow<Content: View>: View {
   let infoText: String
+  var alignment: VerticalAlignment = .top
   @ViewBuilder let content: () -> Content
 
   @State private var showPopover = false
@@ -11,7 +12,7 @@ struct SettingsRow<Content: View>: View {
 
   var body: some View {
     GeometryReader { geometry in
-      HStack(alignment: .top, spacing: 16) {
+      HStack(alignment: alignment, spacing: 16) {
         content()
         AppIcon.aboutInfo
           .imageButton {
