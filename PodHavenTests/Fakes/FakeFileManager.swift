@@ -25,6 +25,15 @@ final class FakeFileManager: FileManaging, Sendable {
 
   var temporaryDirectory: URL { URL(fileURLWithPath: "/tmp/fake") }
 
+  private let directories = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+
+  func urls(
+    for directory: FileManager.SearchPathDirectory,
+    in domainMask: FileManager.SearchPathDomainMask
+  ) -> [URL] {
+    [directories.appendingPathComponent(String(directory.rawValue))]
+  }
+
   // MARK: - Data Operations
 
   func writeData(_ data: Data, to url: URL) async throws {
@@ -117,7 +126,7 @@ final class FakeFileManager: FileManaging, Sendable {
   }
 
   func containerURL(forSecurityApplicationGroupIdentifier groupIdentifier: String) -> URL? {
-    URL(fileURLWithPath: "/tmp/fake/\(groupIdentifier)")
+    directories.appendingPathComponent(groupIdentifier)
   }
 
   func setFileSizeError(

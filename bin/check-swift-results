@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from urllib.parse import parse_qs, unquote, urlparse
 
 sys.dont_write_bytecode = True
 
@@ -23,6 +24,42 @@ RUNTIME_DIAGNOSTIC = re.compile(
 BUILD_WARNING = re.compile(r"(?:^|\s)warning:", re.IGNORECASE)
 
 
+SENTRY_HINT_DEPRECATION = (
+    "setter for 'beforeSendWithHint' is deprecated: In the next major version, "
+    "the hint parameter will be added to `beforeSend` directly and this callback "
+    "will be removed. Use this only to adopt hints ahead of the next major version."
+)
+
+
+def sentry_hint_location():
+    source = Path(__file__).resolve().parents[1] / "PodHaven/AppLauncher.swift"
+    if not source.is_file():
+        return None
+    lines = [number for number, line in enumerate(source.read_text().splitlines(), 1)
+             if line.strip() == "options.beforeSendWithHint = { event, hint in"]
+    return (source, lines[0]) if len(lines) == 1 else None
+
+
+def approved_sentry_warning(warning):
+    location = sentry_hint_location()
+    if not location or warning.get("issueType") != "DeprecatedDeclaration":
+        return False
+    if warning.get("message", "").lower() != SENTRY_HINT_DEPRECATION.lower():
+        return False
+    url = urlparse(warning.get("sourceURL", ""))
+    return (url.scheme == "file" and Path(unquote(url.path)) == location[0]
+            and parse_qs(url.fragment).get("StartingLineNumber") == [str(location[1] - 1)])
+
+
+def approved_sentry_log_warning(line):
+    location = sentry_hint_location()
+    if not location:
+        return False
+    return re.fullmatch(
+        re.escape(str(location[0])) + ":" + str(location[1]) + r":\d+: warning: "
+        + re.escape(SENTRY_HINT_DEPRECATION) + r"(?: \[#DeprecatedDeclaration\])?", line) is not None
+
+
 def failures(summary, build, runtime_logs, build_log):
     problems = []
     if summary.get("result") != "Passed" or summary.get("failedTests", 0):
@@ -31,13 +68,17 @@ def failures(summary, build, runtime_logs, build_log):
         problems.append("No tests passed")
     if summary.get("skippedTests", 0):
         problems.append(f"Skipped tests: {summary['skippedTests']}")
-    for key in ("errorCount", "warningCount", "analyzerWarningCount"):
+    for key in ("errorCount", "analyzerWarningCount"):
         if key not in build or build[key] != 0:
             problems.append(f"Build {key}: {build.get(key, 'missing')}")
+    warnings = build.get("warnings", [])
+    accepted = sum(approved_sentry_warning(warning) for warning in warnings)
+    if build.get("warningCount") != accepted or len(warnings) != accepted:
+        problems.append(f"Unapproved build warnings: {build.get('warningCount', 'missing')}; approved: {accepted}")
     if not build_log.strip():
         problems.append("Missing or empty raw build log")
     for number, line in enumerate(build_log.splitlines(), 1):
-        if BUILD_WARNING.search(line):
+        if BUILD_WARNING.search(line) and not approved_sentry_log_warning(line):
             problems.append(f"Build log:{number}: {line}")
     if not runtime_logs or not any(text.strip() for text in runtime_logs.values()):
         problems.append("Missing exported test stdout/stderr")
@@ -121,7 +162,9 @@ def main():
         print(problem, file=sys.stderr)
     if problems:
         return 1
-    print(f"Swift validation passed: {data['summary']['passedTests']} tests; zero build/runtime diagnostics")
+    accepted = sum(approved_sentry_warning(warning) for warning in data["build"].get("warnings", []))
+    print(f"Swift validation passed: {data['summary']['passedTests']} tests; "
+          f"{accepted} approved Sentry hint deprecation warnings; zero other build/runtime diagnostics")
     return 0
 
 

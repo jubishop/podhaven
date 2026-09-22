@@ -59,25 +59,26 @@ struct PodcastDetailPerformanceDiagnostics: Sendable {
     _ lhs: PodcastDetailState,
     _ rhs: PodcastDetailState
   ) async -> Bool {
-    let startedAt = continuousClockNow()
-    let signpostState = Self.signposter.beginInterval("StateComparison")
-    let equal = lhs == rhs
-    Self.signposter.endInterval("StateComparison", signpostState)
-    record(
-      phase: .stateComparison,
-      startedAt: startedAt,
-      episodeCount: max(lhs.episodeCount, rhs.episodeCount),
-      mainThread: Self.currentThreadIsMain
-    )
-    return equal
+    measure(.stateComparison, episodeCount: max(lhs.episodeCount, rhs.episodeCount)) { lhs == rhs }
   }
 
   @discardableResult
   func measure<Result>(
     _ phase: Phase,
     episodeCount: Int,
+    file: String = #fileID,
+    function: String = #function,
+    line: UInt = #line,
     operation: () throws -> Result
   ) rethrows -> Result {
+    let timeline = Log.Operation(
+      Self.log,
+      kind: "detail.\(phase.rawValue)",
+      count: episodeCount,
+      file: file,
+      function: function,
+      line: line
+    )
     let startedAt = continuousClockNow()
     let signpostName: StaticString =
       switch phase {
@@ -95,6 +96,7 @@ struct PodcastDetailPerformanceDiagnostics: Sendable {
         episodeCount: episodeCount,
         mainThread: Thread.isMainThread
       )
+      timeline.record(.completed)
     }
     return try operation()
   }
@@ -148,5 +150,4 @@ struct PodcastDetailPerformanceDiagnostics: Sendable {
       "podcastDetailPerf phase=\(phase.rawValue) durationMs=\(duration.asTimeInterval * 1_000) episodeCount=\(episodeCount) mainThread=\(mainThread) sequence=\(sample.sequence) thermalPressure=\(thermalPressure.rawValue) scenePhase=\(scenePhase)"
     )
   }
-  private static var currentThreadIsMain: Bool { Thread.isMainThread }
 }

@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""Build an isolated iOS Simulator probe from current app sources and verify Sentry downloads."""
+
+import argparse
+import hashlib
+from importlib.machinery import SourceFileLoader
+from importlib.util import module_from_spec, spec_from_loader
+import json
+import os
+from pathlib import Path
+import plistlib
+import shutil
+import subprocess
+import time
+import uuid
+
+ROOT = Path(__file__).resolve().parents[1]
+BUNDLE = "com.artisanalsoftware.PodHaven.hangsmoke"
+
+
+def command(*args, **kwargs):
+    return subprocess.check_output(args, cwd=ROOT, text=True, **kwargs).strip()
+
+
+def prepare(output):
+    project = json.loads(command("plutil", "-convert", "json", "-o", "-",
+                                 str(ROOT / "PodHaven.xcodeproj/project.pbxproj")))
+    objects = project["objects"]
+    root = objects[project["rootObject"]]
+    root["projectDirPath"] = str(ROOT)
+    objects[root["mainGroup"]]["path"] = str(ROOT)
+    objects[root["mainGroup"]]["sourceTree"] = "<absolute>"
+    target_id, target = next((key, value) for key, value in objects.items()
+                            if value.get("isa") == "PBXNativeTarget" and value.get("name") == "PodHaven")
+    root["targets"] = [target_id]
+    target["dependencies"] = []
+    target["buildPhases"] = [key for key in target["buildPhases"]
+                             if objects[key]["isa"] != "PBXCopyFilesBuildPhase"]
+    for value in objects.values():
+        if value.get("isa") == "XCLocalSwiftPackageReference":
+            value["relativePath"] = str(ROOT / value["relativePath"])
+        if value.get("isa") == "PBXFileSystemSynchronizedBuildFileExceptionSet" and value.get("target") == target_id:
+            value["membershipExceptions"].append("PodHavenApp.swift")
+    group = "644000000000000000000001"
+    objects[group] = {"isa": "PBXFileSystemSynchronizedRootGroup", "sourceTree": "<absolute>",
+                      "path": str(ROOT / "bin/integration/sentry-hang")}
+    objects[root["mainGroup"]]["children"].append(group)
+    target["fileSystemSynchronizedGroups"].append(group)
+    for key in objects[target["buildConfigurationList"]]["buildConfigurations"]:
+        settings = objects[key]["buildSettings"]
+        settings["PRODUCT_BUNDLE_IDENTIFIER"] = BUNDLE
+        settings["CODE_SIGN_ENTITLEMENTS"] = ""
+        settings["INFOPLIST_KEY_CFBundleDisplayName"] = "PodHaven Hang Probe"
+    path = output / "HangProbe.xcodeproj"
+    path.mkdir(exist_ok=True)
+    (path / "project.pbxproj").write_bytes(plistlib.dumps(project))
+    resolved = path / "project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / "PodHaven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved", resolved)
+    return path
+
+
+def api(path, binary=False):
+    data = json.loads(command("sentry", "api", path, "--json"))
+    return data.encode("utf-8") if binary else data
+
+
+def source_state():
+    digest = hashlib.sha256(command("git", "diff", "--binary", "HEAD").encode())
+    untracked = subprocess.check_output(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"], cwd=ROOT).split(b"\0")
+    for name in sorted(filter(None, untracked)):
+        path = ROOT / os.fsdecode(name)
+        digest.update(name + b"\0" + path.read_bytes())
+    return {"revision": command("git", "rev-parse", "HEAD"),
+            "gitCommitHash": command("git", "rev-parse", "--short", "HEAD"),
+            "cleanCheckout": not command("git", "status", "--porcelain"),
+            "sourceDiffSHA256": digest.hexdigest()}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--device", required=True, help="Available iOS Simulator UDID, never a physical device")
+    args = parser.parse_args()
+    devices = json.loads(command("xcrun", "simctl", "list", "devices", "available", "--json"))["devices"]
+    device = next((device for runtime, entries in devices.items() if ".iOS-" in runtime
+                   for device in entries if device["udid"] == args.device), None)
+    if device is None:
+        raise RuntimeError("The requested device is not an available iOS Simulator")
+    output = ROOT / ".cache/sentry-hang-smoke"
+    output.mkdir(parents=True, exist_ok=True)
+    run = uuid.uuid4().hex
+    evidence = output / run
+    evidence.mkdir()
+    source = source_state()
+    (evidence / "source.json").write_text(json.dumps(source, indent=2) + "\n")
+    project = prepare(output)
+    with (evidence / "build.log").open("w") as log:
+        subprocess.run(["xcodebuild", "build", "-hideShellScriptEnvironment", "-project", str(project),
+                            "-scheme", "PodHaven", "-configuration", "Debug", "-destination", "id=" + args.device,
+                            "-derivedDataPath", str(output / "DerivedData"), "-skipMacroValidation",
+                            "-resultBundlePath", str(evidence / "build.xcresult"),
+                            "-clonedSourcePackagesDirPath", str(Path.home() / "Library/Developer/SharedSourcePackages/PodHaven"),
+                            "LM_FORCE_LINK_GENERATION=YES", "CODE_SIGNING_ALLOWED=NO",
+                            "GIT_COMMIT_HASH=" + source["gitCommitHash"]], cwd=ROOT,
+                           env={key: value for key, value in os.environ.items() if key != "SDKROOT"},
+                           stdout=log, stderr=subprocess.STDOUT, check=True)
+    loader = SourceFileLoader("swift_results", str(ROOT / "bin/check-swift-results"))
+    gate = module_from_spec(spec_from_loader(loader.name, loader))
+    loader.exec_module(gate)
+    build = json.loads(command("xcrun", "xcresulttool", "get", "build-results", "--path", str(evidence / "build.xcresult")))
+    assert build["errorCount"] == 0 and build["analyzerWarningCount"] == 0
+    assert build["warningCount"] == len(build.get("warnings", []))
+    for warning in build.get("warnings", []):
+        assert gate.approved_sentry_warning(warning), warning
+    for line in (evidence / "build.log").read_text().splitlines():
+        assert not gate.BUILD_WARNING.search(line) or gate.approved_sentry_log_warning(line), line
+    if device["state"] != "Booted":
+        command("xcrun", "simctl", "boot", args.device)
+    command("xcrun", "simctl", "bootstatus", args.device, "-b")
+    app = output / "DerivedData/Build/Products/Debug-iphonesimulator/PodHaven.app"
+    command("xcrun", "simctl", "install", args.device, str(app))
+    env = dict(os.environ, SIMCTL_CHILD_PODHAVEN_HANG_RUN=run)
+    command("xcrun", "simctl", "launch", "--terminate-running-process", args.device, BUNDLE, env=env)
+    try:
+        print(f"Controlled run {run}; waiting for SDK recovery and remote ingestion", flush=True)
+        deadline = time.monotonic() + 150
+        while time.monotonic() < deadline:
+            events = json.loads(command("sentry", "explore", "artisanal-software/podhaven",
+                                        "--query", "diagnostic-run:" + run, "--field", "id",
+                                        "--period", "1h", "--fresh", "--json"))
+            if events.get("data"):
+                break
+            time.sleep(5)
+        else:
+            raise RuntimeError("No controlled recovered-hang event arrived within 150 seconds")
+        event_id = events["data"][0]["id"]
+        base = f"projects/artisanal-software/podhaven/events/{event_id}/"
+        event = api(base)
+        (evidence / "event.json").write_text(json.dumps(event, indent=2) + "\n")
+        exceptions = [value for entry in event["entries"] if entry["type"] == "exception"
+                      for value in entry["data"]["values"]]
+        assert any(value.get("mechanism", {}).get("type", "").lower() == "apphang"
+                   and "Fatal" not in value.get("type", "") for value in exceptions), "Not a recovered SDK AppHang"
+        attachments = api(base + "attachments/")
+        (evidence / "attachments.json").write_text(json.dumps(attachments, indent=2) + "\n")
+        limits = {"recent-log.ndjson": 128 * 1024, "recent-widget-log.ndjson": 32 * 1024}
+        result = {}
+        downloaded = {}
+        for name, limit in limits.items():
+            matches = [item for item in attachments if item["name"] == name]
+            assert len(matches) == 1, f"Expected one {name}, found {len(matches)}"
+            data = api(base + "attachments/" + str(matches[0]["id"]) + "/?download=1", binary=True)
+            (evidence / name).write_bytes(data)
+            assert 0 < len(data) <= limit and data.endswith(b"\n"), f"Invalid bounds/boundary for {name}"
+            assert len(data) == matches[0]["size"], f"Remote download size mismatch for {name}"
+            records = [json.loads(line) for line in data.splitlines()]
+            downloaded[name] = records
+            assert all(all(key in row for key in ("sessionID", "version", "buildNumber", "gitCommitHash", "timestamp")) for row in records)
+            result[name] = {"bytes": len(data), "records": len(records), "sha256": hashlib.sha256(data).hexdigest()}
+        records = downloaded["recent-log.ndjson"]
+        session = event["contexts"]["recent_log_files"]["observationSessionID"]
+        records = [row for row in records if row["sessionID"] == session]
+        assert any(run in row["message"] for row in records), "Missing current-session run marker"
+        assert any("Tab changed" in row["message"] for row in records), "Missing pre-hang navigation"
+        operations = [row.get("metadata", {}) for row in records if "operationID" in row.get("metadata", {})]
+        by_id = {}
+        for operation in operations:
+            by_id.setdefault(operation["operationID"], []).append(operation)
+        pending = [rows for rows in by_id.values() if rows[0]["operationKind"] == "defaults.store"
+                   and rows[0]["mainThread"] == "false"
+                   and [row["operationState"] for row in rows] == ["started", "encoded"]]
+        foreground = [rows for rows in by_id.values() if rows[0]["operationKind"] == "defaults.store"
+                      and rows[0]["mainThread"] == "true"
+                      and [row["operationState"] for row in rows] == ["started", "encoded", "completed"]]
+        detail = [rows for rows in by_id.values() if rows[0]["operationKind"] == "detail.filterRefresh"
+                  and [row["operationState"] for row in rows] == ["started", "completed"]]
+        assert pending and foreground and detail, "Missing pending/background or completed/foreground timeline"
+        assert float(foreground[0][-1]["elapsedMs"]) >= 4000, "Controlled persistence hang not visible"
+        assert float(detail[0][-1]["uptime"]) <= float(foreground[0][0]["uptime"])
+        assert all(row["gitCommitHash"] == source["gitCommitHash"] for row in records)
+        tags = {tag["key"]: tag["value"] for tag in event["tags"]}
+        assert tags["diagnostic-run"] == run and tags["log-session-id"] == session
+        assert event["contexts"]["recent_log_files"]["app"]["status"] == "present"
+        assert event["contexts"]["recent_log_files"]["widget"]["status"] == "present"
+        assert float(pending[0][0]["uptime"]) <= float(foreground[0][0]["uptime"])
+        assert sum(item["bytes"] for item in result.values()) <= 160 * 1024
+        result["timeline"] = {"pendingBackgroundWrites": len(pending), "completedForegroundWrites": len(foreground),
+                              "completedDetailPhases": len(detail), "sessionMatchesEvent": True}
+        assert source_state() == source, "Checkout changed during the probe"
+        result.update(run=run, eventID=event_id, **source)
+        (evidence / "verification.json").write_text(json.dumps(result, indent=2) + "\n")
+    finally:
+        subprocess.run(["xcrun", "simctl", "terminate", args.device, BUNDLE],
+                       cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+    print(json.dumps(result, indent=2))
+    print("Private remote evidence:", evidence)
+
+
+if __name__ == "__main__":
+    main()

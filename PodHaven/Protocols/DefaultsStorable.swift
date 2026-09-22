@@ -26,7 +26,9 @@ extension Optional: DefaultsStorable where Wrapped: DefaultsStorable {
     if let value = self {
       value.store(to: store, forKey: key)
     } else {
+      let operation = Log.Operation(defaultsStorableLog, kind: "defaults.remove")
       store.removeObject(forKey: key)
+      operation.record(.completed)
     }
   }
 
@@ -46,15 +48,21 @@ extension Array: DefaultsStorable where Element: DefaultsStorable & Codable {}
 
 extension DefaultsStorable where Self: Codable {
   func store(to store: any KeyValueStore, forKey key: String) {
+    let operation = Log.Operation(defaultsStorableLog, kind: "defaults.store")
+    let data: Data
     do {
-      let data = try JSONEncoder().encode(self)
-      store.set(data, forKey: key)
+      data = try JSONEncoder().encode(self)
     } catch {
+      operation.record(.failed)
       defaultsStorableLog.caughtError(
         "store: failed to encode \(Self.self) for key '\(key)'",
         error
       )
+      return
     }
+    operation.record(.encoded, byteCount: data.count)
+    store.set(data, forKey: key)
+    operation.record(.completed, byteCount: data.count)
   }
 
   static func load(from store: any KeyValueStore, forKey key: String) -> Self? {

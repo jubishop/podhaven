@@ -53,6 +53,29 @@ class SwiftResultTests(unittest.TestCase):
             with self.subTest(log=log):
                 self.assertTrue(results.failures(self.summary, self.build, {"stdout": "Finished"}, log))
 
+    def test_only_approved_sentry_setter_warning_is_accepted(self):
+        source = ROOT / "PodHaven/AppLauncher.swift"
+        line = next(i for i, text in enumerate(source.read_text().splitlines(), 1)
+                    if "options.beforeSendWithHint =" in text)
+        message = ("Setter for 'beforeSendWithHint' is deprecated: In the next major version, "
+                   "the hint parameter will be added to `beforeSend` directly and this callback "
+                   "will be removed. Use this only to adopt hints ahead of the next major version.")
+        warning = {"issueType": "DeprecatedDeclaration", "message": message,
+                   "sourceURL": source.as_uri() + f"#StartingLineNumber={line - 1}"}
+        build = {**self.build, "warningCount": 1, "warnings": [warning]}
+        log = f"{source}:{line}:5: warning: {message[0].lower() + message[1:]} [#DeprecatedDeclaration]"
+        self.assertEqual(results.failures(self.summary, build, {"stdout": "Finished"}, log), [])
+        for changed in ({**warning, "message": "Other API is deprecated"},
+                        {**warning, "sourceURL": warning["sourceURL"].replace("AppLauncher", "Other")},
+                        {**warning, "issueType": "OtherWarning"},
+                        {**warning, "sourceURL": source.as_uri() + "#StartingLineNumber=0"}):
+            with self.subTest(changed=changed):
+                self.assertTrue(results.failures(self.summary, {**build, "warnings": [changed]},
+                                                {"stdout": "Finished"}, log))
+        self.assertTrue(results.failures(self.summary, {**build, "warningCount": 2}, {"stdout": "Finished"}, log))
+        self.assertTrue(results.failures(self.summary, build, {"stdout": "Finished"}, log + "\nwarning: unused result"))
+        self.assertTrue(results.failures(self.summary, build, {"stdout": "Finished"}, log.replace("AppLauncher", "Other")))
+
     def test_missing_parameter_results_fail_even_if_method_says_passed(self):
         tree = {"nodeIdentifier": "SilenceSchedulerTests/foregroundTaskPriority(priority:)",
                 "result": "Passed", "children": [

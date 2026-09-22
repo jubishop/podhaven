@@ -275,6 +275,11 @@ struct AppLauncher: Sendable {
     }
   }
 
+  @diagnose(
+    DeprecatedDeclaration,
+    as: warning,
+    reason: "Sentry attachment hints await the next major SDK callback"
+  )
   static func configureSentryOptions(_ options: Sentry.Options) {
     let eventProcessor = Container.shared.sentryEventProcessor()
     options.dsn =
@@ -287,7 +292,14 @@ struct AppLauncher: Sendable {
     options.enableMetricKit = true
     options.enableMetricKitRawPayload = true
     options.beforeSendLog = sentryBeforeSendLog
-    options.beforeSend = eventProcessor.process
+    options.beforeSendWithHint = { event, hint in
+      guard let event = eventProcessor.process(event) else { return nil }
+      for attachment in recentLogAttachments
+      where !hint.attachments.contains(where: { $0.filename == attachment.filename }) {
+        hint.attachments.append(attachment)
+      }
+      return event
+    }
     options.initialScope = { scope in
       configureInitialSentryScope(scope)
       return scope
@@ -298,19 +310,23 @@ struct AppLauncher: Sendable {
     scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
     scope.setTag(value: FileLogHandler.sessionID, key: "log-session-id")
     scope.setUser(Sentry.User(userId: AppInfo.deviceIdentifier))
-    scope.addAttachment(
+    for attachment in recentLogAttachments {
+      scope.addAttachment(attachment)
+    }
+  }
+
+  private static var recentLogAttachments: [Sentry.Attachment] {
+    [
       Sentry.Attachment(
         path: AppInfo.recentLogFileURL.path,
         filename: "recent-log.ndjson",
         contentType: "application/x-ndjson"
-      )
-    )
-    scope.addAttachment(
+      ),
       Sentry.Attachment(
         path: WidgetInfo.recentLogFileURL.path,
         filename: "recent-widget-log.ndjson",
         contentType: "application/x-ndjson"
-      )
-    )
+      ),
+    ]
   }
 }
