@@ -15,8 +15,8 @@ this diagnostic is expected noise for heavy users, not an actionable defect.
 
 ## What we do about it
 
-`AppLauncher.configureSentry()` sets `options.beforeSend = sentryBeforeSend`
-(the generic event-filter hook), which returns `nil` for any event whose
+`AppLauncher.configureSentryOptions` sets `options.beforeSend =
+SentryEventProcessor.process`, which returns `nil` for any event whose
 exception mechanism `type == "mx_disk_write_exception"`. Hang
 (`mx_hang_diagnostic`), CPU (`mx_cpu_exception`), and crash MetricKit
 diagnostics still flow. `MetricKitMonitor` independently logs every
@@ -40,8 +40,10 @@ won't-fix, not as a broken #355.
 
 The separate, real perf inefficiency the same investigation surfaced — the
 `allPodcastSeries` `.including(all:)` full-episode prefetch on every refresh
-cycle — is tracked in issue #502. It is CPU/memory hygiene (OOM-jetsam family,
-cf. #274) and does **not** meaningfully move the disk-write diagnostic.
+cycle — was CPU/memory hygiene (OOM-jetsam family, cf. #274) and did **not**
+meaningfully move the disk-write diagnostic. Issue #502 was closed by PR #510
+("Load refresh merge episodes lazily"), which replaced that prefetch, so
+`Repo.allPodcastSeries` no longer exists.
 
 ## MetricKit delivery gotcha
 
