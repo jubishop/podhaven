@@ -134,7 +134,7 @@ def main():
         (evidence / "result.json").write_text(json.dumps(result, indent=2) + "\n")
         print(f"Verified both remote events, matching bounded summaries, attribution, and privacy: {evidence}")
     finally:
-        command("xcrun", "simctl", "terminate", args.device, BUNDLE)
+        subprocess.run(["xcrun", "simctl", "terminate", args.device, BUNDLE], check=False)
 
 
 if __name__ == "__main__":

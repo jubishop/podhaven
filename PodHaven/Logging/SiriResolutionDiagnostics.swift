@@ -86,7 +86,8 @@ struct SiriResolutionDiagnostics: Sendable {
     let slow = summary.totalMs >= 1_000
     let failed = !["unique", "ambiguous"].contains(summary.outcome)
     guard slow || failed else { return false }
-    let key = deferred ? "extension" : (slow ? "slow" : "failed")
+    let category = failed ? "failed" : "slow"
+    let key = deferred ? "extension-\(category)" : category
     let now = Date()
     let allowed = lastCapture { captures in
       if let last = captures[key], now.timeIntervalSince(last) < 60 { return false }

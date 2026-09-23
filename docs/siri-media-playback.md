@@ -103,12 +103,16 @@ commit. Each phase replaces the same operation record, so an interrupted read
 or match leaves a pending marker. These files contain no query, media title,
 media ID, GUID, or feed URL.
 
+Phase durations exclude synchronous journal writes. Total duration includes
+diagnostic overhead between phases.
+
 Sentry receives an automatic event for a resolution taking at least one second
 or returning a failure, limited to one event per category per minute in the
-process. The extension retains its summaries in the shared app group. The app
-reports eligible extension failures on its next Sentry startup, with separate
-origin and upload attribution and a bounded receipt list to prevent repeat
-uploads. This deferred path needs a later app launch. Both journals accompany
+process. Slow successes and failures use separate categories, including when
+a failure is also slow. The extension retains its summaries in the shared app
+group. The app reports eligible slow successes and failures on its next Sentry
+startup, with separate origin and upload attribution and a bounded receipt list
+to prevent repeat uploads. This deferred path needs a later app launch. Both journals accompany
 Sentry events, including recovered and delayed fatal hang events, through the
 existing attachment-hint callback. The combined additional attachment bound is
 32 KiB. Original record attribution must be compared with the incident; nearby

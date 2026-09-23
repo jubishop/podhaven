@@ -219,10 +219,7 @@ final class SiriResolutionOperation: Sendable {
 
   func begin(_ phase: Phase) {
     let now = ProcessInfo.processInfo.systemUptime
-    let elapsed = phaseStarted.withLock { previous in
-      defer { previous = now }
-      return (now - previous) * 1_000
-    }
+    let elapsed = phaseStarted.withLock { (now - $0) * 1_000 }
     let summary = state.withLock { summary in
       switch summary.phase {
       case .read: summary.readMs += elapsed
@@ -236,6 +233,7 @@ final class SiriResolutionOperation: Sendable {
       return summary
     }
     report(summary)
+    phaseStarted.withLock { $0 = ProcessInfo.processInfo.systemUptime }
   }
 
   func readBytes(_ count: Int) { state.withLock { $0.bytes = count } }

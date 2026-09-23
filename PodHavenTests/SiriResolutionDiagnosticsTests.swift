@@ -11,6 +11,76 @@ import Testing
 
 @Suite("of retained Siri resolution diagnostics", .container)
 struct SiriResolutionDiagnosticsTests {
+  @Test("slow successes and failures have independent bounded uploads", arguments: [false, true])
+  func independentFailureCapture(deferred: Bool) async throws {
+    let file = Container.shared.siriCatalogFile()
+    defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
+    let journal = SiriResolutionJournal(
+      url: file.url.deletingLastPathComponent()
+        .appendingPathComponent("siri-extension-resolutions.json"),
+      sessionID: "extension-session",
+      version: "1",
+      build: "extension-build",
+      commit: "extension-commit",
+      process: "extension"
+    )
+    let outcomes = ThreadSafe<[String]>([])
+    Container.shared.siriDiagnosticCapture.context(.test) {
+      { event in outcomes { $0.append(event.tags?["siri-outcome"] ?? "missing") } }
+    }
+    let diagnostics = Container.shared.siriResolutionDiagnostics()
+    for outcome in ["unique", "failed", "ambiguous", "noMatch"] {
+      var summary = SiriResolutionOperation.Summary(
+        operationID: UUID(),
+        startedAt: Date(),
+        mode: "resolve",
+        requestMode: "name",
+        mediaType: INMediaItemType.unknown.rawValue,
+        callbackMainThread: false
+      )
+      summary.phase = .finished
+      summary.totalMs = 1_500
+      summary.outcome = outcome
+      if deferred { journal.record(summary) } else { diagnostics.record(summary) }
+    }
+    if deferred { await diagnostics.captureExtensionFailures() }
+    #expect(outcomes() == ["unique", "failed"])
+  }
+
+  @Test("journal time remains in total duration but outside catalog phase durations")
+  func phaseTimingExcludesJournal() throws {
+    let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let journal = SiriResolutionJournal(
+      url: url,
+      sessionID: "test",
+      version: "1",
+      build: "1",
+      commit: "test",
+      process: "app"
+    )
+    let reportingMs = ThreadSafe(0.0)
+    let operation = SiriResolutionOperation(
+      mode: "resolve",
+      intent: SiriTestIntent.named("Synthetic show"),
+      report: { summary in
+        let started = ProcessInfo.processInfo.systemUptime
+        journal.record(summary)
+        if summary.phase != .finished {
+          reportingMs { $0 += (ProcessInfo.processInfo.systemUptime - started) * 1_000 }
+        }
+      }
+    )
+    operation.begin(.read)
+    operation.begin(.decode)
+    operation.begin(.match)
+    operation.finish(outcome: "unique")
+    let summary = try #require(journal.read().last?.summary)
+    let catalogMs = summary.readMs + summary.decodeMs + summary.matchMs
+    #expect(reportingMs() > 0)
+    #expect(summary.totalMs - catalogMs >= reportingMs())
+  }
+
   @Test("failed real resolution sends bounded attributed summaries without private metadata")
   @MainActor func failureEnvelope() async throws {
     let file = Container.shared.siriCatalogFile()
