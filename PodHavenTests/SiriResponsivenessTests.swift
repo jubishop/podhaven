@@ -59,7 +59,24 @@ struct SiriResponsivenessTests {
   @MainActor func supersededCatalog() async throws {
     let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: url) }
-    let file = SiriCatalogFile(url: url)
+    let count = ThreadSafe(0)
+    let opened = ThreadSafe(false)
+    let release = AsyncStream<Void>.makeStream()
+    defer { release.continuation.finish() }
+    let file = SiriCatalogFile(
+      url: url,
+      openForReading: { url in
+        let first = count { count in
+          count += 1
+          return count == 1
+        }
+        if first {
+          opened(true)
+          for await _ in release.stream { break }
+        }
+        return try FileHandle(forReadingFrom: url)
+      }
+    )
     try file.write(
       SiriCatalog(entries: [
         .init(
@@ -71,11 +88,18 @@ struct SiriResponsivenessTests {
     )
     let handler = SiriMediaIntentHandler(catalog: file.read, authorized: { true })
     let responses = ThreadSafe<[String: [Int]]>([:])
-    for name in ["first", "second"] {
-      handler.handle(intent: SiriTestIntent.named("Synthetic show")) { response in
-        responses { $0[name, default: []].append(response.code.rawValue) }
-      }
+    handler.handle(intent: SiriTestIntent.named("Synthetic show")) { response in
+      responses { $0["first", default: []].append(response.code.rawValue) }
     }
+    try await Wait.until({ opened() }, { "First catalog open did not start" })
+    handler.handle(intent: SiriTestIntent.named("Synthetic show")) { response in
+      responses { $0["second", default: []].append(response.code.rawValue) }
+    }
+    try await Wait.until(
+      { responses()["second"] != nil },
+      { "Newer catalog request did not complete" }
+    )
+    release.continuation.yield(())
     try await Wait.until(
       { responses().values.reduce(0) { $0 + $1.count } == 2 },
       { "Missing overlapping catalog callbacks" }
@@ -83,5 +107,4 @@ struct SiriResponsivenessTests {
     #expect(responses()["first"] == [INPlayMediaIntentResponseCode.failure.rawValue])
     #expect(responses()["second"] == [INPlayMediaIntentResponseCode.handleInApp.rawValue])
   }
-
 }

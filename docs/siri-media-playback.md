@@ -28,8 +28,8 @@ and finished state invalidate pending selections; routine position writes do not
 The extension rereads the catalog for resolution, confirmation, and handling.
 The system callback copies request fields into a Sendable value. An explicit
 `@concurrent` boundary reads, decodes, and matches the catalog away from the main
-actor. Framework resolution objects are built on that worker and transferred to
-the main actor for completion. New handle requests invalidate older pending
+actor. Framework resolution objects and callbacks stay on the worker. Only
+main-app playback ownership crosses to the main actor. New handle requests invalidate older pending
 catalog selections. Playback also reads its final generation check off the main
 actor and rechecks cancellation, ownership, and authorization after that await.
 

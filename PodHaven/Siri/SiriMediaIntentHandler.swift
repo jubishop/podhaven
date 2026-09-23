@@ -34,7 +34,7 @@ final class SiriMediaIntentHandler: NSObject, INPlayMediaIntentHandling, Sendabl
   ) {
     let request = Result { try SiriMediaRequest(intent) }
     let operation = SiriResolutionOperation(mode: "resolve", intent: intent, report: diagnostic)
-    Task { @MainActor in
+    Task {
       do {
         let (_, entries) = try await Self.lookup(
           request,
@@ -78,12 +78,23 @@ final class SiriMediaIntentHandler: NSObject, INPlayMediaIntentHandling, Sendabl
     let operation = SiriResolutionOperation(mode: mode, intent: intent, report: diagnostic)
     let id = UUID()
     if mode == "handle" { latestHandle.withLock { $0 = id } }
-    Task { @MainActor in
+    Task {
       guard mode != "handle" || latestHandle.withLock({ $0 == id }) else {
         completion(INPlayMediaIntentResponse(code: .failure, userActivity: nil))
         return
       }
-      let acceptSelection = mode == "handle" ? playback?(completion) : nil
+      let acceptSelection: PlaybackSelection?
+      if mode == "handle", let playback {
+        do {
+          acceptSelection = try await preparePlayback(playback, id: id, completion: completion)
+        } catch {
+          Self.log.caughtError("Siri playback request superseded before catalog work", error)
+          completion(INPlayMediaIntentResponse(code: .failure, userActivity: nil))
+          return
+        }
+      } else {
+        acceptSelection = nil
+      }
       do {
         let (generation, matches) = try await Self.lookup(
           request,
@@ -106,19 +117,28 @@ final class SiriMediaIntentHandler: NSObject, INPlayMediaIntentHandling, Sendabl
           catalogGeneration: generation
         )
         if let acceptSelection {
-          acceptSelection(selected)
+          await acceptSelection(selected)
         } else {
           completion(INPlayMediaIntentResponse(code: .handleInApp, userActivity: nil))
         }
       } catch {
         Self.log.caughtError("Siri media selection failed", error)
         if let acceptSelection {
-          acceptSelection(nil)
+          await acceptSelection(nil)
         } else {
           completion(INPlayMediaIntentResponse(code: .failure, userActivity: nil))
         }
       }
     }
+  }
+
+  @MainActor private func preparePlayback(
+    _ playback: Playback,
+    id: UUID,
+    completion: @escaping Completion
+  ) throws -> PlaybackSelection {
+    guard latestHandle.withLock({ $0 == id }) else { throw CancellationError() }
+    return playback(completion)
   }
 
   @concurrent private static func lookup(

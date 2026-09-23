@@ -54,11 +54,15 @@ struct SiriLargeCatalogTests {
         diagnostic: { summary in summaries { $0.append(summary) } }
       )
       let started = ContinuousClock.now
+      let callbackDuration = ThreadSafe<Duration?>(nil)
       await withCheckedContinuation { continuation in
-        handler.resolveMediaItems(for: intent) { _ in continuation.resume() }
+        handler.resolveMediaItems(for: intent) { _ in
+          callbackDuration(ContinuousClock.now - started)
+          continuation.resume()
+        }
       }
       #expect(
-        ContinuousClock.now - started < .seconds(5),
+        try #require(callbackDuration()) < .seconds(5),
         "Siri callback completion exceeded its budget"
       )
       let summary = try #require(summaries().last)
