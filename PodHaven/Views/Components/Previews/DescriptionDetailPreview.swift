@@ -8,6 +8,7 @@ struct DescriptionDetailPreview: View {
     case short = "Short"
     case long = "Long"
     case paragraph = "Huge paragraph"
+    case shortParagraphs = "Short paragraphs"
     case empty = "Empty"
 
     var html: String {
@@ -33,6 +34,8 @@ struct DescriptionDetailPreview: View {
           + " End of description.</p>"
       case .empty:
         return ""
+      case .shortParagraphs:
+        return String(repeating: "<p>V</p>", count: 6000)
       }
     }
   }
@@ -90,6 +93,11 @@ struct DescriptionDetailPreview: View {
 
 #Preview("Long Podcast Description") {
   DescriptionDetailPreview(sample: .long, podcast: true)
+}
+
+#Preview("Short Paragraphs at Largest Text") {
+  DescriptionDetailPreview(sample: .shortParagraphs, podcast: false)
+    .environment(\.dynamicTypeSize, .accessibility5)
 }
 
 #Preview("Short Description") {

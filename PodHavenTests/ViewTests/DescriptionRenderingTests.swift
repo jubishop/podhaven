@@ -15,6 +15,27 @@ import UIKit
       singleParagraph
       ? "<p>\(String(repeating: paragraph, count: 3100))</p>"
       : String(repeating: "<p>\(paragraph)\(paragraph)</p>", count: 1550)
+    try await assertDescriptionRenders(html: html)
+  }
+
+  @Test("many short paragraphs keep rendered text surfaces bounded")
+  func shortParagraphsRemainBounded() async throws {
+    let html = String(repeating: "<p>V</p>", count: 6000)
+    let blocks = await HTMLContent.descriptionBlocks(html: html, font: .body, linkTimestamps: true)
+    let block = try #require(blocks.first)
+    let host = UIHostingController(
+      rootView: DescriptionText(blocks: [block])
+        .environment(\.dynamicTypeSize, .accessibility5)
+    )
+    let size = host.sizeThatFits(in: CGSize(width: 288, height: CGFloat.greatestFiniteMagnitude))
+    #expect(
+      size.height > 0 && size.height < 16_384,
+      "The text block measured \(size.height) points"
+    )
+    try await assertDescriptionRenders(html: html)
+  }
+
+  private func assertDescriptionRenders(html: String) async throws {
     let episode = UnsavedPodcastEpisode(
       unsavedPodcast: try Create.unsavedPodcast(),
       unsavedEpisode: try Create.unsavedEpisode(description: html)
@@ -59,14 +80,14 @@ import UIKit
             host.view.layoutIfNeeded()
             return accessibilityElements(in: window)
               .contains {
-                $0.accessibilityLabel?.contains("Visible") == true
+                $0.accessibilityLabel?.contains("V") == true
               }
           },
           { "Expected the first description block in the accessibility tree" }
         )
         let text = accessibilityElements(in: window)
           .filter {
-            $0.accessibilityLabel?.contains("Visible") == true
+            $0.accessibilityLabel?.contains("V") == true
           }
         try #require(!text.isEmpty)
         #expect(

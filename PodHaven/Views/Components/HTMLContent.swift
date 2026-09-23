@@ -24,9 +24,17 @@ enum HTMLContent {
     var start = characters.startIndex
     var blocks: [DescriptionBlock] = []
     while start < characters.endIndex {
-      let limit =
+      var limit =
         characters.index(start, offsetBy: 1024, limitedBy: characters.endIndex)
         ?? characters.endIndex
+      var lineBreaks = 0
+      for index in characters[start..<limit].indices where characters[index].isNewline {
+        lineBreaks += 1
+        if lineBreaks == 32 {
+          limit = characters.index(after: index)
+          break
+        }
+      }
       var end = limit
       if limit < characters.endIndex {
         let candidate = characters[start..<limit]
