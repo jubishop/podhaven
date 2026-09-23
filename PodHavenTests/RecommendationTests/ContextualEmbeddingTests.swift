@@ -192,7 +192,7 @@ struct ContextualEmbeddingTests {
 
 // Mutable test fake — `hasAvailableAssets` is flipped by tests to simulate
 // asset arrival after construction. `@unchecked Sendable` is acceptable in
-// test code (per CLAUDE.md) since tests serialize access via awaits on the
+// test code (per AGENTS.md) since tests serialize access via awaits on the
 // actor.
 private final class ControllableEmbeddable: Embeddable, @unchecked Sendable {
   var hasAvailableAssets: Bool

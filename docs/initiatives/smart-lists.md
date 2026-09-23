@@ -102,7 +102,7 @@ Loop `for group in filter.groups where !group.conditions.isEmpty { … }` and ap
 
 ### 3. Migration v54 — `PodHaven/Database/Migrations/Migration_v54.swift`
 
-Migrations are no longer inline in `Schema.swift`; each is a `migrateV{n}` static func in its own `Migration_v{n}.swift` file, registered by one line in `Schema.makeMigrator()` (`Schema.swift:29–66`, currently registered through v53). Add `migrator.registerMigration("v54", migrate: migrateV54)` and the new file. String-literals-only per CLAUDE.md.
+Migrations are no longer inline in `Schema.swift`; each is a `migrateV{n}` static func in its own `Migration_v{n}.swift` file, registered by one line in `Schema.makeMigrator()` (`Schema.swift:29–66`, currently registered through v53). Add `migrator.registerMigration("v54", migrate: migrateV54)` and the new file. String-literals-only per AGENTS.md.
 
 ```swift
 extension Schema {
@@ -390,13 +390,13 @@ Add a `.primaryAction` toolbar item using existing `AppIcon.settings` (gear). Ta
 6. **Repo reorder** (`SmartListRepoTests.swift`): seed 5 rows (displayOrder 0–4); call `moveSmartList` with SwiftUI destination offsets (index 0 → position 3, then index 4 → position 1); assert resulting ordered IDs and dense `displayOrder` values.
 7. **Scrub-on-tag-delete** (`SmartListRepoTests.swift` or `RepoTests`): seed a Smart List whose filter references tag X in both the top group and the nested group (plus an unrelated condition); call `Repo.deleteTag(X)`; assert the tag-X conditions are gone, the unrelated condition and combinators survive, and an unrelated Smart List is untouched. Regression: confirm it fails before the scrub hook is added.
 8. **VM live-update** (`EpisodesListViewModelTests/`): construct `EpisodesListViewModel(smartList:)` against an in-memory DB; mutate the row's filter via `SmartListRepo.updateFilter`; assert the VM's `filter` and displayed set update via `Wait.until`. Repeat for `updateSortMethod`.
-9. **Integration:** observe a SmartList whose filter is `isLoved`; mutate an episode rating to `loved`; assert the row appears via `Wait.until` (no `Task.sleep`, per CLAUDE.md).
+9. **Integration:** observe a SmartList whose filter is `isLoved`; mutate an episode rating to `loved`; assert the row appears via `Wait.until` (no `Task.sleep`, per AGENTS.md).
 
-Per CLAUDE.md regression-test rule: each engine edge-case test must be confirmed to **fail against an intentionally-broken engine** (e.g., before the null-safe `description` branch, or with the `minSeconds`/`maxSeconds` comparisons swapped) before the fix lands, to prove the test exercises the right behavior.
+Per AGENTS.md regression-test rule: each engine edge-case test must be confirmed to **fail against an intentionally-broken engine** (e.g., before the null-safe `description` branch, or with the `minSeconds`/`maxSeconds` comparisons swapped) before the fix lands, to prove the test exercises the right behavior.
 
 ## Verification (end-to-end)
 
-1. Build clean — zero warnings (CLAUDE.md guardrail).
+1. Build clean — zero warnings (AGENTS.md guardrail).
 2. Run full test suite.
 3. Launch in simulator:
    - Fresh install: confirm 10 lists appear in `EpisodesView` with the names above; tapping each shows the same episodes as before the migration.
