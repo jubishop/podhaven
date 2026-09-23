@@ -156,6 +156,52 @@ import UIKit
     )
   }
 
+  @Test("remote pause cancels Siri while its catalog file is still pending")
+  func cancelPendingCatalog() async throws {
+    let episodes = try await seed([Create.unsavedEpisode(title: "Pending catalog")])
+    defer { removeCatalog() }
+    let original = Container.shared.siriCatalogFile()
+    let opened = ThreadSafe(false)
+    let release = AsyncStream<Void>.makeStream()
+    defer { release.continuation.finish() }
+    let file = SiriCatalogFile(
+      url: original.url,
+      openForReading: { url in
+        opened(true)
+        for await _ in release.stream { break }
+        return try FileHandle(forReadingFrom: url)
+      }
+    )
+    Container.shared.siriCatalogFile.context(.test) { file }.reset(.scope)
+    let responses = ThreadSafe<[Int]>([])
+    Container.shared.siriPlayback().handler
+      .handle(intent: SiriTestIntent.named("Pending catalog")) { response in
+        responses { $0.append(response.code.rawValue) }
+      }
+    try await Wait.until({ opened() }, { "Catalog file open did not start" })
+    await Container.shared.playManager().pause()
+    try await Wait.until({ responses().count == 1 }, { "Pending catalog was not canceled" })
+    release.continuation.yield(())
+    let journal = SiriResolutionJournal(
+      url: original.url.deletingLastPathComponent()
+        .appendingPathComponent("siri-app-resolutions.json"),
+      sessionID: "test",
+      version: "test",
+      build: "test",
+      commit: "test",
+      process: "app"
+    )
+    try await Wait.until(
+      { journal.read().last?.summary.phase == .finished },
+      { "Canceled catalog operation did not finish" }
+    )
+    #expect(responses() == [INPlayMediaIntentResponseCode.failure.rawValue])
+    #expect(
+      await Container.shared.fakeEpisodeAssetLoader()
+        .responseCount(for: episodes[0].episode.mediaURL) == 0
+    )
+  }
+
   @Test("remote pause cancels a pending Siri lookup")
   func remoteCancellation() async throws {
     let episodes = try await seed([Create.unsavedEpisode(title: "Pending")])
