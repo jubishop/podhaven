@@ -94,7 +94,7 @@ struct SiriCatalogTests {
     let file = Container.shared.siriCatalogFile()
     defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     db.startSiriCatalog(file)
-    #expect(try file.read().entries.isEmpty)
+    #expect(try await file.read().entries.isEmpty)
     let series = try await Container.shared.repo()
       .insertSeries(
         UnsavedPodcastSeries(
@@ -102,20 +102,22 @@ struct SiriCatalogTests {
           unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode")]
         )
       )
-    #expect(try file.read().entries.map(\.title) == ["Show", "Episode"])
+    #expect(try await file.read().entries.map(\.title) == ["Show", "Episode"])
     try await db.writer.write { db in
       try Podcast.withID(series.podcast.id).updateAll(db, Podcast.Columns.title.set(to: "New show"))
     }
-    #expect(try file.read().entries.map(\.displayTitle) == ["New show", "Episode — New show"])
+    #expect(
+      try await file.read().entries.map(\.displayTitle) == ["New show", "Episode — New show"]
+    )
     do {
       try await db.writer.write { db in
         try Podcast.withID(series.podcast.id).deleteAll(db)
         throw URLError(.cancelled)
       }
     } catch {}
-    #expect(try file.read().entries.count == 2)
+    #expect(try await file.read().entries.count == 2)
     try await Container.shared.repo().deletePodcast(series.podcast.id)
-    #expect(try file.read().entries.isEmpty)
+    #expect(try await file.read().entries.isEmpty)
   }
 
   @Test("catalog publication does not read transcript or description payloads")
@@ -153,7 +155,7 @@ struct SiriCatalogTests {
           }
         }
       }
-    let entries = try file.read().entries
+    let entries = try await file.read().entries
     #expect(entries.count == 2)
     #expect(entries[0].identity.id == episode.podcast.id.rawValue)
     #expect(entries[0].title == episode.podcastTitle)
@@ -164,7 +166,7 @@ struct SiriCatalogTests {
   }
 
   @Test("unavailable or invalidated catalog data never produces a handoff")
-  func unavailableCatalog() throws {
+  func unavailableCatalog() async throws {
     let file = Container.shared.siriCatalogFile()
     defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     let handler = SiriMediaIntentHandler(catalog: file.read, authorized: { true })
@@ -172,27 +174,31 @@ struct SiriCatalogTests {
     handler.handle(intent: SiriTestIntent.named("One")) { code in
       responses { $0.append(code.code.rawValue) }
     }
+    try await Wait.until({ responses().count == 1 }, { "Missing unavailable callback" })
     try file.write(SiriCatalog(entries: [entry(1, "One")]))
     try file.invalidate()
     handler.handle(intent: SiriTestIntent.named("One")) { code in
       responses { $0.append(code.code.rawValue) }
     }
+    try await Wait.until({ responses().count == 2 }, { "Missing invalidated callback" })
     #expect(
       responses() == Array(repeating: INPlayMediaIntentResponseCode.failure.rawValue, count: 2)
     )
   }
 
   @Test("extension confirms a unique request and hands audio to the app exactly once")
-  func extensionHandoff() throws {
+  func extensionHandoff() async throws {
     let catalog = SiriCatalog(entries: [entry(1, "One")])
     let handler = SiriMediaIntentHandler(catalog: { catalog }, authorized: { true })
     let responses = ThreadSafe<[Int]>([])
     handler.confirm(intent: SiriTestIntent.named("One")) { code in
       responses { $0.append(code.code.rawValue) }
     }
+    try await Wait.until({ responses().count == 1 }, { "Missing confirmation callback" })
     handler.handle(intent: try SiriTestIntent.resolved(catalog.entries[0])) { code in
       responses { $0.append(code.code.rawValue) }
     }
+    try await Wait.until({ responses().count == 2 }, { "Missing handoff callback" })
     #expect(
       responses() == [
         INPlayMediaIntentResponseCode.ready.rawValue,
@@ -203,6 +209,7 @@ struct SiriCatalogTests {
     denied.handle(intent: SiriTestIntent.named("One")) { code in
       responses { $0.append(code.code.rawValue) }
     }
+    try await Wait.until({ responses().count == 3 }, { "Missing denied callback" })
     #expect(responses().last == INPlayMediaIntentResponseCode.failure.rawValue)
   }
 }

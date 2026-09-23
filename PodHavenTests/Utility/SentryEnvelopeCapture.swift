@@ -85,7 +85,11 @@ final class SentryEnvelopeCapture {
       body = try await Wait.forValue { [requests] in requests().first }
     } catch {
       let paths = FileManager.default.enumerator(atPath: cache.path)?.allObjects ?? []
-      Issue.record("No envelope request for \(host); cache entries: \(paths)")
+      let tasks = await session.allTasks
+      let taskStates = tasks.map { task in
+        "state=\(task.state.rawValue) sent=\(task.countOfBytesSent) received=\(task.countOfBytesReceived) error=\(String(describing: task.error))"
+      }
+      Issue.record("No envelope request for \(host); cache entries: \(paths); tasks: \(taskStates)")
       throw error
     }
     var data = body

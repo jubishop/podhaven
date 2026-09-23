@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Verify automatic slow Siri diagnostics and retained summaries on a real Simulator AppHang."""
+
+import argparse
+from importlib.machinery import SourceFileLoader
+from importlib.util import module_from_spec, spec_from_loader
+import json
+import os
+from pathlib import Path
+import subprocess
+import time
+import uuid
+
+ROOT = Path(__file__).resolve().parents[1]
+BUNDLE = "com.artisanalsoftware.PodHaven.sirismoke"
+
+
+def load(name, path):
+    loader = SourceFileLoader(name, str(path))
+    module = module_from_spec(spec_from_loader(name, loader))
+    loader.exec_module(module)
+    return module
+
+
+probe = load("hang_probe", ROOT / "bin/sentry-hang-smoke")
+command = probe.command
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--device", required=True, help="Available iOS Simulator UDID")
+    args = parser.parse_args()
+    token = os.environ.get("SENTRY_AUTH_TOKEN") or command("sentry", "auth", "token")
+    if not token or any(character.isspace() for character in token):
+        raise RuntimeError("Sentry did not return a usable authentication token")
+    devices = json.loads(command("xcrun", "simctl", "list", "devices", "available", "--json"))["devices"]
+    device = next((entry for runtime, entries in devices.items() if ".iOS-" in runtime
+                   for entry in entries if entry["udid"] == args.device), None)
+    if device is None:
+        raise RuntimeError("Only an available iOS Simulator is permitted")
+    output = ROOT / ".cache/sentry-siri-smoke"
+    output.mkdir(parents=True, exist_ok=True)
+    run = uuid.uuid4().hex
+    evidence = output / run
+    evidence.mkdir()
+    source = probe.source_state()
+    (evidence / "source.json").write_text(json.dumps(source, indent=2) + "\n")
+    project = probe.prepare(output, bundle=BUNDLE, integration="sentry-siri")
+    with (evidence / "build.log").open("w") as log:
+        subprocess.run([
+            "xcodebuild", "build", "-hideShellScriptEnvironment", "-project", str(project),
+            "-scheme", "PodHaven", "-configuration", "Debug", "-destination", "id=" + args.device,
+            "-derivedDataPath", str(output / "DerivedData"), "-skipMacroValidation",
+            "-resultBundlePath", str(evidence / "build.xcresult"),
+            "-clonedSourcePackagesDirPath", str(Path.home() / "Library/Developer/SharedSourcePackages/PodHaven"),
+            "LM_FORCE_LINK_GENERATION=YES", "CODE_SIGNING_ALLOWED=NO",
+            "GIT_COMMIT_HASH=" + source["gitCommitHash"],
+        ], cwd=ROOT, env={key: value for key, value in os.environ.items() if key != "SDKROOT"},
+            stdout=log, stderr=subprocess.STDOUT, check=True)
+    gate = load("swift_results", ROOT / "bin/check-swift-results")
+    build = json.loads(command("xcrun", "xcresulttool", "get", "build-results", "--path", str(evidence / "build.xcresult")))
+    assert build["errorCount"] == 0 and build["analyzerWarningCount"] == 0
+    assert build["warningCount"] == len(build.get("warnings", []))
+    assert all(gate.approved_sentry_warning(warning) for warning in build.get("warnings", []))
+    for line in (evidence / "build.log").read_text().splitlines():
+        assert not gate.BUILD_WARNING.search(line) or gate.approved_sentry_log_warning(line), line
+    if device["state"] != "Booted":
+        command("xcrun", "simctl", "boot", args.device)
+    command("xcrun", "simctl", "bootstatus", args.device, "-b")
+    app = output / "DerivedData/Build/Products/Debug-iphonesimulator/PodHaven.app"
+    command("xcrun", "simctl", "install", args.device, str(app))
+    command("xcrun", "simctl", "launch", "--terminate-running-process", args.device, BUNDLE,
+            env=dict(os.environ, SIMCTL_CHILD_PODHAVEN_SIRI_RUN=run))
+    try:
+        print(f"Controlled run {run}; waiting for slow-resolution and recovered-hang events", flush=True)
+        events = {}
+        deadline = time.monotonic() + 180
+        while time.monotonic() < deadline:
+            listing = json.loads(command("sentry", "explore", "artisanal-software/podhaven",
+                                         "--query", "diagnostic-run:" + run, "--field", "id",
+                                         "--period", "1h", "--fresh", "--json"))
+            for row in listing.get("data", []):
+                if row["id"] not in events:
+                    events[row["id"]] = probe.api(f"projects/artisanal-software/podhaven/events/{row['id']}/")
+            slow = [key for key, event in events.items() if event.get("contexts", {}).get("siri_resolution")]
+            hangs = [key for key, event in events.items() if any(
+                value.get("mechanism", {}).get("type", "").lower() == "apphang"
+                for entry in event["entries"] if entry["type"] == "exception" for value in entry["data"]["values"])]
+            if slow and hangs:
+                break
+            time.sleep(5)
+        else:
+            raise RuntimeError("Both controlled events did not arrive within 180 seconds")
+        result = {"run": run, "source": source, "events": {}}
+        operation_ids = set()
+        for kind, event_id in [("slow", slow[0]), ("hang", hangs[0])]:
+            event = events[event_id]
+            (evidence / f"{kind}-event.json").write_text(json.dumps(event, indent=2) + "\n")
+            base = f"projects/artisanal-software/podhaven/events/{event_id}/"
+            attachments = probe.api(base + "attachments/")
+            (evidence / f"{kind}-attachments.json").write_text(json.dumps(attachments, indent=2) + "\n")
+            matches = [item for item in attachments if item["name"] == "siri-app-resolutions.json"]
+            assert len(matches) == 1, "Missing or duplicate retained Siri history"
+            item = matches[0]
+            assert 0 < item["size"] <= 16 * 1024
+            data = subprocess.check_output([
+                "curl", "--fail", "--silent", "--show-error", "--location", "--max-time", "30", "--header", "@-",
+                "https://sentry.io/api/0/" + base + "attachments/" + str(item["id"]) + "/?download=1",
+            ], input=("Authorization: Bearer " + token + "\n").encode())
+            assert 0 < len(data) <= 16 * 1024 and len(data) == item["size"]
+            (evidence / f"{kind}-siri.json").write_bytes(data)
+            records = json.loads(data)
+            assert 0 < len(records) <= 16
+            summary = records[-1]["summary"]
+            record = records[-1]
+            operation_ids.add(summary["operationID"])
+            assert record["commit"] == source["gitCommitHash"] and record["sessionID"]
+            assert record["build"] and record["version"] and record["process"] == "app"
+            assert summary["phase"] == "finished" and summary["outcome"] == "unique"
+            assert summary["readMs"] >= 1000 and summary["decodeMs"] > 0 and summary["matchMs"] > 0
+            assert summary["bytes"] > 0 and summary["entries"] == 1 and summary["maxTitleBytes"] > 0
+            assert summary["callbackMainThread"] and not summary["workerMainThread"]
+            assert summary["mode"] == "resolve" and summary["requestMode"] == "name"
+            tags = {tag["key"]: tag["value"] for tag in event["tags"]}
+            if kind == "slow":
+                assert tags["siri-operation-id"] == summary["operationID"]
+                assert tags["log-session-id"] == record["sessionID"]
+            for private in ["Private Sentinel Title", "private-sentinel.invalid", "913759"]:
+                assert private not in data.decode() and private not in json.dumps(event)
+            result["events"][kind] = {"id": event_id, "bytes": len(data), "records": len(records),
+                                      "operationID": summary["operationID"], "sessionID": record["sessionID"]}
+        assert len(operation_ids) == 1, "Hang and slow diagnostic did not retain the same operation"
+        assert probe.source_state() == source, "Sources changed during the smoke run"
+        (evidence / "result.json").write_text(json.dumps(result, indent=2) + "\n")
+        print(f"Verified both remote events, matching bounded summaries, attribution, and privacy: {evidence}")
+    finally:
+        subprocess.run(["xcrun", "simctl", "terminate", args.device, BUNDLE], check=False)
+
+
+if __name__ == "__main__":
+    main()

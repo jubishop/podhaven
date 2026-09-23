@@ -273,6 +273,7 @@ struct AppLauncher: Sendable {
     SentrySDK.start { options in
       configureSentryOptions(options)
     }
+    Task { await Container.shared.siriResolutionDiagnostics().captureExtensionFailures() }
   }
 
   @diagnose(
@@ -294,7 +295,9 @@ struct AppLauncher: Sendable {
     options.beforeSendLog = sentryBeforeSendLog
     options.beforeSendWithHint = { event, hint in
       guard let event = eventProcessor.process(event) else { return nil }
-      for attachment in recentLogAttachments
+      let attachments =
+        recentLogAttachments + Container.shared.siriResolutionDiagnostics().attachments()
+      for attachment in attachments
       where !hint.attachments.contains(where: { $0.filename == attachment.filename }) {
         hint.attachments.append(attachment)
       }

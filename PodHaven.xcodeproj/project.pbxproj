@@ -1351,6 +1351,7 @@
 		};
 		A6320000000000000000000E /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8B1A2B3C2F4D5E6F00AABB11 /* Generated.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = PodHavenIntents/PodHavenIntents.entitlements;
@@ -1388,6 +1389,7 @@
 		};
 		A6320000000000000000000F /* Development */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8B1A2B3C2F4D5E6F00AABB11 /* Generated.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = PodHavenIntents/PodHavenIntents.entitlements;
@@ -1425,6 +1427,7 @@
 		};
 		A63200000000000000000010 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8B1A2B3C2F4D5E6F00AABB11 /* Generated.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = PodHavenIntents/PodHavenIntents.entitlements;

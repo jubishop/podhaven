@@ -5,7 +5,12 @@ import Intents
 @testable import PodHaven
 
 enum SiriTestIntent {
-  static func named(_ name: String?, type: INMediaItemType = .unknown, shuffled: Bool? = nil)
+  static func named(
+    _ name: String?,
+    type: INMediaItemType = .unknown,
+    shuffled: Bool? = nil,
+    album: String? = nil
+  )
     -> INPlayMediaIntent
   {
     INPlayMediaIntent(
@@ -21,7 +26,7 @@ enum SiriTestIntent {
         sortOrder: .unknown,
         mediaName: name,
         artistName: nil,
-        albumName: nil,
+        albumName: album,
         genreNames: nil,
         moodNames: nil,
         releaseDate: nil,

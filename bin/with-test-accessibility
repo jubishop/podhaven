@@ -41,6 +41,7 @@ class AccessibilityClient:
             (self.cf, 'CFArrayGetValueAtIndex', [pointer, ctypes.c_long], pointer),
             (self.cf, 'CFGetTypeID', [pointer], ctypes.c_ulong),
             (self.cf, 'CFArrayGetTypeID', [], ctypes.c_ulong),
+            (self.cf, 'CFEqual', [pointer, pointer], ctypes.c_bool),
             (self.cf, 'CFRelease', [pointer], None),
             (self.proc, 'proc_pidpath', [ctypes.c_int, pointer, ctypes.c_uint32], ctypes.c_int),
         ):
@@ -67,10 +68,12 @@ class AccessibilityClient:
         key = self.cf.CFStringCreateWithCString(None, b'AXChildren', 0x08000100)
         remaining = 10000
 
-        def visit(element, depth=0):
+        def visit(element, ancestors=()):
             nonlocal remaining
+            if any(self.cf.CFEqual(element, ancestor) for ancestor in ancestors):
+                return
             remaining -= 1
-            if remaining < 0 or depth > 40:
+            if remaining < 0 or len(ancestors) > 40:
                 raise RuntimeError('Accessibility tree exceeded the inspection limit')
             value = ctypes.c_void_p()
             result = self.ax.AXUIElementCopyAttributeValue(element, key, ctypes.byref(value))
@@ -83,7 +86,7 @@ class AccessibilityClient:
             try:
                 if self.cf.CFGetTypeID(value) == self.cf.CFArrayGetTypeID():
                     for index in range(self.cf.CFArrayGetCount(value)):
-                        visit(self.cf.CFArrayGetValueAtIndex(value, index), depth + 1)
+                        visit(self.cf.CFArrayGetValueAtIndex(value, index), (*ancestors, element))
             finally:
                 self.cf.CFRelease(value)
 

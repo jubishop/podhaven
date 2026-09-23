@@ -52,12 +52,11 @@ final class SiriPlayback {
   private var presentation: (id: UUID, show: () -> Void)?
 
   lazy var handler = SiriMediaIntentHandler(
-    catalog: { try Container.shared.siriCatalogFile().read() },
+    catalog: { try await Container.shared.siriCatalogFile().read() },
     authorized: { Container.shared.siriAuthorized()() },
-    playback: { selection, completion in
-      Task { @MainActor in
-        Container.shared.siriPlayback().play(selection, completion: completion)
-      }
+    diagnostic: { Container.shared.siriResolutionDiagnostics().record($0) },
+    playback: { completion in
+      Container.shared.siriPlayback().begin(completion: completion)
     }
   )
 
@@ -71,10 +70,9 @@ final class SiriPlayback {
     if presentation?.id == id { presentation = nil }
   }
 
-  private func play(
-    _ selection: SiriMediaSelection,
+  private func begin(
     completion: @escaping SiriMediaIntentHandler.Completion
-  ) {
+  ) -> SiriMediaIntentHandler.PlaybackSelection {
     request?.finish(.failure)
     let request = Request(completion: completion)
     self.request = request
@@ -98,6 +96,23 @@ final class SiriPlayback {
       Self.log.error("Siri playback timed out")
       request.finish(.failure)
     }
+    return { [weak self, weak request] selection in
+      guard let self, let request, self.request === request else { return }
+      guard let selection else {
+        self.request = nil
+        request.finish(.failure)
+        return
+      }
+      self.play(selection, request: request, revision: revision, showNowPlaying: showNowPlaying)
+    }
+  }
+
+  private func play(
+    _ selection: SiriMediaSelection,
+    request: Request,
+    revision: UUID,
+    showNowPlaying: (() -> Void)?
+  ) {
     request.work = Task { [weak self, weak request] in
       guard let self, let request else { return }
       defer {
@@ -142,11 +157,15 @@ final class SiriPlayback {
           Container.shared.siriAuthorized()(), let episode
         else { return }
         guard
-          try Container.shared.siriCatalogFile().read().generation == selection.catalogGeneration
+          try await Container.shared.siriCatalogFile().read().generation
+            == selection.catalogGeneration
         else {
           Self.log.debug("Siri library changed before playback: media=\(selection.identity.id)")
           return
         }
+        guard !Task.isCancelled, self.request === request,
+          playManager.playbackRequestRevision == revision, Container.shared.siriAuthorized()()
+        else { return }
         let outcome = try await playManager.play(
           episode,
           replacing: revision,

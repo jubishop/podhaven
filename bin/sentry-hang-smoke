@@ -22,7 +22,7 @@ def command(*args, **kwargs):
     return subprocess.check_output(args, cwd=ROOT, text=True, **kwargs).strip()
 
 
-def prepare(output):
+def prepare(output, *, bundle=BUNDLE, integration="sentry-hang"):
     project = json.loads(command("plutil", "-convert", "json", "-o", "-",
                                  str(ROOT / "PodHaven.xcodeproj/project.pbxproj")))
     objects = project["objects"]
@@ -43,12 +43,12 @@ def prepare(output):
             value["membershipExceptions"].append("PodHavenApp.swift")
     group = "644000000000000000000001"
     objects[group] = {"isa": "PBXFileSystemSynchronizedRootGroup", "sourceTree": "<absolute>",
-                      "path": str(ROOT / "bin/integration/sentry-hang")}
+                      "path": str(ROOT / "bin/integration" / integration)}
     objects[root["mainGroup"]]["children"].append(group)
     target["fileSystemSynchronizedGroups"].append(group)
     for key in objects[target["buildConfigurationList"]]["buildConfigurations"]:
         settings = objects[key]["buildSettings"]
-        settings["PRODUCT_BUNDLE_IDENTIFIER"] = BUNDLE
+        settings["PRODUCT_BUNDLE_IDENTIFIER"] = bundle
         settings["CODE_SIGN_ENTITLEMENTS"] = ""
         settings["INFOPLIST_KEY_CFBundleDisplayName"] = "PodHaven Hang Probe"
     path = output / "HangProbe.xcodeproj"
