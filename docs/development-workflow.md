@@ -455,8 +455,13 @@ runs the complete suite and also supports uncommitted development work.
 
 `bin/test-all` runs repository checks, Python skill and helper tests, shell
 tooling tests, Swift formatting checks, macro tests, and the complete
-`PodHaven` test plan on My Mac (Designed for iPhone). My Mac also runs hosted
-UI and accessibility tests that the iOS Simulator skips. Use additional
+`PodHaven` test plan on My Mac (Designed for iPhone). The large Siri catalog
+timing suite runs in a separate, required phase after the other app tests.
+Its five-second budgets therefore exclude contention from unrelated tests.
+Both phases must pass with zero skipped tests and validated diagnostics;
+their logs and result bundles are retained in the same evidence directory.
+
+My Mac also runs hosted UI and accessibility tests that the iOS Simulator skips. Use additional
 simulator checks when a change needs environment-specific coverage. Development
 checks use local targets; physical-device testing belongs to separate release
 workflows and must respect the [device restriction](../AGENTS.md#repo-guardrails).

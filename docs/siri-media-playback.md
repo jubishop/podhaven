@@ -125,7 +125,11 @@ and deterministic ambiguity. Each synthetic resolution has a five-second
 completion budget; the callback regression proves that the main actor regains
 control while catalog work is pending without using sleep-based assertions.
 This synthetic budget is a regression gate, not a claim about every device or
-pathological metadata distribution.
+pathological metadata distribution. `bin/test-all` runs this suite in a separate,
+required phase after the other app tests. This keeps unrelated test scheduling
+out of the timing measurement while retaining the same budgets. The
+`SiriPerformance.xcresult` bundle and `siri-performance.log` are retained beside
+the other full-run evidence and receive the same diagnostic checks.
 
 An optimized local diagnostic benchmark used a 16,564,058-byte catalog. Before
 the change, read/decode took about 2/420 ms and broad matching took 429–665 ms;

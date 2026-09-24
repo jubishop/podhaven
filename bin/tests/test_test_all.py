@@ -39,9 +39,14 @@ elif name == 'xcodebuild':
     assert '-hideShellScriptEnvironment' in args
     assert args[args.index('-destination') + 1] == 'platform=macOS,name=My Mac'
     assert 'LM_FORCE_LINK_GENERATION=YES' in args
-    assert not any(arg.startswith(('-only-testing', '-skip-testing')) for arg in args)
-    if not os.environ.get('TEST_MISSING_BUNDLE'):
-        pathlib.Path(args[args.index('-resultBundlePath') + 1]).mkdir()
+    bundle = pathlib.Path(args[args.index('-resultBundlePath') + 1])
+    performance = bundle.stem == 'SiriPerformance'
+    fault = os.environ.get('TEST_PERFORMANCE_FAULT') if performance else None
+    selection = '-only-testing' if performance else '-skip-testing'
+    assert [arg for arg in args if arg.startswith(('-only-testing', '-skip-testing'))] == [
+        selection + ':PodHavenTests/SiriLargeCatalogTests']
+    if not os.environ.get('TEST_MISSING_BUNDLE') and fault != 'missing-bundle':
+        bundle.mkdir()
     print('Tests completed')
     if os.environ.get('TEST_CHANGE_CHECKOUT'):
         pathlib.Path('source.txt').write_text('changed during tests')
@@ -49,14 +54,18 @@ elif name == 'xcodebuild':
         subprocess.run(['git', 'add', '.'], check=True)
     if os.environ.get('TEST_ASSUME_CHECKOUT'):
         subprocess.run(['git', 'update-index', '--assume-unchanged', 'source.txt'], check=True)
-    if os.environ.get('TEST_BUILD_FAILURE'): sys.exit(65)
+    if os.environ.get('TEST_BUILD_FAILURE') or fault == 'build': sys.exit(65)
 elif name == 'xcrun' and args[:2] == ['xcresulttool', 'get']:
-    if not pathlib.Path(args[args.index('--path') + 1]).is_dir(): sys.exit(1)
+    bundle = pathlib.Path(args[args.index('--path') + 1])
+    if not bundle.is_dir(): sys.exit(1)
+    fault = os.environ.get('TEST_PERFORMANCE_FAULT') if bundle.stem == 'SiriPerformance' else None
     if 'summary' in args:
-        print(json.dumps({'result': 'Passed', 'passedTests': 20,
-                          'failedTests': 0, 'skippedTests': int(os.environ.get('TEST_SKIPPED', '0'))}))
+        print(json.dumps({'result': 'Failed' if fault == 'failed-result' else 'Passed',
+                          'passedTests': 0 if fault == 'empty' else 20,
+                          'failedTests': int(fault == 'failed-result'),
+                          'skippedTests': int(os.environ.get('TEST_SKIPPED', '0')) + int(fault == 'skipped')}))
     elif 'build-results' in args:
-        print(json.dumps({'errorCount': 0, 'warningCount': 0, 'analyzerWarningCount': 0}))
+        print(json.dumps({'errorCount': 0, 'warningCount': int(fault == 'warning'), 'analyzerWarningCount': 0}))
     else:
         expected = {
             'WorkerTaskPriorityTests/backgroundExecution(process:)': [
@@ -73,7 +82,10 @@ elif name == 'xcrun' and args[:2] == ['xcresulttool', 'get']:
 elif name == 'xcrun' and args[:2] == ['xcresulttool', 'export']:
     output = pathlib.Path(args[args.index('--output-path') + 1])
     output.mkdir(parents=True)
-    (output / 'StandardOutputAndStandardError.txt').write_text('Tests completed')
+    performance = pathlib.Path(args[args.index('--path') + 1]).stem == 'SiriPerformance'
+    fault = os.environ.get('TEST_PERFORMANCE_FAULT') if performance else None
+    (output / 'StandardOutputAndStandardError.txt').write_text(
+        'Main Thread Checker: invalid access' if fault == 'runtime' else 'Tests completed')
 elif name in ('check', 'lint-swift-format', 'test_skill.py', 'test_helper.py'):
     print('Ran ' + os.environ.get('TEST_PYTHON_COUNT', '1') + ' test in 0.001s')
     print('OK (skipped=1)' if os.environ.get('TEST_PYTHON_SKIPPED') else 'OK')
@@ -143,6 +155,36 @@ class TestAllTests(unittest.TestCase):
         self.assertEqual(self.report()["checkout"]["revision"], self.git("rev-parse", "HEAD"))
         self.assertEqual(self.report()["checkout"]["status"], "")
         self.assertEqual(self.report()["result"], "passed")
+
+    def test_siri_performance_runs_separately_and_both_runs_are_validated(self):
+        result = self.run_all()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
+        builds = [args for name, args in events if name == "xcodebuild" and "test" in args]
+        self.assertEqual(len(builds), 2)
+        self.assertEqual([arg for arg in builds[0] if arg.startswith(("-only-testing", "-skip-testing"))],
+                         ["-skip-testing:PodHavenTests/SiriLargeCatalogTests"])
+        self.assertEqual([arg for arg in builds[1] if arg.startswith(("-only-testing", "-skip-testing"))],
+                         ["-only-testing:PodHavenTests/SiriLargeCatalogTests"])
+        bundles = [args[args.index("-resultBundlePath") + 1] for args in builds]
+        self.assertEqual(len(set(bundles)), 2)
+        for bundle in bundles:
+            for command in (["get", "test-results", "summary"], ["get", "build-results"],
+                            ["get", "test-results", "tests"], ["export", "diagnostics"]):
+                self.assertTrue(any(name == "xcrun" and args[:1 + len(command)] == ["xcresulttool", *command]
+                                    and args[args.index("--path") + 1] == bundle
+                                    for name, args in events))
+        artifacts = self.report()["artifacts"]
+        self.assertIn("siri-performance.log", artifacts)
+        self.assertIn("siri-performance-validation.log", artifacts)
+
+    def test_siri_performance_failures_never_leave_a_passing_report(self):
+        for fault in ("build", "missing-bundle", "failed-result", "empty", "skipped", "warning", "runtime"):
+            with self.subTest(fault=fault):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
+                result = self.run_all(TEST_PERFORMANCE_FAULT=fault)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertEqual(self.report()["result"], "failed")
 
     def test_failures_never_leave_a_passing_report(self):
         for setting in ("TEST_BUILD_FAILURE", "TEST_MISSING_BUNDLE", "TEST_SKIPPED",

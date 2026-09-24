@@ -82,8 +82,10 @@ def reusable_evidence(report):
             return None
         artifacts = saved.get("artifacts")
         if (not isinstance(artifacts, dict)
-                or not {"tooling.log", "macros.log", "xcodebuild.log", "swift-validation.log"} <= artifacts.keys()
+                or not {"tooling.log", "macros.log", "xcodebuild.log", "swift-validation.log",
+                        "siri-performance.log", "siri-performance-validation.log"} <= artifacts.keys()
                 or not (output / "TestResults.xcresult").is_dir()
+                or not (output / "SiriPerformance.xcresult").is_dir()
                 or evidence_files(output) != artifacts
                 or checkout_state() != report["checkout"]):
             return None
@@ -166,22 +168,29 @@ def main():
         if re.search(r"\b[1-9]\d* (?:tests? )?skipped\b", macro_log, re.I):
             raise RuntimeError(f"Macro tests were skipped; see {output / 'macros.log'}")
 
-        test_status = run([
-            str(ROOT / "bin/with-test-accessibility"),
-            "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
-            "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
-            "-skipMacroValidation", "-resultBundlePath", str(output / "TestResults.xcresult"),
-            "LM_FORCE_LINK_GENERATION=YES",
-        ], output, "xcodebuild", check=False)
-        if not (output / "TestResults.xcresult").is_dir():
-            raise RuntimeError(f"Swift tests did not produce a result bundle (exit code {test_status}); "
-                               f"see {output / 'xcodebuild.log'} for the launch or build failure")
-        validation_status = run([
-            str(ROOT / "bin/check-swift-results"), str(output / "TestResults.xcresult"),
-            "--build-log", str(output / "xcodebuild.log"), "--full",
-        ], output, "swift-validation", check=False)
-        if test_status or validation_status:
-            raise RuntimeError("Swift tests or evidence validation failed")
+        for bundle_name, log_name, validation_name, selection, validation_options in (
+            ("TestResults", "xcodebuild", "swift-validation",
+             "-skip-testing:PodHavenTests/SiriLargeCatalogTests", ["--full"]),
+            ("SiriPerformance", "siri-performance", "siri-performance-validation",
+             "-only-testing:PodHavenTests/SiriLargeCatalogTests", []),
+        ):
+            bundle = output / f"{bundle_name}.xcresult"
+            test_status = run([
+                str(ROOT / "bin/with-test-accessibility"),
+                "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
+                "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
+                "-skipMacroValidation", "-resultBundlePath", str(bundle), selection,
+                "LM_FORCE_LINK_GENERATION=YES",
+            ], output, log_name, check=False)
+            if not bundle.is_dir():
+                raise RuntimeError(f"Swift tests did not produce a result bundle (exit code {test_status}); "
+                                   f"see {output / (log_name + '.log')} for the launch or build failure")
+            validation_status = run([
+                str(ROOT / "bin/check-swift-results"), str(bundle),
+                "--build-log", str(output / f"{log_name}.log"), *validation_options,
+            ], output, validation_name, check=False)
+            if test_status or validation_status:
+                raise RuntimeError(f"Swift tests or evidence validation failed ({log_name})")
         report["checkout_after"] = checkout_state()
         if any(report["checkout_after"][key] != report["checkout"][key]
                for key in ("revision", "worktree_sha256")):
