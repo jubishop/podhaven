@@ -3,6 +3,9 @@
 import importlib.machinery
 import importlib.util
 from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,6 +19,20 @@ class SwiftResultTests(unittest.TestCase):
     def setUp(self):
         self.summary = {"result": "Passed", "passedTests": 10, "failedTests": 0}
         self.build = {"errorCount": 0, "warningCount": 0, "analyzerWarningCount": 0}
+
+    def test_missing_bundle_has_an_actionable_error_without_a_traceback(self):
+        with tempfile.TemporaryDirectory() as folder:
+            bundle = Path(folder) / "missing.xcresult"
+            log = Path(folder) / "xcodebuild.log"
+            log.write_text("error: Grant Accessibility access")
+            result = subprocess.run(
+                [sys.executable, str(ROOT / "bin/check-swift-results"), str(bundle), "--build-log", str(log)],
+                capture_output=True, text=True, check=False)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Missing Swift test result bundle", result.stderr)
+            self.assertIn(str(log), result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertFalse(bundle.with_suffix(".validation").exists())
 
     def test_passed_assertions_do_not_hide_runtime_warnings(self):
         for warning in ("Unbalanced calls to begin/end appearance transitions for <UIHostingController>",

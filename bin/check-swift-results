@@ -134,6 +134,10 @@ def main():
     parser.add_argument("--build-log", type=Path, required=True)
     parser.add_argument("--full", action="store_true", help="Require complete worker and silence priority coverage")
     args = parser.parse_args()
+    if not args.bundle.is_dir():
+        print(f"error: Missing Swift test result bundle: {args.bundle}. "
+              f"Check {args.build_log} for the launch or build failure before retrying.", file=sys.stderr)
+        return 1
     output = args.bundle.with_suffix(".validation")
     output.mkdir(parents=True, exist_ok=True)
     data = {}

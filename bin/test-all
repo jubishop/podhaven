@@ -97,7 +97,7 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--ensure", action="store_true", help="Require clean full evidence; run tests if reuse is unavailable.")
     mode.add_argument("--verify", action="store_true", help="Verify existing clean full evidence without running tests.")
-    mode.add_argument("--preflight", action="store_true", help="Check the selected tools without running tests.")
+    mode.add_argument("--preflight", action="store_true", help="Check tools and Accessibility access without running tests.")
     parser.add_argument("--revision", help="Require this exact commit for --ensure or --verify.")
     args = parser.parse_args()
     if args.revision and not (args.ensure or args.verify):
@@ -119,7 +119,8 @@ def main():
             raise RuntimeError(f"Xcode 27+ and Swift 6.4+ are required; select Xcode with DEVELOPER_DIR.\n"
                                f"{report['xcode']}\n{report['swift']}")
         if args.preflight:
-            return 0
+            return subprocess.run([str(ROOT / "bin/with-test-accessibility"), "--check"],
+                                  cwd=ROOT, env=TEST_ENVIRONMENT).returncode
         report["checkout"] = checkout_state()
         if args.ensure or args.verify:
             if report["checkout"]["unchecked_paths"]:
@@ -140,6 +141,7 @@ def main():
         output = Path(tempfile.mkdtemp(prefix=datetime.now().strftime("%Y%m%d-%H%M%S-"), dir=cache))
         print(f"Test evidence: {output}", flush=True)
 
+        run([str(ROOT / "bin/with-test-accessibility"), "--check"], output, "accessibility-preflight")
         run([str(ROOT / "bin/check"), "--full"], output, "tooling", require_unittest=True)
         files = subprocess.check_output(
             ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--",
@@ -171,6 +173,9 @@ def main():
             "-skipMacroValidation", "-resultBundlePath", str(output / "TestResults.xcresult"),
             "LM_FORCE_LINK_GENERATION=YES",
         ], output, "xcodebuild", check=False)
+        if not (output / "TestResults.xcresult").is_dir():
+            raise RuntimeError(f"Swift tests did not produce a result bundle (exit code {test_status}); "
+                               f"see {output / 'xcodebuild.log'} for the launch or build failure")
         validation_status = run([
             str(ROOT / "bin/check-swift-results"), str(output / "TestResults.xcresult"),
             "--build-log", str(output / "xcodebuild.log"), "--full",

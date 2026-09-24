@@ -5,6 +5,7 @@ import ctypes
 from http.client import HTTPConnection
 import importlib.machinery
 import importlib.util
+import io
 import json
 from pathlib import Path
 import threading
@@ -41,12 +42,14 @@ class NativeAccessibility:
         self.next_array = 100_000
         self.ax = SimpleNamespace(
             AXIsProcessTrusted=Mock(return_value=True),
+            AXIsProcessTrustedWithOptions=Mock(return_value=False),
             AXUIElementCreateSystemWide=Mock(return_value=0),
             AXUIElementCreateApplication=Mock(return_value=1),
             AXUIElementSetMessagingTimeout=Mock(return_value=0),
             AXUIElementCopyAttributeValue=Mock(side_effect=self.copy_children),
         )
         self.cf = SimpleNamespace(
+            CFDictionaryCreate=Mock(return_value=-2),
             CFStringCreateWithCString=Mock(return_value=-1),
             CFArrayGetCount=Mock(side_effect=lambda array: len(self.arrays[array.value])),
             CFArrayGetValueAtIndex=Mock(side_effect=lambda array, index: self.arrays[array.value][index]),
@@ -81,6 +84,32 @@ class NativeAccessibility:
 
 
 class NativeTraversalTests(unittest.TestCase):
+    def test_denied_access_requests_native_permission_and_explains_retry(self):
+        native = NativeAccessibility({})
+        native.ax.AXIsProcessTrusted.return_value = False
+        with patch.object(ctypes.c_void_p, 'in_dll', side_effect=[ctypes.c_void_p(10), ctypes.c_void_p(20)]):
+            with self.assertRaisesRegex(RuntimeError, 'bin/test-all --preflight'):
+                native.client()
+        native.ax.AXIsProcessTrustedWithOptions.assert_called_once_with(-2)
+        options = native.cf.CFDictionaryCreate.call_args.args
+        self.assertEqual(list(options[1]), [10])
+        self.assertEqual(list(options[2]), [20])
+        self.assertEqual(options[3:], (1, None, None))
+        native.cf.CFRelease.assert_called_once_with(-2)
+        native.ax.AXUIElementCreateSystemWide.assert_not_called()
+
+    def test_permission_check_does_not_start_a_server_or_command(self):
+        native = NativeAccessibility({})
+        with patch.object(module.ctypes, 'CDLL', side_effect=[native.ax, native.cf, native.proc]), \
+                patch.object(module.sys, 'argv', ['with-test-accessibility', '--check']), \
+                patch.object(module, 'LocalAccessibilityServer') as server, \
+                patch.object(module.subprocess, 'run') as command, \
+                patch.object(module.sys, 'stdout', new_callable=io.StringIO):
+            self.assertEqual(module.main(), 0)
+        server.assert_not_called()
+        command.assert_not_called()
+        native.ax.AXIsProcessTrustedWithOptions.assert_not_called()
+
     def test_cycles_do_not_prevent_inspection_of_other_children(self):
         for children, identities, expected in (
             ({1: [1, 2]}, {}, [1, 2]),

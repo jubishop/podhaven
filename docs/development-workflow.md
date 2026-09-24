@@ -471,12 +471,27 @@ On macOS 27, hosted SwiftUI tests need a native accessibility client to expose
 controls. `bin/test-all` starts it through `bin/with-test-accessibility`. Use
 `bin/with-test-accessibility xcodebuild test ...` for focused runs too. Grant
 Accessibility access to the terminal or app running tests in System Settings →
-Privacy & Security → Accessibility. The wrapper connects only to the PodHaven
-test host through a temporary, token-protected loopback endpoint to initialize
+Privacy & Security → Device Control and Data Access (the macOS 27 name for
+Accessibility permissions). The wrapper connects only to the PodHaven test
+host through a temporary, token-protected loopback endpoint to initialize
 inspection. Hosted control tests dispatch UIKit primary actions or activate
 SwiftUI accessibility elements inside the test's dependency context. Direct
 `Cmd+U` runs do not start this client. The wrapper also clears inherited
 `SDKROOT` so Xcode selects the SDK for the requested destination.
+
+Run `bin/test-all --preflight` from the terminal or app that will launch the
+tests to check the toolchain and Accessibility access without running tests.
+The full suite also checks access before any test suite starts. When access
+is missing, the wrapper requests the macOS permission prompt and stops.
+Enable the app named by macOS, then rerun the preflight from that same app.
+If access is already enabled but the check fails, quit and reopen that app
+and check again. Release commands run this preflight too.
+
+My Mac code coverage also needs access to the PodHaven app's data. In System
+Settings → Privacy & Security → Files & Folders, expand the terminal or app
+running tests and enable PodHaven. If this access is denied, tests can pass
+while Xcode cannot collect coverage files; the diagnostic check rejects that
+run's warnings.
 
 Each attempt retains logs, its `.xcresult` bundle, diagnostic reports, and
 `run.json` under `.cache/test-all/`. The report records the revision, local

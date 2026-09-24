@@ -25,6 +25,11 @@ elif name == 'xcrun' and args == ['swift', '--version']:
 elif name == 'sw_vers':
     print(os.environ.get('TEST_MACOS_VERSION', '27.0'))
 elif name == 'with-test-accessibility':
+    if os.environ.get('TEST_ACCESSIBILITY_DENIED') or (
+            os.environ.get('TEST_ACCESSIBILITY_REVOKED') and args != ['--check']):
+        print('error: Grant Accessibility access to the terminal or app running tests', file=sys.stderr)
+        sys.exit(1)
+    if args == ['--check']: sys.exit(0)
     sys.exit(subprocess.run(args, check=False).returncode)
 elif name == 'xcrun' and args[:2] == ['swift', 'test']:
     print('Executed 1 test, with 0 failures')
@@ -154,6 +159,37 @@ class TestAllTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.report()["result"], "failed")
 
+    def test_accessibility_denial_stops_before_any_test_suite(self):
+        result = self.run_all(TEST_ACCESSIBILITY_DENIED="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Grant Accessibility access", result.stderr)
+        self.assertEqual(self.report()["result"], "failed")
+        events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
+        self.assertIn(["with-test-accessibility", ["--check"]], events)
+        self.assertFalse(any(name == "check" or "test" in args for name, args in events))
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_missing_bundle_reports_launch_failure_without_result_inspection(self):
+        for setting in ("TEST_ACCESSIBILITY_REVOKED", "TEST_MISSING_BUNDLE"):
+            with self.subTest(setting=setting):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
+                (self.base / "events").write_text("")
+                result = self.run_all(**{setting: "1"})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.report()["result"], "failed")
+                self.assertIn("did not produce a result bundle", result.stderr)
+                self.assertIn("xcodebuild.log", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
+                self.assertFalse(any("xcresulttool" in args for _, args in events))
+
+    def test_failed_tests_with_a_bundle_still_validate_diagnostics(self):
+        result = self.run_all(TEST_BUILD_FAILURE="1")
+        self.assertNotEqual(result.returncode, 0)
+        events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
+        self.assertTrue(any("xcresulttool" in args for _, args in events))
+        self.assertEqual(self.report()["result"], "failed")
+
     def test_staging_unchanged_contents_does_not_invalidate_tests(self):
         (self.repo / "new.txt").write_text("new source")
         result = self.run_all(TEST_STAGE_CHECKOUT="1")
@@ -260,6 +296,15 @@ class TestAllTests(unittest.TestCase):
     def test_preflight_does_not_run_tests_or_write_evidence(self):
         result = self.run_all("--preflight")
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((self.repo / ".cache").exists())
+
+    def test_preflight_checks_accessibility_without_running_tests(self):
+        result = self.run_all("--preflight", TEST_ACCESSIBILITY_DENIED="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Grant Accessibility access", result.stderr)
+        events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
+        self.assertIn(["with-test-accessibility", ["--check"]], events)
+        self.assertFalse(any(name == "check" or "test" in args for name, args in events))
         self.assertFalse((self.repo / ".cache").exists())
 
     def test_unsupported_xcode_stops_before_tests(self):

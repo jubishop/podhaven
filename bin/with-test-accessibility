@@ -32,11 +32,14 @@ class AccessibilityClient:
         pointer = ctypes.c_void_p
         for library, name, arguments, result in (
             (self.ax, 'AXIsProcessTrusted', [], ctypes.c_bool),
+            (self.ax, 'AXIsProcessTrustedWithOptions', [pointer], ctypes.c_bool),
             (self.ax, 'AXUIElementCreateSystemWide', [], pointer),
             (self.ax, 'AXUIElementCreateApplication', [ctypes.c_int], pointer),
             (self.ax, 'AXUIElementSetMessagingTimeout', [pointer, ctypes.c_float], ctypes.c_int),
             (self.ax, 'AXUIElementCopyAttributeValue', [pointer, pointer, ctypes.POINTER(pointer)], ctypes.c_int),
             (self.cf, 'CFStringCreateWithCString', [pointer, ctypes.c_char_p, ctypes.c_uint32], pointer),
+            (self.cf, 'CFDictionaryCreate', [pointer, ctypes.POINTER(pointer), ctypes.POINTER(pointer),
+                                          ctypes.c_long, pointer, pointer], pointer),
             (self.cf, 'CFArrayGetCount', [pointer], ctypes.c_long),
             (self.cf, 'CFArrayGetValueAtIndex', [pointer, ctypes.c_long], pointer),
             (self.cf, 'CFGetTypeID', [pointer], ctypes.c_ulong),
@@ -49,7 +52,19 @@ class AccessibilityClient:
             function.argtypes = arguments
             function.restype = result
         if not self.ax.AXIsProcessTrusted():
-            raise RuntimeError('Grant Accessibility access to the terminal or app running tests in System Settings > Privacy & Security > Accessibility')
+            key = pointer.in_dll(self.ax, 'kAXTrustedCheckOptionPrompt')
+            value = pointer.in_dll(self.cf, 'kCFBooleanTrue')
+            options = self.cf.CFDictionaryCreate(None, (pointer * 1)(key), (pointer * 1)(value), 1, None, None)
+            try:
+                self.ax.AXIsProcessTrustedWithOptions(options)
+            finally:
+                self.cf.CFRelease(options)
+            raise RuntimeError(
+                'Grant Accessibility access to the terminal or app running tests in '
+                'System Settings > Privacy & Security > Device Control and Data Access. '
+                'Enable the app named in the macOS permission prompt, then run '
+                '`bin/test-all --preflight` from that same app before retrying. '
+                'If access is already enabled, quit and reopen that app, then check again.')
         system = self.ax.AXUIElementCreateSystemWide()
         try:
             result = self.ax.AXUIElementSetMessagingTimeout(system, 60)
@@ -139,10 +154,13 @@ def request_handler(client, token):
 
 def main():
     if len(sys.argv) < 2:
-        print('Usage: bin/with-test-accessibility <command> [arguments ...]', file=sys.stderr)
+        print('Usage: bin/with-test-accessibility --check | <command> [arguments ...]', file=sys.stderr)
         return 2
     try:
         client = AccessibilityClient()
+        if sys.argv[1:] == ['--check']:
+            print('Accessibility access is available for hosted tests.')
+            return 0
         token = secrets.token_hex(24)
         with LocalAccessibilityServer(('127.0.0.1', 0), request_handler(client, token)) as server:
             thread = threading.Thread(target=server.serve_forever, daemon=True)
