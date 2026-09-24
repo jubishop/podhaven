@@ -470,6 +470,7 @@ if [[ "$UPLOAD_SUCCEEDED" != true ]]; then
     -configuration Release \
     -destination 'generic/platform=iOS' \
     -archivePath "$ARCHIVE_PATH" \
+    -skipMacroValidation \
     -allowProvisioningUpdates \
     "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
     CURRENT_PROJECT_VERSION="$build"

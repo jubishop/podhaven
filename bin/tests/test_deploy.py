@@ -42,6 +42,9 @@ elif name == 'xcodebuild':
         project = base / 'repo/PodHaven.xcodeproj/project.pbxproj'
         version = re.search(r'MARKETING_VERSION = ([^;]+);', project.read_text())[1] if project.exists() else os.environ.get('DEPLOY_VERSION', '1.0.1')
         print('    MARKETING_VERSION = ' + version)
+    elif 'archive' in args and os.environ.get('UNAPPROVED_MACROS') and '-skipMacroValidation' not in args:
+        print('error: Macro must be enabled before it can be used', file=sys.stderr)
+        sys.exit(65)
     elif '-exportArchive' in args and os.environ.get('FAIL_UPLOAD'): sys.exit(42)
 elif name == 'test-all':
     if os.environ.get('FAIL_LOCAL_TESTS') and '--preflight' not in args: sys.exit(44)
@@ -115,6 +118,12 @@ class DeployTests(unittest.TestCase):
         result = self.run_deploy()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(self.events("fastlane"))
+        self.assertTrue(any('-exportArchive' in event[1] for event in self.events('xcodebuild')))
+
+    def test_archive_supports_package_macros_without_interactive_approval(self):
+        result = self.run_deploy(UNAPPROVED_MACROS="1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(any('archive' in event[1] for event in self.events('xcodebuild')))
         self.assertTrue(any('-exportArchive' in event[1] for event in self.events('xcodebuild')))
 
     def test_shipit_rejects_malformed_testflight_versions(self):
