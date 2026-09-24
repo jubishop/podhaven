@@ -439,10 +439,17 @@ run_xcodebuild() {
   CURRENT_PHASE="$phase"
   CURRENT_LOG="$log"
   mkdir -p "$(dirname "$log")"
+  local xcodebuild_command
+  xcodebuild_command=$(command -v xcodebuild)
+  local tool_path="$PATH"
+  if [[ "$phase" == upload ]]; then
+    # Apple's rsync starts a child through PATH that must use the same Apple options.
+    tool_path="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+  fi
   # Suspend errexit so PIPESTATUS survives for inspection. `|| true` would reset it,
   # because PIPESTATUS reflects the *most recently executed* pipeline (i.e. `true`).
   set +e
-  xcodebuild -hideShellScriptEnvironment "$@" 2>&1 | tee "$log" | xcbeautify
+  PATH="$tool_path" "$xcodebuild_command" -hideShellScriptEnvironment "$@" 2>&1 | tee "$log" | xcbeautify
   local status=${PIPESTATUS[0]}
   set -e
   if (( status != 0 )); then

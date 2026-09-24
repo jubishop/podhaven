@@ -12,7 +12,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 FAKE = r'''
-import json, os, pathlib, re, sys, tempfile
+import json, os, pathlib, re, subprocess, sys, tempfile
 base = pathlib.Path(os.environ['DEPLOY_FIXTURE'])
 name = pathlib.Path(sys.argv[0]).name
 args = sys.argv[1:]
@@ -46,6 +46,8 @@ elif name == 'xcodebuild':
         print('error: Macro must be enabled before it can be used', file=sys.stderr)
         sys.exit(65)
     elif '-exportArchive' in args and os.environ.get('FAIL_UPLOAD'): sys.exit(42)
+    elif '-exportArchive' in args and os.environ.get('PROBE_EXPORT_COPY'):
+        sys.exit(subprocess.run(['cp', str(base / 'source'), str(base / 'exported')]).returncode)
 elif name == 'test-all':
     if os.environ.get('FAIL_LOCAL_TESTS') and '--preflight' not in args: sys.exit(44)
 elif name == 'llm':
@@ -125,6 +127,21 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(any('archive' in event[1] for event in self.events('xcodebuild')))
         self.assertTrue(any('-exportArchive' in event[1] for event in self.events('xcodebuild')))
+
+    def test_export_uses_system_copy_tools_when_path_contains_incompatible_tools(self):
+        shadow = self.commands / "cp"
+        shadow.write_text("#!/bin/sh\necho 'incompatible copy tool' >&2\nexit 70\n")
+        shadow.chmod(0o755)
+        (self.base / "source").write_text("exported app symbols")
+
+        result = self.run_deploy("--notes", "Fixes", PROBE_EXPORT_COPY="1")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.base / "exported").read_text(), "exported app symbols")
+        self.assertEqual(len(self.events("fastlane")), 3)
+        self.assertEqual(len(self.events("xcbeautify")), 2)
+        self.assertTrue(self.events("gh"))
+        self.assertEqual(json.loads((self.base / "state").read_text())["tag"], "v1.0.1b569")
 
     def test_shipit_rejects_malformed_testflight_versions(self):
         for version in ("2.1.1.1", "2.01.1", "2.1.beta"):
