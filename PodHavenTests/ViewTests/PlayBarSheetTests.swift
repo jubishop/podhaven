@@ -77,6 +77,101 @@ private struct HostedPlayBarTestView: View {
 @Suite("of PlayBarSheet tests", .container)
 @MainActor struct PlayBarSheetTests {
   @Test(
+    "top controls have equal heights and accessible targets at narrow widths",
+    .enabled(if: supportsHostedAccessibilityInspection),
+    arguments: [false, true]
+  )
+  func topControlHeights(hasTranscript: Bool) async throws {
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 4, text: "Top control layout")],
+      locale: "en-US",
+      createdAt: Date()
+    )
+    let episode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(
+        duration: .seconds(600),
+        currentTime: hasTranscript ? .seconds(120) : .zero,
+        rating: hasTranscript ? .loved : nil,
+        transcript: hasTranscript ? transcript.jsonString() : nil
+      )
+    )
+    Container.shared.transcriptionAvailability().$state.new(.available)
+    Container.shared.stateManager().setOnDeck(episode)
+    let viewModel = PlayBarViewModel()
+    let observation = Task { await viewModel.observeTranscript() }
+    defer { observation.cancel() }
+    if hasTranscript {
+      try await Wait.until { @MainActor in
+        viewModel.canExpandTranscript
+      } _: {
+        "Transcript did not load"
+      }
+    }
+
+    try await Self.withWindow(
+      PlayBarSheet(viewModel: viewModel),
+      size: CGSize(width: 320, height: 844)
+    ) { window in
+      let labels =
+        (hasTranscript ? ["Show Transcript"] : [])
+        + ["Share Episode", hasTranscript ? "Transcription" : "Transcribe", "Rate Episode"]
+      try await Wait.until(maxAttempts: 100) { @MainActor in
+        let available = Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+        return labels.allSatisfy(available.contains)
+      } _: {
+        "Top controls did not appear"
+      }
+
+      let elements = Self.accessibilityElements(in: window)
+      let controls = try labels.map { label in
+        try #require(elements.first { $0.accessibilityLabel == label })
+      }
+      let reference = try #require(controls.first).accessibilityFrame
+      for control in controls {
+        let frame = control.accessibilityFrame
+        #expect(control.accessibilityTraits.contains(.button))
+        #expect(frame.width >= 44)
+        #expect(frame.height >= 44)
+        #expect(
+          abs(frame.height - reference.height) <= 1,
+          "\(control.accessibilityLabel ?? "") height \(frame.height) differs from \(reference.height)"
+        )
+        #expect(abs(frame.midY - reference.midY) <= 1)
+        let localFrame = window.convert(frame, from: window.screen.coordinateSpace)
+        #expect(localFrame.minX >= 0)
+        #expect(localFrame.maxX <= window.bounds.width)
+      }
+      for (left, right) in zip(controls, controls.dropFirst()) {
+        #expect(left.accessibilityFrame.maxX <= right.accessibilityFrame.minX)
+      }
+      #expect(controls.last?.accessibilityValue == (hasTranscript ? "Love" : "Not Rated"))
+      if hasTranscript {
+        let expand = try #require(controls.first)
+        #expect(expand.accessibilityValue == "Collapsed")
+        #expect(expand.accessibilityActivate())
+        try await Wait.until { @MainActor in
+          Self.accessibilityElements(in: window)
+            .contains { $0.accessibilityLabel == "Collapse Transcript" }
+        } _: {
+          "Transcript did not expand"
+        }
+        let collapse = try #require(
+          Self.accessibilityElements(in: window)
+            .first { $0.accessibilityLabel == "Collapse Transcript" }
+        )
+        #expect(collapse.accessibilityValue == "Expanded")
+        #expect(abs(collapse.accessibilityFrame.height - reference.height) <= 1)
+      }
+      let screenshot = UIGraphicsImageRenderer(bounds: window.bounds)
+        .image { _ in window.drawHierarchy(in: window.bounds, afterScreenUpdates: true) }
+      Attachment.record(
+        try #require(screenshot.pngData()),
+        named: "top-controls-transcript-\(hasTranscript).png"
+      )
+    }
+  }
+
+  @Test(
     "silence control matches speed height and stays accessible at narrow widths",
     .enabled(if: supportsHostedAccessibilityInspection)
   )
