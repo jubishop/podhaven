@@ -30,6 +30,7 @@ import UIKit
       .dynamicTypeSize(dynamicTypeSize)
     )
     try await withHostedTestWindow(host, size: CGSize(width: 700, height: 844)) { window in
+      try await Self.waitForPhotos(in: window)
       let screenshot = UIGraphicsImageRenderer(bounds: window.bounds)
         .image { _ in
           window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
@@ -80,6 +81,7 @@ import UIKit
       .dynamicTypeSize(dynamicTypeSize)
     )
     try await withHostedTestWindow(host, size: CGSize(width: 320, height: 844)) { window in
+      try await Self.waitForPhotos(in: window)
       let scrollViews = Self.descendants(of: window).compactMap { $0 as? UIScrollView }
       let horizontal = try #require(
         scrollViews.first { $0.contentSize.width > $0.bounds.width + 1 },
@@ -122,6 +124,15 @@ import UIKit
       host.view.layoutIfNeeded()
       #expect(vertical.contentOffset.y == 200)
       #expect(horizontal.contentOffset.x == 0)
+    }
+  }
+
+  private static func waitForPhotos(in window: UIWindow) async throws {
+    try await Wait.until { @MainActor in
+      Self.accessibilityElements(in: window)
+        .contains { $0.accessibilityLabel == "Attached photo 1" }
+    } _: {
+      "Feedback photos did not enter the accessibility tree"
     }
   }
 
