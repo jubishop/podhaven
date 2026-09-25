@@ -167,9 +167,8 @@ struct PlayBarSheet: View {
 
   private func topBarButtonStyle<V: View>(_ content: V) -> some View {
     content
-      .font(.title3)
-      .padding(spacing / 2)
-      .glassEffect(.regular.interactive(), in: .capsule)
+      .menuStyle(PlaybackTopBarMenuStyle(spacing: spacing))
+      .buttonStyle(PlaybackTopBarButtonStyle(spacing: spacing))
       .disabled(isShowingSpeedPopover)
   }
 
@@ -347,6 +346,41 @@ struct PlayBarSheet: View {
       (colorScheme == .dark ? Color.black : Color.white).opacity(0.2),
       in: .rect(cornerRadius: viewModel.isDragging ? 12 : 8)
     )
+  }
+}
+
+private struct PlaybackTopBarButtonStyle: ButtonStyle {
+  let spacing: CGFloat
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .modifier(PlaybackTopBarLabelStyle(spacing: spacing))
+      .opacity(configuration.isPressed ? 0.6 : 1)
+  }
+}
+
+private struct PlaybackTopBarMenuStyle: MenuStyle {
+  let spacing: CGFloat
+
+  func makeBody(configuration: Configuration) -> some View {
+    Menu(configuration)
+      .buttonStyle(.plain)
+      .modifier(PlaybackTopBarLabelStyle(spacing: spacing))
+  }
+}
+
+private struct PlaybackTopBarLabelStyle: ViewModifier {
+  let spacing: CGFloat
+  @ScaledMetric(relativeTo: .title3) private var labelHeight: CGFloat = 28
+
+  func body(content: Content) -> some View {
+    content
+      .font(.title3)
+      .frame(height: labelHeight)
+      .padding(spacing / 2)
+      .frame(minWidth: 44, minHeight: 44)
+      .glassEffect(.regular.interactive(), in: .capsule)
+      .contentShape(.rect)
   }
 }
 
@@ -548,6 +582,18 @@ struct PlayBarSheetPreview: View {
 
 #Preview("no artwork") {
   PlayBarSheetPreview(image: nil)
+}
+
+#Preview("Top controls · large text with transcript") {
+  PlayBarSheetPreview(
+    transcript: Transcript(
+      segments: [TranscriptSegment(start: 0, end: 4, text: "Expand the transcript.")],
+      locale: "en-US",
+      createdAt: Date()
+    )
+  )
+  .frame(width: 320)
+  .dynamicTypeSize(.accessibility3)
 }
 
 #Preview("loading") {
