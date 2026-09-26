@@ -52,7 +52,10 @@ Without an API key, uploads use Xcode's login; distribution uses Fastlane's Appl
 Use FASTLANE_USER to select that Apple ID. Fastlane may request two-factor authentication.
 -h, --help: show this help.
 
-Processing is checked every 30 seconds for up to 30 minutes. Apple beta review may take longer.
+Processing is checked every 30 seconds for up to two hours. Apple beta review may take longer.
+PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS overrides this wait with a positive whole number of seconds.
+If processing times out, the upload is preserved. Check Build Uploads in App Store Connect,
+then retry with the same --notes; no new upload is needed.
 Successful uploads publish a Git tag and GitHub release and mirror to SourceHut.
 bin/shipit and bin/deploy.sh accept the same options.
 App Store uploads use bin/appstore --release VERSION --notes TEXT instead.

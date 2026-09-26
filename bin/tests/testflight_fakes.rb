@@ -111,6 +111,10 @@ end
 
 module FastlaneCore
   UI = ::UI
+  class Interface
+    class FastlaneCrash < StandardError; end
+  end
+
   class Configuration
     def self.create(_options, values)
       values
@@ -120,7 +124,10 @@ module FastlaneCore
   class BuildWatcher
     def self.wait_for_build_processing_to_be_complete(**options)
       $events << ["wait", options]
-      raise "Processing timed out" if $scenario == "timeout"
+      raise Interface::FastlaneCrash, "Unexpected watcher failure" if $scenario == "watcher_error"
+      if $scenario == "timeout" || ($scenario == "slow_processing" && options[:timeout_duration] < 1860)
+        raise Interface::FastlaneCrash, "FastlaneCore::BuildWatcher exceeded the '#{options[:timeout_duration]}' seconds, Stopping now!"
+      end
       OpenStruct.new(
         id: "build-id", app_version: "1.0.1", version: $scenario == "wrong_build" ? "570" : "569",
         platform: $scenario == "wrong_platform" ? "MAC_OS" : "IOS",

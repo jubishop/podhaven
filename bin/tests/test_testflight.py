@@ -16,6 +16,8 @@ class TestFlightTests(unittest.TestCase):
         settings = {**os.environ, "TESTFLIGHT_SCENARIO": scenario,
                     "PODHAVEN_TESTFLIGHT_NOTES": "Fixed playback", "ASC_KEY_PATH": "",
                     "ASC_KEY_ID": "", "ASC_ISSUER_ID": "", **env}
+        if "PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS" not in env:
+            settings.pop("PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS", None)
         result = subprocess.run(["ruby", str(ROOT / "bin/tests/testflight_fakes.rb"),
                                  str(ROOT / "fastlane/Fastfile")], env=settings,
                                 text=True, capture_output=True, timeout=15)
@@ -28,7 +30,7 @@ class TestFlightTests(unittest.TestCase):
         self.assertEqual(wait["app_version"], "1.0.1")
         self.assertEqual(wait["build_version"], "569")
         self.assertEqual(wait["poll_interval"], 30)
-        self.assertEqual(wait["timeout_duration"], 1800)
+        self.assertEqual(wait["timeout_duration"], 7200)
         self.assertFalse(wait["select_latest"])
         self.assertTrue(wait["wait_for_build_beta_detail_processing"])
         config = next(event[1] for event in events if event[0] == "distribute")
@@ -39,6 +41,46 @@ class TestFlightTests(unittest.TestCase):
         self.assertFalse(config["expire_previous_builds"])
         self.assertIn(["groups", {"builds": "build-id"}], events)
         self.assertIn("waiting for beta review", events[-1][1])
+
+    def test_processing_beyond_thirty_minutes_still_distributes_the_exact_build(self):
+        result, events = self.run_lane("slow_processing")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(sum(event[0] == "wait" for event in events), 1)
+        config = next(event[1] for event in events if event[0] == "distribute")
+        self.assertEqual(config["app_version"], "1.0.1")
+        self.assertEqual(config["build_number"], "569")
+        self.assertIn("Confirmed 1.0.1 (569) in Everyone", events[-1][1])
+
+    def test_timeout_reports_preserved_upload_and_retry_instead_of_a_crash(self):
+        result, events = self.run_lane("slow_processing", PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS="1800")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("1.0.1 (569)", result.stderr)
+        self.assertIn("1800 seconds", result.stderr)
+        self.assertIn("upload is preserved", result.stderr)
+        self.assertIn("same --notes", result.stderr)
+        self.assertIn("Build Uploads", result.stderr)
+        self.assertNotIn("BuildWatcher exceeded", result.stderr)
+        self.assertFalse(any(event[0] in ("distribute", "expire", "success") for event in events))
+
+    def test_processing_wait_accepts_a_longer_timeout(self):
+        result, events = self.run_lane("slow_processing", PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS="14400")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        wait = next(event[1] for event in events if event[0] == "wait")
+        self.assertEqual(wait["timeout_duration"], 14400)
+
+    def test_invalid_processing_timeout_fails_before_login(self):
+        for value in ("", "0", "-1", "1.5", "forever"):
+            with self.subTest(value=value):
+                result, events = self.run_lane(PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS=value)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS", result.stderr)
+                self.assertEqual(events, [])
+
+    def test_unrelated_watcher_crashes_are_not_reported_as_processing_delays(self):
+        result, events = self.run_lane("watcher_error")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stderr.strip(), "Unexpected watcher failure")
+        self.assertFalse(any(event[0] in ("distribute", "success") for event in events))
 
     def test_verification_accepts_assignment_on_a_later_page(self):
         result, events = self.run_lane("paginated")

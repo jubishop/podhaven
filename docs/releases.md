@@ -85,6 +85,15 @@ The upload then uses that version and a new build number. With `--notes`, it
 waits for processing and assigns the exact build to the external Everyone
 group. Without `--notes`, it only tests, archives, and uploads.
 
+TestFlight processing is checked every 30 seconds for up to two hours. Set
+`PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS` to a positive whole number of seconds to
+change that wait. A timeout preserves the upload and stops before distribution.
+Check the build's status under TestFlight's Build Uploads in App Store Connect.
+If processing is still pending, retry with the same `--notes`; the completed
+upload is reused. Apple can continue processing after the command stops. See
+[Apple's build upload statuses](https://developer.apple.com/help/app-store-connect/reference/app-uploads/build-upload-statuses)
+for processing failures and delays longer than 24 hours.
+
 With `--notes`, the command checks beta review before upload. After local
 validation, it expires one older build of the same iOS version that is still
 waiting for beta review, verifies expiration, and continues the upload.
