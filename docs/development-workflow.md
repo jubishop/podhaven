@@ -97,6 +97,19 @@ ignored `.config/qmd/index.yml` with absolute paths. Change the shared JSON,
 then refresh; direct QMD collection/context edits to the generated file will
 be replaced. The starter supports `**/*.md` collection patterns.
 
+Each QMD command receives a private, temporary copy of the generated
+configuration. QMD can add model settings or rewrite that copy as YAML without
+changing the configuration used by freshness checks. Command copies are removed
+on exit; the checkout's database and shared model cache remain in their usual
+locations. This preserves compatibility with QMD 2.8.3 and later configuration
+writers without adding a YAML parser to the Python helpers.
+
+The tested version is a compatibility baseline, not a requirement to stay on an
+old release. Prefer current stable QMD releases after a real indexing and search
+check. Project Starter maintains weekly dependency updates and real-QMD checks
+against its tested runtime and the latest published runtime. Apply relevant
+helper changes before upgrading a shared installation used by older checkouts.
+
 ## Optional home memory
 
 Home notes are excluded by default. Opt in through local Git configuration:

@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 EVENTS = ("post-checkout", "post-commit", "post-merge", "post-rewrite")
-TESTED_QMD = "2.1.0"
+TESTED_QMD = "2.8.3"
 
 
 def stamp():
@@ -119,6 +119,19 @@ def config(include_local=True):
 def environment():
     return dict(git_environment(), QMD_CONFIG_DIR=str(ROOT / ".config/qmd"),
                 XDG_CACHE_HOME=str(ROOT / ".cache"), INDEX_PATH=str(cache() / "index.sqlite"))
+
+
+def configuration_matches(rendered):
+    path = ROOT / ".config/qmd/index.yml"
+    return path.is_file() and path.read_text() == json.dumps(rendered, indent=2, sort_keys=True) + "\n"
+
+
+@contextmanager
+def command_environment():
+    with tempfile.TemporaryDirectory(prefix="command-", dir=cache()) as temporary:
+        path = Path(temporary)
+        (path / "index.yml").write_bytes((ROOT / ".config/qmd/index.yml").read_bytes())
+        yield dict(environment(), QMD_CONFIG_DIR=str(path))
 
 
 def qmd_tool():
@@ -367,7 +380,8 @@ def refresh(force):
                          (cache() / "index.sqlite").is_file() and previous.get("status") == "success")
             if not unchanged:
                 for command in ("update", "embed"):
-                    subprocess.run([tool, command], cwd=ROOT, env=environment(), check=True)
+                    with command_environment() as env:
+                        subprocess.run([tool, command], cwd=ROOT, env=env, check=True)
             after_config, _ = config()
             after, _ = snapshot(after_config, version)
             changed_during_run = before != after
@@ -435,7 +449,7 @@ def current_index(version):
     return (state.get("status") == "success" and
             (state.get("last_success") or {}).get("fingerprint") == fingerprint and
             (cache() / "index.sqlite").is_file() and
-            read_json(ROOT / ".config/qmd/index.yml") == rendered and not worker_active())
+            configuration_matches(rendered) and not worker_active())
 
 
 
@@ -455,7 +469,8 @@ def lookup(args):
         tool, version = qmd_tool()
         if not tool or not current_index(version):
             raise RuntimeError("Search freshness could not be established; no results returned. Run bin/doctor and bin/qmd-index.")
-    result = subprocess.run([tool, *args], cwd=ROOT, env=environment(), text=True, stdout=subprocess.PIPE)
+    with command_environment() as env:
+        result = subprocess.run([tool, *args], cwd=ROOT, env=env, text=True, stdout=subprocess.PIPE)
     if result.returncode:
         raise RuntimeError("QMD lookup failed (exit " + str(result.returncode) + "); no results returned. Run bin/doctor and bin/qmd-index.")
     if retrieves and not current_index(version):
@@ -513,7 +528,7 @@ def diagnose():
             if not last:
                 report["freshness"] = "unknown"
             elif (last.get("fingerprint") == fingerprint and (cache() / "index.sqlite").is_file()
-                  and read_json(ROOT / ".config/qmd/index.yml") == rendered):
+                  and configuration_matches(rendered)):
                 report["freshness"] = "current"
             else:
                 report["freshness"] = "stale"

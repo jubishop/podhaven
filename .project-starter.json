@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "source": "https://github.com/jubishop/project-starter",
   "source_ref": "17892fd0abada4fc63377ede43c21e2085420e26",
-  "tested_qmd": "2.1.0",
+  "tested_qmd": "2.8.3",
   "adaptations": [
     "Xcode cache sharing and automatic guarded cleanup",
     "Optional environment file omitted",
