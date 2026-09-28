@@ -422,6 +422,7 @@ async function writeReport(args) {
       `report reviewed count (${reviewedMatch[1]}) must equal the starting active note count (${context.activeNoteCount})`,
     );
   }
+  await runCommand("bin/check", ["--memory-audit"]);
   await mkdir(path.dirname(reportPath), { recursive: true });
   await writeFile(reportPath, content.endsWith("\n") ? content : `${content}\n`, "utf8");
   reportWritten = true;
@@ -532,7 +533,7 @@ const tools = [
   ],
   [
     "write_report",
-    "Write the complete required report to artifacts/memory-audit-report.md.",
+    "Validate document metadata and links, then write the complete report. If validation fails, repair the permitted notes and retry. Must be the final tool call.",
     { content: { type: "string" } },
     ["content"],
   ],
@@ -701,6 +702,9 @@ async function main() {
       try {
         if (!handler) {
           throw new Error(`unknown tool: ${name}`);
+        }
+        if (name === "write_report" && toolCall !== toolCalls.at(-1)) {
+          throw new Error("write_report must be the final tool call; finish memory edits and retry the report");
         }
         const args = JSON.parse(toolCall.function.arguments || "{}");
         output = await handler(args);

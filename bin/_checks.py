@@ -173,15 +173,19 @@ def local_target(page, target):
     return ((page.parent / unquote(parsed.path)).resolve() if parsed.path else page.resolve(), unquote(parsed.fragment))
 
 
-def validate(root, areas=("memory", "docs"), options=None):
+def validate(root, areas=("memory", "docs"), options=None, generated_memory_index=False):
     config = options if options is not None else json.loads((root / ".config/knowledge.json").read_text())
+    memory_index = None
+    if generated_memory_index:
+        from _memory_index import rendered_index
+        memory_index = rendered_index(root)
     exclusions = config.get("checks", {}).get("exclude", [])
     files = tracked_files(root)
     markdown = [p for p in files if p.suffix == ".md" and not matches(p.relative_to(root).as_posix(), exclusions)]
     errors, active, archived, parsed_links = [], {area: set() for area in areas}, set(), {}
     for page in markdown:
         relative = page.relative_to(root)
-        text = page.read_text()
+        text = memory_index if memory_index is not None and relative == Path("memory/README.md") else page.read_text()
         area = relative.parts[0]
         if area in active and page.name != "README.md":
             try:
@@ -253,19 +257,21 @@ def validate(root, areas=("memory", "docs"), options=None):
 def main():
     root = Path(__file__).resolve().parents[1]
     try:
-        if sys.argv[1:] not in ([], ["--documents-only"], ["--full"]):
-            raise ValueError("Usage: bin/check [--documents-only | --full]")
-        errors = validate(root)
-        from _memory_index import update
-        try:
-            update(root, check=True)
-        except ValueError as error:
-            errors.append(str(error))
+        if sys.argv[1:] not in ([], ["--documents-only"], ["--full"], ["--memory-audit"]):
+            raise ValueError("Usage: bin/check [--documents-only | --full | --memory-audit]")
+        memory_audit = sys.argv[1:] == ["--memory-audit"]
+        errors = validate(root, generated_memory_index=memory_audit)
+        if not memory_audit:
+            from _memory_index import update
+            try:
+                update(root, check=True)
+            except ValueError as error:
+                errors.append(str(error))
         if errors:
             print("\n".join(errors), file=sys.stderr)
             return 1
         print("Document metadata, index coverage, and local links passed.", flush=True)
-        if sys.argv[1:] == ["--documents-only"]:
+        if memory_audit or sys.argv[1:] == ["--documents-only"]:
             return 0
         if not shutil.which("shellcheck"):
             raise RuntimeError("ShellCheck is required for bin/check. Install it with your package manager.")
