@@ -1,16 +1,14 @@
 ## Project Memory & Tracking
 Repo context lives in `memory/`, `docs/`, and GitHub issues:
 
-- `memory/`: long-lived notes; search before writing and update existing notes when possible.
+- `memory/`: long-lived project notes.
   - New or updated pages must follow [`memory/README.md`](memory/README.md).
   - Move notes that are no longer relevant to active work into `memory/archive/`; set `status: resolved` only on project notes.
 - `docs/`: PR-reviewed design docs and research; update [`docs/README.md`](docs/README.md) when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
-Keep memory, docs, and other Markdown pages focused on one topic or reader
-task. When extending a long page, review its scope and split independent
-topics into linked pages when that improves reading and maintenance. Use
-the [Markdown guidance](docs/development-workflow.md#markdown-pages), without numeric size thresholds.
+Keep [Markdown pages focused](docs/development-workflow.md#markdown-pages)
+on one topic or reader task, without numeric size limits.
 
 Use the repository's QMD helper for topic lookup:
 
@@ -20,7 +18,7 @@ Use the repository's QMD helper for topic lookup:
 
 Search before non-trivial work or writing memory.
 Use direct reads or `rg` for known paths or after a successful lookup with no
-matches. Markdown source files are authoritative. Update existing pages when possible.
+matches. Markdown source files are authoritative.
 If configured QMD fails, report it to the user immediately and attempt repair.
 If repair fails, pause knowledge-dependent work until the user approves a
 fallback; never silently bypass broken QMD with `rg` or direct reads. Follow
@@ -54,7 +52,7 @@ for read-only diagnostics. Hooks use each checkout's own scripts. Read the
 
 ## Compatibility
 - Use modern APIs and avoid unnecessary compatibility layers. Change deployment targets or dependency versions when the requested work requires it, or when an upgrade is explicitly requested.
-- Prefer fewer third-party dependencies. Use standard libraries, platform APIs, or a focused implementation we can maintain when they meet the need. Add a package when its concrete benefits justify the maintenance cost; initial convenience alone is not enough. Apply the [dependency policy](docs/development-workflow.md#third-party-dependencies) through ordinary technical judgment.
+- Prefer fewer dependencies; justify additions by their concrete benefits under the [dependency policy](docs/development-workflow.md#third-party-dependencies).
 - Keep supported toolchains consistent across development, CI, and releases. Follow the [runtime policy](docs/development-workflow.md#runtime-and-toolchain-versions) when changing application commands or upgrading tools.
 - Shipped DB migrations are immutable. Never edit body/version; add the next migration for schema or seed changes.
 
@@ -85,15 +83,13 @@ for read-only diagnostics. Hooks use each checkout's own scripts. Read the
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
-- Before running Swift build or test checks, read the [Swift validation workflow](docs/development-workflow.md#current-revision-swift-validation) for commands, test targets, accessibility setup, and evidence checks.
-- Before pushing any branch, merging into `main`, or releasing, require passing full local test evidence with zero skipped tests and the warning requirements above. Use `bin/test-all --ensure --revision <sha>` to verify matching evidence or run the full suite. This applies to every change, including documentation and tooling. GitHub does not run test CI.
-- Test the exact commit being pushed. Before a PR merge into `main`, test its current head integrated with the latest `main`; verify the merge will contain that tested tree. Each new commit or change to the integration base requires a fresh full run. Retain the `bin/test-all` evidence and verify its revision and clean checkout match the proposed operation.
-- Never substitute a historical revision or copy selected current files onto old source for acceptance. Run historical reproductions separately and label them as diagnostic experiments.
-- `bin/test-all` runs the complete app suite on My Mac, macro tests, repository checks, and automated skill/tooling tests. `bin/check --full` alone does not satisfy this requirement. Live-service smoke tests remain separate; run them when their integration changes.
+- Before Swift validation, read the [current-revision workflow](docs/development-workflow.md#current-revision-swift-validation) for commands, targets, accessibility setup, and evidence checks.
+- Before pushing, merging, or releasing functionally material changes, require [full local validation](docs/development-workflow.md#checks-and-project-extensions) with `bin/test-all --ensure --revision <sha>` on the final clean revision. Require zero skipped tests and the warning requirements above. Documentation, comments, and formatting-only changes use relevant focused checks.
+- Never substitute a historical revision or copy selected current files onto old source for acceptance. Label historical reproductions as diagnostic experiments.
 - Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`).
 - Use `FactoryKit` with `scope(.cached)` and then override with `context(.test)` in `PodHavenTests/Extensions/Container.swift` for test injection.
 - `@Suite("...", .container)` isolates Factory injected state per-test; supporting full test concurrency. Do not use `.serialized`.
-- Every functional change requires a regression test proven failing before the implementation and passing afterward; if it passes before and after, it does not prove the changed behavior.
+- Every functional change requires [a regression test that fails before implementation and passes after](docs/development-workflow.md#test-driven-development).
 - Always pass `-hideShellScriptEnvironment` to `xcodebuild`; the shared scheme pre-action otherwise prints inherited environment values into raw logs.
 - Keep App Intents extraction and warning reporting enabled. Validate both the result bundle and raw build log through the workflow's evidence checks.
 - Use suite/class-level test filters; method filters can look green while running zero tests.
@@ -101,7 +97,7 @@ for read-only diagnostics. Hooks use each checkout's own scripts. Read the
 - Application tests belong in `PodHavenTests`; macro tests belong in `PodHavenMacros/Tests`; repository tooling tests belong in `bin/tests`.
 - Migration tests use raw SQL and `Container.shared.standardDefaults()` only; no model types, `Create`, or drifting constructs.
 - Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete all test-only surfaces.
-- Use isolated fixtures for prerequisites unrelated to the behavior under test. Choose the least costly test level that proves the behavior, and retain complete journeys where they add distinct evidence. Measure test changes and preserve per-test isolation; do not hide races with retries or weaker assertions. See [test cost and coverage](docs/development-workflow.md#test-cost-and-coverage).
+- Keep [test cost proportional](docs/development-workflow.md#test-cost-and-coverage) while preserving coverage, per-test isolation, and useful complete journeys.
 - Put the test seam at the OS-integration boundary, not above our own logic. Wrap system-framework types in app-owned protocols that the real types conform to (via `extension`) and fake those, so our orchestration runs for real in tests.
 - To assert on swift-log output, use `LogCapture.withSink` (per-test isolation via `@TaskLocal`).
 
@@ -119,8 +115,8 @@ for read-only diagnostics. Hooks use each checkout's own scripts. Read the
 
 ## Coding Standards
 - Keep every Swift file under 1000 lines.
-- Keep files cohesive and readable. Extract meaningful responsibilities; do not compress formatting or split files arbitrarily to meet a count. For other hand-written source, tests, and styles, use approximately 1000 lines as a review threshold. See [file organization](docs/development-workflow.md#file-organization).
-- Scope source discovery and mutable validation output to the active checkout. Exclude nested worktrees and temporary copies explicitly; Git ignore rules do not control every tool. Preserve supported dependency sharing. See [checkout isolation](docs/development-workflow.md#validation-checkout-isolation).
+- Keep [files cohesive](docs/development-workflow.md#file-organization); approximately 1000 lines is a review threshold for other hand-written source, tests, and styles.
+- Isolate [source discovery and mutable validation output](docs/development-workflow.md#validation-checkout-isolation) to the active checkout.
 - Use `@discardableResult` when ignoring the result is a supported use of the API. Otherwise, preserve unused-result warnings and allow explicit `_ =` at individual call sites when discarding the result is intentional and safe. Do not add wrappers solely to avoid `_ =`.
 
 ### Production Only

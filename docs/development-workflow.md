@@ -446,12 +446,12 @@ so macOS window focus does not dim the controls being measured.
 
 ### Current-revision Swift validation
 
-Follow the [testing policy](../AGENTS.md#testing) before pushing any branch,
-merging into `main`, or releasing. This includes documentation and tooling
-changes. For a PR merge, integrate its current head with the latest `main`
-before validation and verify the merge will contain the tested tree.
+Use this full-suite procedure when the [validation policy](#checks-and-project-extensions)
+requires it for functionally material changes. For a PR merge, integrate its
+current head with the latest `main` before validation and verify the merge
+will contain the tested tree.
 
-For the final clean revision, run:
+For the final clean revision that requires full validation, run:
 
 ```sh
 bin/test-all --ensure --revision <sha>
@@ -514,10 +514,10 @@ run's warnings.
 Each attempt retains logs, its `.xcresult` bundle, diagnostic reports, and
 `run.json` under `.cache/test-all/`. The report records the revision, local
 changes, toolchain, destination, and outcome. The command permits uncommitted
-development work but rejects a checkout that changes during the run. Before
-pushing any branch, merging into `main`, or releasing, require a passing report
-for the final clean revision. Do not treat an earlier dirty-worktree run as acceptance of a new
-commit. Keep the evidence until the operation is complete.
+development work but rejects a checkout that changes during the run. When
+full validation is required, retain a passing report for the final clean
+revision through the push, merge, or release. An earlier dirty-worktree run
+does not establish acceptance of that commit.
 
 The command runs automated tests with isolated service fixtures. Live Sentry
 smoke tests in `.agents/scripts/sentry-cli/test_sentry_skills.sh` and real QMD
@@ -568,27 +568,43 @@ task into `Do After Merging` for the `after-merge` agent to execute and verify.
 
 ## Checks and project extensions
 
+**Decision — 2026-09-28:** Require the full local suite only for functionally
+material changes. The user requested this to avoid full app runs for changes
+that cannot affect functionality. Documentation, comments, and formatting-only
+changes use relevant document or formatting checks, including before push or
+merge.
+
+Assess the complete change being delivered, not only the last commit. Changes
+to application behavior, data or migrations, dependencies, executable tooling,
+build or runtime configuration, tests, or release artifacts are functionally
+material. A documentation commit does not exempt unvalidated functional work
+in the same delivery. If the effect is uncertain, run the full suite. The
+tradeoff is that non-functional deliveries do not produce fresh full-suite
+evidence. Creating a versioned release or fresh archive still uses the
+[release gate](releases.md#full-local-validation-gate).
+
 Choose validation by the changed files and the stage of the work:
 
 | Work | Check |
 | --- | --- |
 | Discussion, planning, or read-only inspection | No checks. |
-| A batch of Markdown edits | `bin/check --documents-only`. |
+| Documentation-only delivery | `bin/check --documents-only`; no full app suite. |
+| Comments or formatting only | Relevant syntax or formatting checks; no full app suite. |
 | Ordinary application changes | Focused Swift build and suite-level tests locally during development. |
 | Tooling edits during development | Focused tooling tests and `bin/check`. |
 | Initial setup; changes to foundation tools, hooks, configuration, tests, or CI | `bin/check --full` after the edits are complete. |
 | A tooling PR ready for review | `bin/check --full` once for the final changes. |
-| Pushing any branch, merging into `main`, or releasing | `bin/test-all --ensure --revision <sha>` for the final clean revision, including integration with the latest `main` before a PR merge. |
+| Pushing, merging, or releasing functionally material changes | `bin/test-all --ensure --revision <sha>` for the final clean revision, including integration with the latest `main` before a PR merge. |
 | Focused checks leave material uncertainty | Full validation for the affected application or tooling. |
 
-Require successful full local validation before pushing any branch, merging
-into `main`, or releasing. Pending, skipped, or failed runs do not satisfy
-the gate. Preserve the release validation in [Versioning and releases](releases.md).
+When full validation is required, pending, skipped, or failed runs do not
+satisfy the gate. GitHub does not run test CI. Follow the
+[current-revision procedure](#current-revision-swift-validation).
 
 Batch related edits before checking. A conversational reply is not a release
 gate. During development, reuse passing focused results while their relevant
-inputs are unchanged. The full gate requires evidence for the final revision
-and integration base. Repeat a check when its inputs change or a failure
+inputs are unchanged. When required, the full gate needs evidence for the
+final revision and integration base. Repeat a check when its inputs change or a failure
 needs verification.
 
 `bin/check --documents-only` validates the documented frontmatter subset,
@@ -605,9 +621,9 @@ network access. Remote URLs are not fetched by foundation checks.
 
 All modes also verify the generated active-memory index. Keep the
 existing Swift build and test requirements for application changes.
-A Markdown or tooling edit does not require building the Swift app during
-development. The full gate still applies before pushing any branch, merging
-into `main`, or releasing.
+Documentation-only delivery does not require building the Swift app. Tooling
+changes use focused checks during development and the full gate before delivery
+when they are functionally material.
 
 Keep the foundation checks when adding application tests, builds, and linters.
 For generated or externally owned docs, add deliberate patterns to

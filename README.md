@@ -57,14 +57,13 @@ Website: [artisanalsoftware.com/podhaven](https://artisanalsoftware.com/podhaven
 
 For more advanced users, here are the commands to build and test from the command line.
 
-For repository knowledge and tooling, use `bin/check --documents-only` after
-a batch of Markdown edits and `bin/check` for fast static checks. Run
-`bin/check --full` after setup or foundation changes, and before a tooling PR
-or release. These commands do not build the Swift app. Use focused Swift
-checks during development. Before any push or merge into `main`, and before
-a release, run `bin/test-all` locally for the final revision. It runs the full
-app suite on My Mac, macro tests, and automated tooling and skill tests, and
-rejects skipped tests and Swift warnings. GitHub does not run test CI. See the
+Use `bin/check --documents-only` for Markdown edits and `bin/check` for fast
+static checks. Use focused Swift and tooling checks during development.
+Before pushing, merging, or releasing functionally material changes, run
+`bin/test-all --ensure --revision <sha>` for the final clean revision. It
+requires the full app, macro, tooling, and skill suites to pass without skipped
+tests or Swift warnings. Documentation, comments, and formatting-only changes
+use relevant focused checks. GitHub does not run test CI. Follow the
 [validation policy](docs/development-workflow.md#checks-and-project-extensions)
 and [test workflow](docs/development-workflow.md#test-driven-development).
 
