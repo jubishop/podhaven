@@ -121,7 +121,7 @@ When two or more active notes overlap heavily on the same topic, **merge them yo
 
 1. Pick the survivor (best `name`, clearest `description`, most complete **Why** / **How to apply**).
 2. Merge non-duplicative facts, constraints, and cross-links into the survivor; tighten the rule and scope.
-3. `git mv` each superseded file to `memory/archive/`; set `status: resolved` on archived `project` notes.
+3. Archive each superseded file using the archive procedure below.
 4. Fix relative Markdown links on other live notes that pointed at archived names.
 5. Record the merge in the report **Consolidated** section.
 
@@ -129,10 +129,11 @@ Do not create a third note when two already cover the same topic.
 
 ## Archive procedure
 
-1. `git mv memory/<file>.md memory/archive/<file>.md` (preserve filename).
+1. Call `archive_memory_note` with `memory/<file>.md`; it moves the file to `memory/archive/<file>.md`.
 2. Set `status: resolved` on archived `project` notes.
-3. Fix broken relative Markdown links on related live notes if needed.
-4. Do not delete files or edit unrelated code/docs.
+3. Update outgoing relative Markdown links inside the moved note for its new directory. For example, `../docs/development-workflow.md` becomes `../../docs/development-workflow.md`; a link to a still-active sibling note needs `../`. Preserve the intended destination and any heading anchor.
+4. Fix incoming relative Markdown links in other permitted notes that pointed at the old location. README index regeneration is handled by the runner and publisher.
+5. Do not delete files or edit unrelated code/docs.
 
 ## Pull request
 
@@ -155,7 +156,7 @@ Create the `artifacts/` directory if needed. Do not only mention this path in ch
 
 ### 2. Report template (required)
 
-Call `write_report` exactly once, as the final tool after all memory changes. The runner handles transport and publication. Use this exact template (counts, tables, and section headers must match):
+Call `write_report` as the final tool after all memory changes. The runner first checks metadata and local links, using a generated active-note index without changing the README. If the tool returns validation errors, repair the permitted notes and retry `write_report`. The audit is complete only when it succeeds. The publisher repeats validation independently. Use this exact template (counts, tables, and section headers must match):
 
 ```markdown
 # Memory audit report

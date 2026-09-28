@@ -636,7 +636,13 @@ embedding/model downloads. Legacy Sentry history stays outside default search.
 The model can edit existing ordinary active notes or archive them. The runner
 uses Git moves so the exported patch includes archive destinations and any later
 edits to those files. The model cannot edit README policy, existing archives,
-or tool-managed ledgers. The publisher
+or tool-managed ledgers. Before accepting the final report, the runner calls
+`bin/check --memory-audit`. This validates metadata and local links with the
+active-note index rendered in memory, leaving the README unchanged. Validation
+errors return to the model so it can repair permitted notes and retry within
+the existing turn and cost limits. Archiving requires updating both outgoing
+links inside the moved note and incoming links in other permitted notes.
+The publisher
 checks patch scope, regenerates only the active-index marker section, then
 validates metadata, index coverage, and local links before opening a PR.
 
