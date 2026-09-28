@@ -3,8 +3,16 @@
 import FactoryKit
 import Foundation
 import Logging
+import OrderedCollections
 import Sentry
 import SwiftUI
+
+private final class ProbeFileManager: FileManager, @unchecked Sendable {
+  override func containerURL(forSecurityApplicationGroupIdentifier groupIdentifier: String) -> URL?
+  {
+    URL.documentsDirectory.appendingPathComponent("widget", isDirectory: true)
+  }
+}
 
 @main
 struct ChartProbe: App {
@@ -12,6 +20,10 @@ struct ChartProbe: App {
   private let environment = ProcessInfo.processInfo.environment
 
   init() {
+    Container.shared.fileManager.register { ProbeFileManager() }
+    Container.shared.siriCatalogFile.register {
+      SiriCatalogFile(url: URL.documentsDirectory.appendingPathComponent("siri-media.json"))
+    }
     AppInfo.initializeEnvironment()
     let run = environment["PODHAVEN_CHART_RUN"] ?? UUID().uuidString
     let phase = environment["PODHAVEN_CHART_PHASE"] ?? "crash"
