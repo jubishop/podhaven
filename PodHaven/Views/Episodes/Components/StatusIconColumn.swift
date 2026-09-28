@@ -42,14 +42,18 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
       if episode.cacheStatus == .caching,
         let episodeID = episode.episodeID
       {
-        if let progress = sharedState.downloadProgress[episodeID] {
+        if let download = sharedState.downloadProgress[episodeID] {
+          let progress = download.fraction
           let color =
             episode.saveInCache
             ? AppIcon.episodeSavedInCache.color(for: colorScheme)
             : AppIcon.episodeCached.color(for: colorScheme)
           CircularProgressView(
             colorAmounts: [color: progress],
-            innerRadius: .ratio(0.4)
+            innerRadiusRatio: 0.4,
+            source: .download,
+            numerator: download.writtenAmount,
+            denominator: download.expectedAmount
           )
           .frame(width: iconSize, height: iconSize)
           .accessibilityElement(children: .ignore)
@@ -76,7 +80,10 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
         let progress = episode.currentTime.safe.seconds / episode.duration.safe.seconds
         CircularProgressView(
           colorAmounts: [AppIcon.episodeFinished.color(for: colorScheme): progress],
-          innerRadius: .ratio(0.4)
+          innerRadiusRatio: 0.4,
+          source: .playback,
+          numerator: episode.currentTime.safe.seconds,
+          denominator: episode.duration.safe.seconds
         )
         .frame(width: iconSize, height: iconSize)
         .accessibilityElement(children: .ignore)

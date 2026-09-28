@@ -125,7 +125,7 @@ enum CacheHelpers {
 
   static func waitForProgress(_ episodeID: Episode.ID, progress: Double?) async throws {
     try await Wait.until(
-      { sharedState.downloadProgress[episodeID] == progress },
+      { sharedState.downloadProgress[episodeID]?.fraction == progress },
       { "Progress for Episode \(episodeID) never become \(String(describing: progress))" }
     )
   }
