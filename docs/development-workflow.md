@@ -9,6 +9,9 @@ Each checkout has its own index. Git hooks refresh it in the background.
 
 ## First setup
 
+Install td and run `td init` in the primary checkout as described in the
+[task workflow](task-tracking.md). This is separate from knowledge setup below.
+
 Run from the repository root:
 
 ```sh

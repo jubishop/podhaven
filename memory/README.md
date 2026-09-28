@@ -16,7 +16,7 @@ Do not use memory for:
 - Code patterns, conventions, file paths: derivable from the code.
 - Git history, recent changes: `git log` / `git blame` are authoritative.
 - Intentional architecture / planning: use [`../docs/`](../docs/README.md).
-- TODOs and planned work: use GitHub issues.
+- Local tasks and progress: use [td](../docs/task-tracking.md). Keep shared work in GitHub issues.
 
 ## Format
 

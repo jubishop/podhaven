@@ -272,3 +272,11 @@ Contributions are welcome! If you have a feature request, bug report, or want to
 This project is licensed under a **Source Available License**. You are free to view, study, and contribute to the code, but commercial use, redistribution, and derivative works (outside of contributions) are not permitted. See the [LICENSE](LICENSE) file for full details.
 
 Copyright (c) 2026 Justin Bishop. All rights reserved.
+
+## Local task tracking
+
+Use `td` for local tasks, progress, blockers, and session handoffs. After cloning,
+install td and run `td init` in the primary checkout. Use `td status` or
+`td monitor` to inspect progress. Follow the [task workflow](docs/task-tracking.md)
+for setup, review, worktrees, and local data. Keep GitHub Issues for shared scope
+and acceptance criteria, linked from related td tasks.
