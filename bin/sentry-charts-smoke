@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""Verify chart evidence on an automatic native crash sent after Simulator relaunch."""
+
+import argparse
+from importlib.machinery import SourceFileLoader
+from importlib.util import module_from_spec, spec_from_loader
+import json
+import os
+from pathlib import Path
+import subprocess
+import time
+import uuid
+
+ROOT = Path(__file__).resolve().parents[1]
+BUNDLE = "com.artisanalsoftware.PodHaven.chartsmoke"
+
+
+def load(name, path):
+    loader = SourceFileLoader(name, str(path))
+    module = module_from_spec(spec_from_loader(name, loader))
+    loader.exec_module(module)
+    return module
+
+
+probe = load("hang_probe", ROOT / "bin/sentry-hang-smoke")
+command = probe.command
+
+
+def api(path):
+    response = json.loads(command("sentry", "api", path, "--json"))
+    if response["status"] != 200:
+        raise RuntimeError(f"Sentry API returned HTTP {response['status']} for {path}")
+    return response["body"]
+
+
+def verify(event, data, remote_size, source, run):
+    assert 0 < len(data) <= 64 * 1024 and len(data) == remote_size and data.endswith(b"\n")
+    exceptions = [value for entry in event["entries"] if entry["type"] == "exception"
+                  for value in entry["data"]["values"]]
+    assert any(value.get("mechanism", {}).get("handled") is False and value.get("mechanism", {}).get("type") in ["mach", "signal"] for value in exceptions), "Not a native fatal event"
+    tags = {tag["key"]: tag["value"] for tag in event["tags"]}
+    assert tags["diagnostic-run"] == run
+    session = tags["log-session-id"]
+    assert session != event["contexts"]["recent_log_files"]["observationSessionID"], "Not a previous-process report"
+    records = [json.loads(line) for line in data.splitlines()]
+    incident = [row for row in records if row["sessionID"] == session]
+    assert incident, "Missing crashed-session snapshots"
+    assert all(row["gitCommitHash"] == source["gitCommitHash"] and row["version"] and row["buildNumber"] and row["timestamp"] for row in incident)
+    snapshots = [json.loads(row["metadata"]["chart"]) for row in incident if "chart" in row.get("metadata", {})]
+    assert {row["source"] for row in snapshots} >= {"download", "playback", "opml"}
+    assert {row.get("width") for row in snapshots} >= {12, 28}
+    assert all(row.get("width") == row.get("height") for row in snapshots)
+    assert any(row["source"] == "playback" and row["numerator"] == 75 and row["denominator"] == 100 for row in snapshots)
+    assert any(row["source"] == "opml" and row["sectorCount"] == 2 for row in snapshots)
+    assert any(row["source"] == "opml" and row["sectorCount"] == 3 for row in snapshots)
+    assert all(row["innerRadiusRatio"] in [0.4, 0.5] and row["angularInset"] == 2 for row in snapshots)
+    return {"bytes": len(data), "records": len(records), "incidentSnapshots": len(snapshots),
+            "sessionID": session, "previousSessionMatched": True}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--device", required=True, help="Available iOS Simulator UDID")
+    args = parser.parse_args()
+    token = os.environ.get("SENTRY_AUTH_TOKEN") or command("sentry", "auth", "token")
+    if not token or any(character.isspace() for character in token):
+        raise RuntimeError("Sentry did not return a usable authentication token")
+    devices = json.loads(command("xcrun", "simctl", "list", "devices", "available", "--json"))["devices"]
+    device = next((entry for runtime, entries in devices.items() if ".iOS-" in runtime
+                   for entry in entries if entry["udid"] == args.device), None)
+    if device is None:
+        raise RuntimeError("Only an available iOS Simulator is permitted")
+    output = ROOT / ".cache/sentry-charts-smoke"
+    output.mkdir(parents=True, exist_ok=True)
+    run = uuid.uuid4().hex
+    evidence = output / run
+    evidence.mkdir()
+    source = probe.source_state()
+    (evidence / "source.json").write_text(json.dumps(source, indent=2) + "\n")
+    project = probe.prepare(output, bundle=BUNDLE, integration="sentry-charts")
+    with (evidence / "build.log").open("w") as log:
+        subprocess.run([
+            "xcodebuild", "build", "-hideShellScriptEnvironment", "-project", str(project),
+            "-scheme", "PodHaven", "-configuration", "Debug", "-destination", "id=" + args.device,
+            "-derivedDataPath", str(output / "DerivedData"), "-skipMacroValidation",
+            "-resultBundlePath", str(evidence / "build.xcresult"),
+            "-clonedSourcePackagesDirPath", str(Path.home() / "Library/Developer/SharedSourcePackages/PodHaven"),
+            "LM_FORCE_LINK_GENERATION=YES", "CODE_SIGNING_ALLOWED=NO",
+            "GIT_COMMIT_HASH=" + source["gitCommitHash"],
+        ], cwd=ROOT, env={key: value for key, value in os.environ.items() if key != "SDKROOT"},
+            stdout=log, stderr=subprocess.STDOUT, check=True)
+    gate = load("swift_results", ROOT / "bin/check-swift-results")
+    build = json.loads(command("xcrun", "xcresulttool", "get", "build-results", "--path", str(evidence / "build.xcresult")))
+    assert build["errorCount"] == 0 and build["analyzerWarningCount"] == 0
+    assert build["warningCount"] == len(build.get("warnings", []))
+    assert all(gate.approved_sentry_warning(warning) for warning in build.get("warnings", []))
+    for line in (evidence / "build.log").read_text().splitlines():
+        assert not gate.BUILD_WARNING.search(line) or gate.approved_sentry_log_warning(line), line
+    if device["state"] != "Booted":
+        command("xcrun", "simctl", "boot", args.device)
+    command("xcrun", "simctl", "bootstatus", args.device, "-b")
+    app = output / "DerivedData/Build/Products/Debug-iphonesimulator/PodHaven.app"
+    command("xcrun", "simctl", "install", args.device, str(app))
+    command("xcrun", "simctl", "launch", "--terminate-running-process", args.device, BUNDLE,
+            env=dict(os.environ, SIMCTL_CHILD_PODHAVEN_CHART_RUN=run, SIMCTL_CHILD_PODHAVEN_CHART_PHASE="crash"))
+    print(f"Controlled native crash run {run}; rendering progress matrix", flush=True)
+    time.sleep(16)
+    command("xcrun", "simctl", "launch", "--terminate-running-process", args.device, BUNDLE,
+            env=dict(os.environ, SIMCTL_CHILD_PODHAVEN_CHART_RUN=run, SIMCTL_CHILD_PODHAVEN_CHART_PHASE="relaunch"))
+    try:
+        print("Relaunched with log and chart churn; waiting for automatic native report", flush=True)
+        deadline = time.monotonic() + 180
+        while time.monotonic() < deadline:
+            listing = json.loads(command("sentry", "explore", "artisanal-software/podhaven",
+                                         "--query", "diagnostic-run:" + run, "--field", "id",
+                                         "--period", "1h", "--fresh", "--json"))
+            if listing.get("data"):
+                break
+            time.sleep(5)
+        else:
+            raise RuntimeError("Controlled native crash did not arrive within 180 seconds")
+        event_id = listing["data"][0]["id"]
+        base = f"projects/artisanal-software/podhaven/events/{event_id}/"
+        event = api(base)
+        (evidence / "event.json").write_text(json.dumps(event, indent=2) + "\n")
+        attachments = api(base + "attachments/")
+        (evidence / "attachments.json").write_text(json.dumps(attachments, indent=2) + "\n")
+        matches = [item for item in attachments if item["name"] == "chart-progress.ndjson"]
+        assert len(matches) == 1, "Missing or duplicate chart evidence"
+        item = matches[0]
+        data = subprocess.check_output([
+            "curl", "--fail", "--silent", "--show-error", "--location", "--max-time", "30", "--header", "@-",
+            "https://sentry.io/api/0/" + base + "attachments/" + str(item["id"]) + "/?download=1",
+        ], input=("Authorization: Bearer " + token + "\n").encode())
+        (evidence / "chart-progress.ndjson").write_bytes(data)
+        result = verify(event, data, item["size"], source, run)
+        assert probe.source_state() == source, "Sources changed during the smoke run"
+        result.update(eventID=event_id, run=run, source=source)
+        (evidence / "result.json").write_text(json.dumps(result, indent=2) + "\n")
+        print(json.dumps(result, indent=2))
+        print(f"Verified native crash evidence from Sentry: {evidence}")
+    finally:
+        subprocess.run(["xcrun", "simctl", "terminate", args.device, BUNDLE], check=False)
+
+
+if __name__ == "__main__":
+    main()

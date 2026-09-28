@@ -30,6 +30,8 @@ Preserve decision reasons and evidence. Follow the
 - [Foreground termination diagnostics](sentry-termination-diagnostics.md): prior-session log retention, MetricKit exit summaries, attribution, and validation limits
 - [Recovered-hang diagnostic delivery](sentry-recovered-hang-diagnostics.md): bounded attachments, the temporary hint callback, and SDK migration requirements
 
+- [Chart progress diagnostics](chart-progress-diagnostics.md): pre-render snapshots, bounded crash evidence, and controlled native delivery
+
 ## Initiatives
 
 - [ML Recommendations](initiatives/ml-recommendations.md): on-device ML recommendations with `NLContextualEmbedding`

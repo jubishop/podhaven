@@ -36,17 +36,20 @@ struct AppLauncherTests {
     #expect(scope.tags["git-commit-hash"] == AppInfo.gitCommitHash)
     #expect(scope.tags["log-session-id"] == FileLogHandler.sessionID)
     #expect(scope.user?.userId == AppInfo.deviceIdentifier)
-    #expect(scope.attachments.count == 2)
+    #expect(scope.attachments.count == 3)
     #expect(
       scope.attachments.map(\.filename) == [
         "recent-log.ndjson",
         "recent-widget-log.ndjson",
+        "chart-progress.ndjson",
       ]
     )
     #expect(
       scope.attachments.map(\.path) == [
         AppInfo.recentLogFileURL.path,
         WidgetInfo.recentLogFileURL.path,
+        AppInfo.recentLogFileURL.deletingLastPathComponent()
+          .appendingPathComponent("chart-progress.ndjson").path,
       ]
     )
     #expect(scope.attachments.allSatisfy { $0.contentType == "application/x-ndjson" })
@@ -136,12 +139,12 @@ struct AppLauncherTests {
     hint.attachments = [tail, full, photo]
     let event = Event(level: .error)
     #expect(callback(event, hint) === event)
-    #expect(hint.attachments.count == 4)
+    #expect(hint.attachments.count == 5)
     #expect(hint.attachments[0] === tail)
     #expect(hint.attachments[1] === full)
     #expect(hint.attachments[2] === photo)
     #expect(callback(event, hint) === event)
-    #expect(hint.attachments.count == 4)
+    #expect(hint.attachments.count == 5)
     let exception = Exception(value: "disk write", type: "MXDiskWriteException")
     exception.mechanism = Mechanism(type: "mx_disk_write_exception")
     event.exceptions = [exception]

@@ -13,6 +13,22 @@ extension Container {
   }
 }
 
+struct DownloadProgress: Equatable, Sendable {
+  let fraction: Double
+  let bytesWritten: Int64?
+  let bytesExpected: Int64?
+
+  var writtenAmount: Double? {
+    if let bytesWritten { return Double(bytesWritten) }
+    return nil
+  }
+
+  var expectedAmount: Double? {
+    if let bytesExpected { return Double(bytesExpected) }
+    return nil
+  }
+}
+
 struct SharedState: Sendable {
   private static let log = Log.as(LogSubsystem.State.shared)
 
@@ -27,7 +43,7 @@ struct SharedState: Sendable {
 
   // MARK: - In-Memory State (Observable Broadcasts)
 
-  @Broadcasted var downloadProgress: [Episode.ID: Double] = [:]
+  @Broadcasted var downloadProgress: [Episode.ID: DownloadProgress] = [:]
   @Broadcasted var scenePhase: ScenePhase = .active
   @Broadcasted var thermalPressure: ThermalPressure = .nominal
   // Only StateManager should write this. Use `.notifyAlways`, not `.equatable`:
@@ -75,14 +91,25 @@ struct SharedState: Sendable {
 
   // MARK: - Download Progress
 
-  func updateDownloadProgress(for episodeID: Episode.ID, progress: Double) {
+  func updateDownloadProgress(
+    for episodeID: Episode.ID,
+    progress: Double,
+    bytesWritten: Int64? = nil,
+    bytesExpected: Int64? = nil
+  ) {
     Assert.precondition(
       progress >= 0 && progress <= 1,
       "progress must be between 0 and 1 but is \(progress)?"
     )
 
     Self.log.trace("updating progress for \(episodeID): \(progress)")
-    $downloadProgress.update { $0[episodeID] = progress }
+    $downloadProgress.update {
+      $0[episodeID] = DownloadProgress(
+        fraction: progress,
+        bytesWritten: bytesWritten,
+        bytesExpected: bytesExpected
+      )
+    }
   }
 
   func clearDownloadProgress(for episodeID: Episode.ID) {

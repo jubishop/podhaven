@@ -43,6 +43,15 @@ struct SentryEventProcessor: Sendable {
         limit: WidgetInfo.recentLogMaxFileSizeBytes
       ),
     ]
+    context["chart_progress_file"] = [
+      "observation": "capture_time",
+      "observationSessionID": FileLogHandler.sessionID,
+      "eventSessionID": event.tags?["log-session-id"] ?? "unknown",
+      "file": fileContext(
+        ChartProgressDiagnostics.fileURL,
+        limit: ChartProgressDiagnostics.maximumBytes
+      ),
+    ]
     event.context = context
 
     // Recovered App Hangs are sent from the process that recorded these
