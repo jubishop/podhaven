@@ -296,7 +296,8 @@ struct AppLauncher: Sendable {
     options.beforeSendWithHint = { event, hint in
       guard let event = eventProcessor.process(event) else { return nil }
       let attachments =
-        recentLogAttachments + Container.shared.siriResolutionDiagnostics().attachments()
+        recentLogAttachments + [ChartProgressDiagnostics.attachment]
+        + Container.shared.siriResolutionDiagnostics().attachments()
       for attachment in attachments
       where !hint.attachments.contains(where: { $0.filename == attachment.filename }) {
         hint.attachments.append(attachment)
@@ -313,7 +314,7 @@ struct AppLauncher: Sendable {
     scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
     scope.setTag(value: FileLogHandler.sessionID, key: "log-session-id")
     scope.setUser(Sentry.User(userId: AppInfo.deviceIdentifier))
-    for attachment in recentLogAttachments {
+    for attachment in recentLogAttachments + [ChartProgressDiagnostics.attachment] {
       scope.addAttachment(attachment)
     }
   }

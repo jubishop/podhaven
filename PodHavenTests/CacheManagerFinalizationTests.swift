@@ -246,7 +246,7 @@ import Testing
     #expect(try await cacheManager.clearCache(for: episodeID) == nil)
     await fakeRepo.resumeAllEpisodeFetchSuspensions()
     await delayedProgress.value
-    #expect(sharedState.downloadProgress[episodeID] == 0.9)
+    #expect(sharedState.downloadProgress[episodeID]?.fraction == 0.9)
 
     let replacementTaskID = try #require(try await cacheManager.downloadToCache(for: episodeID))
     try await CacheHelpers.waitForResumed(replacementTaskID)
@@ -405,10 +405,14 @@ import Testing
     await fakeRepo.resumeAllEpisodeFetchSuspensions()
     await staleProgress.value
 
-    #expect(sharedState.downloadProgress[podcastEpisode.id] == 0.1)
+    #expect(sharedState.downloadProgress[podcastEpisode.id]?.fraction == 0.1)
+    #expect(sharedState.downloadProgress[podcastEpisode.id]?.bytesWritten == 10)
+    #expect(sharedState.downloadProgress[podcastEpisode.id]?.bytesExpected == 100)
 
     try await CacheHelpers.simulateBackgroundFailure(firstTaskID)
-    #expect(sharedState.downloadProgress[podcastEpisode.id] == 0.1)
+    #expect(sharedState.downloadProgress[podcastEpisode.id]?.fraction == 0.1)
+    #expect(sharedState.downloadProgress[podcastEpisode.id]?.bytesWritten == 10)
+    #expect(sharedState.downloadProgress[podcastEpisode.id]?.bytesExpected == 100)
     try await CacheHelpers.simulateBackgroundFailure(replacementTaskID)
   }
 
