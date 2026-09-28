@@ -26,6 +26,13 @@ probe = load("hang_probe", ROOT / "bin/sentry-hang-smoke")
 command = probe.command
 
 
+def api(path):
+    response = json.loads(command("sentry", "api", path, "--json"))
+    if response["status"] != 200:
+        raise RuntimeError(f"Sentry API returned HTTP {response['status']} for {path}")
+    return response["body"]
+
+
 def verify(event, data, remote_size, source, run):
     assert 0 < len(data) <= 64 * 1024 and len(data) == remote_size and data.endswith(b"\n")
     exceptions = [value for entry in event["entries"] if entry["type"] == "exception"
@@ -114,9 +121,9 @@ def main():
             raise RuntimeError("Controlled native crash did not arrive within 180 seconds")
         event_id = listing["data"][0]["id"]
         base = f"projects/artisanal-software/podhaven/events/{event_id}/"
-        event = probe.api(base)
+        event = api(base)
         (evidence / "event.json").write_text(json.dumps(event, indent=2) + "\n")
-        attachments = probe.api(base + "attachments/")
+        attachments = api(base + "attachments/")
         (evidence / "attachments.json").write_text(json.dumps(attachments, indent=2) + "\n")
         matches = [item for item in attachments if item["name"] == "chart-progress.ndjson"]
         assert len(matches) == 1, "Missing or duplicate chart evidence"

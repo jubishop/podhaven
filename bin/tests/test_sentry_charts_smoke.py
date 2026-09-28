@@ -5,6 +5,7 @@ from importlib.util import module_from_spec, spec_from_loader
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 loader = SourceFileLoader("charts_smoke", str(ROOT / "bin/sentry-charts-smoke"))
@@ -13,6 +14,13 @@ loader.exec_module(probe)
 
 
 class ChartProbeTests(unittest.TestCase):
+    def test_api_unwraps_current_cli_response_and_rejects_failures(self):
+        with patch.object(probe, "command", return_value=json.dumps({"status": 200, "body": [{"name": "chart-progress.ndjson"}]})):
+            self.assertEqual(probe.api("test/"), [{"name": "chart-progress.ndjson"}])
+        with patch.object(probe, "command", return_value=json.dumps({"status": 403, "body": {"detail": "denied"}})):
+            with self.assertRaises(RuntimeError):
+                probe.api("test/")
+
     def fixture(self):
         event = {
             "entries": [{"type": "exception", "data": {"values": [{"mechanism": {"handled": False, "type": "mach"}}]}}],
