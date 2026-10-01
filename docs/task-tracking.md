@@ -4,11 +4,28 @@ status: current
 
 # Local task tracking with td
 
-Use `td` for local work items, progress, blockers, and handoffs between agent
-sessions. Keep shared scope and acceptance criteria in the project's existing
-issue tracker. Link the relevant issue URL from the local task instead of
-copying the full backlog. Durable lessons belong in `memory/`; accepted designs
-and decisions belong in `docs/`.
+Use `td` to preserve unfinished work across agent sessions. A useful task saves
+repeated investigation, makes an unfinished obligation visible, or lets another
+agent resume without asking the user to explain the work again.
+
+Keep shared scope and acceptance criteria in the project's existing issue
+tracker. Link the relevant issue URL from the local task instead of copying
+the full backlog. Durable lessons belong in `memory/`; accepted designs and
+decisions belong in `docs/`.
+
+## When to use a task
+
+Use a task for work with multiple stages, likely interruptions, blockers, or
+handoffs between agents. Preserve work that is unfinished when a session ends,
+even if it started as a small request. Make tasks optional for straightforward
+work completed in one session. Read-only questions, small edits, and filing a
+single GitHub issue do not need a task just to record that they happened.
+
+Read and reuse a relevant existing task before creating another. Continue its
+record through implementation, verification, and delivery when these serve the
+same outcome. Create separate tasks only for distinct outcomes or independently
+resumable work; link real prerequisites. Do not create a second backlog or a
+task for each workflow command.
 
 ## Install and initialize
 
@@ -49,26 +66,39 @@ Use `td usage` for full workflow guidance and `td <command> --help` for command
 details. Use `td usage -q` for later refreshes in the same context. Do not rotate
 sessions during work to bypass review checks.
 
-For substantive work, find and reuse the existing local task or create one
-with a concrete outcome. Small one-step edits and read-only questions do not
-need artificial task records. Use the ID printed by `td create` in subsequent
-commands; `<id>` below is a placeholder.
+Before substantive work, inspect the existing tasks. Read the relevant task's
+handoff and recent logs, then check them against the current checkout and any
+external state the next action depends on. Task records describe observations;
+they do not establish that a branch, check result, or deployment is still current.
 
 ```sh
 td list
+td show <id>
+```
+
+Reuse that task if it covers the outcome. Otherwise, create one only when the
+work meets the criteria above. Use the ID printed by `td create` in subsequent
+commands; `<id>` is a placeholder.
+
+```sh
 td create "Describe the intended outcome"
 td start <id>
-td log "Record verified progress and relevant check results"
+td log "Record a meaningful checkpoint and its verification evidence"
 ```
 
 Record the related issue URL and scope in the task description when applicable.
 Use `td log --blocker "..."` and `td block <id>` when work cannot continue.
-Use dependencies for real prerequisites. `td status` shows current work;
-`td monitor` opens the live terminal dashboard.
+Log meaningful results, blockers, and changes of direction. Link commits, check
+results, or evidence paths rather than repeating their full contents. Do not
+narrate every command or duplicate the conversation. `td status` shows current
+work; `td monitor` opens the live terminal dashboard.
 
-## Hand off and finish
+## Keep the handoff current
 
-Before stopping with unfinished work, record enough context to resume:
+Update the handoff when a material change makes its summary or next steps
+outdated, and before stopping with unfinished work or transferring it to another
+agent. New log entries do not replace an accurate handoff. Keep one concise
+snapshot that lets the next agent resume without reconstructing the full log:
 
 ```sh
 td handoff <id> \
@@ -78,20 +108,28 @@ td handoff <id> \
   --uncertain "Open question or unverified assumption"
 ```
 
-Keep entries concise and distinguish verified results from assumptions. Omit
-fields that have no useful content. Record a final handoff before submitting
-completed work with `td review <id>`.
+Distinguish verified results from assumptions. Include the relevant branch or
+worktree, evidence locations, and a resume command when these matter. Replace
+obsolete next steps and omit fields that have no useful content.
 
-Complete the repository's checks and review requirements before approval.
+## Finish and record review
+
+Complete the repository's required checks and review. Record a concise final
+result and any separately tracked follow-up, then use `td review <id>` followed
+by `td approve` for completed work. Reuse checks and review already performed
+for this delivery while their inputs remain unchanged; td does not require an
+additional review pass just to move a task through its statuses.
+
 An independent reviewer can run `td approve <id> --reason "..."`. In the
 default trusted mode, a real self-review can be recorded with
 `td approve <id> --self-review --reason "..."`. When recording another person's
 or agent's review, use `--reviewed-by "<who>"` only if they actually reviewed
-the work. Honor a stricter project review policy when configured.
+the work. State the actual review evidence; an approval status is not evidence
+by itself. Honor a stricter project review policy when configured.
 
-Use `td review` followed by `td approve` for completed work. Reserve `td close`
-for duplicates, canceled work, or other administrative closure. Task status
-does not grant permission to merge, deploy, publish, or contact other people.
+Reserve `td close` for duplicates, canceled work, or other administrative
+closure. Task status does not grant permission to merge, deploy, publish, or
+contact other people.
 
 ## Worktrees and local data
 
