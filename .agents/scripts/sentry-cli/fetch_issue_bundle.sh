@@ -152,11 +152,9 @@ PY
 
 TAG_KEYS=(environment release device os user)
 for key in "${TAG_KEYS[@]}"; do
-  if sentry_cmd api "organizations/${ISSUE_ORG}/issues/${NUMERIC_ID}/tags/${key}/values/" --json \
-    >"${OUT}/tags_${key}.json" 2>/dev/null; then
-    :
-  else
-    echo '[]' >"${OUT}/tags_${key}.json"
+  if ! sentry_api_json "organizations/${ISSUE_ORG}/issues/${NUMERIC_ID}/tags/${key}/values/" \
+    tags "${OUT}/tags_${key}.json"; then
+    echo "Warning: ${key} tag distribution unavailable; no tag file was saved." >&2
   fi
 done
 
@@ -176,7 +174,7 @@ print()
 print("Representative events:")
 for event in events:
     entries = {entry["type"]: entry for entry in event.get("entries", [])}
-    exc = (entries.get("exception") or {}).get("values") or [{}]
+    exc = ((entries.get("exception") or {}).get("data") or {}).get("values") or [{}]
     top = exc[0]
     print(
         f"  - {event.get('id')}  {event.get('dateCreated')}  "
@@ -189,8 +187,10 @@ for key in ("environment", "release", "device", "os", "user"):
     try:
         values = json.load(open(path))
     except (OSError, json.JSONDecodeError):
+        print(f"  {key}: unavailable")
         continue
     if not values:
+        print(f"  {key}: none")
         continue
     top = ", ".join(f"{row.get('value')} ({row.get('count')})" for row in values[:5])
     print(f"  {key}: {top}")

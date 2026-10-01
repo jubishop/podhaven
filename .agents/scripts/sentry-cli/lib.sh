@@ -27,6 +27,22 @@ sentry_cmd() {
   "$bin" "$@"
 }
 
+sentry_api_json() {
+  local endpoint="$1" kind="$2" output="$3" response helper_dir
+  helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || return
+  response="$(mktemp)" || return
+  if ! sentry_cmd api "$endpoint" --json >"$response"; then
+    echo "Error: Sentry CLI request failed for ${endpoint}" >&2
+    rm -f "$response" "$output"
+    return 1
+  fi
+  if ! python3 "${helper_dir}/api_payload.py" "$endpoint" "$kind" <"$response" >"$output"; then
+    rm -f "$response" "$output"
+    return 1
+  fi
+  rm -f "$response"
+}
+
 require_sentry_auth() {
   local bin
   bin="$(sentry_bin)" || return
