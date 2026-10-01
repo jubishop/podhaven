@@ -176,12 +176,18 @@ This writes:
 - `/tmp/sentry_feedback/notes.json` — owner notes/comments (may be empty)
 - `/tmp/sentry_feedback/attachments.json` — attachment metadata
 
+API files contain validated payloads, without the CLI response envelope. See
+the [helper response contracts](../../scripts/sentry-cli/README.md). Optional
+activity or note failures omit the affected file and report it as unavailable;
+do not interpret a missing file as an empty result.
+
 Read those files for:
 
 - The user's original free-text message (`issue.metadata.message` or event contexts)
 - **Follow-up activity** from `activities.json` and `notes.json` — sort
   chronologically. User-authored notes live in `notes.json`; system activity in
-  `activities.json`. If both are empty, say so in the report.
+  `activities.json`. If both are present and empty, say so in the report.
+  Report unavailable evidence separately.
 - Contact email or user identifier from metadata/event `user`
 - Submission timestamp (`event.dateCreated`, UTC)
 - Associated event ID, replay ID, trace ID, release, environment, device, OS

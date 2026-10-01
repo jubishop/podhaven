@@ -59,6 +59,10 @@ an event query only when the user scoped the investigation. Never treat an empty
 filtered result as a representative sample; adjust the scope or report the
 absence plainly.
 
+See the [helper response contracts](../../scripts/sentry-cli/README.md) for
+bundle formats. Failed optional tag requests are reported as unavailable and
+omit the affected file; do not interpret missing distributions as zero counts.
+
 Inspect enough actual events to explain meaningful variation across time,
 release, environment, device, or other dominant clusters. Prefer in-app stack
 frames, then the breadcrumbs immediately before the error. Record relevant

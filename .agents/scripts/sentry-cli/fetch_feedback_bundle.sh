@@ -72,51 +72,70 @@ sentry_cmd issue view "$ISSUE_ID" --json > "${OUT}/issue.json"
 
 sentry_cmd issue events "$ISSUE_ID" --full --json --limit 1 > "${OUT}/events.json"
 
-python3 - "${OUT}/events.json" <<'PY' || EVENTS_FALLBACK=1
+EVENT_COUNT="$(python3 - "${OUT}/events.json" <<'PY'
 import json
 import sys
 
-rows = json.load(open(sys.argv[1])).get("data", [])
-if not rows:
-    raise SystemExit(1)
+try:
+    payload = json.load(open(sys.argv[1]))
+except (OSError, ValueError) as error:
+    raise SystemExit(f"Error: unable to read native issue events: {error}")
+if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+    raise SystemExit("Error: expected native issue events to contain a data list")
+print(len(payload["data"]))
 PY
+)"
 
-if [[ "${EVENTS_FALLBACK:-0}" == "1" ]]; then
-  sentry_cmd api "organizations/${SENTRY_ORG}/issues/${ISSUE_ID}/events/?full=true&limit=1" --json \
-    > "${OUT}/events_raw.json"
+if [[ "$EVENT_COUNT" == "0" ]]; then
+  sentry_api_json "organizations/${SENTRY_ORG}/issues/${ISSUE_ID}/events/?full=true&limit=1" \
+    events "${OUT}/events_raw.json"
   python3 - "${OUT}/events_raw.json" "${OUT}/events.json" <<'PY'
 import json
 import sys
 
-raw = json.load(open(sys.argv[1]))
-rows = raw if isinstance(raw, list) else raw.get("data", [])
+rows = json.load(open(sys.argv[1]))
 json.dump({"data": rows}, open(sys.argv[2], "w"), indent=2)
 open(sys.argv[2], "a").write("\n")
 PY
 fi
 
-python3 - "$OUT" <<'PY'
+EVENT_ID="$(python3 - "$OUT" <<'PY'
 import json
 from pathlib import Path
+import re
 import sys
 
 out = Path(sys.argv[1])
 payload = json.loads((out / "events.json").read_text())
-for event in payload.get("data", []):
+events = payload["data"]
+if not events:
+    raise SystemExit("Error: No representative events available for this feedback.")
+for event in events:
+    if not isinstance(event, dict) or not isinstance(event.get("id"), str):
+        raise SystemExit("Error: expected a feedback event with an ID")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", event["id"]):
+        raise SystemExit("Error: unsafe event ID in Sentry response")
+for event in events:
     (out / f"event_{event['id']}.json").write_text(json.dumps(event, indent=2) + "\n")
+print(events[0]["id"])
 PY
+)"
 
-sentry_cmd api "organizations/${SENTRY_ORG}/issues/${ISSUE_ID}/activities/" --json \
-  > "${OUT}/activities.json" 2>/dev/null || echo '{"activity":[]}' > "${OUT}/activities.json"
-sentry_cmd api "organizations/${SENTRY_ORG}/issues/${ISSUE_ID}/notes/" --json \
-  > "${OUT}/notes.json" 2>/dev/null || echo '[]' > "${OUT}/notes.json"
+if ! sentry_api_json "organizations/${SENTRY_ORG}/issues/${ISSUE_ID}/activities/" \
+  activity "${OUT}/activities.json"; then
+  echo "Warning: feedback activities unavailable; no activity file was saved." >&2
+fi
+if ! sentry_api_json "organizations/${SENTRY_ORG}/issues/${ISSUE_ID}/notes/" \
+  notes "${OUT}/notes.json"; then
+  echo "Warning: feedback notes unavailable; no notes file was saved." >&2
+fi
 
-EVENT_ID="$(python3 -c "import json; d=json.load(open('${OUT}/events.json')); print(d['data'][0]['id'])")"
-sentry_cmd api "projects/${SENTRY_ORG}/${SENTRY_PROJECT}/events/${EVENT_ID}/attachments/" --json \
-  > "${OUT}/attachments.json"
+sentry_api_json "projects/${SENTRY_ORG}/${SENTRY_PROJECT}/events/${EVENT_ID}/attachments/" \
+  attachments "${OUT}/attachments.json"
 
 python3 - "$OUT" "$ISSUE_ID" <<'PY'
 import json
+from pathlib import Path
 import sys
 
 out, issue_id = sys.argv[1], sys.argv[2]
@@ -132,6 +151,14 @@ tags = {tag["key"]: tag["value"] for tag in event.get("tags", [])}
 print(f"  Release: {tags.get('release', 'unknown')}  Env: {tags.get('environment', 'unknown')}")
 print(f"  Event: {event.get('id', 'none')}")
 print(f"  Attachments: {', '.join(row['name'] for row in attachments) or 'none'}")
+for filename, label in (("activities.json", "Activities"), ("notes.json", "Notes")):
+    path = Path(out) / filename
+    if not path.exists():
+        print(f"  {label}: unavailable")
+        continue
+    payload = json.loads(path.read_text())
+    rows = payload["activity"] if filename == "activities.json" else payload
+    print(f"  {label}: {len(rows)}")
 print(f"  Output: {out}")
 print()
 print("Message:")

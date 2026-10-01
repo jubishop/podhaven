@@ -91,8 +91,8 @@ LIST_JSON="$(mktemp)"
 MANIFEST="$(mktemp)"
 trap 'rm -f "$LIST_JSON" "$MANIFEST"' EXIT
 
-sentry_cmd api "projects/${ISSUE_ORG}/${ISSUE_PROJECT}/events/${EVENT_ID}/attachments/" --json \
-  >"$LIST_JSON"
+sentry_api_json "projects/${ISSUE_ORG}/${ISSUE_PROJECT}/events/${EVENT_ID}/attachments/" \
+  attachments "$LIST_JSON"
 
 python3 - "$LIST_JSON" "$EVENT_ID" <<'PY'
 import json

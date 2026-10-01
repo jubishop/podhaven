@@ -31,7 +31,7 @@ with open(os.environ["FAKE_SENTRY_CALL_LOG"], "a") as stream:
     stream.write(json.dumps(args) + "\\n")
 
 if args[:2] == ["auth", "status"]:
-    raise SystemExit(0)
+    raise SystemExit(int(os.environ.get("FAKE_SENTRY_AUTH_EXIT", "0")))
 
 if args[:2] == ["issue", "view"]:
     project = os.environ.get("FAKE_SENTRY_PROJECT", "podhaven")
@@ -58,24 +58,63 @@ if args[:2] == ["issue", "events"]:
             "id": os.environ.get("FAKE_SENTRY_EVENT_ID", "event-1"),
             "dateCreated": "2025-01-03T03:04:05Z",
             "title": "Example failure",
-            "entries": [{"type": "exception", "values": [{"type": "ExampleError", "value": "failed"}]}],
+            "entries": [{"type": "exception", "data": {"values": [{"type": "ExampleError", "value": "failed"}]}}],
             "tags": [],
         }]}))
     raise SystemExit(0)
 
 if args and args[0] == "api":
     endpoint = args[1]
+    if "/attachments/attachment-1/" in endpoint:
+        sys.stdout.buffer.write(bytes.fromhex(os.environ["FAKE_SENTRY_RAW_HEX"]))
+        raise SystemExit(0)
+    if "/attachments/attachment-2/" in endpoint:
+        print("escape")
+        raise SystemExit(0)
     if endpoint.endswith("/attachments/"):
-        print(json.dumps([
+        body = [
             {"id": "attachment-1", "name": "log.ndjson", "size": 4},
             {"id": "attachment-2", "name": "../../escape.txt", "size": 6},
-        ]))
-    elif "/attachments/attachment-1/" in endpoint:
-        print("log")
-    elif "/attachments/attachment-2/" in endpoint:
-        print("escape")
+        ]
+    elif "/tags/" in endpoint:
+        body = [{"value": "example", "count": 3}]
+    elif "/events/?" in endpoint:
+        body = [{"id": os.environ.get("FAKE_SENTRY_EVENT_ID", "event-1"),
+                 "tags": [{"key": "release", "value": "example-release"}],
+                 "contexts": {"feedback": {"message": "Example feedback"}}}]
+    elif endpoint.endswith("/activities/"):
+        body = {"activity": [{"id": "activity-1", "type": "set_unresolved"}]}
+    elif endpoint.endswith("/notes/"):
+        body = [{"id": "note-1", "text": "Example note"}]
     else:
-        print("[]")
+        raise SystemExit(f"unsupported fake API endpoint: {endpoint}")
+    response = {"status": 200, "statusText": "OK", "body": body}
+    if os.environ.get("FAKE_SENTRY_API_MATCH", "unlikely") in endpoint:
+        mode = os.environ.get("FAKE_SENTRY_API_MODE")
+        if mode == "empty":
+            response["body"] = {"activity": []} if "/activities/" in endpoint else []
+        elif mode == "http":
+            response = {"status": 403, "statusText": "Forbidden", "body": {"detail": "denied"}}
+        elif mode == "json":
+            print("not json")
+            raise SystemExit(0)
+        elif mode == "type":
+            response["body"] = "unexpected"
+        elif mode == "row":
+            response["body"] = ["unexpected"]
+        elif mode == "fields":
+            response["body"] = [{}]
+        elif mode == "bare":
+            response = body
+        elif mode == "status":
+            response["status"] = "200"
+        elif mode == "missing_body":
+            del response["body"]
+        elif mode == "exit":
+            print("synthetic CLI failure", file=sys.stderr)
+            print(json.dumps(response))
+            raise SystemExit(1)
+    print(json.dumps(response))
     raise SystemExit(0)
 
 if args and args[0] == "explore":
@@ -106,6 +145,7 @@ raise SystemExit(2)
             {
                 "SENTRY_BIN": str(self.fake_sentry),
                 "FAKE_SENTRY_CALL_LOG": str(self.call_log),
+                "FAKE_SENTRY_RAW_HEX": b' {"message":"one"}\r\n{"message":"two"}\n'.hex(),
             }
         )
         if extra_environment:
@@ -148,6 +188,10 @@ raise SystemExit(2)
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((output / "event_event-1.json").is_file())
+        self.assertIn("environment: example (3)", result.stdout)
+        self.assertIn("ExampleError: failed", result.stdout)
+        self.assertEqual(json.loads((output / "tags_environment.json").read_text()),
+                         [{"value": "example", "count": 3}])
         event_call = next(
             call for call in self.calls() if call[:2] == ["issue", "events"]
         )
@@ -235,6 +279,7 @@ raise SystemExit(2)
         api_calls = [call for call in self.calls() if call and call[0] == "api"]
         self.assertEqual(len(api_calls), 1)
         self.assertIn("log.ndjson", result.stdout)
+        self.assertIn("2 attachment(s)", result.stdout)
 
     def test_attachment_command_downloads_only_explicit_names(self) -> None:
         output = self.root / "attachments"
@@ -251,7 +296,8 @@ raise SystemExit(2)
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((output / "log.ndjson").read_text(), "log\n")
+        self.assertEqual((output / "log.ndjson").read_bytes(),
+                         b' {"message":"one"}\r\n{"message":"two"}\n')
         self.assertEqual([path.name for path in output.iterdir()], ["log.ndjson"])
 
     def test_attachment_command_contains_hostile_filenames(self) -> None:
@@ -274,6 +320,116 @@ raise SystemExit(2)
             sorted(path.name for path in output.iterdir()),
             ["attachment-2-escape.txt", "log.ndjson"],
         )
+
+    def test_feedback_fetch_preserves_native_and_fallback_events(self) -> None:
+        for fallback in (False, True):
+            with self.subTest(fallback=fallback):
+                output = self.root / f"feedback-{fallback}"
+                result = self.run_script(
+                    "fetch_feedback_bundle.sh", "podhaven:123", "--out", str(output),
+                    extra_environment={"FAKE_SENTRY_EMPTY_EVENTS": str(int(fallback))},
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("Attachments: log.ndjson, ../../escape.txt", result.stdout)
+                self.assertIn("Event: event-1", result.stdout)
+                event = json.loads((output / "event_event-1.json").read_text())
+                self.assertEqual(event["id"], "event-1")
+                if fallback:
+                    self.assertEqual(event["contexts"]["feedback"]["message"], "Example feedback")
+                    self.assertIn("Release: example-release", result.stdout)
+                self.assertEqual(json.loads((output / "activities.json").read_text()),
+                                 {"activity": [{"id": "activity-1", "type": "set_unresolved"}]})
+                self.assertEqual(json.loads((output / "notes.json").read_text()),
+                                 [{"id": "note-1", "text": "Example note"}])
+
+    def test_required_api_responses_fail_clearly(self) -> None:
+        cases = (
+            ("http", "HTTP 403"), ("json", "invalid JSON"),
+            ("type", "expected"), ("row", "expected"),
+            ("fields", "expected"), ("bare", "envelope"),
+            ("status", "status"), ("missing_body", "body"), ("exit", "CLI"),
+        )
+        for target in ("attachments", "events"):
+            for mode, diagnostic in cases:
+                with self.subTest(target=target, mode=mode):
+                    output = self.root / f"bad-{target}-{mode}"
+                    environment = {"FAKE_SENTRY_API_MATCH": f"/{target}/",
+                                   "FAKE_SENTRY_API_MODE": mode, "FAKE_SENTRY_EMPTY_EVENTS": "1"}
+                    if target == "attachments":
+                        result = self.run_script(
+                            "download_event_attachments.sh", "--event", "event-1",
+                            "--issue-json", str(self.write_issue_json()),
+                            "--dir", str(output), "--all", extra_environment=environment)
+                    else:
+                        result = self.run_script(
+                            "fetch_feedback_bundle.sh", "podhaven:123", "--out", str(output),
+                            extra_environment=environment)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(diagnostic, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertNotIn("0 attachment(s)", result.stdout)
+                    self.assertFalse((output / "log.ndjson").exists())
+                    self.assertFalse((output / "event_event-1.json").exists())
+
+    def test_optional_evidence_failure_is_unavailable_not_empty(self) -> None:
+        for target, script, filename in (
+            ("tags/environment", "fetch_issue_bundle.sh", "tags_environment.json"),
+            ("activities", "fetch_feedback_bundle.sh", "activities.json"),
+            ("notes", "fetch_feedback_bundle.sh", "notes.json"),
+        ):
+            for mode in ("http", "json", "type", "row", "exit"):
+                with self.subTest(target=target, mode=mode):
+                    output = self.root / f"optional-{filename}-{mode}"
+                    result = self.run_script(
+                        script, "123", "--out", str(output),
+                        extra_environment={"FAKE_SENTRY_API_MATCH": f"/{target}/",
+                                           "FAKE_SENTRY_API_MODE": mode})
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("unavailable", result.stderr)
+                    self.assertIn("unavailable", result.stdout)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertFalse((output / filename).exists())
+
+    def test_empty_api_lists_are_successful_evidence(self) -> None:
+        for script, target, filename, expected in (
+            ("fetch_issue_bundle.sh", "tags/environment", "tags_environment.json", []),
+            ("fetch_feedback_bundle.sh", "activities", "activities.json", {"activity": []}),
+            ("fetch_feedback_bundle.sh", "notes", "notes.json", []),
+            ("fetch_feedback_bundle.sh", "attachments", "attachments.json", []),
+        ):
+            with self.subTest(target=target):
+                output = self.root / filename
+                result = self.run_script(
+                    script, "123", "--out", str(output),
+                    extra_environment={"FAKE_SENTRY_API_MATCH": f"/{target}/",
+                                       "FAKE_SENTRY_API_MODE": "empty"})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads((output / filename).read_text()), expected)
+                self.assertNotIn("unavailable", result.stdout + result.stderr)
+
+        result = self.run_script(
+            "download_event_attachments.sh", "--event", "event-1",
+            "--issue-json", str(self.write_issue_json()),
+            extra_environment={"FAKE_SENTRY_API_MATCH": "/attachments/", "FAKE_SENTRY_API_MODE": "empty"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("0 attachment(s)", result.stdout)
+
+    def test_feedback_fallback_rejects_no_events(self) -> None:
+        result = self.run_script(
+            "fetch_feedback_bundle.sh", "123", "--out", str(self.root / "feedback"),
+            extra_environment={"FAKE_SENTRY_EMPTY_EVENTS": "1", "FAKE_SENTRY_API_MATCH": "/events/",
+                               "FAKE_SENTRY_API_MODE": "empty"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("No representative events", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_authentication_failure_stops_before_requests(self) -> None:
+        result = self.run_script(
+            "fetch_issue_bundle.sh", "123", "--out", str(self.root / "issue"),
+            extra_environment={"FAKE_SENTRY_AUTH_EXIT": "1"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("auth required", result.stderr)
+        self.assertEqual(self.calls(), [["auth", "status"]])
 
     def test_structured_log_fetch_requires_an_explicit_output(self) -> None:
         output = self.root / "logs"
