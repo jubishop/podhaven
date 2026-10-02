@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import Charts
 import FactoryKit
 import Foundation
 import Logging
@@ -17,6 +18,7 @@ private final class ProbeFileManager: FileManager, @unchecked Sendable {
 @main
 struct ChartProbe: App {
   @State private var step = 0
+  @State private var completion = ProbeCompletion()
   private let environment = ProcessInfo.processInfo.environment
 
   init() {
@@ -35,7 +37,7 @@ struct ChartProbe: App {
       historyPolicy: .preservePreviousSession,
       writeSynchronously: { _ in true }
     )
-    if phase == "relaunch" {
+    if phase != "crash" {
       let instance = ChartProgressInstance()
       for index in 0..<500 {
         log.log(
@@ -66,9 +68,10 @@ struct ChartProbe: App {
         )
       }
     }
+    if phase == "churn" { return }
     let options = Sentry.Options()
     AppLauncher.configureSentryOptions(options)
-    options.environment = "diagnostics-issue-720"
+    options.environment = "diagnostics-issue-724"
     options.sendDefaultPii = false
     options.enableAutoSessionTracking = false
     options.enableMetricKit = false
@@ -85,45 +88,127 @@ struct ChartProbe: App {
 
   var body: some Scene {
     WindowGroup {
-      let progress = [0.0, 0.000001, 0.25, 0.5, 1.0, 1.1, 0.01, 0.75][step]
-      let size = step.isMultiple(of: 2) ? 12.0 : 28.0
       VStack {
-        Text("Controlled chart diagnostics")
-        CircularProgressView(
-          colorAmounts: [.blue: progress],
-          innerRadiusRatio: 0.4,
-          source: .playback,
-          numerator: progress * 100,
-          denominator: 100
+        Text("Controlled competing chart diagnostics")
+        ForEach(0..<4) { index in
+          ProbeRing(
+            input: ChartProgressInput(
+              source: .download,
+              total: 1,
+              values: [Double(step + index) / (step.isMultiple(of: 3) ? 1_000_000_000 : 1000)],
+              sectorKeys: [1],
+              innerRadiusRatio: 0.4,
+              angularInset: 2,
+              numerator: Double(step + index),
+              denominator: step.isMultiple(of: 3) ? 1_000_000_000 : 1000
+            ),
+            width: index.isMultiple(of: 2) ? 12 : 28,
+            key: "download-\(index)",
+            step: step,
+            completion: completion
+          )
+        }
+        ForEach(0..<2) { index in
+          ProbeRing(
+            input: ChartProgressInput(
+              source: .playback,
+              total: 1,
+              values: [Double(step / 20) / 1_000_000],
+              sectorKeys: [1],
+              innerRadiusRatio: 0.4,
+              angularInset: 2,
+              numerator: Double(step / 20),
+              denominator: 1_000_000
+            ),
+            width: index == 0 ? 12 : 28,
+            key: "playback-\(index)",
+            step: step,
+            completion: completion
+          )
+        }
+        ProbeRing(
+          input: ChartProgressInput(
+            source: .opml,
+            total: 3,
+            values: step.isMultiple(of: 2) ? [0, 1, 0.000001] : [1, 1],
+            sectorKeys: step.isMultiple(of: 2) ? [1, 2, 3] : [1, 2],
+            innerRadiusRatio: 0.5,
+            angularInset: 2,
+            waitingCount: 1
+          ),
+          width: step.isMultiple(of: 2) ? 12 : 28,
+          key: "opml",
+          step: step,
+          completion: completion
         )
-        .frame(width: size, height: size)
-        CircularProgressView(
-          colorAmounts: [.blue: min(progress, 1)],
-          innerRadiusRatio: 0.4,
-          source: .download,
-          numerator: min(progress, 1) * 100,
-          denominator: 100
-        )
-        .frame(width: size, height: size)
-        CircularProgressView(
-          totalAmount: 3,
-          colorAmounts: step.isMultiple(of: 2)
-            ? [.green: 0, .blue: 1, .red: 1] : [.green: 1, .blue: 1],
-          source: .opml,
-          waitingCount: 1
-        )
-        .frame(width: size, height: size)
+        if step < 120 {
+          CircularProgressView(colorAmounts: [.blue: 0.25], source: .download)
+            .frame(width: 12, height: 12)
+        }
       }
-      .onAppear {
+      .task {
         guard environment["PODHAVEN_CHART_PHASE"] == "crash" else { return }
-        for index in 1..<8 {
-          DispatchQueue.main.asyncAfter(deadline: .now() + Double(index)) {
-            withAnimation(.linear(duration: 0.1)) { step = index }
-          }
+        for index in 1...240 {
+          do { try await Container.shared.sleeper().sleep(for: .milliseconds(16)) } catch { return }
+          withAnimation(.linear(duration: 0.01)) { step = index }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-          SentrySDK.crash()
-        }
+      }
+    }
+  }
+}
+
+@MainActor private final class ProbeCompletion {
+  private var finalRings: Set<String> = []
+
+  func reached(_ key: String, step: Int) {
+    guard step == 240 else { return }
+    finalRings.insert(key)
+    guard finalRings.count == 7 else { return }
+    // The boundary has stored every final input before this controlled trap.
+    SentrySDK.configureScope { scope in
+      scope.setTag(value: "all-final-states", key: "chart-probe-checkpoint")
+    }
+    SentrySDK.crash()
+  }
+}
+
+private struct ProbeRing: View {
+  let input: ChartProgressInput
+  let width: Double
+  let key: String
+  let step: Int
+  let completion: ProbeCompletion
+
+  var body: some View {
+    ChartDiagnosticBoundary(input: input) {
+      ProbeSectors(input: input, key: key, step: step, completion: completion)
+    }
+    .frame(width: width, height: width)
+  }
+}
+
+private struct ProbeSectors: View {
+  let input: ChartProgressInput
+  let key: String
+  let step: Int
+  let completion: ProbeCompletion
+
+  var body: some View {
+    let angularInset: CGFloat?
+    if let inset = input.angularInset { angularInset = CGFloat(inset) } else { angularInset = nil }
+    completion.reached(key, step: step)
+    return Chart {
+      ForEach(input.values.indices, id: \.self) { index in
+        SectorMark(
+          angle: .value("Value", input.values[index]),
+          innerRadius: .ratio(input.innerRadiusRatio),
+          angularInset: angularInset
+        )
+        .foregroundStyle(Color.blue.gradient)
+      }
+      if input.total > input.values.reduce(0, +) {
+        SectorMark(angle: .value("Value", input.total - input.values.reduce(0, +)))
+          .foregroundStyle(.opacity(0))
       }
     }
   }

@@ -16,15 +16,16 @@ import UIKit
     [12.0, 28.0]
   )
   func capturesProgress(progress: Double, size: Double) async throws {
-    let url = AppInfo.recentLogFileURL.deletingLastPathComponent()
-      .appendingPathComponent("chart-progress.ndjson")
     let host = TestHostingController(
       rootView: CircularProgressView(colorAmounts: [.blue: progress])
         .frame(width: size, height: size)
     )
     try await withHostedTestWindow(host) { _ in
-      try #require(FileManager.default.fileExists(atPath: url.path), "No pre-render chart evidence")
-      let records = try String(contentsOf: url, encoding: .utf8).split(separator: "\n")
+      let data = try #require(
+        Container.shared.chartProgressDiagnostics().attachment(sessionID: FileLogHandler.sessionID)
+          .data
+      )
+      let records = try String(decoding: data, as: UTF8.self).split(separator: "\n")
         .map { try JSONSerialization.jsonObject(with: Data($0.utf8)) as! [String: Any] }
       let snapshots = try records.compactMap { record -> [String: Any]? in
         guard let metadata = record["metadata"] as? [String: String], let json = metadata["chart"]
@@ -59,7 +60,11 @@ import UIKit
       let progress = try #require(elements.first { $0.accessibilityLabel == "Playback Progress" })
       #expect(progress.accessibilityValue == "25%")
       #expect(elements.filter { $0.accessibilityLabel == "Playback Progress" }.count == 1)
-      let text = try String(contentsOf: ChartProgressDiagnostics.fileURL, encoding: .utf8)
+      let data = try #require(
+        Container.shared.chartProgressDiagnostics().attachment(sessionID: FileLogHandler.sessionID)
+          .data
+      )
+      let text = String(decoding: data, as: UTF8.self)
       #expect(!text.contains("private-chart-podcast"))
       #expect(!text.contains("private-chart-episode"))
       #expect(text.contains("playback"))

@@ -34,12 +34,13 @@ def api(path):
 
 
 def verify(event, data, remote_size, source, run):
-    assert 0 < len(data) <= 64 * 1024 and len(data) == remote_size and data.endswith(b"\n")
+    assert 0 < len(data) <= 1024 * 1024 and len(data) == remote_size and data.endswith(b"\n")
     exceptions = [value for entry in event["entries"] if entry["type"] == "exception"
                   for value in entry["data"]["values"]]
     assert any(value.get("mechanism", {}).get("handled") is False and value.get("mechanism", {}).get("type") in ["mach", "signal"] for value in exceptions), "Not a native fatal event"
     tags = {tag["key"]: tag["value"] for tag in event["tags"]}
     assert tags["diagnostic-run"] == run
+    assert tags.get("chart-probe-checkpoint") == "all-final-states", "Rendering trapped before the controlled final boundary"
     session = tags["log-session-id"]
     assert session != event["contexts"]["recent_log_files"]["observationSessionID"], "Not a previous-process report"
     records = [json.loads(line) for line in data.splitlines()]
@@ -47,15 +48,47 @@ def verify(event, data, remote_size, source, run):
     assert incident, "Missing crashed-session snapshots"
     assert all(row["gitCommitHash"] == source["gitCommitHash"] and row["version"] and row["buildNumber"] and row["timestamp"] for row in incident)
     snapshots = [json.loads(row["metadata"]["chart"]) for row in incident if "chart" in row.get("metadata", {})]
-    assert {row["source"] for row in snapshots} >= {"download", "playback", "opml"}
-    assert {row.get("width") for row in snapshots} >= {12, 28}
-    assert all(row.get("width") == row.get("height") for row in snapshots)
-    assert any(row["source"] == "playback" and row["numerator"] == 75 and row["denominator"] == 100 for row in snapshots)
+    assert len(incident) == len(records), "Attachment mixes observation and incident sessions"
+    summary, = [row for row in incident if row.get("kind") == "retention"]
+    assert summary["invalidRecords"] == 0
+    assert summary["instanceCapacity"] == 32 and summary["historyCapacity"] == 8
+    assert summary["sessionCapacity"] == 4 and summary["mappedBytes"] == 151552
+    assert summary["evictions"] == 0 and summary["omittedEvictionDetails"] == 0
+    groups = {}
+    for row in snapshots:
+        groups.setdefault(row["instance"], []).append(row)
+    assert len(groups) == 8, "Missing a live or terminal ring"
+    latest = [max(rows, key=lambda row: row["sequence"]) for rows in groups.values()]
+    active = [row for row in latest if row["transition"] != "disappeared"]
+    assert len(active) == 7
+    assert all(len(rows) <= 8 for rows in groups.values())
+    assert all(row["geometryObservation"] == "current_render" for row in active)
+    assert all(row["width"] == row["height"] and row["angularInset"] == 2 for row in latest)
+    downloads = [row for row in active if row["source"] == "download"]
+    playback = [row for row in active if row["source"] == "playback"]
+    assert len(downloads) == 4 and len(playback) == 2
+    assert {row["numerator"] for row in downloads} == {240, 241, 242, 243}, "Stale final download"
+    assert all(row["denominator"] == 1_000_000_000 and row["values"] == [row["numerator"] / 1_000_000_000] for row in downloads)
+    assert all(row["numerator"] == 12 and row["denominator"] == 1_000_000 and row["values"] == [0.000012] for row in playback), "Stale final playback"
+    assert {row["width"] for row in downloads} == {12, 28}
+    assert {row["width"] for row in playback} == {12, 28}
+    assert min(row["revision"] for row in downloads) > 50
+    assert max(row["revision"] for row in playback) < min(row["revision"] for row in downloads)
     assert any(row["source"] == "opml" and row["sectorCount"] == 2 for row in snapshots)
     assert any(row["source"] == "opml" and row["sectorCount"] == 3 for row in snapshots)
-    assert all(row["innerRadiusRatio"] in [0.4, 0.5] and row["angularInset"] == 2 for row in snapshots)
+    assert all(row["innerRadiusRatio"] in [0.4, 0.5] for row in snapshots)
+    freshness = {row["instance"]: row for row in summary["instances"]}
+    assert set(freshness) == set(groups)
+    for row in latest:
+        retained = freshness[row["instance"]]
+        assert retained["latestSequence"] == row["sequence"] and retained["latestRevision"] == row["revision"]
+        assert retained["source"] == row["source"] and retained["latestTimestamp"] == row["timestamp"]
+        assert retained["omittedTransitions"] == row["sequence"] - len(groups[row["instance"]])
     return {"bytes": len(data), "records": len(records), "incidentSnapshots": len(snapshots),
-            "sessionID": session, "previousSessionMatched": True}
+            "instances": len(groups), "activeFinalStates": len(active),
+            "sessionID": session, "previousSessionMatched": True,
+            "originalChartsTrapReproduced": False,
+            "crash": "controlled after all seven known pre-render updates"}
 
 
 def main():
@@ -105,6 +138,9 @@ def main():
             env=dict(os.environ, SIMCTL_CHILD_PODHAVEN_CHART_RUN=run, SIMCTL_CHILD_PODHAVEN_CHART_PHASE="crash"))
     print(f"Controlled native crash run {run}; rendering progress matrix", flush=True)
     time.sleep(16)
+    command("xcrun", "simctl", "launch", "--terminate-running-process", args.device, BUNDLE,
+            env=dict(os.environ, SIMCTL_CHILD_PODHAVEN_CHART_RUN=run, SIMCTL_CHILD_PODHAVEN_CHART_PHASE="churn"))
+    time.sleep(3)
     command("xcrun", "simctl", "launch", "--terminate-running-process", args.device, BUNDLE,
             env=dict(os.environ, SIMCTL_CHILD_PODHAVEN_CHART_RUN=run, SIMCTL_CHILD_PODHAVEN_CHART_PHASE="relaunch"))
     try:
