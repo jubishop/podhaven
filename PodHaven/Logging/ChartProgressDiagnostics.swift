@@ -13,7 +13,7 @@ extension Container {
 }
 
 struct ChartProgressInput: Equatable {
-  enum Source: String, Encodable {
+  enum Source: String, Encodable, Sendable {
     case download, playback, opml, preview
   }
 
@@ -45,70 +45,63 @@ struct ChartProgressInput: Equatable {
 }
 
 struct ChartProgressDiagnostics: Sendable {
-  static let maximumBytes = 64 * 1024
-  static let targetBytes = 48 * 1024
-  static var fileURL: URL {
+  static let maximumBytes = 1024 * 1024
+  static var directory: URL {
     AppInfo.recentLogFileURL.deletingLastPathComponent()
-      .appendingPathComponent("chart-progress.ndjson")
-  }
-  static var attachment: Sentry.Attachment {
-    Sentry.Attachment(
-      path: fileURL.path,
-      filename: "chart-progress.ndjson",
-      contentType: "application/x-ndjson"
-    )
+      .appendingPathComponent("chart-progress", isDirectory: true)
   }
 
-  private let handler: FileLogHandler
+  private let store: ChartProgressStore?
   private static let log = Log.as("ChartProgressDiagnostics")
 
   fileprivate init() {
     do {
-      try FileManager.default.createDirectory(
-        at: Self.fileURL.deletingLastPathComponent(),
-        withIntermediateDirectories: true
+      store = try ChartProgressStore(
+        directory: Self.directory,
+        session: ChartProgressSession(
+          sessionID: FileLogHandler.sessionID,
+          version: AppInfo.version,
+          buildNumber: AppInfo.buildNumber,
+          gitCommitHash: AppInfo.gitCommitHash
+        )
       )
     } catch {
-      Self.log.caughtError("Could not prepare chart diagnostic directory", error)
+      Self.log.caughtError("Could not prepare chart diagnostic store", error)
+      store = nil
     }
-    handler = FileLogHandler(
-      label: "PodHaven/ChartProgressDiagnostics",
-      fileURL: Self.fileURL,
-      maxFileSizeBytes: Self.maximumBytes,
-      targetFileSizeBytes: Self.targetBytes,
-      historyPolicy: .preservePreviousSession,
-      writeSynchronously: { _ in true }
-    )
   }
 
   func record(_ snapshot: ChartProgressSnapshot) {
+    store?.record(snapshot)
+  }
+
+  func attachment(sessionID: String) -> Sentry.Attachment {
     let data: Data
-    let encoder = JSONEncoder()
-    encoder.nonConformingFloatEncodingStrategy = .convertToString(
-      positiveInfinity: "+Infinity",
-      negativeInfinity: "-Infinity",
-      nan: "NaN"
-    )
-    do { data = try encoder.encode(snapshot) } catch {
-      Self.log.caughtError("Could not encode chart diagnostic", error)
-      return
-    }
-    handler.log(
-      event: LogEvent(
-        level: .debug,
-        message: "chart transition",
-        metadata: ["chart": .string(String(decoding: data, as: UTF8.self))],
-        source: "ChartProgressDiagnostics",
-        file: #fileID,
-        function: #function,
-        line: #line
+    do {
+      if let store {
+        data = try store.export(sessionID: sessionID)
+      } else {
+        data = Data("{\"kind\":\"unavailable\",\"reason\":\"store_initialization_failed\"}\n".utf8)
+      }
+    } catch {
+      Self.log.caughtError("Could not export chart diagnostic store", error)
+      return Sentry.Attachment(
+        data: Data("{\"kind\":\"unavailable\",\"reason\":\"export_failed\"}\n".utf8),
+        filename: "chart-progress.ndjson",
+        contentType: "application/x-ndjson"
       )
+    }
+    return Sentry.Attachment(
+      data: data,
+      filename: "chart-progress.ndjson",
+      contentType: "application/x-ndjson"
     )
   }
 }
 
-struct ChartProgressSnapshot: Encodable {
-  let schema = 1
+struct ChartProgressSnapshot: Encodable, Sendable {
+  let schema = 2
+  let timestamp: Double
   let instance: UUID
   let revision: Int
   let sequence: Int
@@ -119,6 +112,7 @@ struct ChartProgressSnapshot: Encodable {
   let values: [Double]
   let sectorKeys: [Int]
   let sectorCount: Int
+  let omittedSectorCount: Int
   let sum: Double
   let remainder: Double
   let remainderInserted: Bool
@@ -150,23 +144,33 @@ struct ChartProgressSnapshot: Encodable {
     size: CGSize?,
     scene: String,
     animationPresent: Bool?,
-    animationsDisabled: Bool?
+    animationsDisabled: Bool?,
+    timestamp: Double = Date().timeIntervalSince1970,
+    uptime: Double = ProcessInfo.processInfo.systemUptime,
+    sectorCount: Int? = nil,
+    sum: Double? = nil,
+    valuesValid: Bool? = nil,
+    geometryObservation: String? = nil
   ) {
     self.instance = instance
     self.revision = revision
     self.sequence = sequence
     self.transition = transition
-    uptime = ProcessInfo.processInfo.systemUptime
+    self.uptime = uptime
+    self.timestamp = timestamp
     source = input.source
     total = input.total
     values = Array(input.values.prefix(8))
     sectorKeys = Array(input.sectorKeys.prefix(8))
-    sectorCount = input.values.count
-    sum = input.values.reduce(0, +)
-    remainder = total - sum
-    remainderInserted = total > sum
-    let chartTotal = remainderInserted ? total : sum
-    if chartTotal.isFinite, chartTotal > 0, input.values.allSatisfy({ $0.isFinite && $0 >= 0 }) {
+    self.sectorCount = sectorCount ?? input.values.count
+    omittedSectorCount = max(0, self.sectorCount - values.count)
+    self.sum = sum ?? input.values.reduce(0, +)
+    remainder = total - self.sum
+    remainderInserted = total > self.sum
+    let chartTotal = remainderInserted ? total : self.sum
+    if chartTotal.isFinite, chartTotal > 0,
+      valuesValid ?? input.values.allSatisfy({ $0.isFinite && $0 >= 0 })
+    {
       proportions = values.map { $0 / chartTotal }
       remainderProportion = remainderInserted ? remainder / chartTotal : nil
     } else {
@@ -175,7 +179,7 @@ struct ChartProgressSnapshot: Encodable {
     }
     totalClass = Self.classification(total)
     valueClasses = values.map(Self.classification)
-    sumClass = Self.classification(sum)
+    sumClass = Self.classification(self.sum)
     remainderClass = Self.classification(remainder)
     outOfRange = values.map { !$0.isFinite || $0 < 0 || $0 > input.total }
     if let size {
@@ -185,8 +189,9 @@ struct ChartProgressSnapshot: Encodable {
       width = nil
       height = nil
     }
-    geometryObservation =
-      size == nil ? "unmeasured" : (transition == "render" ? "current_render" : "last_render")
+    self.geometryObservation =
+      geometryObservation
+      ?? (size == nil ? "unmeasured" : (transition == "render" ? "current_render" : "last_render"))
     innerRadiusRatio = input.innerRadiusRatio
     angularInset = input.angularInset
     numerator = input.numerator
@@ -219,6 +224,7 @@ struct ChartProgressSnapshot: Encodable {
   private var animationsDisabled: Bool?
   private var revision = 0
   private var sequence = 0
+  private var lastPhase: Phase?
 
   func record(
     _ input: ChartProgressInput,
@@ -244,6 +250,7 @@ struct ChartProgressSnapshot: Encodable {
     guard
       inputChanged || layoutChanged || animationChanged || self.scene != sceneName
         || phase == .appeared || phase == .disappeared
+        || (phase == .render && lastPhase == .transaction)
     else { return }
     if inputChanged {
       revision += 1
@@ -256,6 +263,7 @@ struct ChartProgressSnapshot: Encodable {
       animationsDisabled = transaction.disablesAnimations
     }
     sequence += 1
+    lastPhase = phase
     Container.shared.chartProgressDiagnostics()
       .record(
         ChartProgressSnapshot(
@@ -267,7 +275,10 @@ struct ChartProgressSnapshot: Encodable {
           size: self.size,
           scene: sceneName,
           animationPresent: animationPresent,
-          animationsDisabled: animationsDisabled
+          animationsDisabled: animationsDisabled,
+          geometryObservation: size != nil
+            ? "current_render"
+            : (self.size == nil ? "unmeasured" : "last_render")
         )
       )
   }

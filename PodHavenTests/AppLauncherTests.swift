@@ -36,20 +36,17 @@ struct AppLauncherTests {
     #expect(scope.tags["git-commit-hash"] == AppInfo.gitCommitHash)
     #expect(scope.tags["log-session-id"] == FileLogHandler.sessionID)
     #expect(scope.user?.userId == AppInfo.deviceIdentifier)
-    #expect(scope.attachments.count == 3)
+    #expect(scope.attachments.count == 2)
     #expect(
       scope.attachments.map(\.filename) == [
         "recent-log.ndjson",
         "recent-widget-log.ndjson",
-        "chart-progress.ndjson",
       ]
     )
     #expect(
       scope.attachments.map(\.path) == [
         AppInfo.recentLogFileURL.path,
         WidgetInfo.recentLogFileURL.path,
-        AppInfo.recentLogFileURL.deletingLastPathComponent()
-          .appendingPathComponent("chart-progress.ndjson").path,
       ]
     )
     #expect(scope.attachments.allSatisfy { $0.contentType == "application/x-ndjson" })
@@ -99,14 +96,19 @@ struct AppLauncherTests {
     let items = try await capture.items()
     let attachments = items.filter { $0.header["type"] as? String == "attachment" }
     let expected =
-      missingWidget ? ["recent-log.ndjson"] : ["recent-log.ndjson", "recent-widget-log.ndjson"]
+      missingWidget
+      ? ["chart-progress.ndjson", "recent-log.ndjson"]
+      : ["chart-progress.ndjson", "recent-log.ndjson", "recent-widget-log.ndjson"]
     #expect(
       attachments.compactMap { $0.header["filename"] as? String }.sorted() == expected.sorted()
     )
     #expect(
       attachments.allSatisfy { $0.header["content_type"] as? String == "application/x-ndjson" }
     )
-    #expect(attachments.allSatisfy { $0.data == content })
+    #expect(
+      attachments.filter { $0.header["filename"] as? String != "chart-progress.ndjson" }
+        .allSatisfy { $0.data == content }
+    )
     let outgoing = try #require(items.first { $0.header["type"] as? String == "event" })
     let json = try #require(JSONSerialization.jsonObject(with: outgoing.data) as? [String: Any])
     let contexts = try #require(json["contexts"] as? [String: Any])
