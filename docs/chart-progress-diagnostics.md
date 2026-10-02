@@ -45,48 +45,83 @@ The instance IDs and color hashes identify transient render state only.
 
 ## Bounds and crash delivery
 
-`chart-progress.ndjson` uses the existing bounded NDJSON writer, separate from
-general logs. Its maximum is 64 KiB and its trimming target is 48 KiB. On the
-first write after relaunch, up to 24 KiB of complete prior records are protected
-from current-process churn. Existing app and widget attachments retain their
-128 KiB and 32 KiB limits. Chart evidence adds at most 64 KiB.
+`ChartProgressStore` keeps fixed-size, shared memory-mapped files. Each accepted
+transition copies a checksummed numeric record before Charts receives the new
+input. This path does not JSON-encode, submit logging work, call a file write,
+or wait for a flush. Native process termination leaves the shared pages
+available to the next process. This is not a power-loss durability guarantee.
+The general log handlers and their protection remain unchanged.
 
-The writer permits an initial burst of 50 records and then one per second at
-the chart capture site. Rate-limit records disclose suppression. Sequence gaps
-also show missed transitions when a later snapshot is retained. The journal is
-a bounded sample, not a complete history. A busy process can lose individual
-instances or transitions. Older process history can be evicted by later launches.
+| Limit | Bound |
+| --- | --- |
+| Retained instances per session | 32 |
+| Recent states per instance | 8 |
+| Recent eviction details | 32 |
+| Stored sessions | 4 |
+| Mapped bytes per session | 151,552 |
+| Total mapped files | 606,208 bytes |
+| Exported attachment | 1 MiB |
 
-Accepted records complete a small synchronous encode and append before Charts
-receives the input. This prevents a trap in that update from overtaking a queued
-write. The writer reuses its open handle, bounds truncation, and performs no
-network operation or fsync on the rendering path. Unchanged evaluations do no
-file I/O. File failures are logged without preventing rendering.
+Every resident instance keeps its latest state, independent of other instances'
+update rates. The instance's ring retains preceding input, geometry, animation,
+and lifecycle transitions. Unchanged evaluations remain deduplicated. A render
+after a changed transaction records current geometry even when the input is
+unchanged. Disappearance records remain until capacity pressure needs their
+slot. Eviction prefers disappeared instances, then the least recently updated
+instance. Returning evicted instances can acquire a new slot.
 
-The initial Sentry scope includes the file path for native crash delivery. The
-attachment hint also supplies it for other events and deduplicates by filename.
-Missing chart files do not block an event. No manual feedback submission is
-required. Reopening the app lets the SDK upload its native crash report.
+The export's retention record lists each instance's source, first and last
+sequence, latest revision and timestamp, omitted transition count, and terminal
+state. Eviction details retain the retired instance's identity, source, sequence,
+revision, timestamp, and terminal state. Per-source eviction totals continue
+when the detail ring wraps. The export discloses the number of lost eviction
+details. Sector truncation and invalid record slots are explicit. A checksum
+rejects an interrupted record while preserving other recent states. Capacity
+limits mean absence is not evidence of unchanged input.
 
-Match the event's `log-session-id` tag to each record's `sessionID`. Check record
-timestamps, version, build, and commit before using a snapshot. The
-`chart_progress_file` context describes file availability in the uploading
-process. Its observation session can differ from the crashed session; it is not
-proof of attachment ingestion or crash-time geometry.
+The Sentry initial scope prepares the current session's mapping. The attachment
+hint exports only the event's `log-session-id` session as `chart-progress.ndjson`.
+It replaces any older attachment with that filename, so current launch churn
+cannot substitute current state. The SDK prepares and caches the native crash
+event and attachment after relaunch; transmission can occur later. Up to three
+intervening sessions fit the archive. When the requested session is no longer
+retained, the attachment explicitly reports that session as unavailable.
+An older app build's sampled journal remains readable on upgrade; only rows
+matching the requested session enter its attachment.
+
+JSON encoding occurs at event preparation, outside the rendering path. Existing
+app and widget attachment bounds remain unchanged. No manual export is needed.
+Match session, timestamp, version, build, and commit before using evidence.
+`chart_progress_file` describes the selected event session and storage limits;
+the uploading process's observation session is distinct. File failures produce
+an unavailable attachment and an error log without stopping rendering.
+
+## Cost measurement
+
+`ChartProgressDiagnosticsTests.captureCost` compares changing pre-render capture
+against the former encode-plus-synchronous-journal path, including throttled
+calls. It measures export separately and reports the fixed file allocation.
+The first focused Debug run on the development Mac measured 3,000 samples:
+mapped capture median 9.33 μs, p95 11.00 μs; former journal median 11.96 μs,
+p95 14.25 μs; export of three instance histories 2.30 ms. These are host
+microbenchmarks, not physical-device frame timing or evidence about the reported
+playback delay. Repeat the comparison when changing this store or logging policy.
 
 ## Controlled verification
 
 Run `bin/sentry-charts-smoke --device <available-iOS-Simulator-UDID>` with Sentry
-authentication. The isolated probe renders row and detail sizes, zero/tiny/
-normal/complete/over-complete values, animated updates, and sector insertion and
-removal. It invokes the SDK's controlled native crash and relaunches with chart
-and general-log churn before Sentry starts. The script reads the remote event,
+authentication. The isolated probe renders four fast download rings, two slower playback rings,
+OPML sector insertion/removal, and a disappearing ring. It includes row and detail
+sizes and near-zero progress. After all seven active rings reach known final
+pre-render inputs, it invokes the SDK's controlled native crash immediately.
+It then runs a churn-only launch and another launch with chart and general-log
+churn before Sentry starts. The script reads the remote event,
 downloads its chart attachment, and validates prior-session identity, commit,
 source attribution, values, geometry, sector counts, and byte bounds. Evidence
 stays in ignored `.cache/sentry-charts-smoke/`.
 
 The probe never installs on a physical iPhone. Non-finite values are checked at
 the diagnostic boundary in isolated tests; the probe does not deliberately pass
-those values into Charts. Tests also cover retention, suppression, source
+those values into Charts. Tests also cover per-instance retention, overflow, corruption, source
 context, existing cache ownership, and attachment delivery. The original trap
 may still need a real recurrence before its cause can be selected.

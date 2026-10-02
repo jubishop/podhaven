@@ -295,8 +295,13 @@ struct AppLauncher: Sendable {
     options.beforeSendLog = sentryBeforeSendLog
     options.beforeSendWithHint = { event, hint in
       guard let event = eventProcessor.process(event) else { return nil }
+      hint.attachments.removeAll { $0.filename == "chart-progress.ndjson" }
+      let chartAttachment = Container.shared.chartProgressDiagnostics()
+        .attachment(
+          sessionID: event.tags?["log-session-id"] ?? FileLogHandler.sessionID
+        )
       let attachments =
-        recentLogAttachments + [ChartProgressDiagnostics.attachment]
+        recentLogAttachments + [chartAttachment]
         + Container.shared.siriResolutionDiagnostics().attachments()
       for attachment in attachments
       where !hint.attachments.contains(where: { $0.filename == attachment.filename }) {
@@ -314,7 +319,8 @@ struct AppLauncher: Sendable {
     scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
     scope.setTag(value: FileLogHandler.sessionID, key: "log-session-id")
     scope.setUser(Sentry.User(userId: AppInfo.deviceIdentifier))
-    for attachment in recentLogAttachments + [ChartProgressDiagnostics.attachment] {
+    _ = Container.shared.chartProgressDiagnostics()
+    for attachment in recentLogAttachments {
       scope.addAttachment(attachment)
     }
   }

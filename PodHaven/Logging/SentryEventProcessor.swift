@@ -44,13 +44,14 @@ struct SentryEventProcessor: Sendable {
       ),
     ]
     context["chart_progress_file"] = [
-      "observation": "capture_time",
+      "observation": "event_session",
       "observationSessionID": FileLogHandler.sessionID,
-      "eventSessionID": event.tags?["log-session-id"] ?? "unknown",
-      "file": fileContext(
-        ChartProgressDiagnostics.fileURL,
-        limit: ChartProgressDiagnostics.maximumBytes
-      ),
+      "eventSessionID": event.tags?["log-session-id"] ?? FileLogHandler.sessionID,
+      "attachmentLimitBytes": ChartProgressDiagnostics.maximumBytes,
+      "sessionCapacity": ChartProgressStore.sessionCapacity,
+      "instanceCapacity": ChartProgressStore.instanceCapacity,
+      "historyCapacity": ChartProgressStore.historyCapacity,
+      "mappedBytesPerSession": ChartProgressStore.fileBytes,
     ]
     event.context = context
 
