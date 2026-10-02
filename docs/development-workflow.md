@@ -22,8 +22,9 @@ bin/check --full
 ```
 
 Setup requires Git and Python 3.9 or later. Checks also require ShellCheck,
-available through the operating system's package manager. Full tooling checks
-also use Node.js 24, matching the Memory Audit workflow, to test the audit runner.
+available through the operating system's package manager. The local memory
+audit also requires Codex CLI, GitHub CLI, QMD, ripgrep, and QMD's Node.js or Bun runtime.
+Its tests use fake services and do not make model requests.
 QMD and direnv are optional. Missing optional tools produce clear notices; an installed but
 failing QMD returns an error. Install QMD using its
 [official instructions](https://github.com/tobi/qmd#installation).
@@ -636,38 +637,79 @@ hand-written project knowledge.
 `bin/test-all` includes `bin/check --full` and the separate application,
 macro, skill, and shell tests. `bin/check --full` alone is not a full test run.
 `bin/tests` covers the knowledge worker, cache ownership and artifact
-repair, and audit publication gates. `bin/smoke-knowledge`
+repair, and audit validation gates. `bin/smoke-knowledge`
 checks real QMD retrieval and linked-worktree isolation in disposable repositories.
 It reuses `~/.cache/qmd/models` and does not publish changes.
 
 ## Scheduled memory audit
 
-The audit uses `deepseek/deepseek-v4.1-flash` through OpenRouter. It requests
-medium reasoning and uses a $0.50 run cost guard. The guard is checked after each
-response, so the final request can take spending above that threshold.
-It remains semantic curation:
-it verifies claims against repository and captured GitHub evidence.
+Run `bin/memory-audit install` on macOS to register the weekly launchd job.
+It runs on Saturday at 06:00 in the Mac's local time zone (Pacific on the
+maintainer's machine). A sleeping Mac runs a missed calendar job after wake;
+the user must be logged in. The LaunchAgent is
+`~/Library/LaunchAgents/com.jubishop.podhaven.memory-audit.plist`.
+Reinstall after moving the checkout or changing the Python/tool installation.
+The installer resolves runtime directories and checks that QMD starts with the
+scheduled PATH. Installation does not run an audit immediately.
 
-CI installs and verifies ripgrep for repository searches before making model
-requests. It renders `.config/knowledge.json` with `bin/knowledge-config --ci`
-into its own keyword-only index. It does not include local personal notes or run QMD
-embedding/model downloads. Legacy Sentry history stays outside default search.
-The model can edit existing ordinary active notes or archive them. The runner
-uses Git moves so the exported patch includes archive destinations and any later
-edits to those files. The model cannot edit README policy, existing archives,
-or tool-managed ledgers. Before accepting the final report, the runner calls
-`bin/check --memory-audit`. This validates metadata and local links with the
-active-note index rendered in memory, leaving the README unchanged. Validation
-errors return to the model so it can repair permitted notes and retry within
-the existing turn and cost limits. Archiving requires updating both outgoing
-links inside the moved note and incoming links in other permitted notes.
-The publisher
-checks patch scope, regenerates only the active-index marker section, then
-validates metadata, index coverage, and local links before opening a PR.
+The job uses `codex exec` with `gpt-6-luna`, high reasoning, and the saved
+ChatGPT login. It refuses API-key login, excludes API keys from its environment,
+and forces ChatGPT authentication with the OpenAI provider. Subscription limits
+and any purchased credits apply. There are no OpenRouter requests. User Codex
+configuration is excluded so personal providers, MCP servers, and hooks do not
+become part of the scheduled audit. The Sentry Feedback GitHub workflow remains
+independent and uses no model.
 
-Use `PUBLISH_CHANGES=false` with `bin/finalize-memory-audit` only in a clean,
-disposable fixture when testing an audit patch. The publisher expects the model
-result in `artifacts/openrouter-final.md` and applies it to that fixture.
+Each run fetches `origin/main` and audits that exact revision in an isolated
+local clone under `.cache/memory-audit/runs/`. Uncommitted working files are not
+audited or modified. GitHub issues and PRs are fetched in two bounded collections
+with up to 1,000 entries each. The model uses that captured evidence and a
+separate keyword-only QMD index; it makes no network requests or QMD model
+downloads. Missing older GitHub items must be recorded as evidence gaps.
+Unchanged repository, GitHub, and audit inputs skip the model call. A lock
+prevents overlapping local runs. Model attempts share a 90-minute execution limit.
+
+Luna runs in a read-only sandbox and returns structured findings and complete
+proposed note contents. The runner requires one finding per active note, permits
+only updates to existing active notes or archival moves, and prevents overwriting
+existing archives. It regenerates the README's active-note list and validates
+metadata, index coverage, and local links before exporting a patch. README
+policy and tool-managed ledgers cannot be edited by the model. Changes remain
+uncommitted in the isolated clone; there are no automatic commits, pushes, PRs,
+or issue comments.
+
+When proposal validation fails, the runner restores the original notes and gives
+Luna one repair attempt with the rejected response and exact error. A second
+invalid response fails the run. An archive that would break links in immutable
+archives, ledgers, or docs must instead remain active. Rejected output and the
+first attempt's logs are retained alongside the final attempt.
+
+Run and inspect an audit:
+
+```sh
+bin/memory-audit run
+bin/memory-audit run --force
+cat .cache/memory-audit/latest.json
+launchctl print gui/$(id -u)/com.jubishop.podhaven.memory-audit
+```
+
+`latest.json` records success, failure, or a skipped run and its directory.
+Successful run directories contain `memory-audit-report.md`,
+`memory-audit.patch`, and the proposed `repository/` checkout. All attempts keep
+`run-meta.json`; model attempts also keep `events.jsonl`, `codex.log`, and the
+structured result when available. A failure never updates `last-success.json`.
+Logs and proposals stay local and ignored by Git. Review a successful report
+and patch against its recorded `baseSha` before applying any changes. Retained
+runs can be removed manually after their proposals are no longer needed.
+
+To stop the local schedule:
+
+```sh
+launchctl bootout gui/$(id -u)/com.jubishop.podhaven.memory-audit
+```
+
+Remove its plist to keep it from loading at the next login. The retired GitHub
+Memory Audit workflow must remain disabled until its deletion is merged.
 
 `.project-starter.json` records the copied release and tested QMD version.
 Compare future releases manually and merge relevant improvements. These files

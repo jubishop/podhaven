@@ -1,245 +1,27 @@
-"""Validate publisher outcomes locally with publication disabled."""
+"""Keep the read-only document validation mode covered."""
 
-import json
-import os
-from pathlib import Path
+import test_local_memory_audit as local
 import shutil
 import subprocess
-import tempfile
 import unittest
 
-SOURCE = Path(__file__).resolve().parents[2]
-REPORT = "# Memory audit report\n\n- Active notes reviewed: 1\n\n## Per-note findings\n\nIncident reviewed.\n"
 
-
-class AuditTests(unittest.TestCase):
+class AuditDocumentChecks(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="podhaven audit ")
-        self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name).resolve()
-        self.repo = self.base / "repo"
-        for name in ("bin", "memory/archive", "memory/sentry_feedback", "docs", ".config", "artifacts"):
-            (self.repo / name).mkdir(parents=True, exist_ok=True)
-        for name in ("finalize-memory-audit", "_checks.py", "_knowledge.py", "_memory_index.py", "check", "memory-index"):
-            shutil.copy2(SOURCE / "bin" / name, self.repo / "bin" / name)
-        shutil.copy2(SOURCE / ".config/knowledge.json", self.repo / ".config/knowledge.json")
-        (self.repo / ".gitignore").write_text("artifacts/\n.cache/\n")
-        self.note = self.repo / "memory/incident.md"
-        self.note.write_text("---\nname: incident\ndescription: An incident.\ntype: project\nstatus: active\n---\n\n# Incident\n\nA durable rule.\n")
-        (self.repo / "memory/README.md").write_text("# Memory\n\nKeep this policy byte for byte.\n\n<!-- ACTIVE_MEMORY_START -->\n<!-- ACTIVE_MEMORY_END -->\n")
-        (self.repo / "docs/README.md").write_text("# Docs\n")
-        self.command("git", "init", "-b", "main")
-        self.command("git", "config", "user.name", "Audit test")
-        self.command("git", "config", "user.email", "test@example.invalid")
-        self.command("bin/memory-index")
-        self.command("git", "add", ".")
-        self.command("git", "-c", "core.hooksPath=/dev/null", "commit", "-m", "Fixture")
-        self.head = self.command("git", "rev-parse", "HEAD").stdout.strip()
+        self.fixture = local.LocalAuditTests()
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.doCleanups)
+        self.repo = self.fixture.repo
+        self.note = self.fixture.note
+        (self.repo / "memory/archive").mkdir(exist_ok=True)
+        for name in ("check", "_checks.py", "_memory_index.py"):
+            shutil.copy2(local.SOURCE / "bin" / name, self.repo / "bin" / name)
 
-    def command(self, *args, check=True, extra=None):
-        result = subprocess.run(args, cwd=self.repo, env=os.environ | (extra or {}), text=True,
-                                capture_output=True, timeout=30)
+    def command(self, *args, check=True):
+        result = subprocess.run(args, cwd=self.repo, text=True, capture_output=True)
         if check:
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return result
-
-    def finalize(self):
-        self.command("git", "add", "memory")
-        patch = self.command("git", "diff", "--cached", "--no-renames", "--binary").stdout
-        self.command("git", "restore", "--staged", "--worktree", "memory")
-        report = "# Memory audit report\n\n- Active notes reviewed: 1\n\n## Per-note findings\n\nIncident reviewed.\n"
-        (self.repo / "artifacts/openrouter-final.md").write_text(
-            "<!-- MEMORY_AUDIT_REPORT_START -->\n" + report + "<!-- MEMORY_AUDIT_REPORT_END -->\n"
-            "<!-- MEMORY_AUDIT_PATCH_START -->\n" + patch + "<!-- MEMORY_AUDIT_PATCH_END -->\n")
-        return self.publish()
-
-    def publish(self):
-        result = self.command("bin/finalize-memory-audit", check=False, extra={
-            "PUBLISH_CHANGES": "false", "AUDIT_OUTCOME": "success", "RUNNER_TEMP": str(self.base),
-            "EXPECTED_HEAD_SHA": self.head})
-        self.assertEqual(self.command("git", "rev-parse", "HEAD").stdout.strip(), self.head)
-        return result
-
-    def run_runner(self, rounds, cost=0):
-        for name in ("run-memory-audit.mjs", "memory-audit-prompt.md"):
-            shutil.copy2(SOURCE / "bin" / name, self.repo / "bin" / name)
-        (self.repo / "AGENTS.md").write_text("Audit fixture instructions.\n")
-        self.command("git", "add", "bin", "AGENTS.md")
-        self.command("git", "-c", "core.hooksPath=/dev/null", "commit", "-m", "Runner fixture")
-        self.head = self.command("git", "rev-parse", "HEAD").stdout.strip()
-        (self.repo / "artifacts/memory-audit-context.json").write_text(json.dumps({
-            "baseSha": self.head, "activeNoteCount": 1, "issues": [], "pullRequests": [],
-        }))
-        responses = [{"choices": [{"message": {"role": "assistant", "tool_calls": [
-            {"id": str(index), "type": "function", "function": {
-                "name": name, "arguments": json.dumps(args),
-            }} for index, (name, args) in enumerate(calls)
-        ]}}], "usage": {"cost": cost}} for calls in rounds]
-        mock = self.repo / ".cache/openrouter.mjs"
-        mock.parent.mkdir()
-        mock.write_text(
-            "import { writeFile } from 'node:fs/promises';\n"
-            "import childProcess from 'node:child_process';\n"
-            "import { syncBuiltinESMExports } from 'node:module';\n"
-            "import { Transform } from 'node:stream';\n"
-            "const spawn = childProcess.spawn;\n"
-            "childProcess.spawn = (...args) => {\n"
-            "  const child = spawn(...args);\n"
-            "  if (args[0] === 'git' && args[1][0] === 'diff') {\n"
-            "    child.stdout = child.stdout.pipe(new Transform({\n"
-            "      transform(chunk, encoding, done) {\n"
-            "        for (let i = 0; i < chunk.length; i += 1) {\n"
-            "          this.push(chunk.subarray(i, i + 1));\n"
-            "        }\n"
-            "        done();\n"
-            "      },\n"
-            "    }));\n"
-            "  }\n"
-            "  return child;\n"
-            "};\n"
-            "syncBuiltinESMExports();\n"
-            f"const responses = {json.dumps(responses)};\n"
-            "const requests = [];\n"
-            "globalThis.fetch = async (url, options) => {\n"
-            "  const response = responses[requests.length];\n"
-            "  if (!response) throw new Error('Unexpected model request');\n"
-            "  requests.push(JSON.parse(options.body));\n"
-            "  await writeFile('.cache/requests.json', JSON.stringify(requests));\n"
-            "  return Response.json(response);\n"
-            "};\n")
-        return self.command("node", "--import", str(mock), "bin/run-memory-audit.mjs", check=False, extra={
-            "OPENROUTER_API_KEY": "fixture-only", "OPENROUTER_MODEL": "", "MAX_AGENT_TURNS": str(len(rounds)),
-            "MAX_API_COST_USD": "",
-        })
-
-    def check_runner_transport(self, content, cost=0, should_succeed=True, archive=False):
-        calls = []
-        result_note = self.note
-        if archive:
-            calls.append(("archive_memory_note", {"path": self.note.relative_to(self.repo).as_posix()}))
-            result_note = self.repo / "memory/archive/incident.md"
-        if content is not None:
-            calls.append(("write_memory_file", {
-                "path": result_note.relative_to(self.repo).as_posix(), "content": content,
-            }))
-        calls.append(("write_report", {"content": REPORT}))
-        result = self.run_runner([calls], cost)
-        usage = json.loads((self.repo / "artifacts/openrouter-usage.json").read_text())
-        if not should_succeed:
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("cost limit exceeded", result.stderr)
-            self.assertEqual(usage["status"], "failed")
-            self.assertEqual(usage["maxCost"], 0.50)
-            self.assertEqual(usage["totalCost"], cost)
-            self.assertFalse((self.repo / "artifacts/memory-audit-report.md").exists())
-            self.assertNotIn("MEMORY_AUDIT_PATCH_START", (self.repo / "artifacts/openrouter-final.md").read_text())
-            self.command("git", "diff", "--exit-code", self.head, "--", "memory")
-            return
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(usage["status"], "success")
-        request = json.loads((self.repo / ".cache/requests.json").read_text())[0]
-        self.assertEqual(request["model"], "deepseek/deepseek-v4.1-flash")
-        if content is not None:
-            self.assertEqual(result_note.read_text(), content)
-        patch = self.command("git", "diff", self.head, "--binary", "--", "memory").stdout
-        expected_note = result_note.read_text()
-        self.command("git", "restore", "--staged", "--worktree", "memory")
-        if archive:
-            result_note.unlink(missing_ok=True)
-        (self.repo / "artifacts/memory-audit-report.md").unlink()
-        (self.repo / "artifacts/memory-audit-context.json").unlink()
-        result = self.publish()
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual((self.base / "memory-audit/memory-audit.patch").read_bytes(), patch.encode())
-        self.assertEqual(result_note.read_text(), expected_note)
-        meta = json.loads((self.base / "memory-audit/run-meta.json").read_text())
-        self.assertEqual(meta["health"], "ok")
-        self.assertEqual(meta["reportSource"], "result")
-        self.assertTrue(meta["patchValid"])
-        self.assertIsNone(meta["prUrl"])
-        if archive:
-            self.assertFalse(self.note.exists())
-            self.assertIn("memory/archive/incident.md", meta["changedFiles"])
-            self.assertIn("memory/README.md", meta["changedFiles"])
-            index = (self.repo / "memory/README.md").read_text()
-            self.assertIn("Keep this policy byte for byte.", index)
-            self.assertNotIn("](incident.md)", index)
-
-    def test_runner_transports_archive_and_later_edits(self):
-        content = self.note.read_text().replace("status: active", "status: resolved") + "\nResolved guidance.  \n"
-        self.check_runner_transport(content, archive=True)
-
-    def test_runner_retries_report_after_archive_link_failure(self):
-        content = self.note.read_text().replace("type: project\nstatus: active", "type: reference")
-        content += "\n[Development workflow](../docs/development-workflow.md#setup)\n"
-        self.note.write_text(content)
-        (self.repo / "docs/development-workflow.md").write_text(
-            "---\nstatus: current\n---\n\n# Development workflow\n\n## Setup\n")
-        (self.repo / "docs/README.md").write_text("# Docs\n\n[Workflow](development-workflow.md)\n")
-        self.command("bin/memory-index")
-        self.command("git", "add", "memory", "docs")
-        self.command("git", "-c", "core.hooksPath=/dev/null", "commit", "-m", "Linked note fixture")
-        index = (self.repo / "memory/README.md").read_bytes()
-        repaired = content.replace("../docs/", "../../docs/")
-        result = self.run_runner([
-            [("archive_memory_note", {"path": "memory/incident.md"}), ("write_report", {"content": REPORT})],
-            [("write_memory_file", {"path": "memory/archive/incident.md", "content": repaired}),
-             ("write_report", {"content": REPORT})],
-        ])
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        requests = json.loads((self.repo / ".cache/requests.json").read_text())
-        self.assertEqual(len(requests), 2, "Invalid archive was accepted before the model could repair it")
-        error = requests[1]["messages"][-1]["content"]
-        self.assertIn("memory/archive/incident.md: missing link destination ../docs/development-workflow.md#setup", error)
-        self.assertEqual((self.repo / "memory/README.md").read_bytes(), index)
-        self.command("git", "restore", "--staged", "--worktree", "memory")
-        (self.repo / "memory/archive/incident.md").unlink(missing_ok=True)
-        (self.repo / "artifacts/memory-audit-report.md").unlink()
-        result = self.publish()
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual((self.repo / "memory/archive/incident.md").read_text(), repaired)
-        meta = json.loads((self.base / "memory-audit/run-meta.json").read_text())
-        self.assertEqual(meta["health"], "ok")
-        self.assertTrue(meta["patchValid"])
-        self.assertIsNone(meta["prUrl"])
-
-    def check_report_rejected(self, content, diagnostic):
-        index = (self.repo / "memory/README.md").read_bytes()
-        result = self.run_runner([
-            [("write_memory_file", {"path": "memory/incident.md", "content": content}),
-             ("write_report", {"content": REPORT})],
-            [("write_report", {"content": REPORT})],
-        ])
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("agent exceeded the 2-turn limit", result.stderr)
-        requests = json.loads((self.repo / ".cache/requests.json").read_text())
-        self.assertIn(diagnostic, requests[1]["messages"][-1]["content"])
-        self.assertFalse((self.repo / "artifacts/memory-audit-report.md").exists())
-        self.assertNotIn("MEMORY_AUDIT_PATCH_START", (self.repo / "artifacts/openrouter-final.md").read_text())
-        self.assertEqual((self.repo / "memory/README.md").read_bytes(), index)
-        usage = json.loads((self.repo / "artifacts/openrouter-usage.json").read_text())
-        self.assertEqual(usage["status"], "failed")
-
-    def test_runner_rejects_invalid_metadata_until_turn_limit(self):
-        self.check_report_rejected(self.note.read_text().replace("status: active", "status: resolved"),
-                                   "project memory status must be active")
-
-    def test_runner_rejects_broken_links_until_turn_limit(self):
-        self.check_report_rejected(self.note.read_text() + "\n[Missing](missing.md)\n", "missing link destination missing.md")
-
-    def test_runner_rejects_report_followed_by_edits(self):
-        content = self.note.read_text()
-        result = self.run_runner([
-            [("write_report", {"content": REPORT}),
-             ("write_memory_file", {"path": "memory/incident.md", "content": content + "\n[Missing](missing.md)\n"})],
-            [("write_memory_file", {"path": "memory/incident.md", "content": content}),
-             ("write_report", {"content": REPORT})],
-        ])
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        requests = json.loads((self.repo / ".cache/requests.json").read_text())
-        self.assertEqual(len(requests), 2, "Edits after the report bypassed final validation")
-        self.assertIn("write_report must be the final tool call", requests[1]["messages"][-2]["content"])
-        self.assertEqual(self.note.read_text(), content)
 
     def test_audit_check_renders_index_without_writing_it(self):
         index = (self.repo / "memory/README.md").read_bytes()
@@ -259,64 +41,6 @@ class AuditTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("memory/README.md: missing link destination missing.md", result.stderr)
         self.assertEqual(readme.read_bytes(), index)
-
-    def test_runner_transports_unchanged_archive(self):
-        self.note.write_text(self.note.read_text().replace("type: project\nstatus: active", "type: reference"))
-        self.command("git", "add", "memory/incident.md")
-        self.command("git", "-c", "core.hooksPath=/dev/null", "commit", "-m", "Reference note fixture")
-        self.check_runner_transport(None, archive=True)
-
-    def test_runner_preserves_trailing_blank_context(self):
-        self.note.write_text(self.note.read_text() + "\n## Details\n\n")
-        self.command("git", "add", "memory/incident.md")
-        self.command("git", "-c", "core.hooksPath=/dev/null", "commit", "-m", "Blank context fixture")
-        self.check_runner_transport(self.note.read_text().replace("A durable rule.", "An updated rule."))
-
-    def test_runner_preserves_trailing_spaces_in_added_line(self):
-        self.check_runner_transport(self.note.read_text() + "\nMore guidance.  \n")
-
-    def test_runner_preserves_utf8_across_output_chunks(self):
-        self.check_runner_transport(self.note.read_text() + "\nCafé — 中文 🥖\n")
-
-    def test_runner_transports_empty_patch(self):
-        self.check_runner_transport(None)
-
-    def test_runner_allows_cost_above_former_guard(self):
-        self.check_runner_transport(None, cost=0.30)
-
-    def test_runner_stops_above_cost_guard(self):
-        self.check_runner_transport(None, cost=0.51, should_succeed=False)
-
-    def test_archive_regenerates_index_preserves_policy_and_never_publishes(self):
-        self.note.write_text(self.note.read_text().replace("status: active", "status: resolved"))
-        self.note.rename(self.repo / "memory/archive/incident.md")
-        result = self.finalize()
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        index = (self.repo / "memory/README.md").read_text()
-        self.assertIn("Keep this policy byte for byte.", index)
-        self.assertNotIn("](incident.md)", index)
-        self.command("bin/check", "--documents-only")
-        meta = json.loads((self.base / "memory-audit/run-meta.json").read_text())
-        self.assertIsNone(meta["prUrl"])
-        self.assertIn("memory/README.md", meta["changedFiles"])
-
-    def test_invalid_metadata_and_broken_links_block_publication(self):
-        for content in (self.note.read_text().replace("name: incident", "name: wrong"),
-                        self.note.read_text() + "\n[Missing](missing.md)\n"):
-            with self.subTest(content=content):
-                self.command("git", "restore", "--staged", "--worktree", "memory")
-                self.note.write_text(content)
-                result = self.finalize()
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn("structure", result.stdout)
-
-    def test_model_cannot_edit_index_policy(self):
-        page = self.repo / "memory/README.md"
-        page.write_text(page.read_text().replace("Keep this policy byte for byte.", "Discard policy."))
-        result = self.finalize()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("disallowed", result.stdout)
-        self.assertIn("Keep this policy byte for byte.", page.read_text())
 
 
 if __name__ == "__main__":
