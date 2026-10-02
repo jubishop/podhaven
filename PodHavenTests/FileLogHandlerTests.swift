@@ -345,7 +345,7 @@ struct FileLogHandlerTests {
 
     let entries = try decodedEntries(at: fileURL)
     let suppressionMessage =
-      "FileLogHandler rate limit — dropped 300 repeated entries from this log site"
+      "FileLogHandler admission limit — dropped 300 entries from this log site"
     #expect(entries.count == 52)
     #expect(entries.filter { $0.message == "storm" }.count == 50)
     #expect(entries.contains { $0.message == suppressionMessage })
@@ -400,7 +400,7 @@ struct FileLogHandlerTests {
     #expect(
       entries.contains {
         $0.message
-          == "FileLogHandler rate limit — dropped 300 repeated entries from this log site"
+          == "FileLogHandler admission limit — dropped 300 entries from this log site"
       }
     )
     #expect(entries.last?.message == "after-refill")
@@ -431,7 +431,7 @@ struct FileLogHandlerTests {
     #expect(
       entries.contains {
         $0.message
-          == "FileLogHandler rate limit — dropped 300 repeated entries from this log site"
+          == "FileLogHandler admission limit — dropped 300 entries from this log site"
       }
     )
   }
@@ -494,7 +494,7 @@ struct FileLogHandlerTests {
     #expect(
       entries.contains {
         $0.message
-          == "FileLogHandler rate limit — dropped 350 repeated entries from this log site"
+          == "FileLogHandler admission limit — dropped 350 entries from this log site"
       }
     )
   }
@@ -647,6 +647,7 @@ struct FileLogHandlerTests {
         message: "entry-\(String(format: "%04d", index))-\(padding)",
         line: UInt(index)
       )
+      if index.isMultiple(of: 128) { FileLogHandler.flush(fileURL: fileURL) }
     }
     FileLogHandler.flush(fileURL: fileURL)
 

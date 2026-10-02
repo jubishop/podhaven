@@ -129,7 +129,7 @@ struct OperationTimelineTests {
         try #require(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])
       }
     let metadata = entries.compactMap { $0["metadata"] as? [String: String] }
-    #expect(entries.contains { ($0["message"] as? String)?.contains("rate limit") == true })
+    #expect(entries.contains { ($0["message"] as? String)?.contains("dropped") == true })
     #expect(
       metadata.filter { $0["operationKind"] == "detail.episodeProjection" }
         .compactMap { $0["operationState"] } == ["started", "completed"]
