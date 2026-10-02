@@ -2,7 +2,8 @@
 # Fetch feedback issue, event, activity, notes, and attachment metadata via `sentry` CLI.
 #
 # Usage:
-#   fetch_feedback_bundle.sh <slug-or-url> [--out DIR]
+#   fetch_feedback_bundle.sh <slug-or-url> --out DIR
+#   DIR must not already exist; use a fresh path for each fetch.
 
 set -euo pipefail
 
@@ -11,11 +12,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
 SLUG=""
-OUT="/tmp/sentry_feedback"
+OUT=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --out)
+      if [[ $# -lt 2 || -z "$2" ]]; then
+        echo "Error: --out DIR requires a fresh output directory path." >&2
+        exit 1
+      fi
       OUT="$2"
       shift 2
       ;;
@@ -35,13 +40,23 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$SLUG" ]]; then
-  echo "Usage: fetch_feedback_bundle.sh <slug-or-url> [--out DIR]" >&2
+if [[ -z "$SLUG" || -z "$OUT" ]]; then
+  echo "Usage: fetch_feedback_bundle.sh <slug-or-url> --out DIR" >&2
+  exit 1
+fi
+
+while [[ "$OUT" == */ && "$OUT" != "/" ]]; do
+  OUT="${OUT%/}"
+done
+
+if [[ -e "$OUT" || -L "$OUT" ]]; then
+  echo "Error: output directory must not already exist; choose a fresh path: $OUT" >&2
   exit 1
 fi
 
 require_sentry_auth
-mkdir -p "$OUT"
+mkdir -p -- "$(dirname -- "$OUT")"
+mkdir -- "$OUT"
 
 ISSUE_ID="$(python3 - "$SLUG" <<'PY'
 import re
