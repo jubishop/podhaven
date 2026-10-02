@@ -44,6 +44,7 @@ Preserve decision reasons and evidence. Follow the
 
 ## Research
 
+- [File logging cost and admission](research/logging-cost.md): measured caller blocking, bounded admission, crash evidence, and playback-timing limits.
 - [Deferred transcription research](research/transcription-futures.md): autonomous work, speaker diarization, global search, summaries, and locale support
 
 - [UserDefaults Storage Audit](research/userdefaults-storage-audit.md): key-by-key standard/app-group inventory, measured size and cadence, wrapper policy, and deferred transcription-queue follow-up
