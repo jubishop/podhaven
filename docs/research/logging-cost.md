@@ -108,9 +108,15 @@ actionable warning/error reporting.
   warning/error from that file; it does not suppress the other output handlers.
 - Capture pending suppression counts with admission so later drops cannot be
   attached to an older queued entry. Restore unpersisted counts and refund the
-  token after a failed append. A flush drains accepted work and writes remaining
-  summaries. Tests cover ordering, concurrent producers, failed writes, early
-  metadata rejection, shared rate limits, rotation, and previous-session history.
+  token after a failed append. A flush drains work submitted before its queue
+  barrier and writes remaining suppression counts still held by the writer.
+  A concurrent log call can pause after admission, holding a record and captured
+  suppression count, then submit after the flush returns. Termination in that
+  interval can lose this routine evidence. This narrow risk is accepted for
+  best-effort diagnostics; completed log calls are already submitted, and
+  critical calls still finish synchronously. Tests cover ordering, concurrent
+  producers, failed writes, early metadata rejection, shared rate limits,
+  rotation, and previous-session history.
 
 The chart store from [#724](https://github.com/jubishop/podhaven/issues/724)
 replaces this branch's provisional synchronous chart journal. There is no
