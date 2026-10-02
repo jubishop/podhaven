@@ -1,39 +1,26 @@
 ---
 name: "memory-audit-model-selection"
-description: "Use DeepSeek V4.1 Flash for the semantic memory audit with a $0.50 cost guard; evaluate future model changes on audit quality and measured cost."
+description: "Run memory audits locally with Luna and ChatGPT subscription access; avoid separately billed model APIs."
 type: "feedback"
 ---
 
 # Memory-audit model selection
 
-Evaluate the scheduled memory audit as retrieval-augmented semantic curation, not as coding-agent work. Use `deepseek/deepseek-v4.1-flash` through OpenRouter, requesting medium reasoning with the user-approved $0.50 run cost guard. The guard is checked after each response, so the final request can take spending above the threshold. The user's [V4.1 Flash migration request](https://github.com/jubishop/podhaven/issues/675#issuecomment-5670651063) supersedes the earlier preference to keep V4 Flash 0731. Evaluate future model changes on task-specific evidence within the approved budget.
+Use Luna through the local Codex CLI with ChatGPT subscription authentication
+for the scheduled memory audit. Do not restore the paid OpenRouter audit or
+switch to API-key billing without a new user request.
 
-**Why:** The audit extracts claims from every active note, retrieves current repository and GitHub evidence, classifies each note as keep or archive, consolidates overlap, and produces a structured report. Its iterative tool loop is mechanically agentic, but the substantive work is document analysis and evidence-backed judgment. Terminal and coding-agent benchmarks are therefore weak selection signals.
+**Why:** On 2026-10-01, the user chose to replace the GitHub memory audit with
+a local launchd job that uses their ChatGPT subscription. This supersedes the
+previous DeepSeek/OpenRouter preference and its per-run dollar budget. The
+Sentry Feedback workflow should stay on GitHub: it uses no AI model.
 
-Historical comparison as of 2026-07-19 (prices and model choices below are historical):
+**How to apply:** Keep subscription authentication explicit and retain local
+reports and proposed patches for human review. Subscription usage limits and
+purchased credits still apply. See the [scheduled memory audit workflow](../docs/development-workflow.md#scheduled-memory-audit)
+for installation, operation, and failure evidence.
 
-- The latest scheduled run reviewed 14 of 14 active notes successfully in 61 turns and cost $0.123512 through OpenRouter.
-- Projected weekly spend at that measured rate is about $0.54 per month or $6.42 per year.
-- GPT-5.6 Luna was estimated at roughly $1–$3 for the same audit, above the desired budget.
-- A current catalog review found DeepSeek V4 Flash strong in its price class on instruction following and long-context reasoning. GLM 5.2 was the only plausible higher-quality candidate near the $0.50 ceiling, but it had not been evaluated on the actual audit.
-
-Evidence snapshot:
-
-- [Successful scheduled audit](https://github.com/jubishop/podhaven/actions/runs/29647837796)
-- [DeepSeek V4 Flash benchmarks and pricing](https://openrouter.ai/deepseek/deepseek-v4-flash/benchmarks)
-- [GLM 5.2 benchmarks and pricing](https://openrouter.ai/z-ai/glm-5.2)
-- [GPT-5.6 Luna pricing](https://openrouter.ai/openai/gpt-5.6-luna-20260709)
-
-**How to apply:** Rank candidate models primarily by instruction following, long-context comprehension, grounded claim extraction, semantic classification, and synthesis quality. Treat reliable tool calls, structured output, sufficient context, and the report completion contract as gates. Give generic terminal and coding-agent scores little weight.
-
-Before switching, run the candidate without publication against a frozen audit snapshot and compare:
-
-- Per-note claim coverage and evidence validity
-- Keep/archive/consolidation verdict correctness
-- Missed or invented repository facts
-- Report-contract compliance
-- Completed-run cost
-
-Prefer the current model unless the candidate produces a clear quality gain within the approved run budget. Do not switch based only on a generic leaderboard or model branding. For an exact cost comparison, retain the input, cached-input, reasoning, and output token breakdown; the published audit artifacts currently retain only total cost.
-
-Revisit this decision when audit quality problems recur, the audit scope changes materially, a candidate wins the frozen comparison, or provider pricing changes enough to alter the tradeoff.
+Evaluate audit quality through complete claim coverage, current source and
+GitHub evidence, justified keep/archive decisions, valid links, and useful
+consolidation. Generic coding benchmarks do not establish memory-curation
+quality. Revisit the model only when audit results show a concrete need.
