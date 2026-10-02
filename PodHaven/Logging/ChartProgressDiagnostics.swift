@@ -12,7 +12,7 @@ extension Container {
   }
 }
 
-struct ChartProgressInput: Equatable {
+struct ChartProgressInput: Equatable, Sendable {
   enum Source: String, Encodable {
     case download, playback, opml, preview
   }
@@ -81,33 +81,31 @@ struct ChartProgressDiagnostics: Sendable {
     )
   }
 
-  func record(_ snapshot: ChartProgressSnapshot) {
-    let data: Data
-    let encoder = JSONEncoder()
-    encoder.nonConformingFloatEncodingStrategy = .convertToString(
-      positiveInfinity: "+Infinity",
-      negativeInfinity: "-Infinity",
-      nan: "NaN"
-    )
-    do { data = try encoder.encode(snapshot) } catch {
-      Self.log.caughtError("Could not encode chart diagnostic", error)
-      return
-    }
+  func record(_ snapshot: @escaping @Sendable () -> ChartProgressSnapshot) {
     handler.log(
-      event: LogEvent(
-        level: .debug,
-        message: "chart transition",
-        metadata: ["chart": .string(String(decoding: data, as: UTF8.self))],
-        source: "ChartProgressDiagnostics",
-        file: #fileID,
-        function: #function,
-        line: #line
+      level: .debug,
+      source: "ChartProgressDiagnostics",
+      file: #fileID,
+      function: #function,
+      line: #line
+    ) {
+      let encoder = JSONEncoder()
+      encoder.nonConformingFloatEncodingStrategy = .convertToString(
+        positiveInfinity: "+Infinity",
+        negativeInfinity: "-Infinity",
+        nan: "NaN"
       )
-    )
+      let data: Data
+      do { data = try encoder.encode(snapshot()) } catch {
+        Self.log.caughtError("Could not encode chart diagnostic", error)
+        return nil
+      }
+      return ("chart transition", ["chart": .string(String(decoding: data, as: UTF8.self))])
+    }
   }
 }
 
-struct ChartProgressSnapshot: Encodable {
+struct ChartProgressSnapshot: Encodable, Sendable {
   let schema = 1
   let instance: UUID
   let revision: Int
@@ -257,18 +255,22 @@ struct ChartProgressSnapshot: Encodable {
     }
     sequence += 1
     Container.shared.chartProgressDiagnostics()
-      .record(
+      .record {
+        [
+          id, revision, sequence, size = self.size, scene = self.scene,
+          animationPresent = self.animationPresent, animationsDisabled = self.animationsDisabled
+        ] in
         ChartProgressSnapshot(
           input: input,
           instance: id,
           revision: revision,
           sequence: sequence,
           transition: phase.rawValue,
-          size: self.size,
-          scene: sceneName,
+          size: size,
+          scene: scene,
           animationPresent: animationPresent,
           animationsDisabled: animationsDisabled
         )
-      )
+      }
   }
 }

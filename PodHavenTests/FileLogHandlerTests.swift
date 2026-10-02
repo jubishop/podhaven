@@ -647,6 +647,7 @@ struct FileLogHandlerTests {
         message: "entry-\(String(format: "%04d", index))-\(padding)",
         line: UInt(index)
       )
+      if index.isMultiple(of: 128) { FileLogHandler.flush(fileURL: fileURL) }
     }
     FileLogHandler.flush(fileURL: fileURL)
 

@@ -219,36 +219,31 @@ struct AppLauncher: Sendable {
   private static func bootstrapOSLogAndFileLog(
     extraHandlers: @escaping @Sendable (String) -> [any LogHandler] = { _ in [] }
   ) {
-    let sharedState = Container.shared.sharedState()
     LoggingSystem.bootstrap { label in
       MultiplexLogHandler(
-        [
-          OSLogHandler(label: label),
-          FileLogHandler(
-            label: label,
-            fileURL: AppInfo.logFileURL,
-            maxFileSizeBytes: AppInfo.logMaxFileSizeBytes,
-            targetFileSizeBytes: AppInfo.logTargetFileSizeBytes,
-            // `.inactive` writes stay async; the `.background` transition
-            // flushes the queue via AppDelegate.handleScenePhaseChange.
-            writeSynchronously: {
-              $0 >= .critical || sharedState.$scenePhase.value == .background
-            }
-          ),
-          FileLogHandler(
-            label: label,
-            fileURL: AppInfo.recentLogFileURL,
-            maxFileSizeBytes: AppInfo.recentLogMaxFileSizeBytes,
-            targetFileSizeBytes: AppInfo.recentLogTargetFileSizeBytes,
-            historyPolicy: .preservePreviousSession,
-            writeSynchronously: {
-              $0 >= .critical || sharedState.$scenePhase.value == .background
-            }
-          ),
-        ]
-          + extraHandlers(label)
+        [OSLogHandler(label: label)] + fileLogHandlers(label: label) + extraHandlers(label)
       )
     }
+  }
+
+  static func fileLogHandlers(label: String) -> [any LogHandler] {
+    [
+      FileLogHandler(
+        label: label,
+        fileURL: AppInfo.logFileURL,
+        maxFileSizeBytes: AppInfo.logMaxFileSizeBytes,
+        targetFileSizeBytes: AppInfo.logTargetFileSizeBytes,
+        writeSynchronously: { $0 >= .critical }
+      ),
+      FileLogHandler(
+        label: label,
+        fileURL: AppInfo.recentLogFileURL,
+        maxFileSizeBytes: AppInfo.recentLogMaxFileSizeBytes,
+        targetFileSizeBytes: AppInfo.recentLogTargetFileSizeBytes,
+        historyPolicy: .preservePreviousSession,
+        writeSynchronously: { $0 >= .critical }
+      ),
+    ]
   }
 
   // MARK: - Sentry
