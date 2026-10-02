@@ -106,7 +106,7 @@ From the argument, extract:
    it). If only a numeric ID is provided, assume the slug is `podhaven:<id>`.
 2. **Numeric feedback ID**: the part after `:` in the slug.
 3. **Path-safe slug**: the slug with `:` replaced by `-` (e.g.
-   `podhaven-7485822944`) — names the attachment download directory (Step 6).
+   `podhaven-7485822944`) — names the attachment cache parent (Step 6).
 4. **Sentry org**: `artisanal-software` (default for this repo).
 5. **Project ID**: `4508469264711681` if present in the URL, else assume the
    PodHaven project.
@@ -304,19 +304,34 @@ session.
    - `widget-log.ndjson` — the widget log
    If other `.ndjson` files appear, download them too and mention them. If a
    name diverges from the expected pair, note it and proceed with what you got.
-3. Create a per-feedback working directory and download attachments:
+3. Create a fresh investigation directory under the feedback's cache parent.
+   Keep `ATTACHMENT_DIR` as the exact destination for this selected event:
 
 ```bash
+ATTACHMENT_CACHE="$HOME/Library/Caches/analyze-sentry-feedback/<path-safe-slug>"
+mkdir -p "$ATTACHMENT_CACHE"
+ATTACHMENT_RUN="$(mktemp -d "$ATTACHMENT_CACHE/investigation.XXXXXX")"
+ATTACHMENT_DIR="$ATTACHMENT_RUN/attachments"
 bash .agents/scripts/sentry-cli/download_event_attachments.sh \
   --event <event_id> \
   --issue-json "$FEEDBACK_WORK/bundle/issue.json" \
-  --dir ~/Library/Caches/analyze-sentry-feedback/<feedback-slug>/ \
+  --dir "$ATTACHMENT_DIR" \
   --all
 ```
 
-The directory name is the path-safe slug from Step 1. Preserve original
-filenames (`log.ndjson`, `widget-log.ndjson`).
-4. Sanity-check the downloads: each file should be non-empty NDJSON, and the
+Replace `<path-safe-slug>` with Step 1's value. The helper rejects any existing
+destination, including an empty directory or symlink. It keeps
+the original log filenames (`log.ndjson`, `widget-log.ndjson`) inside that path.
+It creates `.incomplete` before writing attachment bytes and removes the marker
+only after every selected download succeeds. On failure or interruption, preserve
+that directory as partial evidence; do not analyze it as a completed download.
+For a retry or a different selected event, rerun the block to allocate a new
+investigation directory. Never clear or reuse an earlier directory, and never
+fill missing files from another investigation.
+
+4. Continue only after the helper exits successfully and
+   `$ATTACHMENT_DIR/.incomplete` is absent. Sanity-check only the downloads in
+   `$ATTACHMENT_DIR`: each log should be non-empty NDJSON, and the
    latest entry should be near (within seconds to a few minutes of) the
    feedback timestamp. If a file is empty, truncated, or its latest entry is
    hours away from the feedback timestamp, call that out — it changes how
@@ -337,9 +352,12 @@ Fallbacks, in order, if the attachment route fails:
 
 ## Step 7: Analyze the logs with the bundled summary script
 
-**Do not hand-roll log parsing.** Analyze the **downloaded** NDJSON from Step 6
-with `.agents/skills/analyze-logs/scripts/log_summary.py`. This step contains
-the incident-specific workflow and flags needed here; do not load the full
+**Do not hand-roll log parsing.** Analyze the **downloaded** NDJSON from Step 6's
+exact `$ATTACHMENT_DIR` with `.agents/skills/analyze-logs/scripts/log_summary.py`.
+Set `LOG_PATH="$ATTACHMENT_DIR/log.ndjson"` when that file exists; use
+`$ATTACHMENT_DIR/widget-log.ndjson` for the widget log when present. Report a
+missing log instead of searching the cache parent or a prior investigation.
+This step contains the incident-specific workflow and flags needed here; do not load the full
 `analyze-logs` skill on top of it. Read
 `.agents/skills/analyze-logs/references/podhaven-log-format.md` only when exact
 field, truncation, or MetricKit payload details are necessary. Ad-hoc
@@ -351,7 +369,7 @@ The reporter's `log.ndjson` is a rolling buffer that usually spans many app
 launches; the feedback is almost always about the *last* one. Work it in this
 order:
 
-1. **Sessionize.** `log_summary.py <log> --sessions` lists the app launches.
+1. **Sessionize.** `log_summary.py "$LOG_PATH" --sessions` lists the app launches.
    Pick the session whose time range contains the feedback timestamp.
 2. **Scope to that session.** Pass `--session N` on every later command so the
    analysis covers the incident launch, not hours of unrelated history.

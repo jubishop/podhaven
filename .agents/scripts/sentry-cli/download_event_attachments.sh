@@ -4,6 +4,7 @@
 # Usage:
 #   download_event_attachments.sh --event EVENT_ID --issue-json FILE
 #     [--dir DIR (--name FILE ... | --all)]
+#   Downloads require a fresh DIR; failed attempts retain .incomplete.
 
 set -euo pipefail
 
@@ -28,6 +29,10 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --dir)
+      if [[ $# -lt 2 || -z "$2" ]]; then
+        echo "Error: --dir DIR requires a fresh output directory path." >&2
+        exit 1
+      fi
       DIR="$2"
       shift 2
       ;;
@@ -69,6 +74,15 @@ fi
 if [[ "$DOWNLOAD_ALL" == "1" || "${#NAMES[@]}" -gt 0 ]] && [[ -z "$DIR" ]]; then
   echo "Error: --dir is required when downloading attachments." >&2
   exit 1
+fi
+if [[ "$DOWNLOAD_ALL" == "1" || "${#NAMES[@]}" -gt 0 ]]; then
+  while [[ "$DIR" == */ && "$DIR" != "/" ]]; do
+    DIR="${DIR%/}"
+  done
+  if [[ -e "$DIR" || -L "$DIR" ]]; then
+    echo "Error: output directory must not already exist; choose a fresh path: $DIR" >&2
+    exit 1
+  fi
 fi
 
 require_sentry_auth
@@ -150,7 +164,9 @@ for row in selected:
     print(f"{encoded_id}\t{encoded_name}")
 PY
 
-mkdir -p "$DIR"
+mkdir -p -- "$(dirname -- "$DIR")"
+mkdir -- "$DIR"
+printf 'Incomplete attachment download for event %s; retry in a fresh directory.\n' "$EVENT_ID" >"$DIR/.incomplete"
 while IFS=$'\t' read -r ENCODED_ID ENCODED_FILENAME; do
   ATTACHMENT_ID="$(python3 -c 'import base64, sys; print(base64.urlsafe_b64decode(sys.argv[1]).decode())' "$ENCODED_ID")"
   FILENAME="$(python3 -c 'import base64, sys; print(base64.urlsafe_b64decode(sys.argv[1]).decode())' "$ENCODED_FILENAME")"
@@ -173,3 +189,5 @@ PY
     >"$TARGET"
   echo "Downloaded ${FILENAME} -> ${TARGET}"
 done <"$MANIFEST"
+rm -- "$DIR/.incomplete"
+echo "Completed attachment download -> $DIR"

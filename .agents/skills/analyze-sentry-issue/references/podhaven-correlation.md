@@ -20,7 +20,11 @@ List event attachments with
 `.agents/scripts/sentry-cli/download_event_attachments.sh` before selecting any
 downloads. With no `--name` or `--all`, the helper lists only. Download only
 attachments that can affect the diagnosis and keep them inside the invocation's
-temporary directory.
+temporary directory. Pass a fresh, nonexistent child path as `--dir` for each
+selected event or retry. The helper rejects existing paths and leaves an
+`.incomplete` marker after a failed or interrupted download. Analyze only the
+exact destination from a successful command with no `.incomplete` marker;
+preserve earlier attempts without using them to fill missing attachments.
 
 `log.ndjson` and `widget-log.ndjson` are the reporter's logs. Do not substitute
 developer-local logs unless the event user is proven to be the same device.
