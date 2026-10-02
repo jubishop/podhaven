@@ -161,20 +161,26 @@ for Step 9. Do not modify it until the evidence has been synthesized.
 Requires the **`sentry` CLI** and auth (`sentry auth login`). If the command is
 missing, report that prerequisite and stop. Do not use the Sentry MCP server.
 
-Run:
+Create a fresh working directory for each investigation. Run these commands
+in Bash and retain `FEEDBACK_WORK` for the later steps:
 
 ```bash
+FEEDBACK_WORK="$(mktemp -d /tmp/sentry_feedback.XXXXXX)"
 bash .agents/scripts/sentry-cli/fetch_feedback_bundle.sh <slug> \
-  --out /tmp/sentry_feedback
+  --out "$FEEDBACK_WORK/bundle"
 ```
+
+The helper requires an explicit output path that does not exist yet. It refuses
+existing paths, including empty directories and symbolic links, without clearing
+or overwriting their contents. Use a new path after a failed or completed fetch.
 
 This writes:
 
-- `/tmp/sentry_feedback/issue.json` — feedback title, metadata (message, contact)
-- `/tmp/sentry_feedback/event_<id>.json` — full event (tags, contexts, breadcrumbs)
-- `/tmp/sentry_feedback/activities.json` — issue activity stream
-- `/tmp/sentry_feedback/notes.json` — owner notes/comments (may be empty)
-- `/tmp/sentry_feedback/attachments.json` — attachment metadata
+- `$FEEDBACK_WORK/bundle/issue.json` — feedback title, metadata (message, contact)
+- `$FEEDBACK_WORK/bundle/event_<id>.json` — full event (tags, contexts, breadcrumbs)
+- `$FEEDBACK_WORK/bundle/activities.json` — issue activity stream
+- `$FEEDBACK_WORK/bundle/notes.json` — owner notes/comments (may be empty)
+- `$FEEDBACK_WORK/bundle/attachments.json` — attachment metadata
 
 API files contain validated payloads, without the CLI response envelope. See
 the [helper response contracts](../../scripts/sentry-cli/README.md). Optional
@@ -202,7 +208,7 @@ the verbatim user message. Keep the message quoted, not paraphrased.
 
 ## Step 4: Pull the associated event, replay, and trace if any
 
-Use `/tmp/sentry_feedback/event_<id>.json` from Step 3. Note especially:
+Use `$FEEDBACK_WORK/bundle/event_<id>.json` from Step 3. Note especially:
 
 - The event's exception type and top stack frame (if any).
 - Breadcrumbs in the minute leading up to the feedback.
@@ -250,7 +256,7 @@ Convert the feedback timestamp to an ISO range (10 minutes before submission,
 bash .agents/scripts/sentry-cli/search_related_errors.sh \
   --period '2026-05-30T00:10:00Z..2026-05-30T00:21:00Z' \
   --query 'user.id:<uuid>' \
-  --out /tmp/sentry_feedback_related.json
+  --out "$FEEDBACK_WORK/related.json"
 ```
 
 Use `..` between timestamps (not `/`). Widen the start time to 30 minutes before
@@ -261,7 +267,7 @@ only if the window is empty.
 add `release:<release> environment:<environment>` — say explicitly in the report
 that matches are release-wide, not reporter-specific.
 
-Read `/tmp/sentry_feedback_related.json` — sort by timestamp, keep the top ~5.
+Read `$FEEDBACK_WORK/related.json` — sort by timestamp, keep the top ~5.
 For each row capture: issue short ID, title, timestamp (PT), and whether the
 reporter's identifier appears on the event.
 
@@ -290,7 +296,7 @@ session.
 - "Missing attachments" means the *app* failed to attach (timing, disk, code path), not that Sentry lost them.
 - This also bounds what fixes you can recommend: if the conclusion is "we couldn't tell because the log only goes back X seconds," the action is to change PodHaven's logger policy, not to ask Sentry for more data.
 
-1. Read attachment names from `/tmp/sentry_feedback/attachments.json`. If the
+1. Read attachment names from `$FEEDBACK_WORK/bundle/attachments.json`. If the
    feedback had no linked event, fall back to the highest-ranked related event
    from Step 5 — download attachments for that event instead.
 2. Expect at minimum two attachments named:
@@ -303,7 +309,7 @@ session.
 ```bash
 bash .agents/scripts/sentry-cli/download_event_attachments.sh \
   --event <event_id> \
-  --issue-json /tmp/sentry_feedback/issue.json \
+  --issue-json "$FEEDBACK_WORK/bundle/issue.json" \
   --dir ~/Library/Caches/analyze-sentry-feedback/<feedback-slug>/ \
   --all
 ```
