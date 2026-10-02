@@ -45,6 +45,10 @@ if [[ -z "$SLUG" || -z "$OUT" ]]; then
   exit 1
 fi
 
+while [[ "$OUT" == */ && "$OUT" != "/" ]]; do
+  OUT="${OUT%/}"
+done
+
 if [[ -e "$OUT" || -L "$OUT" ]]; then
   echo "Error: output directory must not already exist; choose a fresh path: $OUT" >&2
   exit 1

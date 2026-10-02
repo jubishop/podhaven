@@ -90,7 +90,7 @@ print(json.dumps(payload))
                 )
 
                 fresh = self.root / f"independent-{fallback}" / "bundle"
-                result = self.fetch(fresh)
+                result = self.fetch(f"{fresh}///")
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(
                     sorted(path.name for path in fresh.glob("event_*.json")),
@@ -116,7 +116,10 @@ print(json.dumps(payload))
         dangling = self.root / "dangling"
         dangling.symlink_to(self.root / "missing", target_is_directory=True)
 
-        for output in (directory, empty, file, link, f"{link}/", dangling):
+        for output in (
+            directory, empty, file, link, f"{link}/", dangling,
+            f"{dangling}/", f"{dangling}///",
+        ):
             with self.subTest(output=output):
                 result = self.fetch(output)
                 self.assertNotEqual(result.returncode, 0, result.stdout)
