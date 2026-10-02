@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+"""Run or install the local, subscription-backed memory audit."""
+import sys
+sys.dont_write_bytecode = True
+from _memory_audit import main
+
+sys.exit(main())
