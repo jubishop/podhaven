@@ -10,35 +10,40 @@ import Testing
 
 @Suite("File logging backpressure", .container)
 struct FileLogBackpressureTests {
-  @Test("throttled payloads are rejected before expensive construction")
-  func throttledPayloadsStayLazy() throws {
+  @Test("throttled records skip metadata construction")
+  func throttledRecordsSkipMetadata() throws {
     Container.shared.fakeContinuousClock().freeze()
     let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: url) }
     let builds = ThreadSafe(0)
-    let handler = FileLogHandler(
+    var handler = FileLogHandler(
       label: "PodHaven/LazyTest",
       fileURL: url,
       maxFileSizeBytes: 100_000,
       targetFileSizeBytes: 75_000,
       writeSynchronously: { _ in true }
     )
+    handler.metadataProvider = .init {
+      builds { $0 += 1 }
+      return ["context": "expensive metadata"]
+    }
     for _ in 0..<500 {
       handler.log(
-        level: .debug,
-        source: "PodHavenTests",
-        file: #fileID,
-        function: #function,
-        line: #line
-      ) {
-        builds { $0 += 1 }
-        return ("expensive snapshot", nil)
-      }
+        event: LogEvent(
+          level: .debug,
+          message: "routine record",
+          metadata: nil,
+          source: "PodHavenTests",
+          file: #fileID,
+          function: #function,
+          line: #line
+        )
+      )
     }
     FileLogHandler.flush(fileURL: url)
     #expect(builds() == 50)
     let text = try String(contentsOf: url, encoding: .utf8)
-    #expect(text.contains("dropped 450 repeated entries"))
+    #expect(text.contains("dropped 450 entries"))
   }
 
   @Test("background routine app logs format on the writer instead of the main thread")
@@ -72,6 +77,97 @@ struct FileLogBackpressureTests {
     FileLogHandler.flush()
     #expect(formattedOnMain().count == 2)
     #expect(formattedOnMain().allSatisfy { !$0 })
+  }
+
+  @Test("failed appends refund admission and preserve pending suppression counts")
+  func failedAppendsPreserveAdmission() throws {
+    let clock = Container.shared.fakeContinuousClock()
+    clock.freeze()
+    let directory = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let url = directory.appendingPathComponent("log.ndjson")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let handler = FileLogHandler(
+      label: "PodHaven/FailureTest",
+      fileURL: url,
+      maxFileSizeBytes: 100_000,
+      targetFileSizeBytes: 75_000,
+      writeSynchronously: { _ in true }
+    )
+    let event = LogEvent(
+      level: .debug,
+      message: "routine",
+      metadata: nil,
+      source: "PodHavenTests",
+      file: #fileID,
+      function: #function,
+      line: #line
+    )
+    handler.log(event: event)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    for _ in 0..<50 { handler.log(event: event) }
+    FileLogHandler.flush(fileURL: url)
+    #expect(try String(contentsOf: url, encoding: .utf8).split(separator: "\n").count == 50)
+    for _ in 0..<10 { handler.log(event: event) }
+    try FileManager.default.removeItem(at: directory)
+    clock.advance(by: .seconds(1))
+    handler.log(event: event)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    handler.log(event: event)
+    FileLogHandler.flush(fileURL: url)
+    let text = try String(contentsOf: url, encoding: .utf8)
+    #expect(text.split(separator: "\n").count == 2)
+    #expect(text.contains("dropped 10 entries"))
+  }
+
+  @Test("concurrent producers account for every accepted and suppressed record")
+  func concurrentProducersPreserveAccounting() async throws {
+    Container.shared.fakeContinuousClock().freeze()
+    let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let handler = FileLogHandler(
+      label: "PodHaven/ConcurrentTest",
+      fileURL: url,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 8_000_000,
+      writeSynchronously: { _ in false }
+    )
+    await withTaskGroup(of: Void.self) { group in
+      for site in 1...8 {
+        group.addTask {
+          for _ in 0..<500 {
+            handler.log(
+              event: LogEvent(
+                level: .debug,
+                message: "routine",
+                metadata: nil,
+                source: "PodHavenTests",
+                file: "Concurrent.swift",
+                function: "producer()",
+                line: UInt(site)
+              )
+            )
+          }
+        }
+      }
+    }
+    FileLogHandler.flush(fileURL: url)
+    let records = try String(contentsOf: url, encoding: .utf8).split(separator: "\n")
+      .map {
+        try #require(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])
+      }
+    for site in 1...8 {
+      let messages = records.filter { ($0["line"] as? Int) == site }
+        .compactMap { $0["message"] as? String }
+      let accounted = messages.reduce(0) { count, message in
+        if message == "routine" { return count + 1 }
+        let words = message.split(separator: " ")
+        guard let dropped = words.firstIndex(of: "dropped"), dropped + 1 < words.count else {
+          return count
+        }
+        return count + (Int(words[dropped + 1]) ?? 0)
+      }
+      #expect(accounted == 500)
+    }
   }
 
   @Test("an occupied writer bounds routine records across competing call sites")
@@ -134,5 +230,8 @@ struct FileLogBackpressureTests {
       return count + (Int(words[dropped + 1]) ?? 0)
     }
     #expect(retained + suppressed == 2_000)
+    let lastRoutine = try #require(messages.lastIndex(of: "routine"))
+    let firstSummary = try #require(messages.firstIndex { $0.contains("dropped") })
+    #expect(lastRoutine < firstSummary)
   }
 }

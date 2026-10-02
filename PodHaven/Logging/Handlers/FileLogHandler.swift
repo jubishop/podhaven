@@ -106,21 +106,27 @@ struct FileLogHandler: LogHandler {
       level: Logging.Logger.Level,
       context: SuppressionContext,
       synchronously: Bool,
-      makeEntry: @escaping @Sendable () -> Entry?
+      makeEntry: @escaping @Sendable () -> Entry
     ) {
       let critical = level == .critical
-      guard critical || admit(context) else { return }
       let key = RateKey(file: context.file, line: context.line)
+      let suppressed: Int
+      if critical {
+        suppressed = takeSuppressedCount(for: key)
+      } else {
+        guard let admitted = admit(context) else { return }
+        suppressed = admitted
+      }
       let work: @Sendable () -> Void = { [weak self] in
         guard let self else { return }
         defer {
           if !critical { self.admission { $0.pendingRecords -= 1 } }
         }
-        guard let entry = makeEntry() else {
-          if !critical { self.refundToken(for: key) }
-          return
-        }
-        let result = self.writeEntry(entry, chargedRateLimitToken: !critical)
+        let result = self.writeEntry(
+          makeEntry(),
+          suppressed: suppressed,
+          chargedRateLimitToken: !critical
+        )
         Self.emitOSLogOnly(result)
       }
       if critical || synchronously {
@@ -130,7 +136,7 @@ struct FileLogHandler: LogHandler {
       }
     }
 
-    private func admit(_ context: SuppressionContext) -> Bool {
+    private func admit(_ context: SuppressionContext) -> Int? {
       let now = clockNow()
       let key = RateKey(file: context.file, line: context.line)
       return admission { state in
@@ -150,14 +156,18 @@ struct FileLogHandler: LogHandler {
         bucket.lastRefill = max(bucket.lastRefill, now)
         bucket.lastContext = context
         let accepted = bucket.tokens >= 1 && state.pendingRecords < Self.maximumPendingRecords
+        let suppressed: Int?
         if accepted {
           bucket.tokens -= 1
           state.pendingRecords += 1
+          suppressed = bucket.suppressedCount
+          bucket.suppressedCount = 0
         } else {
           bucket.suppressedCount += 1
+          suppressed = nil
         }
         state.buckets[key] = bucket
-        return accepted
+        return suppressed
       }
     }
 
@@ -184,10 +194,14 @@ struct FileLogHandler: LogHandler {
       case failed(any Error)
     }
 
-    private func writeEntry(_ entry: Entry, chargedRateLimitToken: Bool) -> WriteResult {
+    private func writeEntry(
+      _ entry: Entry,
+      suppressed: Int,
+      chargedRateLimitToken: Bool
+    ) -> WriteResult {
       dispatchPrecondition(condition: .onQueue(queue))
       let key = RateKey(file: entry.file, line: entry.line)
-      var suppressed = takeSuppressedCount(for: key)
+      var suppressed = suppressed
       var appended = false
       // Same (file, line) as the suppressed entries, so this entry's own context
       // attributes the summary correctly.
@@ -449,17 +463,21 @@ struct FileLogHandler: LogHandler {
 
     private func flushPendingSuppressions() -> WriteResult {
       dispatchPrecondition(condition: .onQueue(queue))
-      let pending: [(RateKey, SuppressionContext)] = admission { state in
-        state.buckets.compactMap { key, bucket in
+      let pending: [(RateKey, SuppressionContext, Int)] = admission { state in
+        let pending = state.buckets.compactMap {
+          key,
+          bucket -> (RateKey, SuppressionContext, Int)? in
           guard bucket.suppressedCount > 0, let context = bucket.lastContext else { return nil }
-          return (key, context)
+          return (key, context, bucket.suppressedCount)
         }
+        for (key, _, _) in pending {
+          state.buckets[key]?.suppressedCount = 0
+        }
+        return pending
       }
 
       var failure: WriteResult = .ok
-      for (key, context) in pending {
-        let suppressed = takeSuppressedCount(for: key)
-        guard suppressed > 0 else { continue }
+      for (key, context, suppressed) in pending {
         let summary = suppressionSummary(context: context, suppressed: suppressed)
         do {
           try appendEntry(summary)
@@ -490,7 +508,7 @@ struct FileLogHandler: LogHandler {
         subsystem: context.subsystem,
         category: context.category,
         message:
-          "FileLogHandler rate limit — dropped \(suppressed) repeated entries from this log site",
+          "FileLogHandler admission limit — dropped \(suppressed) entries from this log site",
         metadata: nil,
         source: context.source,
         file: context.file,
@@ -588,54 +606,21 @@ struct FileLogHandler: LogHandler {
   // MARK: - Logging
 
   public func log(event: LogEvent) {
-    log(
-      level: event.level,
-      source: event.source,
-      file: event.file,
-      function: event.function,
-      line: event.line
-    ) { (event.message, event.metadata) }
-  }
-
-  func log(
-    level: Logging.Logger.Level,
-    source: String,
-    file: String,
-    function: String,
-    line: UInt,
-    makeMessage: @escaping @Sendable () -> (Logging.Logger.Message, Logging.Logger.Metadata?)?
-  ) {
-    // Stamp at call time, on the calling thread. Async writes build the rest of
-    // the entry later on the writer queue; capturing the timestamp here keeps it
-    // aligned with when the event happened, not when the queue drains.
+    // Capture the event time before asynchronous metadata and encoding work.
     let timestamp = Int64(dateProvider.now.timeIntervalSince1970 * 1000)
     writer.log(
-      level: level,
+      level: event.level,
       context: Writer.SuppressionContext(
         timestamp: timestamp,
         subsystem: subsystem,
         category: category,
-        source: source,
-        file: file,
-        function: function,
-        line: line
+        source: event.source,
+        file: event.file,
+        function: event.function,
+        line: event.line
       ),
-      synchronously: writeSynchronously(level),
-      makeEntry: {
-        guard let (message, metadata) = makeMessage() else { return nil }
-        return self.makeEntry(
-          from: LogEvent(
-            level: level,
-            message: message,
-            metadata: metadata,
-            source: source,
-            file: file,
-            function: function,
-            line: line
-          ),
-          timestamp: timestamp
-        )
-      }
+      synchronously: writeSynchronously(event.level),
+      makeEntry: { self.makeEntry(from: event, timestamp: timestamp) }
     )
   }
 
