@@ -220,6 +220,12 @@ Uploads retain the existing Git tag, GitHub release, and SourceHut mirror
 behavior. The App Store upload mode does not distribute to external
 TestFlight testers.
 
+Keep GitHub (`origin`) and SourceHut (`sourcehut`) as separate Git remotes; do
+not configure SourceHut as an additional push URL for `origin`. If a mirror push
+is rejected as non-fast-forward, fetch both refs and inspect the commits unique
+to each side before repair. Preserve both histories, push normally, and confirm
+both refs point to the intended commit. Do not force-push to resolve divergence.
+
 ## Retry a release
 
 Repeat the same command after a push, upload, processing, or submission failure.
