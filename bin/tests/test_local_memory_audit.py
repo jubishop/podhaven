@@ -55,17 +55,17 @@ class LocalAuditTests(unittest.TestCase):
         self.calls = self.base / "calls.jsonl"
         self.executable("gh", "import json,sys\nprint(json.dumps([]))\n")
         self.executable("qmd", "print('Index ready')\n")
-        self.executable("codex", (
+        self.executable("claude", (
             "import json,os,pathlib,sys\n"
-            "prompt = '' if sys.argv[1:] == ['login','status'] else sys.stdin.read()\n"
+            "status = sys.argv[1:3] == ['auth','status']\n"
+            "prompt = '' if status else sys.stdin.read()\n"
             f"with open({str(self.calls)!r}, 'a') as f: f.write(json.dumps({{'args':sys.argv[1:], 'env':dict(os.environ), 'prompt':prompt}})+'\\n')\n"
-            "if sys.argv[1:] == ['login','status']:\n print('Logged in using ChatGPT')\n"
+            "if status:\n print(json.dumps({'loggedIn':True,'authMethod':'claude.ai','apiProvider':'firstParty'}))\n"
             "else:\n"
             f" response=json.loads(pathlib.Path({str(self.response)!r}).read_text())\n"
             f" calls=[json.loads(x) for x in pathlib.Path({str(self.calls)!r}).read_text().splitlines()]\n"
-            " if isinstance(response,list): response=response[sum('exec' in c['args'] for c in calls)-1]\n"
-            " pathlib.Path(sys.argv[sys.argv.index('--output-last-message')+1]).write_text(json.dumps(response))\n"
-            " print('{\"type\":\"turn.completed\"}')\n"
+            " if isinstance(response,list): response=response[sum('-p' in c['args'] for c in calls)-1]\n"
+            " print(json.dumps({'type':'result','subtype':'success','structured_output':response}))\n"
         ))
         self.env = patch.dict(os.environ, {"PATH": str(self.fake) + os.pathsep + os.environ["PATH"]})
         self.env.start()
@@ -107,7 +107,7 @@ class LocalAuditTests(unittest.TestCase):
         self.assertIn("memory/archive/incident.md", (run_dir / "memory-audit.patch").read_text())
         self.git("apply", "--reverse", "--check", str(run_dir / "memory-audit.patch"), root=proposed)
 
-    def test_unchanged_inputs_skip_luna_and_force_runs_again(self):
+    def test_unchanged_inputs_skip_model_and_force_runs_again(self):
         self.run_audit()
         count = len(self.calls.read_text().splitlines())
         self.assertEqual(self.run_audit()["status"], "skipped")
@@ -115,21 +115,25 @@ class LocalAuditTests(unittest.TestCase):
         self.assertEqual(self.run_audit(force=True)["status"], "success")
         self.assertGreater(len(self.calls.read_text().splitlines()), count)
 
-    def test_subscription_only_read_only_luna_invocation(self):
-        with patch.dict(os.environ, {"CODEX_API_KEY": "fixture-key", "OPENROUTER_API_KEY": "fixture-router"}):
+    def test_subscription_only_read_only_claude_invocation(self):
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "fixture-key", "OPENROUTER_API_KEY": "fixture-router"}):
             self.run_audit()
         call = json.loads(self.calls.read_text().splitlines()[-1])
-        self.assertIn("gpt-6-luna", call["args"])
-        self.assertIn("read-only", call["args"])
-        self.assertIn("--ignore-user-config", call["args"])
-        self.assertIn('forced_login_method="chatgpt"', call["args"])
-        self.assertIn("allow_login_shell=false", call["args"])
-        self.assertNotIn("CODEX_API_KEY", call["env"])
+        args = call["args"]
+        self.assertIn("claude-haiku-5-5", args)
+        for flag in ("--restricted", "--no-session-persistence", "--strict-mcp-config"):
+            self.assertIn(flag, args)
+        self.assertEqual(args[args.index("--tools") + 1], "Bash,Read,Glob,Grep")
+        self.assertEqual(args[args.index("--permission-prompts") + 1], "none")
+        rules = json.loads(args[args.index("--settings") + 1])["permissions"]
+        self.assertFalse([rule for rule in rules["allow"] if not rule.startswith(("Bash(jq ", "Bash(qmd search "))])
+        self.assertNotIn("ANTHROPIC_API_KEY", call["env"])
         self.assertNotIn("OPENROUTER_API_KEY", call["env"])
 
     def test_api_key_login_stops_before_model_request(self):
-        self.executable("codex", "print('Logged in using an API key')\n")
-        with self.assertRaisesRegex(RuntimeError, "ChatGPT"):
+        self.executable("claude", "import json\nprint(json.dumps({'loggedIn': True, 'authMethod': 'api_key', "
+                        "'apiProvider': 'firstParty'}))\n")
+        with self.assertRaisesRegex(RuntimeError, "Claude subscription"):
             self.run_audit()
         self.assertFalse((self.repo / ".cache/memory-audit/last-success.json").exists())
 
@@ -163,8 +167,9 @@ class LocalAuditTests(unittest.TestCase):
                     self.run_audit()
 
     def test_failed_model_does_not_export_patch_or_advance_success(self):
-        self.executable("codex", "import sys\nprint('Logged in using ChatGPT')\n"
-                        "sys.exit(0 if sys.argv[1:] == ['login','status'] else 1)\n")
+        self.executable("claude", "import json,sys\n"
+                        "print(json.dumps({'loggedIn': True, 'authMethod': 'claude.ai', 'apiProvider': 'firstParty'}))\n"
+                        "sys.exit(0 if sys.argv[1:3] == ['auth','status'] else 1)\n")
         with self.assertRaises(RuntimeError):
             self.run_audit()
         state = self.repo / ".cache/memory-audit"
@@ -236,7 +241,7 @@ class LocalAuditTests(unittest.TestCase):
         self.assertEqual((run_dir / "memory-audit.patch").read_text(), "")
         self.assertTrue((run_dir / "rejected-result.json").exists())
         calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
-        self.assertEqual(sum("exec" in call["args"] for call in calls), 2)
+        self.assertEqual(sum("-p" in call["args"] for call in calls), 2)
         self.assertIn("missing link destination ../incident.md", calls[-1]["prompt"])
 
 

@@ -6,14 +6,14 @@ return proposed changes as structured JSON. The local runner validates and saves
 a report and patch for human review. Do not edit files, create tasks, commit,
 push, open issues or PRs, contact anyone, or use other agents.
 
-The user selected this local Luna job through their ChatGPT subscription to
-replace the paid OpenRouter memory audit. That choice supersedes older model
-preferences in the notes. The Sentry Feedback GitHub workflow remains in use.
+The user selected this local Claude Code job with Haiku through their Claude
+subscription to replace the paid OpenRouter memory audit and the later Codex
+job. That choice supersedes older model preferences in the notes. The Sentry Feedback GitHub workflow remains in use.
 
 ## Evidence and search
 
-Start by reading `artifacts/memory-audit-context.json` selectively with Python or
-jq. It contains `baseSha`, `activeNotes`, `activeNoteCount`,
+Start by reading `artifacts/memory-audit-context.json` selectively with jq or
+the Grep tool. It contains `baseSha`, `activeNotes`, `activeNoteCount`,
 `runDateUtc`, `lastSuccessfulAudit` (or null), and cached `issues` and `pullRequests`, including
 bodies and current states. Search these arrays for each note's keywords and exact
 issue or PR numbers. Do not dump the entire context into the conversation.

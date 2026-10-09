@@ -1,4 +1,4 @@
-"""Local Luna audit orchestration; proposed edits never reach the user's checkout."""
+"""Local Claude audit orchestration; proposed edits never reach the user's checkout."""
 
 import argparse
 import fcntl
@@ -22,7 +22,7 @@ from _memory_index import update as update_index
 
 ROOT = Path(__file__).resolve().parents[1]
 LABEL = "com.jubishop.podhaven.memory-audit"
-MODEL = "gpt-6-luna"
+MODEL = "claude-haiku-5-5"
 REPOSITORY = "jubishop/podhaven"
 
 
@@ -35,7 +35,7 @@ def command(args, cwd, env, timeout=120):
 
 def environment():
     return {key: os.environ[key] for key in
-            ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "CODEX_HOME")
+            ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "CLAUDE_CONFIG_DIR")
             if key in os.environ}
 
 
@@ -111,17 +111,15 @@ def apply_result(repo, result, notes):
 
 
 def run_model(repo, run_dir, env, prompt, timeout=5400):
-    schema = run_dir / "output-schema.json"
-    atomic_json(schema, output_schema())
-    args = ["codex", "--no-daemon", "-a", "never", "exec", "--ignore-user-config", "--ignore-rules",
-            "--ephemeral", "--model", MODEL, "--sandbox", "read-only",
-            "-c", 'model_provider="openai"', "-c", 'forced_login_method="chatgpt"',
-            "-c", 'model_reasoning_effort="high"', "-c", "agents.enabled=false",
-            "-c", "allow_login_shell=false", "-c", 'shell_environment_policy.inherit="all"',
-            "-c", "shell_environment_policy.ignore_default_excludes=false",
-            "-c", 'web_search="disabled"', "--color", "never", "--json",
-            "--output-schema", str(schema), "--output-last-message", str(run_dir / "result.json"), "-"]
-    with (run_dir / "events.jsonl").open("w") as events, (run_dir / "codex.log").open("w") as log:
+    # Restricted mode ignores user and project settings. Without edit tools or edit rules, any write,
+    # network command, or read outside the clone needs approval, which --permission-prompts none denies.
+    permissions = {"allow": ["Bash(jq *)", "Bash(qmd search *)"]}
+    args = ["claude", "-p", "--restricted", "--no-session-persistence", "--strict-mcp-config",
+            "--model", MODEL, "--effort", "high", "--tools", "Bash,Read,Glob,Grep",
+            "--permission-mode", "default", "--permission-prompts", "none",
+            "--settings", json.dumps({"permissions": permissions}),
+            "--output-format", "stream-json", "--verbose", "--json-schema", json.dumps(output_schema())]
+    with (run_dir / "events.jsonl").open("w") as events, (run_dir / "claude.log").open("w") as log:
         process = subprocess.Popen(args, cwd=repo, env=env, text=True, stdin=subprocess.PIPE,
                                    stdout=events, stderr=log, start_new_session=True)
         try:
@@ -133,9 +131,20 @@ def run_model(repo, run_dir, env, prompt, timeout=5400):
             except subprocess.TimeoutExpired:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
-            raise RuntimeError("Luna exceeded the 90-minute limit; see " + str(log.name)) from None
+            raise RuntimeError("Claude exceeded the 90-minute limit; see " + str(log.name)) from None
         if process.returncode:
-            raise RuntimeError(f"Luna exited {process.returncode}; see {log.name}")
+            raise RuntimeError(f"Claude exited {process.returncode}; see {log.name}")
+    result = None
+    for line in (run_dir / "events.jsonl").read_text(errors="replace").splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if event.get("type") == "result":
+            result = event.get("structured_output")
+    if not isinstance(result, dict):
+        raise RuntimeError("Claude returned no structured result; see " + str(run_dir / "events.jsonl"))
+    atomic_json(run_dir / "result.json", result)
 
 
 def run(root=ROOT, force=False):
@@ -151,7 +160,7 @@ def run(root=ROOT, force=False):
         runs.mkdir(exist_ok=True)
         prefix = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-")
         run_dir = Path(tempfile.mkdtemp(prefix=prefix, dir=runs))
-        meta = {"status": "running", "directory": str(run_dir), "model": MODEL, "provider": "chatgpt"}
+        meta = {"status": "running", "directory": str(run_dir), "model": MODEL, "provider": "claude.ai"}
         atomic_json(state / "latest.json", meta)
         try:
             env = environment()
@@ -173,10 +182,16 @@ def run(root=ROOT, force=False):
                 meta.update(status="skipped", reason="No repository, issue, PR, or audit instruction changes",
                             previousDirectory=previous["directory"])
                 return meta
-            login = subprocess.run(["codex", "login", "status"], cwd=root, env=env,
+            login = subprocess.run(["claude", "auth", "status", "--json"], cwd=root, env=env,
                                    capture_output=True, text=True, timeout=30)
-            if login.returncode or "Logged in using ChatGPT" not in login.stdout + login.stderr:
-                raise RuntimeError("Memory audit requires saved ChatGPT login; run codex login. API billing is disabled.")
+            try:
+                status = json.loads(login.stdout) if not login.returncode else {}
+            except ValueError:
+                status = {}
+            if not (status.get("loggedIn") and status.get("authMethod") == "claude.ai"
+                    and status.get("apiProvider") == "firstParty"):
+                raise RuntimeError("Memory audit requires a saved Claude subscription login; run claude auth login. "
+                                   "API billing is disabled.")
             repo = run_dir / "repository"
             command(["git", "-c", "core.hooksPath=/dev/null", "clone", "--quiet", "--shared", "--no-checkout",
                      str(root), str(repo)], root, env)
@@ -214,7 +229,7 @@ def run(root=ROOT, force=False):
                     (run_dir / "validation-error.txt").write_text(str(error) + "\n")
                     for name, saved in (("result.json", "rejected-result.json"),
                                         ("events.jsonl", "first-attempt-events.jsonl"),
-                                        ("codex.log", "first-attempt-codex.log")):
+                                        ("claude.log", "first-attempt-claude.log")):
                         (run_dir / name).rename(run_dir / saved)
                     prompt += ("\n\nYour previous response failed validation. The runner restored the original notes. "
                                "Repair this response using the findings you already gathered; do not repeat the whole audit. "
@@ -246,7 +261,7 @@ def install(root=ROOT):
         raise RuntimeError("The launchd schedule requires macOS")
     root = root.resolve()
     tool_paths = [str(Path(sys.executable).parent)]
-    for executable in ("codex", "qmd", "gh", "git", "rg", "node", "bun"):
+    for executable in ("claude", "qmd", "gh", "git", "rg", "node", "bun"):
         path = shutil.which(executable)
         if not path:
             if executable in ("node", "bun"):

@@ -23,7 +23,7 @@ bin/check --full
 
 Setup requires Git and Python 3.9 or later. Checks also require ShellCheck,
 available through the operating system's package manager. The local memory
-audit also requires Codex CLI, GitHub CLI, QMD, ripgrep, and QMD's Node.js or Bun runtime.
+audit also requires Claude Code, GitHub CLI, QMD, ripgrep, and QMD's Node.js or Bun runtime.
 Its tests use fake services and do not make model requests.
 QMD and direnv are optional. Missing optional tools produce clear notices; an installed but
 failing QMD returns an error. Install QMD using its
@@ -652,12 +652,12 @@ Reinstall after moving the checkout or changing the Python/tool installation.
 The installer resolves runtime directories and checks that QMD starts with the
 scheduled PATH. Installation does not run an audit immediately.
 
-The job uses `codex exec` with `gpt-6-luna`, high reasoning, and the saved
-ChatGPT login. It refuses API-key login, excludes API keys from its environment,
-and forces ChatGPT authentication with the OpenAI provider. Subscription limits
-and any purchased credits apply. There are no OpenRouter requests. User Codex
-configuration is excluded so personal providers, MCP servers, and hooks do not
-become part of the scheduled audit. The Sentry Feedback GitHub workflow remains
+The job uses `claude -p` with `claude-haiku-5-5`, high effort, and the saved
+Claude subscription login. It refuses API-key or third-party provider login
+and excludes API keys from its environment. Subscription limits and any
+purchased usage apply. There are no OpenRouter requests. Restricted mode
+excludes user and project Claude settings and instruction files, so personal
+permissions, MCP servers, and hooks do not become part of the scheduled audit. The Sentry Feedback GitHub workflow remains
 independent and uses no model.
 
 Each run fetches `origin/main` and audits that exact revision in an isolated
@@ -669,8 +669,11 @@ downloads. Missing older GitHub items must be recorded as evidence gaps.
 Unchanged repository, GitHub, and audit inputs skip the model call. A lock
 prevents overlapping local runs. Model attempts share a 90-minute execution limit.
 
-Luna runs in a read-only sandbox and returns structured findings and complete
-proposed note contents. The runner requires one finding per active note, permits
+Claude has only Bash, read, and search tools, and no session is saved. Writes,
+network commands, and reads outside the clone need approval, which the job
+denies automatically. Only `jq` and `qmd search` are explicitly allowed, beyond
+Claude Code's built-in read-only commands. It returns structured findings and
+complete proposed note contents. The runner requires one finding per active note, permits
 only updates to existing active notes or archival moves, and prevents overwriting
 existing archives. It regenerates the README's active-note list and validates
 metadata, index coverage, and local links before exporting a patch. README
@@ -679,7 +682,7 @@ uncommitted in the isolated clone; there are no automatic commits, pushes, PRs,
 or issue comments.
 
 When proposal validation fails, the runner restores the original notes and gives
-Luna one repair attempt with the rejected response and exact error. A second
+Claude one repair attempt with the rejected response and exact error. A second
 invalid response fails the run. An archive that would break links in immutable
 archives, ledgers, or docs must instead remain active. Rejected output and the
 first attempt's logs are retained alongside the final attempt.
@@ -696,7 +699,7 @@ launchctl print gui/$(id -u)/com.jubishop.podhaven.memory-audit
 `latest.json` records success, failure, or a skipped run and its directory.
 Successful run directories contain `memory-audit-report.md`,
 `memory-audit.patch`, and the proposed `repository/` checkout. All attempts keep
-`run-meta.json`; model attempts also keep `events.jsonl`, `codex.log`, and the
+`run-meta.json`; model attempts also keep `events.jsonl`, `claude.log`, and the
 structured result when available. A failure never updates `last-success.json`.
 Logs and proposals stay local and ignored by Git. Review a successful report
 and patch against its recorded `baseSha` before applying any changes. Retained
