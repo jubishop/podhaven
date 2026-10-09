@@ -15,14 +15,7 @@ this diagnostic is expected noise for heavy users, not an actionable defect.
 
 ## What we do about it
 
-`AppLauncher.configureSentry()` sets `options.beforeSend = sentryBeforeSend`
-(the generic event-filter hook), which returns `nil` for any event whose
-exception mechanism `type == "mx_disk_write_exception"`. Hang
-(`mx_hang_diagnostic`), CPU (`mx_cpu_exception`), and crash MetricKit
-diagnostics still flow. `MetricKitMonitor` independently logs every
-diagnostic — including disk-write — at `.notice` with the raw
-`jsonRepresentation()` in metadata, so the forensic payload is retained in the
-NDJSON logs even though the Sentry issue is suppressed.
+`AppLauncher.configureSentryOptions(_:)` sets `options.beforeSendWithHint`, which passes each event through `SentryEventProcessor.process(_:)`. That method returns `nil` for any event whose exception mechanism `type` is `mx_disk_write_exception` (`SentryEventProcessor.metricKitDiskWriteMechanism`). Hang (`mx_hang_diagnostic`), CPU (`mx_cpu_exception`), and crash MetricKit diagnostics still flow. `MetricKitMonitor` independently logs every diagnostic — including disk-write — at `.notice` with the raw `jsonRepresentation()` in metadata (`PodHaven/MetricKitMonitor.swift`), so the forensic payload is retained in the NDJSON logs even though the Sentry issue is suppressed.
 
 ## PODHAVEN-3W history (don't re-litigate)
 
@@ -39,9 +32,16 @@ for heavy downloaders. Treat future PODHAVEN-3W-shaped reports as monitor /
 won't-fix, not as a broken #355.
 
 The separate, real perf inefficiency the same investigation surfaced — the
-`allPodcastSeries` `.including(all:)` full-episode prefetch on every refresh
-cycle — is tracked in issue #502. It is CPU/memory hygiene (OOM-jetsam family,
-cf. #274) and does **not** meaningfully move the disk-write diagnostic.
+`.including(all:)` full-episode prefetch on every refresh cycle — was tracked in
+issue #502, which is now **closed**. The prefetch is no longer on the refresh
+path: `RefreshManager.performRefresh` loads stale podcasts with
+`repo.allPodcasts(...)` (`PodHaven/Feed/RefreshManager.swift:55`,
+`PodHaven/Database/Repo.swift:40`), and `Repo.allPodcastSeries` no longer
+exists. The `.including(all: Podcast.episodes)` prefetch remains only in the
+`Repo.podcastSeries` readers (`Repo.swift:74`, `:86`), which `RefreshManager.swift`
+does not call. The snapshot links no PR to #502, so the change that closed it is
+unidentified. It was CPU/memory hygiene (OOM-jetsam family, cf. #274) and never
+moved the disk-write diagnostic.
 
 ## MetricKit delivery gotcha
 

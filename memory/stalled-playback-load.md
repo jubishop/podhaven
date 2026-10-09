@@ -37,7 +37,8 @@ outgoing queue restore.
 
 GRDB writer contention on `Queue.unshift(_:)` is visible through the generic
 write lifecycle logs in `AppDB.Writer.write` (#371): `db write requested`,
-`db write acquired` (includes `wait=` duration), and `db write completed`.
+`db write acquired: <label> after <wait>` (the wait duration follows `after`),
+and `db write completed` (which prints `total=`, `wait=`, and `transaction=`).
 Inside the transaction, `Queue._unshift` still logs `queue: unshifting`.
 
 On the next recurrence:
@@ -45,8 +46,8 @@ On the next recurrence:
 - `performLoad: restoring outgoing episode to queue` without a nearby
   `db write requested: …Queue.swift:unshift` means the stall is before calling
   Queue.
-- `db write requested: …unshift` with a large `wait=` on `db write acquired`
-  means waiting for GRDB writer access.
+- `db write requested: …unshift` with a large duration after `after` on
+  `db write acquired` means waiting for GRDB writer access.
 - `db write acquired` without `db write completed` means the work is inside the
   transaction (including `_unshift`).
 - `performLoad: loading player item` means the stall reached cache/network asset

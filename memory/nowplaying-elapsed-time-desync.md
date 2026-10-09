@@ -99,6 +99,14 @@ The `wasSuspended` key was deprecated in iOS 14.5; reason key supersedes it. NDJ
 
 Files touched: `PodHaven/Play/Protocols/MPRemoteCommandableCenter.swift`, `PodHaven/Play/Utility/CommandCenter.swift`, `PodHaven/Play/PlayManager+Events.swift`, `PodHavenTests/Fakes/FakeMPRemoteCommandCenter.swift`, `PodHavenTests/PlayManagerTests/PlaybackControlsTests.swift`.
 
+### Related guards shipped later (June 2026)
+
+These are narrower than the open fingerprint below and do not cover the stale backward scrub:
+
+- **Scrub-to-end guard (issue #488, PR #490, merged 2026-06-17).** `PlayManager+Events.swift` drops a remote scrub that lands within `remoteScrubEndEpsilon` (2s) of the on-deck duration while the episode is still under `remoteScrubJustStartedThreshold` (3s) (`PodHaven/Play/PlayManager.swift:89-92`). It targets iOS redelivering a finished episode's drag tail onto the new episode.
+- **Post-transition suppression (PR #489, merged 2026-06-17).** `PlayManager.swift:86` sets `remoteScrubSuppressionDuration` to 1s.
+- **Scrubbing toggle (PR #381, merged 2026-05-30).** `commandCenterScrubbingEnabled` (`PodHaven/Environment/UserSettings.swift:25`) gates command-center scrubbing (`PodHaven/Play/Utility/CommandCenter.swift:234`). It is a user setting, not a fix for the root cause.
+
 ### Still-open mitigations (NOT implemented; ranked)
 
 - **Reject system scrubs by fingerprint.** When `appState=background`, `playbackStatus=paused`, wireless route, position ends in `.25`/`.75`, and `requestedPosition` > e.g. 30s behind `avPlayerCurrentTime`, reject. User-initiated lock-screen scrubs don't match this pattern. Avoided because it's a hack — want root cause first.
@@ -110,7 +118,7 @@ Files touched: `PodHaven/Play/Protocols/MPRemoteCommandableCenter.swift`, `PodHa
 - `PodHaven/Play/Utility/PodAVPlayer.swift` — periodic time observer, AVPlayer wrapper, `reasonForWaitingToPlay()` accessor
 - `PodHaven/Play/PlayManager.swift` — `setCurrentTime` gates the 3s anchor delta and the 30s diagnostic-snapshot wall-clock delta
 - `PodHaven/Play/PlayManager+Events.swift` — `logBackgroundPlaybackSnapshot`, `logRemoteScrubDecision`, interruption + route-change handlers
-- `PodHaven/Play/CommandCenter.swift` — remote command handler
+- `PodHaven/Play/Utility/CommandCenter.swift` — remote command handler
 
 ### Incident 5 — 2026-04-16 (Andy's report, log.ndjson analyzed 2026-04-18)
 
@@ -159,7 +167,7 @@ The incident-3 theory — "iOS silently stops reflecting continuous NowPlayingIn
 - `PodHaven/Play/Utility/PodAVPlayer.swift` — periodic time observer, AVPlayer wrapper
 - `PodHaven/Play/PlayManager.swift` — orchestrates playback, event-driven NowPlayingInfo writes
 - `PodHaven/Play/PlayManager+Events.swift` — `logRemoteScrubDecision` (includes nowPlayingElapsed read, line 51)
-- `PodHaven/Play/CommandCenter.swift` — remote command handler (line 45)
+- `PodHaven/Play/Utility/CommandCenter.swift` — remote command handler (line 45)
 
 ### Incident 3 — 2026-04-03 (Andy's logs, build 445, commit 25465a57)
 

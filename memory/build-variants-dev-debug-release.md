@@ -35,6 +35,6 @@ Environment — not the build config — drives logging (`AppLauncher.configureL
 ## Practical notes
 
 - Simulator container for the dev build: `xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev data` → DB at `<container>/Documents/PodHavenDev/db.sqlite`, logs at `<container>/Documents/PodHavenDev/log.ndjson` (share from Settings → Debug, or copy from that path).
-- To load the real device DB into the Simulator: export it on the phone via Settings → Debug → "Share PodHaven Database" (GRDB backup into a self-contained `.sqlite` file), then drop it into the dev build's `PodHavenDev/` directory as `db.sqlite`. The path differs (production uses root `Documents`, dev uses the subdir) but the file is interchangeable. Delete any stale `db.sqlite-wal` / `db.sqlite-shm` in the destination before launching — the app recreates them.
+- To load the real device DB into the Simulator: export it on the phone via Settings → Debug → "Share Database" (GRDB backup into a self-contained `.sqlite` file), then drop it into the dev build's `PodHavenDev/` directory as `db.sqlite`. The path differs (production uses root `Documents`, dev uses the subdir) but the file is interchangeable. Delete any stale `db.sqlite-wal` / `db.sqlite-shm` in the destination before launching — the app recreates them.
 
 Related: [device-debug-builds-break-background-scheduling](device-debug-builds-break-background-scheduling.md)
