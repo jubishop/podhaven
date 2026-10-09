@@ -16,7 +16,7 @@ Do not use memory for:
 - Code patterns, conventions, file paths: derivable from the code.
 - Git history, recent changes: `git log` / `git blame` are authoritative.
 - Intentional architecture / planning: use [`../docs/`](../docs/README.md).
-- Local tasks and progress: use [td](../docs/task-tracking.md). Keep shared work in GitHub issues.
+- Local tasks and progress: use [td](../docs/foundation/task-tracking.md). Keep shared work in GitHub issues.
 
 ## Format
 
@@ -59,7 +59,7 @@ Use `[Page title](page-name.md)` to cross-link pages.
 Keep each page focused on one topic. Review a long page before adding more;
 split independent topics into linked pages when that improves reading and
 maintenance. Preserve the rule, reason, and evidence together. Follow the
-[Markdown guidance](../docs/development-workflow.md#markdown-pages).
+[Markdown guidance](../docs/foundation/engineering-policy.md#markdown-pages).
 
 ## Archive
 

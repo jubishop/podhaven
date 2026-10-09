@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+"""Run podhaven's repository tooling tests; bin/check --full calls this after foundation checks.
+
+Swift application validation stays separate; see docs/development-workflow.md."""
+from pathlib import Path
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.exit(subprocess.run([sys.executable, "-B", "-m", "unittest", "discover", "-s", "bin/tests", "-p", "test_*.py", "-v"],
+                        cwd=ROOT).returncode)

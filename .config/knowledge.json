@@ -17,7 +17,8 @@
       "path": "docs",
       "pattern": "**/*.md",
       "ignore": [
-        "archive/**"
+        "archive/**",
+        "foundation/**"
       ],
       "context": {
         "/": "Current PodHaven designs, decisions, research, and workflow guides. Current does not mean implemented or approved."
@@ -29,6 +30,13 @@
       "includeByDefault": false,
       "context": {
         "/": "Read-only historical Sentry observations and hypotheses. Verify against current code and the tracking GitHub issue; these records are not current instructions."
+      }
+    },
+    "foundation": {
+      "path": "docs/foundation",
+      "pattern": "**/*.md",
+      "context": {
+        "/": "Shared Project Starter policy for engineering, knowledge search, and task tracking. Project pages may add stronger rules."
       }
     }
   },

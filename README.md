@@ -64,8 +64,8 @@ Before pushing, merging, or releasing functionally material changes, run
 requires the full app, macro, tooling, and skill suites to pass without skipped
 tests or Swift warnings. Documentation, comments, and formatting-only changes
 use relevant focused checks. GitHub does not run test CI. Follow the
-[validation policy](docs/development-workflow.md#checks-and-project-extensions)
-and [test workflow](docs/development-workflow.md#test-driven-development).
+[validation policy](docs/foundation/engineering-policy.md#checks)
+and [test workflow](docs/foundation/engineering-policy.md#test-driven-development).
 
 <details>
 <summary>Click to expand Build & Test Commands</summary>
@@ -277,6 +277,6 @@ Copyright (c) 2026 Justin Bishop. All rights reserved.
 
 Use `td` for local tasks, progress, blockers, and session handoffs. After cloning,
 install td and run `td init` in the primary checkout. Use `td status` or
-`td monitor` to inspect progress. Follow the [task workflow](docs/task-tracking.md)
+`td monitor` to inspect progress. Follow the [task workflow](docs/foundation/task-tracking.md)
 for setup, review, worktrees, and local data. Keep GitHub Issues for shared scope
 and acceptance criteria, linked from related td tasks.

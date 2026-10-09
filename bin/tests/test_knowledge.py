@@ -1,4 +1,4 @@
-"""Test the copied foundation in disposable repositories; no network or models."""
+"""Test the starter bundle in disposable repositories; no network or models."""
 
 import json
 import os
@@ -24,7 +24,7 @@ class KnowledgeTests(unittest.TestCase):
             shutil.copytree(SOURCE / name, self.repo / name, ignore=shutil.ignore_patterns("__pycache__"))
         (self.repo / ".config").mkdir()
         shutil.copy2(SOURCE / ".config/knowledge.json", self.repo / ".config/knowledge.json")
-        for name in ("README.md", "AGENTS.md", "LICENSE", ".gitignore", ".project-starter.json"):
+        for name in ("README.md", "AGENTS.md", "LICENSE", "LICENSE.project-starter", ".gitignore", ".project-starter.json"):
             shutil.copy2(SOURCE / name, self.repo / name)
         if (SOURCE / ".envrc").exists():
             shutil.copy2(SOURCE / ".envrc", self.repo / ".envrc")
@@ -231,7 +231,7 @@ fcntl.flock = flock
         record = self.records()[0]
         self.assertEqual(record["cwd"], str(self.repo))
         self.assertEqual(record["index"], str(self.repo / ".cache/qmd/index.sqlite"))
-        self.assertEqual(set(record["collections"]), {"memory", "docs", "sentry-history"})
+        self.assertEqual(set(record["collections"]), {"memory", "docs", "sentry-history", "foundation"})
         self.assertIn("context", record["collections"]["docs"])
         result = self.run_command("../bin/knowledge", "search", "reference", root=self.repo / "docs")
         self.assertEqual(json.loads(result.stdout)["index"], record["index"])
@@ -339,6 +339,15 @@ fcntl.flock = flock
         result = self.run_command("git", "knowledge", "search", "reference", extra=hook_environment)
         self.assertNotIn("freshness", result.stderr)
 
+    def test_doctor_flags_every_release_except_the_tested_one(self):
+        self.run_command("bin/setup")
+        tested = json.loads(self.run_command("bin/doctor", "--json").stdout)["tested_qmd"]
+        for version, flagged in ((tested, False), (tested + "0", True), (tested + "-rc.1", True), ("2.1.0", True)):
+            with self.subTest(version=version):
+                report = json.loads(self.run_command("bin/doctor", "--json", extra={"QMD_TEST_VERSION": version},
+                                                     check=False).stdout)
+                self.assertEqual(any("differs from the tested version" in item for item in report["notices"]), flagged)
+
     def test_installed_broken_qmd_is_not_reported_as_absent(self):
         result = self.run_command("bin/setup", extra={"BROKEN_QMD": "1"}, check=False)
         self.assertNotEqual(result.returncode, 0)
@@ -385,6 +394,15 @@ fcntl.flock = flock
         self.assertIn("freshness", result.stderr)
         self.drain()
         self.run_command("bin/doctor")
+
+    def test_refresh_log_sections_record_time_and_qmd_version(self):
+        self.run_command("bin/setup")
+        self.run_command("bin/qmd-index", "--force", extra={"QMD_TEST_VERSION": "2.2.0"})
+        starts = [line for line in (self.repo / ".cache/qmd/index.log").read_text().splitlines()
+                  if "Refresh started" in line]
+        self.assertEqual(len(starts), 2)
+        self.assertRegex(starts[0], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\S* Refresh started with qmd 2\.1\.0")
+        self.assertIn("qmd 2.2.0", starts[1])
 
     def test_missing_database_forces_rebuild(self):
         self.run_command("bin/setup")
@@ -572,6 +590,53 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
         self.assertEqual((models / "existing.gguf").read_text(), "preserve")
         self.run_command("git", "worktree", "remove", "--force", str(worktree))
 
+    def test_unrelated_repositories_share_home_models_and_keep_local_indexes(self):
+        self.run_command("bin/setup")
+        models = self.base / "home/.cache/qmd/models"
+        self.assertTrue(models.is_dir())
+        (models / "existing.gguf").write_text("downloaded once")
+        other = self.base / "unrelated project"
+        shutil.copytree(self.repo, other, ignore=shutil.ignore_patterns(".git", ".cache", "qmd"))
+        self.run_command("git", "init", "-b", "main", root=other)
+        self.run_command("bin/setup", root=other)
+        self.assertEqual((other / ".cache/qmd/models").resolve(), models)
+        self.assertEqual((other / ".cache/qmd/models/existing.gguf").read_text(), "downloaded once")
+        self.assertFalse(os.path.samefile(self.repo / ".cache/qmd/index.sqlite", other / ".cache/qmd/index.sqlite"))
+
+    def test_model_migration_deduplicates_but_rejects_conflicts(self):
+        models = self.base / "home/.cache/qmd/models"
+        local = self.repo / ".cache/qmd/models"
+        models.mkdir(parents=True)
+        local.mkdir(parents=True)
+        (models / "existing.gguf").write_text("shared")
+        (local / "existing.gguf").write_text("different")
+        result = self.run_command("bin/setup", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("conflict", result.stderr.lower())
+        self.assertFalse(local.is_symlink())
+        self.assertEqual((local / "existing.gguf").read_text(), "different")
+        (local / "existing.gguf").write_text("shared")
+        (local / "another.gguf").write_text("another model")
+        self.run_command("bin/setup")
+        self.assertTrue(local.is_symlink())
+        self.assertEqual(local.resolve(), models)
+        self.assertEqual((models / "another.gguf").read_text(), "another model")
+
+    def test_model_link_migration_preserves_external_source_and_repairs_broken_links(self):
+        source = self.base / "old model cache"
+        source.mkdir()
+        (source / "existing.gguf").write_text("preserve external source")
+        local = self.repo / ".cache/qmd/models"
+        local.parent.mkdir(parents=True)
+        local.symlink_to(source)
+        self.run_command("bin/setup")
+        self.assertEqual(local.resolve(), self.base / "home/.cache/qmd/models")
+        self.assertEqual((source / "existing.gguf").read_bytes(), (local / "existing.gguf").read_bytes())
+        local.unlink()
+        local.symlink_to(self.base / "missing")
+        self.run_command("bin/setup")
+        self.assertEqual(local.resolve(), self.base / "home/.cache/qmd/models")
+
     def test_burst_requests_coalesce_without_duplicate_qmd_pairs(self):
         self.run_command("bin/setup")
         self.events.unlink()
@@ -583,6 +648,44 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
             self.assertEqual(process.returncode, 0, output)
         self.drain()
         self.assertEqual([r["command"] for r in self.records()], ["update", "embed"])
+
+    def test_lookup_waits_for_worker_lock_release_after_completed_refresh(self):
+        self.run_command("bin/setup")
+        document = self.repo / "docs/README.md"
+        document.write_text(document.read_text() + "\nChanged reference.\n")
+        gate = self.base / "release gate"
+        gate.touch()
+        ready = self.base / "worker releasing"
+        shim = self.base / "os boundary"
+        shim.mkdir()
+        # Hold the OS unlock boundary after the worker records completion.
+        (shim / "sitecustomize.py").write_text('''
+import fcntl, os, sys, time
+from pathlib import Path
+original = fcntl.flock
+def flock(file, operation):
+    if "--worker" in sys.argv and operation == fcntl.LOCK_UN:
+        Path(os.environ["RELEASE_READY"]).touch()
+        while Path(os.environ["RELEASE_GATE"]).exists():
+            time.sleep(0.01)
+    return original(file, operation)
+fcntl.flock = flock
+''')
+        env = self.env | {"PYTHONPATH": str(shim), "RELEASE_READY": str(ready), "RELEASE_GATE": str(gate)}
+        process = subprocess.Popen(["bin/knowledge", "search", "reference"], cwd=self.repo, env=env,
+                                   text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            deadline = time.monotonic() + 10
+            while not ready.exists():
+                self.assertLess(time.monotonic(), deadline, "Worker never reached the unlock boundary")
+                time.sleep(0.01)
+            with self.assertRaises(subprocess.TimeoutExpired):
+                process.communicate(timeout=0.5)
+        finally:
+            gate.unlink(missing_ok=True)
+            stdout, stderr = process.communicate(timeout=10)
+        self.assertEqual(process.returncode, 0, (stdout, stderr))
+        self.assertEqual(json.loads(stdout)["command"], "search")
 
     def test_edits_during_refresh_are_not_lost_without_another_hook(self):
         self.run_command("bin/setup")
@@ -622,37 +725,42 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
         self.drain()
         self.assertEqual(len(self.records()), initial + 2)
 
-    def test_check_modes_run_behavior_tests_only_with_full(self):
+    def test_only_full_check_runs_application_checks_after_foundation_checks(self):
         self.tool("shellcheck", "import sys\nsys.exit(0)\n")
         application_calls = self.base / "application-calls"
         for command in ("xcodebuild", "xcrun", "swift", "swift-format"):
             self.tool(command, f"from pathlib import Path\nPath({str(application_calls)!r}).touch()\nraise SystemExit(91)\n")
-        suite = self.repo / Path(__file__).resolve().relative_to(SOURCE)
-        # Replace only the disposable suite to observe execution without recursion.
-        for path in suite.parent.glob("test_*.py"):
-            path.unlink()
-        suite.write_text("import unittest\nclass Probe(unittest.TestCase):\n"
-                         "    def test_probe(self):\n"
-                         "        self.fail('behavior suite executed')\n")
-        fast = self.run_command("bin/check")
-        self.assertIn("Fast foundation checks passed", fast.stdout)
+        # The fixture copies this project's real hook; observe the contract with a stub instead.
+        (self.repo / "bin/check-application").unlink()
+        self.assertIn("no bin/check-application", self.run_command("bin/check", "--full").stdout)
+        calls = self.base / "application calls"
+        application = self.repo / "bin/check-application"
+        application.write_text("#!" + sys.executable + "\nimport os, sys\n"
+                               "open(os.environ['APP_CALLS'], 'a').write('called\\n')\n"
+                               "sys.exit(int(os.environ.get('APP_EXIT', '0')))\n")
+        self.env["APP_CALLS"] = str(calls)
+        self.assertIn("Fast foundation checks passed", self.run_command("bin/check").stdout)
         self.run_command("bin/check", "--documents-only")
+        self.assertFalse(calls.exists())
         self.assertFalse(application_calls.exists(), "Routine checks started an application tool")
-        full = self.run_command("bin/check", "--full", check=False)
-        self.assertNotEqual(full.returncode, 0)
-        self.assertIn("behavior suite executed", full.stderr)
-        suite.write_text(suite.read_text().replace("self.fail('behavior suite executed')", "pass"))
-        self.assertIn("Full repository foundation checks passed", self.run_command("bin/check", "--full").stdout)
-        self.assertFalse(application_calls.exists(), "Tooling validation started an application tool")
-        suite.unlink()
-        missing = self.run_command("bin/check", "--full", check=False)
-        self.assertNotEqual(missing.returncode, 0)
-        self.assertIn("preserve the foundation tests", missing.stderr)
+        application.chmod(0o644)
+        result = self.run_command("bin/check", "--full", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("bin/check-application must be executable", result.stderr)
+        self.assertFalse(calls.exists())
+        application.chmod(0o755)
+        self.assertIn("Full foundation and application checks passed", self.run_command("bin/check", "--full").stdout)
+        self.assertEqual(calls.read_text(), "called\n")
+        self.assertNotEqual(self.run_command("bin/check", "--full", extra={"APP_EXIT": "3"}, check=False).returncode, 0)
+        (self.repo / "docs/broken.md").write_text("# Missing status\n")
+        calls.unlink()
+        self.assertNotEqual(self.run_command("bin/check", "--full", check=False).returncode, 0)
+        self.assertFalse(calls.exists())
 
     def test_fast_check_still_rejects_syntax_and_lint_errors(self):
         self.tool("shellcheck", "import sys\nsys.exit(0)\n")
-        suite = self.repo / Path(__file__).resolve().relative_to(SOURCE)
-        for folder in (self.repo / "bin", suite.parent):
+        (self.repo / "tests").mkdir()
+        for folder in (self.repo / "bin", self.repo / "tests"):
             with self.subTest(folder=folder):
                 broken = folder / "invalid_syntax.py"
                 broken.write_text("def broken(\n")

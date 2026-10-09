@@ -1,18 +1,33 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "source": "https://github.com/jubishop/project-starter",
-  "source_ref": "17892fd0abada4fc63377ede43c21e2085420e26",
-  "tested_qmd": "2.8.3",
-  "adaptations": [
-    "Xcode cache sharing and automatic guarded cleanup",
-    "Optional environment file omitted",
-    "Explicit legacy Sentry history collection",
-    "Generated active memory index and audited publication",
-    "Tooling tests in bin/tests; Swift application validation stays separate",
-    "Stronger Swift regression testing and file-size requirements preserved",
-    "Existing minimum Xcode and Swift versions retained"
-  ],
-  "knowledge_source_ref": "7d29012abc9aec8d2551527e6d2cccf0155664dc",
-  "task_tracking_source_ref": "7c19548bdcba44007f4e841afc046ea738913edd",
-  "tested_td": "devel+main.aba5042"
+  "ref": "bd1e582",
+  "managed": {
+    "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
+    "bin/_checks.py": "2c2a04c3569f5f588aec88f2f8a269b931b62d2ae51fe31c2bbf5f8c0e8b8c77",
+    "bin/_knowledge.py": "4e69a029c7f20278dac31f13a08ac1a48f49faacb990d12ece7da09eda151a5f",
+    "bin/check": "1eb794b0695f4840553f89d5be40060c58a749e9b3a261ac6992b5617c3ab57f",
+    "bin/doctor": "bafccb584f6e9fb9fe161d3021f9d3832dc1e51ccabb9bee5794b0222894b79f",
+    "bin/hooks/post-checkout": "521c755dea87b8f54d29aa4cad151d636f3bea6803720a05af137f11f35fe795",
+    "bin/hooks/post-commit": "9b317a5dcafec087edbaa5a3dc50b4d4e0901fbfa9a2d8afce4d7d45e4b424d5",
+    "bin/hooks/post-merge": "777bc46c3fd6649cd7f8c271af069f1089b7ddc819f2b7381cb9fbac0ac102f8",
+    "bin/hooks/post-rewrite": "0a1214c710a70f90961aa7d5a938dbef02a1408a50c9f86e4175f0a0563e13ef",
+    "bin/knowledge": "15fb18f13967a2f9e87cda954a3f8f23636fb6104587a64797eea35cece95d93",
+    "bin/knowledge-hook": "c91ebb3dd7f4096d0e08945dee8b3acda2b555756a8678af89b6ebd257215a95",
+    "bin/prep-worktree": "b95e77ebc0ef3bae7d868f5e5bcdb35a05e94aa2695dfc5fd44117edc72f9294",
+    "bin/qmd-index": "8e7de8dcc353a768878f52c9fa5b4b9bbfab6db00a0d229f55b7af3a6f008fc5",
+    "bin/setup": "22a1ba1d1cf981957dad1fce20da692d276b864e5e1bf0aa9d70fcc336c6332b",
+    "docs/foundation/README.md": "cb4353e07fd92f88a9dab03b8430a09cd6b678c0848294836de30c8e8cb5b869",
+    "docs/foundation/engineering-policy.md": "f331a211855f29d7d0466bf90ad690c33fcbee4f07dd70063a44710e9387baa1",
+    "docs/foundation/knowledge-search.md": "7c724b07b16882342432a2e02781e7f902cd51f55c2c3cf630281cfee60d7f1e",
+    "docs/foundation/task-tracking.md": "1b82fc4c5f5845aba427f9ec2c1c10a20b3f767ef52bf104bce3f7bc9435fd87"
+  },
+  "blocks": {
+    "AGENTS.md": "11ef23fa3c7a786b115867a79cf98fca11b6bd491132ee4f118f9051444a7661",
+    ".gitignore": "f0fc16f4bf496f65540914731c3b59fa377b15cfe78f99e315082d2ec05f3927"
+  },
+  "overrides": {
+    "bin/_knowledge.py": "Xcode worktree cache preparation and diagnostics, and includeByDefault collections for CI configuration",
+    "bin/_checks.py": "Generated memory index verification and the --memory-audit mode"
+  }
 }

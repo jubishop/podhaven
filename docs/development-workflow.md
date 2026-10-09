@@ -10,7 +10,7 @@ Each checkout has its own index. Git hooks refresh it in the background.
 ## First setup
 
 Install td and run `td init` in the primary checkout as described in the
-[task workflow](task-tracking.md). This is separate from knowledge setup below.
+[task workflow](foundation/task-tracking.md). This is separate from knowledge setup below.
 
 Run from the repository root:
 
@@ -67,174 +67,10 @@ selectors when changing the supported major versions; do not silently widen
 that policy. Document and foundation checks must remain independent of Xcode
 and Swift because they do not use those tools.
 
-## Search
-
-From the root, use `bin/knowledge`. Setup also creates a repository-local
-`git knowledge` alias when that name is free, so the command works from any
-subdirectory. An existing alias is preserved.
-
-```sh
-git knowledge search "worktree" -c docs
-git knowledge query "how should decisions be recorded" --no-rerank
-git knowledge get qmd://docs/development-workflow.md -l 80
-git knowledge context list
-```
-
-Choose keyword search for names and known terms. Use a semantic query for
-broader questions. Read a focused source page before relying on a result.
-Source Markdown remains authoritative. Known-file reads and broader source
-searches after a successful lookup with no matches remain appropriate. Follow
-the [failure policy](#search-failures) when a configured lookup fails.
-
-The command supplies QMD configuration, cache, and database paths only to
-the QMD process. It does not change the shell's cache directory or depend on
-personal shell wrappers. It refuses named indexes to keep checkout isolation.
-If an executable must be selected explicitly, use an absolute local setting:
-
-```sh
-git config --local knowledge.qmdPath /absolute/path/to/qmd
-```
-
-The shared `.config/knowledge.json` defines Markdown collections, exclusions,
-and short descriptions attached to search results. The helper renders an
-ignored `.config/qmd/index.yml` with absolute paths. Change the shared JSON,
-then refresh; direct QMD collection/context edits to the generated file will
-be replaced. The starter supports `**/*.md` collection patterns.
-
-Each QMD command receives a private, temporary copy of the generated
-configuration. QMD can add model settings or rewrite that copy as YAML without
-changing the configuration used by freshness checks. Command copies are removed
-on exit; the checkout's database and shared model cache remain in their usual
-locations. This preserves compatibility with QMD 2.8.3 and later configuration
-writers without adding a YAML parser to the Python helpers.
-
-The tested version is a compatibility baseline, not a requirement to stay on an
-old release. Prefer current stable QMD releases after a real indexing and search
-check. Project Starter maintains weekly dependency updates and real-QMD checks
-against its tested runtime and the latest published runtime. Apply relevant
-helper changes before upgrading a shared installation used by older checkouts.
-
-## Optional home memory
-
-Home notes are excluded by default. Opt in through local Git configuration:
-
-```sh
-git config --local knowledge.homeMemoryPath /absolute/path/to/personal/notes
-bin/qmd-index
-```
-
-This setting is shared by linked worktrees but is not committed. Notes are
-indexed locally, not copied into the project. Missing directories produce
-a notice. To remove the collection:
-
-```sh
-git config --local --unset knowledge.homeMemoryPath
-bin/qmd-index
-```
-
-## Refresh and recovery
-
-`post-checkout`, `post-commit`, `post-merge`, and `post-rewrite` hooks request
-background refreshes. The foreground command is:
-
-```sh
-bin/qmd-index
-```
-
-Git hooks do not run on every file save. Run this command after uncommitted
-knowledge edits when current search results matter. It waits for the requested
-refresh and returns its success or failure. Every knowledge lookup verifies
-source, configuration, database presence, and successful refresh state before
-returning results. Stale or unknown inputs trigger a coordinated refresh.
-Refresh messages go to stderr so JSON output remains valid. Unchanged inputs
-reuse the existing index and embeddings.
-
-Automatic refresh waits up to 60 seconds. Set a positive local
-`knowledge.searchRefreshTimeout` value in seconds when a project needs a
-different bound. A timeout returns an error without results; the background
-worker may still finish. Use `bin/doctor` and the foreground refresh to inspect
-and recover. Explicit foreground refreshes can wait for larger indexing jobs.
-
-Results are buffered until QMD succeeds and freshness is checked again. If
-sources change during the lookup, discard the results and return an error.
-This verifies indexed inputs and completed refresh state, not the semantic
-quality of search results or the internal integrity of the SQLite database.
-
-One worker serves each checkout. It hashes indexed Markdown and configuration,
-including optional home notes, to skip unchanged inputs. Bursts of requests
-share the worker. If inputs change during indexing, the worker runs another
-pass. QMD itself handles incremental index and embedding updates. A failed
-update does not start embedding. Git does not wait for indexing to finish.
-
-Freshness includes the QMD release version, including prerelease and build
-metadata. It excludes the optional Git commit suffix in `qmd --version`, which
-can identify an unrelated surrounding repository. QMD subprocesses do not
-inherit Git repository selectors from hooks. Diagnostics retain the full
-reported version. After replacing a custom QMD build without changing its
-release version, run `bin/qmd-index --force`.
-
-Use `bin/qmd-index --force` to rebuild even when recorded inputs match.
-Inspect `.cache/qmd/index.log` after failure. Logs rotate at approximately
-1 MB on worker start, retaining one previous file. A stopped worker releases
-its operating-system lock; rerun the foreground command to recover. Avoid
-direct `qmd update` and `qmd embed`, which bypass this coordination.
-
-### Search failures
-
-When configured QMD fails, immediately tell the user what failed. Run
-`bin/doctor`, inspect the refresh log, and attempt a focused repair. Verify
-recovery by repeating the failed lookup successfully. Do not report success
-from a command that returned an error, timed out, or discarded stale results.
-
-If repair fails, pause knowledge-dependent work until the user explicitly
-approves a fallback. Do not silently substitute `rg`, direct Markdown reads,
-another index, or a different search tool to bypass the failure. Unrelated
-work may continue when it does not depend on the missing knowledge.
-
-A successful lookup with no matches is not a tool failure. Reading known
-files and broadening that successful search remain allowed. A project may
-deliberately operate without optional QMD, but its absence or failure does
-not establish that decision; use an existing explicit project choice or ask
-the user. Keep the Markdown source usable in that approved mode.
-
 ## Worktrees
 
-After the repository has a commit:
-
-```sh
-git worktree add -b feature-name worktrees/feature-name
-```
-
-The first checkout prepares the worktree. `bin/prep-worktree` can repeat the
-preparation. It discovers worktrees through Git, supports separate Git metadata,
-and keeps databases under each checkout's `.cache/qmd/index.sqlite`. Preparation
-records the verified primary path in local `knowledge.primaryWorktree` to
-support Git layouts whose worktree listing exposes only the metadata path.
-Rerun preparation in the primary checkout after moving it.
-
-All projects and worktrees share model files at `~/.cache/qmd/models`.
-This fixed path is independent of `XDG_CACHE_HOME`. Each checkout links its
-`.cache/qmd/models` there; its index stays in `.cache/qmd/index.sqlite` inside
-that checkout. Setup creates the shared directory. With QMD installed, initial
-embedding downloads a missing embedding model there; query expansion and
-reranking download their models on first use. Existing files are reused.
-
-Setup and refresh migrate old caches. They verify file contents before removing
-identical copies from a checkout-local directory. Conflicting filenames or
-unexpected entries stop migration without deleting those files. Inspect the
-reported paths before retrying. An old symlink is replaced, but its external
-target is retained because other consumers may still need it. Remove redundant
-external copies only after verifying their contents and redirecting all users.
-Do not delete `~/.cache/qmd/models` when cleaning up a repository or worktree.
-
-A linked worktree's `.envrc` is approved automatically only when its bytes
-match a primary checkout file that direnv already reports as allowed.
-Ordinary branch switches do not approve changed environment files. Bare
-repositories have no primary environment file to inherit trust from.
-
-After moving a checkout, use Git's worktree repair procedure if required,
-then inspect `bin/doctor`. Run `bin/prep-worktree` to repair a broken model
-link and restore the fixed shared cache. Existing indexes remain local.
+Shared worktree, model, and recovery rules are in
+[knowledge search](foundation/knowledge-search.md#worktrees-and-models).
 
 Use `ghdw <name>` for normal removal. It verifies the merge lifecycle before
 removing a worktree, then calls this repository's `bin/post-worktree-remove`.
@@ -282,11 +118,7 @@ isolated integration tests; they do not change Xcode's own preferences.
 
 ### Validation checkout isolation
 
-Scope build, formatter, static analysis, and test inputs to the active
-checkout. Exclude nested worktrees, temporary copies, and unrelated generated
-output explicitly. Include required generated inputs deliberately; Git ignore
-rules alone do not control tool discovery.
-
+Shared rules are in [checkout isolation](foundation/engineering-policy.md#validation-checkout-isolation).
 Xcode's synchronized target folders define application sources, and
 `bin/lint-swift-format` searches its declared production roots. Foundation
 static checks use this checkout's Git file list; tooling tests are discovered
@@ -296,137 +128,30 @@ Keep mutable test data and build output separate between checkouts. Preserve
 the supported package sharing and per-checkout DerivedData described above;
 do not share mutable build output to save setup time.
 
-When changing discovery or cache settings, verify that errors in intended
-files remain detectable and invalid files in an unrelated checkout stay
-excluded. Check fresh and warm caches after adding, changing, or removing a
-nested checkout. Investigate stale results instead of adding broad exclusions.
-
-## Existing hooks
-
-Setup does not overwrite a different active `core.hooksPath` or bypass
-executable hooks in the default Git hooks directory. The agent applying this
-foundation must integrate with the existing manager's supported entry points.
-
-Each of the four post-event hooks must call `bin/knowledge-hook`, passing the
-event name and original arguments. For a shell-based post-commit hook, the
-added call is:
-
-```sh
-repo_root=$(git rev-parse --show-toplevel) || exit 1
-"$repo_root/bin/knowledge-hook" post-commit "$@"
-```
-
-Use the actual event name in each file. The helper does not read stdin, so
-existing post-rewrite input remains available. Preserve the existing hook's
-exit status, argument handling, order requirements, and normal behavior.
-Place the call before an existing unconditional `exit`, or integrate it through
-the manager's own configuration. Do not append code that can never execute.
-
-After integration:
-
-```sh
-git config --local knowledge.hooks external
-bin/setup
-```
-
-Verify each event in a disposable checkout appropriate to the project. Check
-that both the existing hook behavior and knowledge refresh occur, including
-post-rewrite stdin and nonzero existing-hook exit codes. `bin/doctor` reports
-which forwarding events it has observed in this checkout and their timestamps.
-Observations are evidence of past runs, not proof that a later hook edit works.
-
 ## Diagnostics
 
-`bin/doctor` and `bin/doctor --json` inspect setup without approving environment
-files, downloading models, or rebuilding an index. They report the hook path,
-tools, collections, model locations, Xcode cache/cleanup state, last refresh result, and whether recorded
-inputs are current, stale, unknown, or unavailable. An unavailable optional
-tool is a notice. Broken required setup or an installed but failing tool makes
-the command return a failure status with recovery instructions.
-
-Freshness means the recorded input fingerprint matches and the index exists;
-it is not an integrity scan of the SQLite database. If QMD reports database
-errors despite a current fingerprint, use the foreground refresh and inspect
-its log. Manually replacing the database requires a forced refresh.
+`bin/doctor` also reports Xcode cache and cleanup state; see
+[diagnostics](foundation/knowledge-search.md#diagnostics).
 
 ## File organization
 
-Keep each file focused on one responsibility or feature area. Every Swift
-file must stay under 1000 lines, as required by [AGENTS.md](../AGENTS.md#coding-standards).
-For other hand-written source and tests, approximately 1000 lines is a review
-threshold. Generated and externally maintained files do not need arbitrary
-splitting.
-
-Extract cohesive areas with clear state ownership and readable call paths.
-Do not compress formatting, create numbered fragments, or move unrelated
-responsibilities into another large file to satisfy a count. Preserve the
-Swift extension rules in AGENTS.md when splitting Swift types.
-
-### Markdown pages
-
-Keep each memory, documentation, or other hand-written Markdown page focused
-on one topic or reader task. Before extending a long page, review its scope
-and remove repetition. Split it when it mixes independent topics, a section
-can be read and maintained on its own, or readers must scan unrelated material
-to find what they need. Use those signals instead of line, word, or token limits.
-
-Extract complete topics into descriptively named pages. Keep a short overview
-and links in the original page, and update indexes and incoming file or heading
-links. Keep each rule or decision in one authoritative place. Preserve its
-reasons, evidence, dates, status, and enough context to understand it on its own.
-Archive obsolete material according to the memory or docs lifecycle rules.
-
-Keep README indexes and automatically loaded instructions concise; link to
-detailed guidance instead of copying it. Headings help readers navigate a
-coherent page, but do not resolve unrelated topics accumulating in one file.
-Larger pages are acceptable when readers need the material together. Do not
-compress prose, discard useful context, or create arbitrary numbered fragments
-just to make a page shorter. Preserve generated and tool-managed record formats.
-
-## Third-party dependencies
-
-Prefer fewer third-party dependencies. Start with standard libraries, platform
-APIs, and the smallest complete implementation the project can maintain.
-Choose that approach when it meets the requirements at a reasonable cost.
-A package is appropriate when its concrete benefits justify its maintenance
-burden.
-
-Compare complete solutions, including validation, edge cases, security,
-upgrades, and additional packages brought in by a dependency. Initial
-implementation convenience alone is not enough. Apply this preference through
-ordinary technical judgment; it does not introduce a separate approval step
-or require replacement of existing packages.
+Every Swift file must stay under 1000 lines, as required by
+[AGENTS.md](../AGENTS.md#coding-standards); other files follow the
+[file organization policy](foundation/engineering-policy.md#file-organization).
+Preserve the Swift extension rules in AGENTS.md when splitting Swift types.
 
 ## Test-driven development
 
 Every regression fix and functional change requires an automated test that
-fails before implementation and passes afterward. Use this sequence:
-
-1. Add or update a focused test. Confirm it fails for the expected behavior.
-   A setup failure or a run that executes no tests does not establish this.
-2. Implement the change and confirm the focused test passes.
-3. Refactor if needed, then run the checks required for the affected behavior.
-
-A test that passes before and after does not prove the changed behavior.
-Documentation-only edits need document checks, not new behavior tests.
-
-Test user-visible outcomes, public interfaces, and external interactions.
-Place fakes at OS, network, storage, and service boundaries so our own logic
-runs. Do not test private structure or add production APIs only for tests.
-Preserve PodHaven's Swift Testing fixtures and suite-level filters from
-[AGENTS.md](../AGENTS.md#testing); use focused `unittest` runs for tooling.
+fails before implementation and passes afterward; this is stronger than the
+[shared policy](foundation/engineering-policy.md#test-driven-development),
+which allows exceptions. Preserve PodHaven's Swift Testing fixtures and
+suite-level filters from [AGENTS.md](../AGENTS.md#testing), and use focused
+`unittest` runs for tooling.
 
 ### Test cost and coverage
 
-Prepare unrelated prerequisites with isolated fixtures or existing public
-interfaces. Use the least costly test level that proves the behavior. Retain
-complete journeys and tests that depend on the actual interaction surface.
-When moving a repeated case to a cheaper test, preserve its evidence.
-
-Measure representative runs before and after test optimizations. Compare
-the same environment, test inventory, setup costs, and total time. Report
-failed and retried runs separately. Do not remove coverage to improve timing.
-
+Shared rules are in [test cost and coverage](foundation/engineering-policy.md#test-cost-and-coverage).
 PodHaven's Swift tests already support concurrency through per-test Factory
 isolation. Preserve that design. Before adding concurrency elsewhere, identify
 shared files, processes, data, and services and provide independent setup and
@@ -445,8 +170,6 @@ verify real worker priority and completion without waiting for audio I/O.
 Hosted view tests use `withHostedTestWindow` to perform their first layout
 inside the test's dependency context and await UIKit appearance and teardown.
 Keep views installed and preserve their rendered and accessibility assertions.
-For color assertions, set the host's color scheme and active-appearance traits
-so macOS window focus does not dim the controls being measured.
 
 ### Current-revision Swift validation
 
@@ -611,35 +334,24 @@ inputs are unchanged. When required, the full gate needs evidence for the
 final revision and integration base. Repeat a check when its inputs change or a failure
 needs verification.
 
-`bin/check --documents-only` validates the documented frontmatter subset,
-index coverage, local file links, and ordinary heading anchors.
-`bin/check` adds Python syntax checks for the tools and tests, shell checks
-(Bash for `.envrc`, POSIX shell for the bundled hooks), and Git whitespace
-checks. It does not run the disposable-repository tests.
-Both routine modes skip application typechecking, lint, tests, builds, and
-package-manager startup. Run relevant Swift checks explicitly during app work.
-
-`bin/check --full` adds all repository tooling tests in `bin/tests`. They use
-disposable repositories and simulated QMD/direnv, with no model downloads or
-network access. Remote URLs are not fetched by foundation checks.
-
-All modes also verify the generated active-memory index. Keep the
-existing Swift build and test requirements for application changes.
-Documentation-only delivery does not require building the Swift app. Tooling
-changes use focused checks during development and the full gate before delivery
-when they are functionally material.
-
-Keep the foundation checks when adding application tests, builds, and linters.
-For generated or externally owned docs, add deliberate patterns to
-`checks.exclude` in `.config/knowledge.json`. Avoid broad exclusions that hide
-hand-written project knowledge.
+`bin/check --documents-only`, `bin/check`, and `bin/check --full` follow the
+[shared check modes](foundation/engineering-policy.md#checks). Here,
+`bin/check-application` runs all repository tooling tests in `bin/tests`, and
+every mode also verifies the generated active-memory index. Keep the existing
+Swift build and test requirements for application changes; documentation-only
+delivery does not require building the Swift app.
 
 `bin/test-all` includes `bin/check --full` and the separate application,
 macro, skill, and shell tests. `bin/check --full` alone is not a full test run.
-`bin/tests` covers the knowledge worker, cache ownership and artifact
-repair, and audit validation gates. `bin/smoke-knowledge`
-checks real QMD retrieval and linked-worktree isolation in disposable repositories.
-It reuses `~/.cache/qmd/models` and does not publish changes.
+`bin/tests` covers the knowledge worker, cache ownership and artifact repair,
+and audit validation gates. `bin/smoke-knowledge` checks real QMD retrieval and
+linked-worktree isolation in disposable repositories. It reuses
+`~/.cache/qmd/models` and does not publish changes.
+
+`.project-starter.json` records the installed Project Starter release, the
+hashes of its managed files, and this project's overrides of `bin/_knowledge.py`
+and `bin/_checks.py`. Update them with Project Starter's `bin/sync`, and merge
+upstream changes into the overridden helpers by hand.
 
 ## Scheduled memory audit
 

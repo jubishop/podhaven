@@ -1,40 +1,37 @@
-## Project Memory & Tracking
-Repo context lives in `memory/`, `docs/`, and GitHub issues:
+<!-- project-starter:begin -->
+Project Starter manages this block; add project rules after it.
 
-- `memory/`: long-lived project notes.
-  - New or updated pages must follow [`memory/README.md`](memory/README.md).
-  - Move notes that are no longer relevant to active work into `memory/archive/`; set `status: resolved` only on project notes.
+- Keep durable guidance and non-derivable context in [memory](memory/README.md),
+  and designs, decisions, and research in [docs](docs/README.md). Before
+  non-trivial work or writing memory, search with `bin/knowledge search "term"`
+  or `bin/knowledge query "question" --no-rerank`, then read results with
+  `bin/knowledge get <path> -l 80`. Markdown sources are authoritative.
+- If configured QMD fails, tell the user immediately and attempt repair. If
+  repair fails, pause knowledge-dependent work until the user approves a
+  fallback; never silently substitute `rg` or direct reads. See
+  [search failures](docs/foundation/knowledge-search.md#search-failures).
+- Use td for work with multiple stages, interruptions, blockers, or handoffs;
+  run `td usage --new-session -q` once per new context and keep handoffs
+  current. See [task tracking](docs/foundation/task-tracking.md).
+- Follow the [engineering policy](docs/foundation/engineering-policy.md):
+  fewer dependencies, red-green tests for behavior changes, cohesive files and
+  pages, checkout-isolated validation, and declared toolchain versions.
+- Run [checks](docs/foundation/engineering-policy.md#checks) by change:
+  `bin/check --documents-only` for Markdown, application checks for code, and
+  `bin/check --full` before merge or release unless an enforced CI gate runs
+  it. Skip checks for read-only work and reuse passing results.
+- Run `bin/setup` after cloning, `bin/doctor` to diagnose setup, and
+  `bin/qmd-index` after uncommitted knowledge edits. Managed files listed in
+  `.project-starter.json` change only through Project Starter or a recorded
+  override with its reason.
+<!-- project-starter:end -->
+
+## Project Memory & Tracking
+- `memory/`: long-lived project notes. New or updated pages must follow [`memory/README.md`](memory/README.md); move notes that are no longer relevant to active work into `memory/archive/`, and set `status: resolved` only on project notes.
 - `docs/`: PR-reviewed design docs and research; update [`docs/README.md`](docs/README.md) when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
-Keep [Markdown pages focused](docs/development-workflow.md#markdown-pages)
-on one topic or reader task, without numeric size limits.
-
-Follow the local [task workflow](docs/task-tracking.md) for td setup and commands.
-
-Use the repository's QMD helper for topic lookup:
-
-- `git knowledge search "known term"`: names, files, APIs, and exact concepts.
-- `git knowledge query "question" --no-rerank`: broader topic lookup.
-- `git knowledge get <path>[:line] -l N`: focused source reads.
-
-Search before non-trivial work or writing memory.
-Use direct reads or `rg` for known paths or after a successful lookup with no
-matches. Markdown source files are authoritative.
-If configured QMD fails, report it to the user immediately and attempt repair.
-If repair fails, pause knowledge-dependent work until the user approves a
-fallback; never silently bypass broken QMD with `rg` or direct reads. Follow
-the [search failure policy](docs/development-workflow.md#search-failures).
-Run `bin/setup` after cloning. Use `bin/check --documents-only` for Markdown
-edits and `bin/check` for fast tooling checks. Run `bin/check --full` after
-setup or foundation changes, and before a tooling PR or release. Use the
-existing Swift build and test checks for application changes. Do not run checks
-for discussion or read-only work. Batch related edits before checking and
-reuse passing results while relevant inputs are unchanged.
-Run `bin/qmd-index` after uncommitted knowledge edits when current search
-results are needed. Use `bin/doctor`
-for read-only diagnostics. Hooks use each checkout's own scripts. Read the
-[development workflow](docs/development-workflow.md) for cache cleanup and recovery.
+`bin/check --full` runs the repository tooling tests in `bin/tests` through `bin/check-application`; run it after setup or tooling changes and before a tooling PR or release. Use the existing Swift build and test checks for application changes. Read the [development workflow](docs/development-workflow.md) for cache cleanup and recovery.
 
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.
@@ -54,8 +51,6 @@ for read-only diagnostics. Hooks use each checkout's own scripts. Read the
 
 ## Compatibility
 - Use modern APIs and avoid unnecessary compatibility layers. Change deployment targets or dependency versions when the requested work requires it, or when an upgrade is explicitly requested.
-- Prefer fewer dependencies; justify additions by their concrete benefits under the [dependency policy](docs/development-workflow.md#third-party-dependencies).
-- Keep supported toolchains consistent across development, CI, and releases. Follow the [runtime policy](docs/development-workflow.md#runtime-and-toolchain-versions) when changing application commands or upgrading tools.
 - Shipped DB migrations are immutable. Never edit body/version; add the next migration for schema or seed changes.
 
 ## UI Structure
@@ -86,12 +81,12 @@ for read-only diagnostics. Hooks use each checkout's own scripts. Read the
 
 ## Testing
 - Before Swift validation, read the [current-revision workflow](docs/development-workflow.md#current-revision-swift-validation) for commands, targets, accessibility setup, and evidence checks.
-- Before pushing, merging, or releasing functionally material changes, require [full local validation](docs/development-workflow.md#checks-and-project-extensions) with `bin/test-all --ensure --revision <sha>` on the final clean revision. Require zero skipped tests and the warning requirements above. Documentation, comments, and formatting-only changes use relevant focused checks.
+- Before pushing, merging, or releasing functionally material changes, require [full local validation](docs/foundation/engineering-policy.md#checks) with `bin/test-all --ensure --revision <sha>` on the final clean revision. Require zero skipped tests and the warning requirements above. Documentation, comments, and formatting-only changes use relevant focused checks.
 - Never substitute a historical revision or copy selected current files onto old source for acceptance. Label historical reproductions as diagnostic experiments.
 - Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`).
 - Use `FactoryKit` with `scope(.cached)` and then override with `context(.test)` in `PodHavenTests/Extensions/Container.swift` for test injection.
 - `@Suite("...", .container)` isolates Factory injected state per-test; supporting full test concurrency. Do not use `.serialized`.
-- Every functional change requires [a regression test that fails before implementation and passes after](docs/development-workflow.md#test-driven-development).
+- Every functional change requires [a regression test that fails before implementation and passes after](docs/foundation/engineering-policy.md#test-driven-development).
 - Always pass `-hideShellScriptEnvironment` to `xcodebuild`; the shared scheme pre-action otherwise prints inherited environment values into raw logs.
 - Keep App Intents extraction and warning reporting enabled. Validate both the result bundle and raw build log through the workflow's evidence checks.
 - Use suite/class-level test filters; method filters can look green while running zero tests.
@@ -99,7 +94,6 @@ for read-only diagnostics. Hooks use each checkout's own scripts. Read the
 - Application tests belong in `PodHavenTests`; macro tests belong in `PodHavenMacros/Tests`; repository tooling tests belong in `bin/tests`.
 - Migration tests use raw SQL and `Container.shared.standardDefaults()` only; no model types, `Create`, or drifting constructs.
 - Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete all test-only surfaces.
-- Keep [test cost proportional](docs/development-workflow.md#test-cost-and-coverage) while preserving coverage, per-test isolation, and useful complete journeys.
 - Put the test seam at the OS-integration boundary, not above our own logic. Wrap system-framework types in app-owned protocols that the real types conform to (via `extension`) and fake those, so our orchestration runs for real in tests.
 - To assert on swift-log output, use `LogCapture.withSink` (per-test isolation via `@TaskLocal`).
 
@@ -117,8 +111,6 @@ for read-only diagnostics. Hooks use each checkout's own scripts. Read the
 
 ## Coding Standards
 - Keep every Swift file under 1000 lines.
-- Keep [files cohesive](docs/development-workflow.md#file-organization); approximately 1000 lines is a review threshold for other hand-written source, tests, and styles.
-- Isolate [source discovery and mutable validation output](docs/development-workflow.md#validation-checkout-isolation) to the active checkout.
 - Use `@discardableResult` when ignoring the result is a supported use of the API. Otherwise, preserve unused-result warnings and allow explicit `_ =` at individual call sites when discarding the result is intentional and safe. Do not add wrappers solely to avoid `_ =`.
 
 ### Production Only

@@ -23,13 +23,14 @@ class LocalAuditTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name).resolve()
         self.repo = self.base / "repo"
-        for name in ("bin", "memory/archive", "memory/sentry_feedback", "docs", ".config"):
+        for name in ("bin", "memory/archive", "memory/sentry_feedback", "docs/foundation", ".config"):
             (self.repo / name).mkdir(parents=True, exist_ok=True)
         for name in ("knowledge-config", "_knowledge.py"):
             shutil.copy2(SOURCE / "bin" / name, self.repo / "bin" / name)
         shutil.copy2(SOURCE / ".config/knowledge.json", self.repo / ".config/knowledge.json")
         (self.repo / ".gitignore").write_text(".cache/\nartifacts/\n")
         (self.repo / "docs/README.md").write_text("# Docs\n")
+        (self.repo / "docs/foundation/README.md").write_text("# Foundation\n")
         (self.repo / "memory/sentry_feedback/.gitkeep").touch()
         self.note = self.repo / "memory/incident.md"
         self.content = "---\nname: incident\ndescription: An incident.\ntype: project\nstatus: active\n---\n\n# Incident\n\nA durable rule.\n"

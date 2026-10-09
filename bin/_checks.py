@@ -1,6 +1,7 @@
 """Validate the documented Markdown subset and the portable foundation."""
 
 import ast
+import hashlib
 import html
 import json
 import os
@@ -13,6 +14,55 @@ import unicodedata
 from urllib.parse import unquote, urlsplit
 
 from _knowledge import matches
+
+
+MARKERS = ("project-starter:begin", "project-starter:end")
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def managed_block(text):
+    """Return the text between the Project Starter marker lines, or None without markers."""
+    lines = text.splitlines(keepends=True)
+    begins = [i for i, line in enumerate(lines) if MARKERS[0] in line]
+    ends = [i for i, line in enumerate(lines) if MARKERS[1] in line]
+    if not begins and not ends:
+        return None
+    if len(begins) != 1 or len(ends) != 1 or ends[0] < begins[0]:
+        raise ValueError("expected one project-starter:begin line before one project-starter:end line")
+    return "".join(lines[begins[0] + 1:ends[0]])
+
+
+def manifest_errors(root):
+    """Compare managed files and blocks with the hashes recorded by Project Starter's bin/sync."""
+    path = root / ".project-starter.json"
+    manifest = json.loads(path.read_text()) if path.is_file() else {}
+    if "managed" not in manifest:
+        return []
+    overrides = manifest.get("overrides", {})
+    errors = [".project-starter.json: override for " + relative + " needs a reason"
+              for relative, reason in sorted(overrides.items()) if not isinstance(reason, str) or not reason.strip()]
+    restore = ("; restore it with Project Starter's bin/sync or record an override with its reason"
+               " in .project-starter.json")
+    for kind, entries in (("file", manifest["managed"]), ("block", manifest.get("blocks", {}))):
+        for relative, expected in sorted(entries.items()):
+            if relative in overrides:
+                continue
+            file = root / relative
+            try:
+                content = None
+                if file.is_file():
+                    content = file.read_bytes() if kind == "file" else managed_block(file.read_text())
+                if content is None:
+                    errors.append(relative + ": managed " + kind + " is missing" + restore)
+                elif digest(content if kind == "file" else content.encode()) != expected:
+                    errors.append(relative + ": managed " + kind + " differs from Project Starter "
+                                  + str(manifest.get("version")) + restore)
+            except ValueError as error:
+                errors.append(relative + ": " + str(error))
+    return errors
 
 
 def tracked_files(root):
@@ -260,7 +310,7 @@ def main():
         if sys.argv[1:] not in ([], ["--documents-only"], ["--full"], ["--memory-audit"]):
             raise ValueError("Usage: bin/check [--documents-only | --full | --memory-audit]")
         memory_audit = sys.argv[1:] == ["--memory-audit"]
-        errors = validate(root, generated_memory_index=memory_audit)
+        errors = manifest_errors(root) + validate(root, generated_memory_index=memory_audit)
         if not memory_audit:
             from _memory_index import update
             try:
@@ -287,14 +337,17 @@ def main():
             subprocess.run(["shellcheck", "--shell=sh", *map(str, shell_files)], cwd=root, check=True)
         subprocess.run(["git", "diff", "--check"], cwd=root, check=True)
         subprocess.run(["git", "diff", "--cached", "--check"], cwd=root, check=True)
-        if sys.argv[1:] == ["--full"]:
-            tests = root / "bin/tests/test_knowledge.py"
-            if not tests.exists():
-                raise RuntimeError("Missing bin/tests/test_knowledge.py; preserve the foundation tests when adapting bin/check")
-            subprocess.run([sys.executable, "-B", "-m", "unittest", "discover", "-s", "bin/tests", "-p", "test_*.py", "-v"], cwd=root, check=True)
-            print("Full repository foundation checks passed.", flush=True)
-        else:
-            print("Fast foundation checks passed. Use bin/check --full for behavior tests.", flush=True)
+        if sys.argv[1:] != ["--full"]:
+            print("Fast foundation checks passed. Use bin/check --full for application validation.", flush=True)
+            return 0
+        application = root / "bin/check-application"
+        if not application.exists():
+            print("Full foundation checks passed; no bin/check-application is present.", flush=True)
+            return 0
+        if not os.access(application, os.X_OK):
+            raise RuntimeError("bin/check-application must be executable")
+        subprocess.run([str(application)], cwd=root, check=True)
+        print("Full foundation and application checks passed.", flush=True)
         return 0
     except (OSError, ValueError, RuntimeError, SyntaxError, subprocess.SubprocessError) as error:
         print(error, file=sys.stderr)
