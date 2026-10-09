@@ -141,7 +141,7 @@ function __snfeedback_pick
                     | select(has("pull_request") | not);
                 (
                     first(candidate_issues | select((.body // "") | contains($issue_marker)))
-                    // first(candidate_issues | select((.body // "") | contains($permalink)))
+                    // first(candidate_issues | select($permalink != "" and ((.body // "") | contains($permalink))))
                 )
                 | [
                     (.number | tostring),

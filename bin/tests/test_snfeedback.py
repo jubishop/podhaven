@@ -162,7 +162,7 @@ else:
         self.assert_launched(self.run_command(), "podhaven:2002")
 
     def test_bare_array_response_and_missing_optional_fields(self):
-        self.write("sentry.json", [{"id": "2001", "permalink": PERMALINK + "2001"}])
+        self.write("sentry.json", [{"id": "2001"}])
         self.assert_launched(self.run_command(), "podhaven:2001")
         row = self.read("picker.json")[0]
         self.assertIn("PODHAVEN-?", row)
