@@ -245,15 +245,15 @@ function __snfeedback_main
         end
     end
 
-    if not type -q codex
-        echo "Error: codex is required to analyze Sentry feedback"
+    if not type -q claude
+        echo "Error: claude is required to analyze Sentry feedback"
         return 1
     end
 
     cd "$repo_root"
     or return 1
 
-    codex --dangerously-bypass-approvals-and-sandbox "\$analyze-sentry-feedback $slug"
+    claude --dangerously-skip-permissions "/analyze-sentry-feedback $slug"
 end
 
 __snfeedback_main $argv

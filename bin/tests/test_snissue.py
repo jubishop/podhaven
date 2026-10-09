@@ -23,7 +23,7 @@ class SentryIssueLauncherTests(unittest.TestCase):
         self.env = dict(os.environ, PATH=str(self.bin), SNISSUE_TEST=str(self.directory))
         for command in ("git", "jq", "seq"):
             (self.bin / command).symlink_to(shutil.which(command))
-        for command in ("sentry", "gh", "codex", "fzf"):
+        for command in ("sentry", "gh", "claude", "fzf"):
             self.stub(command)
         self.write("sentry.json", {
             "data": [
@@ -68,8 +68,8 @@ with (directory / "calls").open("a") as stream:
 (directory / (command + ".args")).write_text(json.dumps(sys.argv[1:]))
 if os.environ.get("SNISSUE_FAIL") == command:
     raise SystemExit(17)
-if command == "codex":
-    (directory / "codex.cwd").write_text(json.dumps(os.getcwd()))
+if command == "claude":
+    (directory / "claude.cwd").write_text(json.dumps(os.getcwd()))
 elif command == "fzf":
     rows = sys.stdin.read().splitlines()
     (directory / "picker.json").write_text(json.dumps(rows))
@@ -89,16 +89,16 @@ else:
 
     def assert_launched(self, result, reference):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.read("codex.cwd"), str(ROOT))
-        self.assertEqual(self.read("codex.args"), [
-            "--dangerously-bypass-approvals-and-sandbox",
-            f"$analyze-sentry-issue {reference}",
+        self.assertEqual(self.read("claude.cwd"), str(ROOT))
+        self.assertEqual(self.read("claude.args"), [
+            "--dangerously-skip-permissions",
+            f"/analyze-sentry-issue {reference}",
         ])
 
     def assert_stopped(self, result, message):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(message, result.stdout + result.stderr)
-        self.assertFalse((self.directory / "codex.args").exists())
+        self.assertFalse((self.directory / "claude.args").exists())
 
     def test_direct_references_launch_from_checkout_root_without_discovery(self):
         for reference, expected in (
@@ -109,7 +109,7 @@ else:
         ):
             with self.subTest(reference=reference):
                 self.assert_launched(self.run_command(reference), expected)
-        self.assertEqual((self.directory / "calls").read_text().splitlines(), ["codex"] * 4)
+        self.assertEqual((self.directory / "calls").read_text().splitlines(), ["claude"] * 4)
 
     def test_invalid_references_never_launch(self):
         for reference in (
@@ -201,10 +201,10 @@ else:
             with self.subTest(selection=selection):
                 result = self.run_command(input=selection)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertFalse((self.directory / "codex.args").exists())
+                self.assertFalse((self.directory / "claude.args").exists())
 
-    def test_codex_exit_status_is_preserved(self):
-        self.env["SNISSUE_FAIL"] = "codex"
+    def test_claude_exit_status_is_preserved(self):
+        self.env["SNISSUE_FAIL"] = "claude"
         self.assertEqual(self.run_command("1003").returncode, 17)
 
 

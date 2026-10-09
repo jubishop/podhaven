@@ -213,14 +213,14 @@ function __snissue_main
         end
     end
 
-    if not type -q codex
-        echo "Error: codex is required to analyze Sentry issues"
+    if not type -q claude
+        echo "Error: claude is required to analyze Sentry issues"
         return 1
     end
 
     cd "$repo_root"
     or return 1
-    codex --dangerously-bypass-approvals-and-sandbox "\$analyze-sentry-issue $reference"
+    claude --dangerously-skip-permissions "/analyze-sentry-issue $reference"
 end
 
 __snissue_main $argv
