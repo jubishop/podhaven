@@ -34,11 +34,12 @@ final class CarPlaySmartListDetail {
   private var ranking: Ranking?
   var restricted = false { didSet { render() } }
 
-  init(_ definition: SmartList, selection: CarPlaySelection) {
+  init(_ definition: SmartList, selection: CarPlaySelection, artwork: CarPlayArtwork) {
     self.definition = definition
     list = CarPlayEpisodeList(
       template: CPListTemplate(title: "Episodes", sections: []),
-      selection: selection
+      selection: selection,
+      artwork: artwork
     )
   }
 

@@ -13,6 +13,7 @@ final class FakeCarPlayInterfaceController: CarPlayInterfaceControlling {
   private(set) var alerts: [CPTemplate] = []
   var templates: [CPTemplate] = []
   var topTemplate: CPTemplate? { templates.last }
+  var carTraitCollection = UITraitCollection(displayScale: 2)
   var pushResult = true
   var popResult = true
 

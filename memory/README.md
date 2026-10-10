@@ -83,6 +83,7 @@ the model cannot edit this README. `bin/check` rejects stale generated content.
 <!-- ACTIVE_MEMORY_START -->
 
 - [Build variants: Development / Debug / Release](build-variants-dev-debug-release.md): PodHaven's three app build variants — Development (.dev), Debug (.debug), Release (production) — their bundle IDs, isolated on-disk data directories, which scheme action builds each, and how runtime environment (separate axis) drives logging.
+- [CarPlay artwork test observability](carplay-artwork-test-observability.md): CPListItem.image returns CarPlay's downscaled copy, and Nuke memory-cache hits did not reach the pipeline delegate; observe row artwork size through a recording ImagePipeline delegate on a cache miss
 - [Device debug builds break background scheduling](device-debug-builds-break-background-scheduling.md): Installing a debug build on @jubishop's iPhone kills iOS background scheduling for every build on that device; the Simulator and TestFlight are the only run targets, and the physical device has no debugger.
 - [Factory v3 migration](factory-v3-migration.md): How to define and migrate Factory closures for @MainActor / global-actor types after Factory v3.0
 - [FTS5 sync triggers don't survive a source-table rebuild](fts5-sync-triggers-and-table-rebuilds.md): Rebuilding the episode/podcast tables silently breaks the FTS5 search index; the rebuild must recreate the \*_fts virtual tables.

@@ -10,6 +10,7 @@ protocol CarPlayInterfaceControlling: AnyObject {
   var delegate: (any CPInterfaceControllerDelegate)? { get set }
   var topTemplate: CPTemplate? { get }
   var templates: [CPTemplate] { get }
+  var carTraitCollection: UITraitCollection { get }
   func setRootTemplate(
     _ rootTemplate: CPTemplate,
     animated: Bool,
@@ -162,7 +163,12 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
     connection.session = Container.shared.carPlaySession()(self)
     connection.upNext.restricted =
       connection.session?.limitedUserInterfaces.contains(.lists) == true
-    connection.upNext.start(CarPlayEpisodeList(template: queue, selection: connection.selection))
+    let artwork = CarPlayArtwork(
+      displayScale: connection.controller.carTraitCollection.displayScale
+    )
+    connection.upNext.start(
+      CarPlayEpisodeList(template: queue, selection: connection.selection, artwork: artwork)
+    )
     if let podcasts = root.templates.last as? CPListTemplate {
       connection.podcasts.canNavigate = { [weak self, weak connection] in
         guard let self, let connection, self.connection === connection else { return false }
@@ -174,7 +180,7 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
       }
       connection.podcasts.showError = connection.selection.showError
       connection.podcasts.restricted = connection.upNext.restricted
-      connection.podcasts.start(podcasts, selection: connection.selection)
+      connection.podcasts.start(podcasts, selection: connection.selection, artwork: artwork)
       updateBrowserNavigation(connection)
     }
     if let episodes = root.templates[1] as? CPListTemplate {
@@ -193,7 +199,7 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
         self.showEpisodesTemplate(nil, reset: true, connection: connection)
       }
       connection.episodes.restricted = connection.upNext.restricted
-      connection.episodes.start(episodes, selection: connection.selection)
+      connection.episodes.start(episodes, selection: connection.selection, artwork: artwork)
     }
     nowPlaying.isAlbumArtistButtonEnabled = false
     nowPlaying.isUpNextButtonEnabled = true

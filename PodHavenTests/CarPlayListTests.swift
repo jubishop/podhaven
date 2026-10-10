@@ -27,7 +27,8 @@ import Testing
     let template = CPListTemplate(title: "Up Next", sections: [])
     let list = CarPlayEpisodeList(
       template: template,
-      selection: Container.shared.carPlaySelection()
+      selection: Container.shared.carPlaySelection(),
+      artwork: CarPlayArtwork(displayScale: 2)
     )
     defer { list.stop() }
     list.update([.init(title: "Queue", episodes: episodes)], restricted: false)
@@ -76,7 +77,8 @@ import Testing
     let template = CPListTemplate(title: "Up Next", sections: [])
     let list = CarPlayEpisodeList(
       template: template,
-      selection: Container.shared.carPlaySelection()
+      selection: Container.shared.carPlaySelection(),
+      artwork: CarPlayArtwork(displayScale: 2)
     )
     defer { list.stop() }
     let sections = [
@@ -118,7 +120,8 @@ import Testing
     let template = CPListTemplate(title: "Up Next", sections: [])
     let list = CarPlayEpisodeList(
       template: template,
-      selection: Container.shared.carPlaySelection()
+      selection: Container.shared.carPlaySelection(),
+      artwork: CarPlayArtwork(displayScale: 2)
     )
     defer { list.stop() }
     list.update(
