@@ -1,5 +1,4 @@
 ## macOS
-.DS_Store
 
 ## User settings
 xcuserdata/
@@ -44,7 +43,6 @@ worktrees
 
 # Conductor
 .conductor/
-.todos/
 
 # Claude
 .claude/plans
@@ -53,16 +51,11 @@ worktrees
 .tmp/
 
 # Local cache
-.cache/
-.config/qmd/
-.envrc.local
 
 # CI artifacts
 /artifacts/
 
 # Python
-__pycache__/
-*.py[cod]
 *$py.class
 
 # Sidecar
@@ -73,6 +66,7 @@ __pycache__/
 .sidecar-start.sh
 .sidecar-base
 .td-root
+
 # project-starter:begin
 .DS_Store
 .cache/

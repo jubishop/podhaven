@@ -304,14 +304,14 @@ def install_hooks():
     bundled = ROOT / "bin/hooks"
     if mode == "external":
         print("Preserved external hooks: " + str(active))
-        print("Verify all four forwarding calls as described in docs/development-workflow.md.")
+        print("Verify all four forwarding calls as described in docs/foundation/knowledge-search.md#existing-hooks.")
         return
     configured = git("config", "--get", "core.hooksPath", optional=True)
     existing = active.is_dir() and any(p.is_file() and os.access(p, os.X_OK)
                                       and not p.name.endswith(".sample") for p in active.iterdir())
     if active.resolve() != bundled.resolve() and (configured or existing):
         raise RuntimeError("Existing hooks preserved at " + str(active) +
-                           ". Integrate bin/knowledge-hook, then set git config --local knowledge.hooks external. See docs/development-workflow.md#existing-hooks")
+                           ". Integrate bin/knowledge-hook, then set git config --local knowledge.hooks external. See docs/foundation/knowledge-search.md#existing-hooks")
     for event in EVENTS:
         if not os.access(bundled / event, os.X_OK):
             raise RuntimeError("Missing executable hook: bin/hooks/" + event)
@@ -509,7 +509,7 @@ def diagnose():
         report["observed_hooks"] = observations
         missing = [e for e in EVENTS if observations.get(e, {}).get("path") != str(active)]
         if missing:
-            report["issues"].append("External forwarding not yet observed for: " + ", ".join(missing) + ". Follow docs/development-workflow.md#existing-hooks.")
+            report["issues"].append("External forwarding not yet observed for: " + ", ".join(missing) + ". Follow docs/foundation/knowledge-search.md#existing-hooks.")
         report["notices"].append("Hook observations record past runs; re-verify after changing a hook manager.")
     else:
         report["issues"].append("Invalid knowledge.hooks setting.")
