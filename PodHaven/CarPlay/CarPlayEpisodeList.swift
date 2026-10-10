@@ -72,6 +72,7 @@ final class CarPlayEpisodeList {
   private static let log = Log.as("CarPlayEpisodeList")
   let template: CPListTemplate
   private let selection: CarPlaySelection
+  private let artwork: CarPlayArtwork
   private var sections: [Section] = []
   private var page = 0
   private var restricted = false
@@ -85,9 +86,15 @@ final class CarPlayEpisodeList {
   private var emptySubtitle = "Add episodes to Up Next in PodHaven."
   private var artworkEnabled = true
 
-  init(template: CPListTemplate, selection: CarPlaySelection, listeningState: Bool = false) {
+  init(
+    template: CPListTemplate,
+    selection: CarPlaySelection,
+    artwork: CarPlayArtwork,
+    listeningState: Bool = false
+  ) {
     self.template = template
     self.selection = selection
+    self.artwork = artwork
     self.listeningState = listeningState
     template.emptyViewTitleVariants = ["Your queue is empty"]
     template.emptyViewSubtitleVariants = ["Add episodes to Up Next in PodHaven."]
@@ -173,9 +180,9 @@ final class CarPlayEpisodeList {
         artworkTasks.removeValue(forKey: episode.id)?.cancel()
         imageURLs[episode.id] = episode.image
         item.setImage(nil)
-        artworkTasks[episode.id] = Task { [weak self, weak item, imagePipeline] in
+        artworkTasks[episode.id] = Task { [weak self, weak item, imagePipeline, artwork] in
           do {
-            let image = try await imagePipeline.image(for: episode.image)
+            let image = try await imagePipeline.image(for: artwork.request(episode.image))
             guard !Task.isCancelled, let self, let item,
               self.rows[episode.id] === item, self.imageURLs[episode.id] == episode.image
             else { return }

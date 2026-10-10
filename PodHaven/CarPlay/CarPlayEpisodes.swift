@@ -27,6 +27,7 @@ final class CarPlayEpisodes {
   private var details: [CarPlaySmartListDetail] = []
   private var visited: Set<SmartList.ID> = []
   private var selection: CarPlaySelection?
+  private var artwork: CarPlayArtwork?
   private var catalogTask: Task<Void, Never>?
   private var unreadTask: Task<Void, Never>?
   private var stateTask: Task<Void, Never>?
@@ -42,8 +43,9 @@ final class CarPlayEpisodes {
 
   fileprivate init() {}
 
-  func start(_ template: CPListTemplate, selection: CarPlaySelection) {
+  func start(_ template: CPListTemplate, selection: CarPlaySelection, artwork: CarPlayArtwork) {
     self.selection = selection
+    self.artwork = artwork
     root = makeHub(template, reset: false)
     observeCatalog()
     stateTask = Task { [weak self] in
@@ -160,11 +162,11 @@ final class CarPlayEpisodes {
   }
 
   private func open(_ id: SmartList.ID, reset: Bool) {
-    guard let selection, canNavigate?() == true,
+    guard let selection, let artwork, canNavigate?() == true,
       let definition = definitions.first(where: { $0.id == id })
     else { return }
     selection.cancel()
-    let detail = CarPlaySmartListDetail(definition, selection: selection)
+    let detail = CarPlaySmartListDetail(definition, selection: selection, artwork: artwork)
     details.append(detail)
     detail.restricted = restricted
     detail.start()

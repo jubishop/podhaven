@@ -35,12 +35,18 @@ final class CarPlayPodcasts {
     var observation: Task<Void, Never>?
     let filter = CPListItem(text: "All Episodes", detailText: "Include finished episodes")
 
-    init(_ id: Podcast.ID, selection: CarPlaySelection, shortcutEpisodeID: Episode.ID?) {
+    init(
+      _ id: Podcast.ID,
+      selection: CarPlaySelection,
+      artwork: CarPlayArtwork,
+      shortcutEpisodeID: Episode.ID?
+    ) {
       self.id = id
       self.shortcutEpisodeID = shortcutEpisodeID
       list = CarPlayEpisodeList(
         template: CPListTemplate(title: "Episodes", sections: []),
         selection: selection,
+        artwork: artwork,
         listeningState: true
       )
     }
@@ -64,6 +70,7 @@ final class CarPlayPodcasts {
   private var all: CarPlayPodcastList?
   private var details: [Detail] = []
   private var selection: CarPlaySelection?
+  private var artwork: CarPlayArtwork?
   private var catalogObservation: Task<Void, Never>?
   private var stateObservation: Task<Void, Never>?
   private var currentObservation: Task<Void, Never>?
@@ -81,9 +88,12 @@ final class CarPlayPodcasts {
 
   fileprivate init() {}
 
-  func start(_ template: CPListTemplate, selection: CarPlaySelection) {
+  func start(_ template: CPListTemplate, selection: CarPlaySelection, artwork: CarPlayArtwork) {
     self.selection = selection
-    root = CarPlayPodcastList(template: template) { [weak self] id in self?.openPodcast(id) }
+    self.artwork = artwork
+    root = CarPlayPodcastList(template: template, artwork: artwork) { [weak self] id in
+      self?.openPodcast(id)
+    }
     allPodcasts.accessoryType = .disclosureIndicator
     observeCatalog()
     stateObservation = Task { [weak self] in
@@ -175,20 +185,26 @@ final class CarPlayPodcasts {
   }
 
   private func openAll() {
-    guard canNavigate?() == true else { return }
+    guard let artwork, canNavigate?() == true else { return }
     all?.stop()
-    let list = CarPlayPodcastList(template: CPListTemplate(title: "All Podcasts", sections: [])) {
-      [weak self] id in self?.openPodcast(id)
-    }
+    let list = CarPlayPodcastList(
+      template: CPListTemplate(title: "All Podcasts", sections: []),
+      artwork: artwork
+    ) { [weak self] id in self?.openPodcast(id) }
     all = list
     renderCatalog()
     navigate?(list.template, false)
   }
 
   private func openPodcast(_ id: Podcast.ID, shortcutEpisodeID: Episode.ID? = nil) {
-    guard let selection, canNavigate?() == true else { return }
+    guard let selection, let artwork, canNavigate?() == true else { return }
     selection.cancel()
-    let detail = Detail(id, selection: selection, shortcutEpisodeID: shortcutEpisodeID)
+    let detail = Detail(
+      id,
+      selection: selection,
+      artwork: artwork,
+      shortcutEpisodeID: shortcutEpisodeID
+    )
     details.append(detail)
     detail.filter.accessoryType = .disclosureIndicator
     observeDetail(detail)

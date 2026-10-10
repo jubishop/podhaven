@@ -25,6 +25,12 @@ episode remains visible. Artwork completion must still match both the row
 object and image URL. Leaving a page or disconnecting cancels artwork and
 clears the old handlers.
 
+CarPlay scales each row image synchronously on the main thread. Episode and
+podcast rows therefore receive thumbnails that the image pipeline decodes in
+the background, within the CarPlay list-image size at the car's display scale.
+An unknown scale falls back to a conservative high-resolution scale. Thumbnails have their own
+cache entries and never replace full-size in-app artwork.
+
 Paging updates the existing list. Runtime item and section limits apply to
 all sections together, including navigation controls. A page contains at most
 50 total rows, even when the system permits more. Previous/Next controls use

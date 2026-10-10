@@ -13,20 +13,26 @@ final class CarPlayPodcastList {
   @DynamicInjected(\.carPlayListLimits) private var limits
   private static let log = Log.as("CarPlayPodcastList")
   let template: CPListTemplate
+  private let artwork: CarPlayArtwork
   private let select: (Podcast.ID) -> Void
   private var entries: [Entry] = []
   private var leading: [CPListItem] = []
   private var rows: [Podcast.ID: CPListItem] = [:]
   private var imageURLs: [Podcast.ID: URL] = [:]
-  private var artwork: [Podcast.ID: Task<Void, Never>] = [:]
+  private var artworkTasks: [Podcast.ID: Task<Void, Never>] = [:]
   private var controls: [CPListItem] = []
   private var page = 0
   private var restricted = false
   private var header = ""
   private var artworkEnabled = true
 
-  init(template: CPListTemplate, select: @escaping (Podcast.ID) -> Void) {
+  init(
+    template: CPListTemplate,
+    artwork: CarPlayArtwork,
+    select: @escaping (Podcast.ID) -> Void
+  ) {
     self.template = template
+    self.artwork = artwork
     self.select = select
   }
 
@@ -54,7 +60,7 @@ final class CarPlayPodcastList {
     let ids = Set(visible.map { $0.podcast.id })
     for (id, row) in rows where !ids.contains(id) {
       row.handler = nil
-      artwork.removeValue(forKey: id)?.cancel()
+      artworkTasks.removeValue(forKey: id)?.cancel()
       imageURLs.removeValue(forKey: id)
     }
     rows = rows.filter { ids.contains($0.key) }
@@ -83,12 +89,12 @@ final class CarPlayPodcastList {
         self.select(podcast.id)
       }
       if artworkEnabled, imageURLs[podcast.id] != podcast.image {
-        artwork.removeValue(forKey: podcast.id)?.cancel()
+        artworkTasks.removeValue(forKey: podcast.id)?.cancel()
         imageURLs[podcast.id] = podcast.image
         row.setImage(nil)
-        artwork[podcast.id] = Task { [weak self, weak row, imagePipeline] in
+        artworkTasks[podcast.id] = Task { [weak self, weak row, imagePipeline, artwork] in
           do {
-            let image = try await imagePipeline.image(for: podcast.image)
+            let image = try await imagePipeline.image(for: artwork.request(podcast.image))
             guard !Task.isCancelled, let self, let row,
               self.rows[podcast.id] === row, self.imageURLs[podcast.id] == podcast.image
             else { return }
@@ -130,8 +136,8 @@ final class CarPlayPodcastList {
   }
 
   private func cancelArtwork() {
-    for task in artwork.values { task.cancel() }
-    artwork = [:]
+    for task in artworkTasks.values { task.cancel() }
+    artworkTasks = [:]
     imageURLs = [:]
   }
 
