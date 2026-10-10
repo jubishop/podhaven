@@ -364,10 +364,12 @@ maintainer's machine). A sleeping Mac runs a missed calendar job after wake;
 the user must be logged in. The LaunchAgent is
 `~/Library/LaunchAgents/com.jubishop.podhaven.memory-audit.plist`.
 Like the cleanup agent, it runs uv's default `~/.local/bin/python3`, which
-follows Python updates. Reinstall after moving the checkout or changing the
-other tool installations. The installer resolves runtime directories and checks
-that QMD starts with the scheduled PATH. Installation does not run an audit
-immediately.
+follows Python updates; the installer refuses until `uv python install --default`
+has created that interpreter. Tools under an fnm Node version are scheduled
+through fnm's default alias, so Node updates do not need a reinstall. Reinstall
+after moving the checkout or changing other tool locations. The installer
+resolves runtime directories and checks that QMD starts with the scheduled PATH.
+Installation does not run an audit immediately.
 
 The job uses `claude -p` with `claude-haiku-5-5`, high effort, and the saved
 Claude subscription login. It refuses API-key or third-party provider login
