@@ -118,6 +118,9 @@ Choose checks by the change and its stage:
 - Code edits: the relevant application checks, run directly.
 - Setup, tooling, hook, CI, or test-infrastructure changes, or material
   uncertainty: `bin/check --full` locally.
+- A Project Starter sync that changes only managed files: `bin/check`, because
+  the release's own CI tested that code. Overridden files follow the project's
+  rules for its own tooling.
 - Merge or release: a successful `bin/check --full` for the delivered code,
   from an enforced CI gate or, without one, run locally. A pending, skipped,
   or failed CI run does not count.
