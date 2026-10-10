@@ -15,7 +15,7 @@ Project Starter manages this block; add project rules after it.
   current. See [task tracking](docs/foundation/task-tracking.md).
 - Follow the [engineering policy](docs/foundation/engineering-policy.md):
   fewer dependencies, red-green tests for behavior changes, cohesive files and
-  pages, checkout-isolated validation, and declared toolchain versions.
+  pages, checkout-isolated validation, and the latest stable toolchains.
 - Run [checks](docs/foundation/engineering-policy.md#checks) by change:
   `bin/check --documents-only` for Markdown, application checks for code, and
   `bin/check --full` before merge or release unless an enforced CI gate runs

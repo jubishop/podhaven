@@ -18,7 +18,6 @@ from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 EVENTS = ("post-checkout", "post-commit", "post-merge", "post-rewrite")
-TESTED_QMD = "2.8.3"
 
 
 def stamp():
@@ -486,7 +485,7 @@ def diagnose():
     report = {"root": str(ROOT), "hooks_path": str(hooks_path()), "hooks_mode": setting("hooks") or "bundled",
               "index": str(cache() / "index.sqlite"), "models": str((cache() / "models").resolve()),
               "shared_models": str(shared_models()), "worker_running": worker_active(),
-              "tested_qmd": TESTED_QMD, "python": sys.version.split()[0], "issues": [], "notices": []}
+              "python": sys.version.split()[0], "issues": [], "notices": []}
     report["direnv_available"] = bool(shutil.which("direnv"))
     report["git_version"] = git("--version")
     report["primary_checkout"] = str(primary_checkout(ROOT))
@@ -536,9 +535,6 @@ def diagnose():
                 report["freshness"] = "stale"
             if report["freshness"] != "current" or state.get("status") == "failed":
                 report["issues"].append("Search needs refresh or recovery. Run bin/qmd-index; inspect .cache/qmd/index.log on failure.")
-            release = re.search(r"\d+\.\d+\.\d+\S*", version or "")
-            if version and (not release or release[0] != TESTED_QMD):
-                report["notices"].append("This QMD version differs from the tested version; run the real-QMD smoke check before relying on compatibility.")
         models = cache() / "models"
         if not models.is_dir():
             report["issues"].append("Model cache missing or broken. Inspect .cache/qmd/models, then run bin/prep-worktree.")
@@ -588,7 +584,14 @@ def cli(action):
             elif existing_alias != alias:
                 print("Preserved existing git knowledge alias; use bin/knowledge directly.")
             prepare(ROOT)
-            return wait_for(enqueue())
+            code = wait_for(enqueue())
+            application = ROOT / "bin/setup-application"
+            if code or not application.exists():
+                return code
+            if not os.access(application, os.X_OK):
+                raise RuntimeError("bin/setup-application must be executable")
+            # Project-owned dependency setup runs only after the foundation is ready.
+            return subprocess.run([str(application)], cwd=ROOT).returncode
         if action == "index":
             if len(args) == 2 and args[0] == "--worker":
                 return worker(int(args[1]))
@@ -603,7 +606,7 @@ def cli(action):
             if args:
                 print(json.dumps(report, indent=2))
             else:
-                for key in ("root", "primary_checkout", "hooks_mode", "hooks_path", "git_version", "python", "qmd_version", "tested_qmd", "direnv_version", "shellcheck_version", "index", "models", "shared_models", "worker_running", "freshness", "collections", "last_refresh"):
+                for key in ("root", "primary_checkout", "hooks_mode", "hooks_path", "git_version", "python", "qmd_version", "direnv_version", "shellcheck_version", "index", "models", "shared_models", "worker_running", "freshness", "collections", "last_refresh"):
                     print(key + ": " + str(report.get(key)))
                 print("xcode: " + json.dumps(report.get("xcode")))
                 for message in report["notices"] + report["issues"]:

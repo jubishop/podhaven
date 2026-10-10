@@ -86,17 +86,26 @@ fresh and warm caches behave after a checkout is added, changed, or removed.
 
 ## Runtime and toolchain versions
 
-Declare supported runtime, compiler, and build-tool versions in the stack's
-usual manifests or version files, and keep development, CI, and deployment
-compatible with them. Application commands stop before installing, testing,
-building, or starting services on an unsupported version, and report the
-version found, the supported range, and how to select a compatible one. Keep
-document and foundation checks independent of application runtimes.
+Use the latest stable release of each runtime, compiler, build tool, and
+developer tool instead of pinning a version that someone must remember to
+bump. For Node, that is the newest LTS line.
 
-Prefer recent maintained releases, and long-term support channels where an
-ecosystem offers them. Upgrade deliberately across development, CI, and
-deployment. Never let an unbounded selector silently change the supported
-major version.
+- Declare the minimum supported version in the stack's usual manifest, such
+  as `"engines": {"node": ">=24"}`, and write `lts/*` (or the ecosystem's
+  equivalent) in version files.
+- Application commands reject only versions below that minimum, before
+  installing, testing, building, or starting services. Report the version
+  found, the minimum, and how to select a newer one.
+- CI installs the latest stable release on every run (for example,
+  `node-version: lts/*`), so a new release is tested without anyone asking.
+- Developer machines and servers update on a schedule that verifies the
+  result and rolls back on failure.
+- Pin a version only to work around a known incompatibility, and record the
+  issue and the condition for removing the pin next to it.
+
+Raise the minimum when the project starts relying on a newer release.
+Application dependency lockfiles stay; this applies to runtimes and tools.
+Keep document and foundation checks independent of application runtimes.
 
 ## Checks
 

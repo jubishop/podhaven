@@ -339,14 +339,37 @@ fcntl.flock = flock
         result = self.run_command("git", "knowledge", "search", "reference", extra=hook_environment)
         self.assertNotIn("freshness", result.stderr)
 
-    def test_doctor_flags_every_release_except_the_tested_one(self):
+    def test_doctor_accepts_any_qmd_release_without_a_tested_pin(self):
         self.run_command("bin/setup")
-        tested = json.loads(self.run_command("bin/doctor", "--json").stdout)["tested_qmd"]
-        for version, flagged in ((tested, False), (tested + "0", True), (tested + "-rc.1", True), ("2.1.0", True)):
+        for version in ("2.1.0", "2.8.30", "3.0.0-rc.1", "9.0.0"):
             with self.subTest(version=version):
                 report = json.loads(self.run_command("bin/doctor", "--json", extra={"QMD_TEST_VERSION": version},
                                                      check=False).stdout)
-                self.assertEqual(any("differs from the tested version" in item for item in report["notices"]), flagged)
+                self.assertNotIn("tested_qmd", report)
+                self.assertFalse([item for item in report["notices"] if "tested" in item], report["notices"])
+
+    def test_setup_runs_application_setup_after_foundation_setup(self):
+        calls = self.base / "setup calls"
+        application = self.repo / "bin/setup-application"
+        application.write_text("#!" + sys.executable + "\nimport os, sys\n"
+                               "from pathlib import Path\n"
+                               "open(os.environ['SETUP_CALLS'], 'a').write(os.getcwd() + ' ' + str(Path('.cache/qmd/state.json').is_file()) + '\\n')\n"
+                               "sys.exit(int(os.environ.get('SETUP_EXIT', '0')))\n")
+        self.env["SETUP_CALLS"] = str(calls)
+        application.chmod(0o644)
+        result = self.run_command("bin/setup", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("bin/setup-application must be executable", result.stderr)
+        self.assertFalse(calls.exists())
+        application.chmod(0o755)
+        self.run_command("bin/setup")
+        self.assertEqual(calls.read_text(), str(self.repo) + " True\n")
+        self.assertNotEqual(self.run_command("bin/setup", extra={"SETUP_EXIT": "4"}, check=False).returncode, 0)
+        calls.unlink()
+        with (self.repo / "docs/README.md").open("a") as stream:
+            stream.write("\nChanged so setup must refresh.\n")
+        self.assertNotEqual(self.run_command("bin/setup", extra={"FAIL_UPDATE": "1"}, check=False).returncode, 0)
+        self.assertFalse(calls.exists(), "Application setup ran after a failed foundation setup")
 
     def test_installed_broken_qmd_is_not_reported_as_absent(self):
         result = self.run_command("bin/setup", extra={"BROKEN_QMD": "1"}, check=False)
