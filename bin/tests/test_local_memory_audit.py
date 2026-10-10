@@ -218,6 +218,28 @@ class LocalAuditTests(unittest.TestCase):
         calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
         self.assertEqual([call[0] for call in calls], ["print", "bootstrap", "enable"])
 
+    def test_installer_uses_fnm_default_alias_instead_of_a_node_version(self):
+        fnm = self.base / ".local/share/fnm"
+        version_bin = fnm / "node-versions/v24.21.0/installation/bin"
+        version_bin.mkdir(parents=True)
+        (version_bin / "node").write_text(f"#!{sys.executable}\n")
+        (version_bin / "node").chmod(0o755)
+        (fnm / "aliases").mkdir(parents=True)
+        (fnm / "aliases/default").symlink_to(fnm / "node-versions/v24.21.0/installation")
+        shell = self.base / "fnm_multishells/123/bin"
+        shell.parent.mkdir(parents=True)
+        shell.symlink_to(version_bin)
+        self.executable("launchctl", "import sys\nsys.exit(1 if sys.argv[1] == 'print' else 0)\n")
+        for name in ("plutil", "rg"):
+            self.executable(name, "pass\n")
+        self.default_python()
+        with patch.dict(os.environ, {"PATH": str(shell) + os.pathsep + os.environ["PATH"]}), \
+                patch.object(audit.sys, "platform", "darwin"), patch.object(Path, "home", return_value=self.base):
+            result = audit.install(self.repo)
+        entries = plistlib.loads(Path(result["plist"]).read_bytes())["EnvironmentVariables"]["PATH"].split(os.pathsep)
+        self.assertIn(str(fnm / "aliases/default/bin"), entries)
+        self.assertFalse([entry for entry in entries if "node-versions" in entry or "fnm_multishells" in entry], entries)
+
     def test_installed_path_can_run_qmd_with_its_separate_runtime(self):
         runtime = self.base / "runtime"
         runtime.mkdir()

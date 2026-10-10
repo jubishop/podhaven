@@ -270,7 +270,12 @@ def install(root=ROOT):
             if executable in ("node", "bun"):
                 continue
             raise RuntimeError("Missing required command: " + executable)
-        tool_paths.append(str(Path(path).parent.resolve()))
+        directory = Path(path).parent.resolve()
+        fnm = (Path.home() / ".local/share/fnm").resolve()
+        if directory.is_relative_to(fnm / "node-versions"):
+            # fnm's default alias follows each Node update; a version folder would go stale.
+            directory = Path.home() / ".local/share/fnm/aliases/default/bin"
+        tool_paths.append(str(directory))
     tool_paths.extend(("/usr/bin", "/bin", "/usr/sbin", "/sbin"))
     agents = Path.home() / "Library/LaunchAgents"
     agents.mkdir(parents=True, exist_ok=True)
