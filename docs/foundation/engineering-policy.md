@@ -97,7 +97,9 @@ bump. For Node, that is the newest LTS line.
   installing, testing, building, or starting services. Report the version
   found, the minimum, and how to select a newer one.
 - CI installs the latest stable release on every run (for example,
-  `node-version: lts/*`), so a new release is tested without anyone asking.
+  `node-version: lts/*` with `check-latest: true`, so the runner does not
+  reuse an older cached release), and a new release is tested without anyone
+  asking.
 - Developer machines and servers update on a schedule that verifies the
   result and rolls back on failure.
 - Pin a version only to work around a known incompatibility, and record the
