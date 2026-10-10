@@ -271,8 +271,11 @@ def install_agent(root):
     paths = layout(root)
     if paths["primary"] != root.resolve():
         raise ValueError("Install the cleanup agent from the primary checkout")
+    python = Path.home() / ".local/bin/python3"
+    if not os.access(python, os.X_OK):
+        raise RuntimeError("Missing the default Python " + str(python) + "; run `uv python install --default`")
     destination = Path.home() / "Library/LaunchAgents" / (LABEL + ".plist")
-    value = {"Label": LABEL, "ProgramArguments": [sys.executable, str(root / "bin/prune-worktree-caches"), "--apply", "--quiet"],
+    value = {"Label": LABEL, "ProgramArguments": [str(python), str(root / "bin/prune-worktree-caches"), "--apply", "--quiet"],
              "WorkingDirectory": str(root), "StartInterval": 3600, "RunAtLoad": True,
              "ProcessType": "Background", "LowPriorityIO": True,
              "EnvironmentVariables": {"PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"},

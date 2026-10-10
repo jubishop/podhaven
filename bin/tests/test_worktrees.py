@@ -2,7 +2,10 @@
 
 import getpass
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from contextlib import redirect_stdout
+import io
 import json
+import os
 from pathlib import Path
 import plistlib
 import subprocess
@@ -177,6 +180,30 @@ class CacheTests(unittest.TestCase):
         before = source.read_bytes()
         caches.prepare_xcode(linked)
         self.assertEqual(source.read_bytes(), before)
+
+    def test_cleanup_agent_runs_the_default_python_that_follows_updates(self):
+        home, tools = self.base / "home", self.base / "tools"
+        tools.mkdir()
+        calls = self.base / "launchctl.jsonl"
+        launchctl = tools / "launchctl"
+        launchctl.write_text(f"#!{sys.executable}\nimport json,sys\n"
+                             f"with open({str(calls)!r}, 'a') as f: f.write(json.dumps(sys.argv[1:])+'\\n')\n"
+                             "sys.exit(1 if sys.argv[1] == 'print' else 0)\n")
+        launchctl.chmod(0o755)
+        python = home / ".local/bin/python3"
+        with patch.object(caches.sys, "platform", "darwin"), patch.object(Path, "home", return_value=home), \
+                patch.dict(os.environ, {"PATH": str(tools) + os.pathsep + os.environ["PATH"]}), \
+                redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, "uv python install --default"):
+                caches.install_agent(self.repo)
+            self.assertFalse(calls.exists())
+            python.parent.mkdir(parents=True)
+            python.symlink_to(sys.executable)
+            caches.install_agent(self.repo)
+        plist = home / "Library/LaunchAgents" / (caches.LABEL + ".plist")
+        self.assertEqual(plistlib.loads(plist.read_bytes())["ProgramArguments"],
+                         [str(python), str(self.repo / "bin/prune-worktree-caches"), "--apply", "--quiet"])
+        self.assertEqual([json.loads(line)[0] for line in calls.read_text().splitlines()], ["print", "bootstrap"])
 
 
 if __name__ == "__main__":

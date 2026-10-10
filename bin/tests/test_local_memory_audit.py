@@ -191,7 +191,13 @@ class LocalAuditTests(unittest.TestCase):
         self.executable("gh", "print('[{\"number\":1,\"state\":\"OPEN\",\"updatedAt\":\"2026-10-02T00:00:00Z\"}]')\n")
         self.assertEqual(self.run_audit()["status"], "success")
 
-    def test_installer_registers_weekly_job_without_running_it(self):
+    def default_python(self):
+        python = self.base / ".local/bin/python3"
+        python.parent.mkdir(parents=True)
+        python.symlink_to(sys.executable)
+        return python
+
+    def test_installer_registers_weekly_job_with_default_python_without_running_it(self):
         self.executable("launchctl", (
             "import json,sys\n"
             f"with open({str(self.calls)!r}, 'a') as f: f.write(json.dumps(sys.argv[1:])+'\\n')\n"
@@ -200,10 +206,15 @@ class LocalAuditTests(unittest.TestCase):
         for name in ("plutil", "rg", "node"):
             self.executable(name, "pass\n")
         with patch.object(audit.sys, "platform", "darwin"), patch.object(Path, "home", return_value=self.base):
+            with self.assertRaisesRegex(RuntimeError, "uv python install --default"):
+                audit.install(self.repo)
+            self.assertFalse(self.calls.exists())
+            python = self.default_python()
             result = audit.install(self.repo)
         settings = plistlib.loads(Path(result["plist"]).read_bytes())
         self.assertEqual(settings["StartCalendarInterval"], {"Weekday": 6, "Hour": 6, "Minute": 0})
-        self.assertEqual(settings["ProgramArguments"][-2:], [str(self.repo / "bin/memory-audit"), "run"])
+        self.assertEqual(settings["ProgramArguments"], [str(python), "-B", str(self.repo / "bin/memory-audit"), "run"])
+        self.assertEqual(settings["EnvironmentVariables"]["PATH"].split(os.pathsep)[0], str(python.parent))
         calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
         self.assertEqual([call[0] for call in calls], ["print", "bootstrap", "enable"])
 
@@ -216,6 +227,7 @@ class LocalAuditTests(unittest.TestCase):
         self.executable("qmd", "import subprocess\nsubprocess.run(['bun'], check=True)\n")
         self.executable("launchctl", "import sys\nsys.exit(1 if sys.argv[1] == 'print' else 0)\n")
         self.executable("plutil", "pass\n")
+        self.default_python()
         with patch.dict(os.environ, {"PATH": str(runtime) + os.pathsep + os.environ["PATH"]}), \
                 patch.object(audit.sys, "platform", "darwin"), patch.object(Path, "home", return_value=self.base):
             result = audit.install(self.repo)

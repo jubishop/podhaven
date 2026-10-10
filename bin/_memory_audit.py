@@ -260,7 +260,10 @@ def install(root=ROOT):
     if sys.platform != "darwin":
         raise RuntimeError("The launchd schedule requires macOS")
     root = root.resolve()
-    tool_paths = [str(Path(sys.executable).parent)]
+    python = Path.home() / ".local/bin/python3"
+    if not os.access(python, os.X_OK):
+        raise RuntimeError(f"Missing the default Python {python}; run `uv python install --default`")
+    tool_paths = [str(python.parent)]
     for executable in ("claude", "qmd", "gh", "git", "rg", "node", "bun"):
         path = shutil.which(executable)
         if not path:
@@ -276,7 +279,7 @@ def install(root=ROOT):
     plist = agents / (LABEL + ".plist")
     settings = {
         "Label": LABEL,
-        "ProgramArguments": [sys.executable, "-B", str(root / "bin/memory-audit"), "run"],
+        "ProgramArguments": [str(python), "-B", str(root / "bin/memory-audit"), "run"],
         "WorkingDirectory": str(root),
         "EnvironmentVariables": {"PATH": os.pathsep.join(dict.fromkeys(tool_paths))},
         "StartCalendarInterval": {"Weekday": 6, "Hour": 6, "Minute": 0},
