@@ -21,6 +21,7 @@ struct PhoneSceneView: View {
 
   @InjectedObservable(\.alert) private var alert
   @InjectedObservable(\.sheet) private var sheet
+  @DynamicInjected(\.appHangReportingGate) private var appHangReportingGate
   @DynamicInjected(\.appLauncher) private var appLauncher
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
   @DynamicInjected(\.cachePurger) private var cachePurger
@@ -55,6 +56,7 @@ struct PhoneSceneView: View {
     .preferredColorScheme(userSettings.appearanceMode.colorScheme)
     .onChange(of: scenePhase, initial: true) { _, newPhase in
       sharedState.$scenePhase.new(newPhase)
+      appHangReportingGate.handleScenePhaseChange(to: newPhase)
 
       switch newPhase {
       case .active:
