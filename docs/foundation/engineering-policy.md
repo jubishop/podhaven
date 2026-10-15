@@ -134,9 +134,9 @@ Choose checks by the change and its stage:
 - Code edits: the relevant application checks, run directly.
 - Setup, tooling, hook, CI, or test-infrastructure changes, or material
   uncertainty: `bin/check --full` locally.
-- A Project Starter sync that changes only managed files: `bin/check`, because
-  the release's own CI tested that code. Overridden files follow the project's
-  rules for its own tooling.
+- A Project Starter sync: none for the files `bin/sync` writes; its manual
+  follow-up, if any, follows these rules. Overridden files follow the
+  project's rules for its own tooling.
 - Merge or release: a successful `bin/check --full` for the delivered code,
   from an enforced CI gate or, without one, run locally. A pending, skipped,
   or failed CI run does not count. A Markdown-only change needs only a
@@ -172,15 +172,19 @@ bypass failures in hand-written pages.
 A Project Starter sync may go directly to the default branch without a pull
 request or review, even where the project otherwise requires one. This covers
 the files `bin/sync` writes, `.project-starter.json`, and the release's manual
-follow-up when it touches only workflows or documentation. Its checks still
-run, other changes follow the project's usual process, and the carve-out never
-bypasses enforced branch protection.
+follow-up when it touches only workflows or documentation. A sync with no
+manual follow-up also needs no checks, CI, or deployment: commit only the
+synced files, with `[skip ci]` in the message so GitHub Actions starts no push
+workflows, and push from a checkout with no other unpushed commits. Other
+changes follow the project's usual process, and the carve-out never bypasses
+enforced branch protection.
 
 ## Deployment decisions
 
 Documentation, agent instructions, task setup, comments, and other
 nonfunctional changes may be pushed without a deployment or release; required
-checks still run. Assess every change since the last successful release.
+checks still run. A Project Starter sync with no manual follow-up needs no
+deployment. Assess every change since the last successful release.
 Deploy when behavior, dependencies, assets, migrations, configuration, or
 operations change, when uncertain, or when asked. A project that deploys on
 push documents its supported skip mechanism and a manual override for edits a

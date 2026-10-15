@@ -1,7 +1,7 @@
 {
-  "version": "2.4.1",
+  "version": "2.5.0",
   "source": "https://github.com/jubishop/project-starter",
-  "ref": "v2.4.1",
+  "ref": "v2.5.0",
   "managed": {
     "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
     "bin/_checks.py": "2c2a04c3569f5f588aec88f2f8a269b931b62d2ae51fe31c2bbf5f8c0e8b8c77",
@@ -18,7 +18,7 @@
     "bin/qmd-index": "8e7de8dcc353a768878f52c9fa5b4b9bbfab6db00a0d229f55b7af3a6f008fc5",
     "bin/setup": "22a1ba1d1cf981957dad1fce20da692d276b864e5e1bf0aa9d70fcc336c6332b",
     "docs/foundation/README.md": "cb4353e07fd92f88a9dab03b8430a09cd6b678c0848294836de30c8e8cb5b869",
-    "docs/foundation/engineering-policy.md": "41a1f68f07e03ce54acc57b1951344b294907373df9be6bccd3d95bc38eddf89",
+    "docs/foundation/engineering-policy.md": "56c4afac530a39636bba27d1a63973067799ecd3e463b23b8d3a62686d24c072",
     "docs/foundation/knowledge-search.md": "7c724b07b16882342432a2e02781e7f902cd51f55c2c3cf630281cfee60d7f1e",
     "docs/foundation/task-tracking.md": "b4feef79fed6332528d851fba91bfd2b398f8a576931e4c8af0796ab9e0fd851"
   },
