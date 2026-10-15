@@ -208,6 +208,7 @@ Time arguments accept: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, 
 ### 5. Symbolicate MetricKit call stacks
 
 - See `references/podhaven-log-format.md` and `scripts/symbolicate_metrickit.py`.
+- The script also reads one downloaded raw diagnostic JSON attachment, such as `metrickit-crash-diagnostic.json`.
 
 ## Reporting
 

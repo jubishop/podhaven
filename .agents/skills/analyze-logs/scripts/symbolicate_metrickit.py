@@ -7,7 +7,10 @@ cpuException, diskWriteException, appLaunch) into log.ndjson as entries with a
 `metricKitDiagnostic` metadata field. That field carries the raw
 `MXDiagnosticPayload.jsonRepresentation()` JSON, which includes an
 unsymbolicated MXCallStackTree: each frame has a `binaryUUID` and an
-`offsetIntoBinaryTextSegment`, but no function/file/line.
+`offsetIntoBinaryTextSegment`, but no function/file/line. The script also
+accepts one raw diagnostic `jsonRepresentation()` file, such as a downloaded
+`metrickit-crash-diagnostic.json` or `MXDiagnosticPayload.json` Sentry
+attachment.
 
 Release-build binaries are stripped and the dSYM never ships to device, so
 on-device symbolication is impossible. This script:
@@ -69,7 +72,7 @@ def build_ssl_context() -> ssl.SSLContext:
 @dataclass
 class MetricKitEntry:
     line_number: int
-    timestamp_ms: int
+    timestamp_ms: int | None
     category: str
     message: str
     payload: dict[str, Any]
@@ -103,7 +106,9 @@ class SymbolicatedEntry:
     notes: list[str] = field(default_factory=list)
 
 
-def format_timestamp(timestamp_ms: int) -> str:
+def format_timestamp(timestamp_ms: int | None) -> str:
+    if timestamp_ms is None:
+        return "time unknown"
     dt = datetime.fromtimestamp(timestamp_ms / 1000, UTC).astimezone(PACIFIC)
     millis = int(timestamp_ms % 1000)
     return f"{dt:%Y-%m-%d %H:%M:%S}.{millis:03d} {dt.tzname()}"
@@ -118,8 +123,43 @@ def categorize_entry(entry: dict[str, Any]) -> str | None:
     return rest.split(" ", 1)[0] if rest else None
 
 
+RAW_CATEGORY_KEYS = (
+    ("crash", ("exceptionType", "exceptionCode", "signal", "terminationReason")),
+    ("hang", ("hangDuration",)),
+    ("cpuException", ("totalCPUTime", "totalSampledTime")),
+    ("diskWriteException", ("writesCaused",)),
+    ("appLaunch", ("launchDuration",)),
+)
+
+
+def load_raw_diagnostic(path: Path) -> dict[str, Any] | None:
+    """Return the payload when the file is one raw diagnostic JSON object."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if isinstance(payload, dict) and isinstance(payload.get("callStackTree"), dict):
+        return payload
+    return None
+
+
 def iter_metrickit_entries(path: Path) -> Iterable[MetricKitEntry]:
-    """Yield MetricKit entries found in the NDJSON log."""
+    """Yield MetricKit entries found in the NDJSON log or raw diagnostic file."""
+    raw_payload = load_raw_diagnostic(path)
+    if raw_payload is not None:
+        meta = diagnostic_metadata(raw_payload)
+        category = next(
+            (name for name, keys in RAW_CATEGORY_KEYS if any(key in meta for key in keys)),
+            "unknown",
+        )
+        yield MetricKitEntry(
+            line_number=1,
+            timestamp_ms=None,
+            category=category,
+            message="Raw MetricKit diagnostic file",
+            payload=raw_payload,
+        )
+        return
     with path.open("r", encoding="utf-8") as handle:
         for line_number, raw in enumerate(handle, start=1):
             stripped = raw.strip()
@@ -576,7 +616,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Symbolicate MetricKit call stacks captured in PodHaven NDJSON logs."
     )
-    parser.add_argument("path", help="Path to log.ndjson or widget-log.ndjson.")
+    parser.add_argument(
+        "path",
+        help="Path to log.ndjson, widget-log.ndjson, or one raw MetricKit diagnostic JSON file.",
+    )
     parser.add_argument(
         "--around",
         type=parse_time_arg,
@@ -657,7 +700,9 @@ def main() -> int:
         if entry.category not in selected_categories:
             other_category += 1
             continue
-        if args.around is not None and abs(entry.timestamp_ms - args.around) > args.window_ms:
+        if args.around is not None and (
+            entry.timestamp_ms is None or abs(entry.timestamp_ms - args.around) > args.window_ms
+        ):
             outside_window.append(entry)
             continue
         entries.append(entry)

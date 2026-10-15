@@ -15,7 +15,7 @@ this diagnostic is expected noise for heavy users, not an actionable defect.
 
 ## What we do about it
 
-`AppLauncher.configureSentryOptions(_:)` sets `options.beforeSendWithHint`, which passes each event through `SentryEventProcessor.process(_:)`. That method returns `nil` for any event whose exception mechanism `type` is `mx_disk_write_exception` (`SentryEventProcessor.metricKitDiskWriteMechanism`). Hang (`mx_hang_diagnostic`), CPU (`mx_cpu_exception`), and crash MetricKit diagnostics still flow. `MetricKitMonitor` independently logs every diagnostic — including disk-write — at `.notice` with the raw `jsonRepresentation()` in metadata (`PodHaven/MetricKitMonitor.swift`), so the forensic payload is retained in the NDJSON logs even though the Sentry issue is suppressed.
+`AppLauncher.configureSentryOptions(_:)` sets `options.beforeSendWithHint`, which passes each event through `SentryEventProcessor.process(_:)`. That method returns `nil` for any event whose exception mechanism `type` is `mx_disk_write_exception` (`SentryEventProcessor.metricKitDiskWriteMechanism`). The SDK's hang (`mx_hang_diagnostic`) and CPU (`mx_cpu_exception`) diagnostics still flow. The SDK skips crash diagnostics; `MetricKitMonitor` forwards eligible ones itself with the `MXCrashDiagnostic` mechanism, which this filter keeps. See [MetricKit crash diagnostics](../docs/sentry-termination-diagnostics.md#metrickit-crash-diagnostics). `MetricKitMonitor` independently logs every diagnostic — including disk-write — at `.notice` with the raw `jsonRepresentation()` in metadata (`PodHaven/MetricKitMonitor.swift`), so the forensic payload is retained in the NDJSON logs even though the Sentry issue is suppressed.
 
 ## PODHAVEN-3W history (don't re-litigate)
 

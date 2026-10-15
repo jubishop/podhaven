@@ -76,6 +76,70 @@ build attribution. In particular, a multiple-version report cannot assign all
 its counts to the latest build. See Apple's
 [reporting-period attribution](https://developer.apple.com/documentation/metrickit/mxmetricpayload/includesmultipleapplicationversions).
 
+## MetricKit crash diagnostics
+
+Sentry's MetricKit integration files hang, CPU-exception, and disk-write
+diagnostics, but it skips `MXCrashDiagnostic`. Sentry's in-process crash
+reporter is signal-based, so it cannot observe a watchdog or other `SIGKILL`
+termination. `MetricKitMonitor` closes that gap. It keeps the local `.notice`
+record of every diagnostic. It also sends each eligible crash diagnostic to
+Sentry as one event when MetricKit delivers it, usually at the next launch.
+
+| Diagnostic fields | Category | Reason |
+| --- | --- | --- |
+| Termination reason contains `watchdog`, `0x8badf00d`, or `2343432205` | `watchdog` | Watchdog kills arrive as `SIGKILL` |
+| Exception type `EXC_RESOURCE` | `resource_limit` | Sentry does not handle this Mach exception |
+| Exception type `EXC_GUARD` | `guard` | Sentry does not handle this Mach exception |
+| Signal `SIGKILL` | `sigkill` | The signal cannot be caught |
+| Anything else | Stays local | Sentry's handlers catch `SIGABRT`, `SIGBUS`, `SIGFPE`, `SIGILL`, `SIGPIPE`, `SIGSEGV`, `SIGSYS`, `SIGTRAP`, `SIGTERM`, and their Mach exceptions |
+
+The event is fatal and unhandled. It uses the SDK's synthetic
+`MXCrashDiagnostic` mechanism, including signal metadata. MetricKit roots each
+crash call stack at the crashing frame and nests each caller in `subFrames`.
+Each call stack becomes a thread with that chain reversed into Sentry's
+caller-to-callee order. The thread-attributed stack is the exception stack.
+Debug images carry each binary UUID and the image address that MetricKit's
+offsets imply, so Sentry symbolicates in-app frames with the uploaded dSYMs.
+The issue title is the symbolicated in-app function closest to the crash.
+
+Attribution comes from the diagnostic, not the delivering process. The release
+is `<bundle>@<version>+<build>`, `dist` is the build, and the `app` context's
+version and build use the same values. The `metrickit_crash` context records
+`termination`, `attribution=diagnostic_metadata`, the version, build, OS
+version, architecture, device type, and bundle identifier. It also records
+the payload's `periodStart` and `periodEnd`; the exception type and code, the
+signal, and the termination reason when present; and thread, frame, and
+attachment counts. Its `observation=delivery_launch` and `deliverySessionID`
+identify the launch that sent it. That launch's scope also supplies the
+`log-session-id` and `git-commit-hash` tags, the remaining app and device
+context, and the recent-log attachments. Do not treat those as the terminated
+process.
+
+The fingerprint is `{{ default }}`, `metrickit-crash`, and the category. Sentry
+groups by the symbolicated stack within each termination category, so
+recurrences group across builds. Addresses, process IDs, timestamps, exception
+codes, and termination text are not part of the key.
+
+The event's size and quota use are bounded:
+
+- At most five crash events are sent per payload; a warning counts the rest.
+- At most 32 threads are kept, plus any thread-attributed stack beyond them.
+- At most 128 frames are kept per thread, keeping the frames closest to the
+  crash.
+- Termination reasons are capped at 512 characters, and identity fields at 64.
+- The raw `jsonRepresentation()` is attached as
+  `metrickit-crash-diagnostic.json` when it is 256 KiB or smaller. Larger
+  payloads report `rawPayloadAttachment=omitted_over_limit`.
+- A payload with an Objective-C exception reason reports
+  `omitted_exception_message` instead, because its message and arguments can
+  hold runtime values.
+
+The payload contains only call stacks, binary metadata, and termination
+fields. An unreadable or empty call stack is logged as an error and not sent,
+because the SDK would otherwise attach the delivering process's threads.
+To symbolicate a downloaded attachment offline, pass it to the `analyze-logs`
+skill's `symbolicate_metrickit.py`.
+
 ## PODHAVEN-3J assessment
 
 The cause of the build 573 termination remains unknown. The SDK's watchdog
@@ -109,6 +173,21 @@ summary retained watchdog and memory-limit counts, reporting dates, payload
 version/build, multiple-version flag, and aggregate attribution.
 Capture-time file context also reached Sentry with both files present and with
 the widget file missing; it retained sizes and limits without paths or contents.
+
+Run `bin/sentry-metrickit-smoke --device <available-iOS-Simulator-UDID>` with
+authenticated Sentry CLI access to verify crash-diagnostic delivery. It builds
+an isolated Simulator probe from the current sources and uploads the probe's
+dSYM. The probe sends a synthetic watchdog diagnostic through
+`MetricKitMonitor.receive(_:)` and the production Sentry configuration. The
+diagnostic's frames are real function offsets in the probe binary, and its
+version and build differ from the probe's own. The helper reads the event and
+attachment back from Sentry. It checks symbolicated in-app frames in
+caller-to-callee order, an issue title naming the crashing in-app function,
+diagnostic attribution, the exact bounded attachment, the context fields, and
+the absence of user identity. It also symbolicates the downloaded attachment offline.
+Evidence stays under ignored `.cache/sentry-metrickit-smoke/`. It never
+installs on a physical device. Actual MetricKit delivery of a real watchdog
+kill remains an observation limit.
 
 Regression coverage checks prior-history survival under new-launch log volume,
 record boundaries and bounds, session/build fields, foreground and background
