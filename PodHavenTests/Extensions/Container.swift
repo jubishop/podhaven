@@ -13,6 +13,7 @@ extension Container: @retroactive AutoRegistering {
     sentryLogger.context(.test) { FakeSentryLogger() }.scope(.cached)
     appHangTracking.context(.test) { FakeAppHangTracking() }.scope(.cached)
     siriDiagnosticCapture.context(.test) { { _ in } }
+    opmlDiagnosticCapture.context(.test) { { _, _ in } }
     siriAuthorized.context(.test) { { true } }
     siriCatalogFile.context(.test) {
       SiriCatalogFile(

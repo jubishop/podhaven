@@ -136,4 +136,125 @@ struct ErrorTests {
         """
     )
   }
+
+  @Test(
+    "loggableMessage includes DecodingError context",
+    arguments: [
+      (
+        DecodingError.keyNotFound(
+          TestCodingKey("text"),
+          DecodingError.Context(
+            codingPath: [TestCodingKey("body"), TestCodingKey("outline"), TestCodingKey(3)],
+            debugDescription: "No value associated with key text."
+          )
+        ),
+        """
+        [DecodingError.keyNotFound]
+        Missing key: text
+        Coding path: body.outline[3]
+        Debug description: No value associated with key text.
+        """
+      ),
+      (
+        DecodingError.typeMismatch(
+          String.self,
+          DecodingError.Context(
+            codingPath: [TestCodingKey("head"), TestCodingKey("title")],
+            debugDescription: "Expected to decode String but found a dictionary instead."
+          )
+        ),
+        """
+        [DecodingError.typeMismatch]
+        Type mismatch: expected String
+        Coding path: head.title
+        Debug description: Expected to decode String but found a dictionary instead.
+        """
+      ),
+      (
+        DecodingError.valueNotFound(
+          Int.self,
+          DecodingError.Context(
+            codingPath: [TestCodingKey(0), TestCodingKey("count")],
+            debugDescription: "Expected Int value but found null instead."
+          )
+        ),
+        """
+        [DecodingError.valueNotFound]
+        Value not found: expected Int
+        Coding path: [0].count
+        Debug description: Expected Int value but found null instead.
+        """
+      ),
+      (
+        DecodingError.dataCorrupted(
+          DecodingError.Context(
+            codingPath: [],
+            debugDescription: "The given data was not valid XML."
+          )
+        ),
+        """
+        [DecodingError.dataCorrupted]
+        Data corrupted
+        Coding path: (root)
+        Debug description: The given data was not valid XML.
+        """
+      ),
+    ]
+  )
+  func testLoggableMessageIncludesDecodingErrorContext(error: DecodingError, expected: String) {
+    var lines = expected.components(separatedBy: "\n")
+    lines.insert(ErrorKit.message(for: error), at: 1)
+    #expect(
+      String(describing: ErrorKit.loggableMessage(for: error)) == lines.joined(separator: "\n")
+    )
+  }
+
+  @Test("loggableMessage includes DecodingError context of underlying errors")
+  func testLoggableMessageIncludesUnderlyingDecodingErrorContext() {
+    let decodingError = DecodingError.keyNotFound(
+      TestCodingKey("text"),
+      DecodingError.Context(
+        codingPath: [TestCodingKey("body"), TestCodingKey("outline"), TestCodingKey(1)],
+        debugDescription: "No value associated with key text."
+      )
+    )
+    let error = NSError(
+      domain: "TopDomain",
+      code: 1,
+      userInfo: [
+        NSLocalizedDescriptionKey: "Top level error",
+        NSUnderlyingErrorKey: decodingError,
+      ]
+    )
+
+    #expect(
+      String(describing: ErrorKit.loggableMessage(for: error)) == """
+        [NSError.Error]
+        [TopDomain: 1] Top level error
+        Underlying: DecodingError.keyNotFound ->
+          \(ErrorKit.message(for: decodingError))
+          Missing key: text
+          Coding path: body.outline[1]
+          Debug description: No value associated with key text.
+        """
+    )
+  }
+}
+
+private struct TestCodingKey: CodingKey {
+  let stringValue: String
+  let intValue: Int?
+
+  init(_ stringValue: String) {
+    self.stringValue = stringValue
+    intValue = nil
+  }
+
+  init(_ intValue: Int) {
+    stringValue = "\(intValue)"
+    self.intValue = intValue
+  }
+
+  init?(stringValue: String) { self.init(stringValue) }
+  init?(intValue: Int) { self.init(intValue) }
 }
