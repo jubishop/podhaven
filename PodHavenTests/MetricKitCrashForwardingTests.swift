@@ -176,6 +176,7 @@ struct MetricKitCrashForwardingTests {
     "dyld": 0x1_8000_0000,
     "UIKitCore": 0x1_9000_0000,
     "libsystem_kernel.dylib": 0x1_a000_0000,
+    #"Plug-In "{[\ Bundle"#: 0x1_b000_0000,
   ]
 
   private static let start = StackFrame(
@@ -203,6 +204,11 @@ struct MetricKitCrashForwardingTests {
     uuid: "7D8E9F0A-1B2C-3D4E-8F5A-6B7C8D9E0F1A",
     offset: 0x1234
   )
+  private static let plugIn = StackFrame(
+    binary: #"Plug-In "{[\ Bundle"#,
+    uuid: "2E4F6A8B-0C1D-3E2F-9A4B-5C6D7E8F9A0B",
+    offset: 0x2468
+  )
 
   private static let mainThread = StackThread(
     attributed: true,
@@ -216,35 +222,48 @@ struct MetricKitCrashForwardingTests {
     (imageBases[binary] ?? 0) + slide
   }
 
-  // Like MetricKit, roots each stack at the crashing frame and nests callers in subFrames.
-  private static func tree(_ threads: [StackThread], slide: UInt64 = 0) throws -> Data {
-    let stacks: [[String: Any]] = threads.map { thread in
-      var node: [String: Any]?
-      for frame in thread.frames {
-        var entry: [String: Any] = [
-          "binaryUUID": frame.uuid,
-          "binaryName": frame.binary,
-          "offsetIntoBinaryTextSegment": frame.offset,
-          "address": base(frame.binary, slide: slide) + frame.offset,
-          "sampleCount": 1,
-        ]
-        if let node { entry["subFrames"] = [node] }
-        node = entry
-      }
-      var roots: [[String: Any]] = []
-      if let node { roots.append(node) }
-      return ["threadAttributed": thread.attributed, "callStackRootFrames": roots]
+  private static func wireFrames(_ frames: [StackFrame]) -> [WireFrame] {
+    frames.map { frame in
+      WireFrame(
+        package: frame.binary,
+        instructionAddr: hex(base(frame.binary, slide: 0) + frame.offset),
+        imageAddr: hex(base(frame.binary, slide: 0)),
+        inApp: frame.binary == "PodHaven"
+      )
     }
-    return try JSONSerialization.data(
-      withJSONObject: ["callStackPerThread": true, "callStacks": stacks]
+  }
+
+  // Like MetricKit, roots each stack at the crashing frame and nests callers in subFrames.
+  // Written as text because JSONSerialization recurses per level and deep stacks
+  // overflow a test thread's stack.
+  private static func tree(_ threads: [StackThread], slide: UInt64 = 0) -> Data {
+    let stacks = threads.map { thread in
+      let frames = thread.frames.reversed()
+        .map { frame in
+          let binary = frame.binary.replacing("\\", with: "\\\\").replacing("\"", with: "\\\"")
+          return """
+            {"binaryUUID":"\(frame.uuid)","binaryName":"\(binary)",\
+            "offsetIntoBinaryTextSegment":\(frame.offset),\
+            "address":\(base(frame.binary, slide: slide) + frame.offset),"sampleCount":1
+            """
+        }
+      let roots =
+        frames.isEmpty
+        ? ""
+        : frames.joined(separator: #","subFrames":["#)
+          + String(repeating: "}]", count: frames.count - 1) + "}"
+      return #"{"threadAttributed":\#(thread.attributed),"callStackRootFrames":[\#(roots)]}"#
+    }
+    return Data(
+      #"{"callStackPerThread":true,"callStacks":[\#(stacks.joined(separator: ","))]}"#.utf8
     )
   }
 
   private static func crash(
     threads: [StackThread] = [mainThread, workerThread],
     slide: UInt64 = 0
-  ) throws -> Crash {
-    Crash(callStackTreeJSON: try tree(threads, slide: slide))
+  ) -> Crash {
+    Crash(callStackTreeJSON: tree(threads, slide: slide))
   }
 
   private func captures(_ payloads: [Payload]) -> [Capture] {
@@ -286,7 +305,7 @@ struct MetricKitCrashForwardingTests {
 
   @Test("a watchdog crash diagnostic produces one Sentry capture attributed to its own build")
   func watchdogCrashIsCaptured() throws {
-    let crash = try Self.crash()
+    let crash = Self.crash()
     let payload = Payload(crashReports: [crash])
     let (captured, logs) = LogCapture.withSink { sink in
       (captures([payload]), sink.captured().filter { $0.label == "PodHaven/MetricKit" })
@@ -321,14 +340,7 @@ struct MetricKitCrashForwardingTests {
     #expect(event.threads.values.map(\.id) == [0, 1])
     #expect(event.threads.values.map(\.crashed) == [true, false])
     #expect(exception.threadId == 0)
-    let expectedFrames = Self.mainThread.frames.map { frame in
-      WireFrame(
-        package: frame.binary,
-        instructionAddr: Self.hex(Self.base(frame.binary, slide: 0) + frame.offset),
-        imageAddr: Self.hex(Self.base(frame.binary, slide: 0)),
-        inApp: frame.binary == "PodHaven"
-      )
-    }
+    let expectedFrames = Self.wireFrames(Self.mainThread.frames)
     #expect(exception.stacktrace?.frames == expectedFrames)
     #expect(event.threads.values.first?.stacktrace.frames == expectedFrames)
 
@@ -379,14 +391,14 @@ struct MetricKitCrashForwardingTests {
 
   @Test("the grouping key ignores per-occurrence values and separates termination categories")
   func groupingKeyIsStable() throws {
-    var first = try Self.crash(slide: 0)
+    var first = Self.crash(slide: 0)
     first.terminationReason =
       "Namespace FRONTBOARD, Code 0x8badf00d, application<com.artisanalsoftware.PodHaven>:101"
-    var second = try Self.crash(slide: 0x4c_0000)
+    var second = Self.crash(slide: 0x4c_0000)
     second.terminationReason =
       "Namespace FRONTBOARD, Code 0x8badf00d, application<com.artisanalsoftware.PodHaven>:202"
     second.exceptionCode = 7
-    var killed = try Self.crash()
+    var killed = Self.crash()
     killed.terminationReason = nil
     let captured = captures([
       Payload(crashReports: [first]),
@@ -432,7 +444,7 @@ struct MetricKitCrashForwardingTests {
     terminationReason: String?,
     expected: String
   ) throws {
-    var crash = try Self.crash()
+    var crash = Self.crash()
     crash.signal = signal.map { NSNumber(value: $0) }
     crash.exceptionType = exceptionType.map { NSNumber(value: $0) }
     crash.terminationReason = terminationReason
@@ -461,7 +473,7 @@ struct MetricKitCrashForwardingTests {
     exceptionType: Int?,
     terminationReason: String?
   ) throws {
-    var crash = try Self.crash()
+    var crash = Self.crash()
     crash.signal = signal.map { NSNumber(value: $0) }
     crash.exceptionType = exceptionType.map { NSNumber(value: $0) }
     crash.terminationReason = terminationReason
@@ -501,7 +513,7 @@ struct MetricKitCrashForwardingTests {
 
   @Test("an oversized raw payload is reported without its attachment")
   func oversizedPayloadOmitsAttachment() throws {
-    var crash = try Self.crash()
+    var crash = Self.crash()
     crash.raw = Data(repeating: 0x20, count: MetricKitCrashReport.maximumAttachmentBytes + 1)
     let captured = captures([Payload(crashReports: [crash])])
 
@@ -515,7 +527,7 @@ struct MetricKitCrashForwardingTests {
 
   @Test("an Objective-C exception message never leaves the device")
   func objectiveCExceptionOmitsAttachment() throws {
-    var crash = try Self.crash()
+    var crash = Self.crash()
     crash.objectiveCException = MetricKitObjectiveCException(
       name: "NSInternalInconsistencyException",
       className: "NSException",
@@ -544,7 +556,7 @@ struct MetricKitCrashForwardingTests {
     )
     let threads =
       Array(repeating: Self.workerThread, count: MetricKitCrashReport.maximumThreads + 3) + [deep]
-    var crash = try Self.crash(threads: threads)
+    var crash = Self.crash(threads: threads)
     crash.terminationReason = "watchdog " + String(repeating: "x", count: 5_000)
     let captured = captures([Payload(crashReports: [crash])])
 
@@ -569,9 +581,44 @@ struct MetricKitCrashForwardingTests {
     #expect(reason.count == MetricKitCrashReport.maximumReasonLength)
   }
 
+  @Test("a call stack nested deeper than JSON parsers allow keeps the frames nearest the crash")
+  func deepCallStackIsCaptured() throws {
+    let deep = StackThread(
+      attributed: true,
+      frames: [Self.start]
+        + (0..<1_000)
+        .map {
+          StackFrame(binary: "PodHaven", uuid: Self.appMain.uuid, offset: UInt64(0x1000 + $0))
+        }
+        + [Self.plugIn, Self.trap]
+    )
+    let crash = Self.crash(threads: [deep, Self.workerThread])
+    let captured = captures([Payload(crashReports: [crash])])
+
+    #expect(captured.count == 1)
+    let capture = try #require(captured.first)
+    let event = try decode(capture)
+    let expectedFrames = Self.wireFrames(
+      Array(deep.frames.suffix(MetricKitCrashReport.maximumFramesPerThread))
+    )
+    #expect(event.threads.values.map(\.crashed) == [true, false])
+    #expect(event.threads.values.first?.stacktrace.frames == expectedFrames)
+    #expect(event.exception.values.first?.stacktrace?.frames == expectedFrames)
+    #expect(
+      event.threads.values.last?.stacktrace.frames == Self.wireFrames(Self.workerThread.frames)
+    )
+    let context = event.contexts.metrickitCrash
+    #expect(context.truncatedThreads == 1)
+    #expect(
+      context.frames
+        == MetricKitCrashReport.maximumFramesPerThread + Self.workerThread.frames.count
+    )
+    #expect(capture.attachment == crash.jsonRepresentation())
+  }
+
   @Test("captures per payload are capped and the overflow is logged")
   func capturesPerPayloadAreCapped() throws {
-    let crash = try Self.crash()
+    let crash = Self.crash()
     let count = MetricKitCrashReport.maximumCapturesPerPayload + 2
     let (captured, logs) = LogCapture.withSink { sink in
       (
@@ -589,7 +636,7 @@ struct MetricKitCrashForwardingTests {
 
   @Test("an unreadable call stack is logged and not reported without its stack")
   func unreadableCallStackIsNotCaptured() throws {
-    var crash = try Self.crash()
+    var crash = Self.crash()
     crash.callStackTreeJSON = Data("not json".utf8)
     let (captured, logs) = LogCapture.withSink { sink in
       (captures([Payload(crashReports: [crash])]), sink.captured())
