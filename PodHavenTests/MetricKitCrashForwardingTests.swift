@@ -216,10 +216,11 @@ struct MetricKitCrashForwardingTests {
     (imageBases[binary] ?? 0) + slide
   }
 
+  // Like MetricKit, roots each stack at the crashing frame and nests callers in subFrames.
   private static func tree(_ threads: [StackThread], slide: UInt64 = 0) throws -> Data {
     let stacks: [[String: Any]] = threads.map { thread in
       var node: [String: Any]?
-      for frame in thread.frames.reversed() {
+      for frame in thread.frames {
         var entry: [String: Any] = [
           "binaryUUID": frame.uuid,
           "binaryName": frame.binary,

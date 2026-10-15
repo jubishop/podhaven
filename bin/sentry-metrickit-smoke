@@ -80,11 +80,11 @@ def in_app_offsets(binary):
 
 
 def diagnostic(binary_uuid, offsets):
-    """Build MetricKit crash JSON whose call tree roots at the outermost caller."""
+    """Build MetricKit crash JSON whose call tree roots at the crashing frame and nests each caller."""
     frames = [("PodHaven", binary_uuid, offset) for offset in offsets]
     frames.append(("libsystem_kernel.dylib", SYSTEM_UUID, 0x1234))
     node = None
-    for name, image, offset in reversed(frames):
+    for name, image, offset in frames:
         base = 0x1_0000_0000 if name == "PodHaven" else 0x1_a000_0000
         entry = {"binaryUUID": image, "binaryName": name, "offsetIntoBinaryTextSegment": offset,
                  "address": base + offset, "sampleCount": 1}
@@ -129,13 +129,14 @@ def verify(event, data, remote_size, sent, offline, uploader_release, run):
     assert all(frame.get("symbolicatorStatus") == "symbolicated" for frame in in_app), "In-app frame unsymbolicated"
     for frame, (name, _) in zip(in_app, FUNCTIONS):
         assert name in (frame.get("function") or ""), f"Expected {name}, got {frame.get('function')}"
+    assert FUNCTIONS[-1][0] in (event.get("title") or ""), "Issue title is not the crashing in-app function"
     user = event.get("user") or {}
     assert not any(user.get(key) for key in ("email", "username", "ip_address", "name")), "User identity attached"
     entry, = offline["entries"]
     offline_frames = [frame for stack in entry["callStacks"] for frame in stack["frames"]
                       if frame["binaryName"] == "PodHaven"]
     assert len(offline_frames) == len(FUNCTIONS)
-    for frame, (name, _) in zip(offline_frames, FUNCTIONS):
+    for frame, (name, _) in zip(reversed(offline_frames), FUNCTIONS):
         assert name in (frame["symbol"] or ""), f"Offline symbolication expected {name}, got {frame['symbol']}"
     return {"attachmentBytes": len(data), "release": release, "uploaderRelease": uploader_release,
             "inAppFunctions": [frame["function"] for frame in in_app],

@@ -94,12 +94,13 @@ Sentry as one event when MetricKit delivers it, usually at the next launch.
 | Anything else | Stays local | Sentry's handlers catch `SIGABRT`, `SIGBUS`, `SIGFPE`, `SIGILL`, `SIGPIPE`, `SIGSEGV`, `SIGSYS`, `SIGTRAP`, `SIGTERM`, and their Mach exceptions |
 
 The event is fatal and unhandled. It uses the SDK's synthetic
-`MXCrashDiagnostic` mechanism, including signal metadata. Each MetricKit call
-stack becomes a thread that follows its most-sampled path from caller to
-callee. The thread-attributed stack is the exception stack. Debug images carry
-each binary UUID and the image address that MetricKit's offsets imply, so
-Sentry symbolicates in-app frames with the uploaded dSYMs. The issue title is
-the top symbolicated in-app function.
+`MXCrashDiagnostic` mechanism, including signal metadata. MetricKit roots each
+crash call stack at the crashing frame and nests each caller in `subFrames`.
+Each call stack becomes a thread with that chain reversed into Sentry's
+caller-to-callee order. The thread-attributed stack is the exception stack.
+Debug images carry each binary UUID and the image address that MetricKit's
+offsets imply, so Sentry symbolicates in-app frames with the uploaded dSYMs.
+The issue title is the symbolicated in-app function closest to the crash.
 
 Attribution comes from the diagnostic, not the delivering process. The release
 is `<bundle>@<version>+<build>`, `dist` is the build, and the `app` context's
@@ -180,9 +181,10 @@ dSYM. The probe sends a synthetic watchdog diagnostic through
 `MetricKitMonitor.receive(_:)` and the production Sentry configuration. The
 diagnostic's frames are real function offsets in the probe binary, and its
 version and build differ from the probe's own. The helper reads the event and
-attachment back from Sentry. It checks symbolicated in-app frames, diagnostic
-attribution, the exact bounded attachment, the context fields, and the absence
-of user identity. It also symbolicates the downloaded attachment offline.
+attachment back from Sentry. It checks symbolicated in-app frames in
+caller-to-callee order, an issue title naming the crashing in-app function,
+diagnostic attribution, the exact bounded attachment, the context fields, and
+the absence of user identity. It also symbolicates the downloaded attachment offline.
 Evidence stays under ignored `.cache/sentry-metrickit-smoke/`. It never
 installs on a physical device. Actual MetricKit delivery of a real watchdog
 kill remains an observation limit.

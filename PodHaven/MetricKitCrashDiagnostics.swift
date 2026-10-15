@@ -183,7 +183,7 @@ struct MetricKitCrashReport {
     var truncatedThreads = 0
     for (index, callStack) in tree.callStacks.enumerated()
     where index < Self.maximumThreads || callStack.threadAttributed == true {
-      let path = Self.mostSampledPath(callStack.callStackRootFrames)
+      let path = Self.callerFirstPath(callStack.callStackRootFrames)
       let kept = path.suffix(Self.maximumFramesPerThread)
       if kept.count < path.count { truncatedThreads += 1 }
       var frames: [Frame] = []
@@ -327,17 +327,17 @@ struct MetricKitCrashReport {
     self.frameCount = frameCount
   }
 
-  // MetricKit roots each call tree at the outermost caller and splits it where
-  // samples diverge; following the most-sampled child yields Sentry's
+  // MetricKit roots each crash call stack at the crashing frame and nests each
+  // caller in subFrames; reversing the most-sampled chain yields Sentry's
   // caller-to-callee frame order.
-  private static func mostSampledPath(_ roots: [CallStackFrame]) -> [CallStackFrame] {
+  private static func callerFirstPath(_ roots: [CallStackFrame]) -> [CallStackFrame] {
     var path: [CallStackFrame] = []
     var candidates = roots
     while let next = candidates.max(by: { ($0.sampleCount ?? 0) < ($1.sampleCount ?? 0) }) {
       path.append(next)
       candidates = next.subFrames ?? []
     }
-    return path
+    return path.reversed()
   }
 
   private static func hex(_ value: UInt64) -> String { "0x" + String(value, radix: 16) }

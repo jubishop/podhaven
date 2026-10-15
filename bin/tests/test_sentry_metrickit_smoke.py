@@ -40,20 +40,19 @@ def fixture():
         "user": {"id": "sdk-installation", "geo": {"city": "Seattle"}},
         "title": NAMES[-1],
     }
-    offline = {"entries": [{"callStacks": [{"frames": [
-        {"binaryName": "PodHaven", "symbol": f"{name}() (in PodHaven)"} for name in NAMES]
-        + [{"binaryName": "libsystem_kernel.dylib", "symbol": None}]}]}]}
+    offline = {"entries": [{"callStacks": [{"frames": [{"binaryName": "libsystem_kernel.dylib", "symbol": None}] + [
+        {"binaryName": "PodHaven", "symbol": f"{name}() (in PodHaven)"} for name in reversed(NAMES)]}]}]}
     return event, sent, offline
 
 
 class MetricKitSmokeTests(unittest.TestCase):
-    def test_fixture_roots_the_call_tree_at_the_outermost_caller(self):
+    def test_fixture_roots_the_call_tree_at_the_crashing_frame(self):
         node = smoke.diagnostic(BINARY_UUID, OFFSETS)["callStackTree"]["callStacks"][0]["callStackRootFrames"][0]
         chain = []
         while node is not None:
             chain.append((node["binaryName"], node["offsetIntoBinaryTextSegment"]))
             node = (node.get("subFrames") or [None])[0]
-        self.assertEqual(chain, [("PodHaven", offset) for offset in OFFSETS] + [("libsystem_kernel.dylib", 0x1234)])
+        self.assertEqual(chain, [("libsystem_kernel.dylib", 0x1234)] + [("PodHaven", offset) for offset in reversed(OFFSETS)])
 
     def test_verify_accepts_symbolicated_frames_with_diagnostic_attribution(self):
         event, sent, offline = fixture()
@@ -69,6 +68,10 @@ class MetricKitSmokeTests(unittest.TestCase):
             event["entries"][0]["data"]["values"][0]["stacktrace"]["frames"][0]["symbolicatorStatus"] = "missing"
             return event, sent, offline, UPLOADER
 
+        def outermost_title(event, sent, offline):
+            event["title"] = NAMES[0]
+            return event, sent, offline, UPLOADER
+
         def email(event, sent, offline):
             event["user"]["email"] = "listener@example.com"
             return event, sent, offline, UPLOADER
@@ -80,7 +83,7 @@ class MetricKitSmokeTests(unittest.TestCase):
         def altered_attachment(event, sent, offline):
             return event, sent.replace(b"0x8badf00d", b"0x0badf00d"), offline, UPLOADER
 
-        for mutate in (uploader_release, unsymbolicated, email, extra_context, altered_attachment):
+        for mutate in (uploader_release, unsymbolicated, outermost_title, email, extra_context, altered_attachment):
             with self.subTest(mutate.__name__):
                 event, sent, offline, uploader = mutate(*fixture())
                 with self.assertRaises(AssertionError):
