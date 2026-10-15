@@ -12,6 +12,7 @@ extension Container: @retroactive AutoRegistering {
     LogCapture.installOnce()
     sentryLogger.context(.test) { FakeSentryLogger() }.scope(.cached)
     siriDiagnosticCapture.context(.test) { { _ in } }
+    opmlDiagnosticCapture.context(.test) { { _, _ in } }
     siriAuthorized.context(.test) { { true } }
     siriCatalogFile.context(.test) {
       SiriCatalogFile(

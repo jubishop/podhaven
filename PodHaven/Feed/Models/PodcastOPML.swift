@@ -22,9 +22,14 @@ struct PodcastOPML: Codable, Sendable {
 
   static func parse(_ url: URL) async throws -> PodcastOPML {
     log.debug("Parsing url: \(url)")
-    return try await parse(
-      try await Container.shared.podcastOPMLSession().validatedData(from: url)
-    )
+    let data = try await Container.shared.podcastOPMLSession().validatedData(from: url)
+    do {
+      return try await parse(data)
+    } catch {
+      Container.shared.opmlImportDiagnostics()
+        .parseFailed(error, data: data, fileName: url.lastPathComponent)
+      throw error
+    }
   }
 
   @concurrent static func parse(_ data: Data) async throws -> PodcastOPML {
