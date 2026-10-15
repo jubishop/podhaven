@@ -60,9 +60,11 @@ def prepare(output, *, bundle=BUNDLE, integration="sentry-hang"):
     return path
 
 
-def api(path, binary=False):
-    data = json.loads(command("sentry", "api", path, "--json"))
-    return data.encode("utf-8") if binary else data
+def api(path):
+    response = json.loads(command("sentry", "api", path, "--json"))
+    if response["status"] != 200:
+        raise RuntimeError(f"Sentry API returned HTTP {response['status']} for {path}")
+    return response["body"]
 
 
 def source_state():
@@ -82,6 +84,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", required=True, help="Available iOS Simulator UDID, never a physical device")
     args = parser.parse_args()
+    token = os.environ.get("SENTRY_AUTH_TOKEN") or command("sentry", "auth", "token")
+    if not token or any(character.isspace() for character in token):
+        raise RuntimeError("Sentry did not return a usable authentication token")
     devices = json.loads(command("xcrun", "simctl", "list", "devices", "available", "--json"))["devices"]
     device = next((device for runtime, entries in devices.items() if ".iOS-" in runtime
                    for device in entries if device["udid"] == args.device), None)
@@ -150,7 +155,10 @@ def main():
         for name, limit in limits.items():
             matches = [item for item in attachments if item["name"] == name]
             assert len(matches) == 1, f"Expected one {name}, found {len(matches)}"
-            data = api(base + "attachments/" + str(matches[0]["id"]) + "/?download=1", binary=True)
+            data = subprocess.check_output([
+                "curl", "--fail", "--silent", "--show-error", "--location", "--max-time", "30", "--header", "@-",
+                "https://sentry.io/api/0/" + base + "attachments/" + str(matches[0]["id"]) + "/?download=1",
+            ], input=("Authorization: Bearer " + token + "\n").encode())
             (evidence / name).write_bytes(data)
             assert 0 < len(data) <= limit and data.endswith(b"\n"), f"Invalid bounds/boundary for {name}"
             assert len(data) == matches[0]["size"], f"Remote download size mismatch for {name}"

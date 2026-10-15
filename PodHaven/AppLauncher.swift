@@ -268,6 +268,7 @@ struct AppLauncher: Sendable {
     SentrySDK.start { options in
       configureSentryOptions(options)
     }
+    Container.shared.appHangReportingGate().start()
     Task { await Container.shared.siriResolutionDiagnostics().captureExtensionFailures() }
   }
 

@@ -23,7 +23,7 @@ Preserve decision reasons and evidence. Follow the
 - [Development workflow](development-workflow.md): setup, search, hooks, cache isolation, dependencies, testing, and validation
 - [Versioning and releases](releases.md): version commits, TestFlight uploads, automated App Store submissions, and retry behavior
 - [Universal Links](universal-links.md): associated domains, website fallback, and coordinated app rollout
-- [CarPlay scene lifecycle](carplay-lifecycle.md): startup ownership, connection cleanup, protected storage audit, and validation boundaries
+- [CarPlay scene lifecycle](carplay-lifecycle.md): startup ownership, connection cleanup, Sentry app-hang gating, protected storage audit, and validation boundaries
 - [CarPlay browsing and playback](carplay-playback.md): live Up Next rows, bounded paging, shared selection ownership, and Now Playing controls
 - [CarPlay MVP automated acceptance](carplay-validation.md): integration evidence matrix, signed builds, reproducible checks, and native/device limits
 - [Siri media playback](siri-media-playback.md): extension catalog, background handoff, playback ownership, and assistant cells

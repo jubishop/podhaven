@@ -95,6 +95,9 @@ The helper downloads attachments from that SDK-generated event and checks exact
 download sizes, valid NDJSON, individual/combined bounds, session/build fields,
 pre-hang navigation and detail work, the completed foreground write, and the
 pending background write. Evidence stays under ignored `.cache/sentry-hang-smoke/`.
+The probe starts with hang reporting paused and resumes it through the
+[phone-scene gate](carplay-lifecycle.md#sentry-app-hang-reporting), so a passing
+run also covers the phone-foreground path.
 The probe uses its own app container, omits the app's configured device identity, and
 tags the diagnostic run. It never installs onto a physical device.
 

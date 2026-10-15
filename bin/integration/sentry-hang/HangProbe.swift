@@ -27,6 +27,16 @@ private struct ProbeStore: KeyValueStore {
   }
 }
 
+private struct PhoneScenePhaseReporter: ViewModifier {
+  @Environment(\.scenePhase) private var scenePhase
+
+  func body(content: Content) -> some View {
+    content.onChange(of: scenePhase, initial: true) { _, phase in
+      Container.shared.appHangReportingGate().handleScenePhaseChange(to: phase)
+    }
+  }
+}
+
 @main
 struct HangProbe: App {
   nonisolated private static let log = Log.as("ControlledHangProbe")
@@ -34,6 +44,9 @@ struct HangProbe: App {
 
   init() {
     Container.shared.fileManager.register { ProbeFileManager() }
+    Container.shared.siriCatalogFile.register {
+      SiriCatalogFile(url: URL.documentsDirectory.appendingPathComponent("siri-media.json"))
+    }
     AppInfo.initializeEnvironment()
     do {
       try FileManager.default.createDirectory(
@@ -88,11 +101,13 @@ struct HangProbe: App {
       return scope
     }
     SentrySDK.start(options: options)
+    Container.shared.appHangReportingGate().start()
   }
 
   var body: some Scene {
     WindowGroup {
       Text("Controlled recovered-hang diagnostics")
+        .modifier(PhoneScenePhaseReporter())
         .onAppear {
           DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
             Container.shared.navigation().currentTab = .settings
