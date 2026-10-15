@@ -1,7 +1,7 @@
 {
-  "version": "2.4.0",
+  "version": "2.4.1",
   "source": "https://github.com/jubishop/project-starter",
-  "ref": "v2.4.0",
+  "ref": "v2.4.1",
   "managed": {
     "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
     "bin/_checks.py": "2c2a04c3569f5f588aec88f2f8a269b931b62d2ae51fe31c2bbf5f8c0e8b8c77",
@@ -20,7 +20,7 @@
     "docs/foundation/README.md": "cb4353e07fd92f88a9dab03b8430a09cd6b678c0848294836de30c8e8cb5b869",
     "docs/foundation/engineering-policy.md": "41a1f68f07e03ce54acc57b1951344b294907373df9be6bccd3d95bc38eddf89",
     "docs/foundation/knowledge-search.md": "7c724b07b16882342432a2e02781e7f902cd51f55c2c3cf630281cfee60d7f1e",
-    "docs/foundation/task-tracking.md": "1b82fc4c5f5845aba427f9ec2c1c10a20b3f767ef52bf104bce3f7bc9435fd87"
+    "docs/foundation/task-tracking.md": "b4feef79fed6332528d851fba91bfd2b398f8a576931e4c8af0796ab9e0fd851"
   },
   "blocks": {
     "AGENTS.md": "a930ef749be5b753dacc8a00c464ab28b7b225febc8a9b6767247cab95457e7a",

@@ -44,11 +44,10 @@ the setup before relying on task state.
 ## Start or resume work
 
 Run `td usage --new-session -q` once per new agent context, and `td usage -q`
-for later refreshes. Never rotate sessions to bypass review checks. Before
-substantive work, read the relevant task's handoff and recent logs with
-`td list` and `td show <id>`, then check them against the current checkout and
-external state: task records are observations, not proof that a branch, check,
-or deployment is still current.
+for later refreshes. Before substantive work, read the relevant task's handoff
+and recent logs with `td list` and `td show <id>`, then check them against the
+current checkout and external state: task records are observations, not proof
+that a branch, check, or deployment is still current.
 
 ```sh
 td create "Describe the intended outcome"
