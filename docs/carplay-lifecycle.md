@@ -54,6 +54,37 @@ three-tab error root with native Retry rows. Retry starts a new root attempt.
 If the error root is also rejected, it logs that failure without looping;
 reconnection starts a fresh attempt. No error path depends on a phone alert.
 
+## Sentry app-hang reporting
+
+Sentry's app-hang detector measures delays between rendered frames while the
+application is in the foreground. A foreground CarPlay scene keeps the
+application active while the phone is locked or shows another app, so the phone
+renders no PodHaven frames. The detector then reports an idle main thread as a
+"Fully Blocked" hang with an inflated duration. If the phone never renders
+PodHaven again before the process ends, the next launch reports it as fatal.
+Issue #738 traced false `PODHAVEN-6R` and `PODHAVEN-36` events to this state.
+
+`AppHangReportingGate` therefore follows the phone scene phase that
+`PhoneSceneView` reports, not the application state. Sentry starts with hang
+reporting paused. Reporting resumes when the phone scene reports `.active` and
+pauses again for any other phase. The gate never reads the `.active` default
+of `SharedState.scenePhase`, so a CarPlay launch whose phone scene never
+reports a phase stays paused. Without CarPlay, a phone scene that is not
+active also makes the application inactive, and Sentry already ignores hangs
+in that state.
+
+Pausing only ignores newly detected hangs. A hang detected while the phone
+scene was active is still reported when the phone renders PodHaven again, or on
+the next launch. If CarPlay keeps the application in the foreground after the
+phone scene leaves `.active`, that report's duration includes the CarPlay-only
+time, and the next launch reports the hang as fatal if the process ends first.
+
+Trade-off: while only CarPlay is in the foreground, Sentry's detector reports
+no hangs, including real main-thread stalls. MetricKit hang diagnostics remain
+the evidence for that state. Sentry's `enableMetricKit` forwards them as
+events, and `MetricKitMonitor` logs each one. A PodHaven-owned responsiveness
+probe for CarPlay-only use would be separate work.
+
 ## Protected storage audit
 
 Ordinary locked use means the user has unlocked the device at least once
