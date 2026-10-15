@@ -32,6 +32,7 @@ Preserve decision reasons and evidence. Follow the
 - [Recovered-hang diagnostic delivery](sentry-recovered-hang-diagnostics.md): bounded attachments, the temporary hint callback, and SDK migration requirements
 
 - [Chart progress diagnostics](chart-progress-diagnostics.md): pre-render snapshots, bounded crash evidence, and controlled native delivery
+- [OPML import diagnostics](opml-import-diagnostics.md): parse-failure event fields, the attached import file, and the capture limit
 
 ## Initiatives
 

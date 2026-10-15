@@ -100,6 +100,12 @@ The probe starts with hang reporting paused and resumes it through the
 run also covers the phone-foreground path.
 The probe uses its own app container, omits the app's configured device identity, and
 tags the diagnostic run. It never installs onto a physical device.
+A probe that runs the app's Sentry options must also override `siriCatalogFile`,
+as the other probes do. `beforeSendWithHint` resolves
+`SiriResolutionDiagnostics`, which reads the catalog location when first created.
+Without the override, the default factory asserts when the app-group container is
+unavailable, and the probe fails on the first event (`PodHaven/AppLauncher.swift`,
+`PodHaven/Siri/SiriCatalogPublisher.swift`).
 
 Controlled Simulator readback verified the completed foreground persistence
 operation, preceding detail phase, and background operation still pending in

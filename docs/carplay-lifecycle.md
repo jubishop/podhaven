@@ -135,3 +135,11 @@ Native template layout, visual interaction, locked access, vehicle audio,
 spoken Siri, and hardware accessibility/input remain unverified unless
 separately checked. These optional checks do not block merge or issue closure;
 issue #631 records integrated automated coverage and validation limits.
+
+On 2026-10-14, the iOS 27.0 Simulator with Xcode 27 did not show a usable CarPlay
+display, and private CoreSimulator CarPlay setup did not change that. The user
+accepted the CarPlay-display Simulator check for the app-hang gate as unverifiable
+on that runtime and merged with the limitation recorded (GH #738, PR #745). Unit
+tests cover the gate's pause and resume transitions, and the hang smoke probe covers
+the phone-foreground resume path. The CarPlay-only no-report behavior has no Simulator
+evidence.
