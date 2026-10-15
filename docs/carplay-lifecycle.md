@@ -74,7 +74,10 @@ active also makes the application inactive, and Sentry already ignores hangs
 in that state.
 
 Pausing only ignores newly detected hangs. A hang detected while the phone
-scene was active is still reported when frames resume, or on the next launch.
+scene was active is still reported when the phone renders PodHaven again, or on
+the next launch. If CarPlay keeps the application in the foreground after the
+phone scene leaves `.active`, that report's duration includes the CarPlay-only
+time, and the next launch reports the hang as fatal if the process ends first.
 
 Trade-off: while only CarPlay is in the foreground, Sentry's detector reports
 no hangs, including real main-thread stalls. MetricKit hang diagnostics remain
