@@ -134,11 +134,29 @@ Choose checks by the change and its stage:
   rules for its own tooling.
 - Merge or release: a successful `bin/check --full` for the delivered code,
   from an enforced CI gate or, without one, run locally. A pending, skipped,
-  or failed CI run does not count.
+  or failed CI run does not count. A Markdown-only change needs only a
+  passing `bin/check --documents-only`.
 
 Batch edits before checking, and reuse a passing result until its inputs
-change. Report focused and full results separately. CI runs
-`bin/check --full`.
+change. Report focused and full results separately.
+
+### Hosted CI
+
+CI runs `bin/check --full` for pull requests and pushes to the default
+branch. Its triggers set `paths-ignore: ['**.md']`, so a change to Markdown
+alone starts no hosted run; the local documents-only check is its gate. When
+Markdown affects behavior, such as pages the application serves or tests
+read, use a `paths` filter instead: `'**'`, then `'!**.md'`, then those
+pages. A workflow skipped by a path filter reports no status, so do not make
+it a required check.
+
+When hosted CI cannot run only because the Actions quota is exhausted or
+GitHub is rate limiting, run `bin/check --full` locally on the exact revision
+being delivered. A pass satisfies the merge or release gate. Record the
+blocker, revision, commands, and result, and report CI as unavailable, not
+passed. This does not cover failing or unexplained runs, or checks that
+cannot run locally, and it never bypasses enforced branch protection or
+required approvals.
 
 `.project-starter.json` records the hashes of managed files. Change those
 files through Project Starter releases, or record an override with its reason;
