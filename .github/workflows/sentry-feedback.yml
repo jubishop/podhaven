@@ -20,15 +20,15 @@ jobs:
       issues: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: lts/*
           check-latest: true
 
       - name: Install Sentry CLI
-        run: npm install --global sentry@0.38.0
+        run: npm install --global sentry@latest
 
       - name: Create issues for new feedback
         env:
