@@ -20,7 +20,7 @@ enum ErrorKit {
   static func loggableMessage(for error: any Error) -> Logger.Message {
     var result = """
       [\(typeName(for: error))]
-      \(message(for: error))
+      \(detailedMessage(for: error))
       """
 
     if let underlying = underlyingError(for: error) {
@@ -109,8 +109,47 @@ enum ErrorKit {
       .joined(separator: "\n  ")
   }
 
+  private static func detailedMessage(for error: any Error) -> String {
+    guard let decodingError = error as? DecodingError else { return message(for: error) }
+
+    let summary: String
+    let context: DecodingError.Context
+    switch decodingError {
+    case .keyNotFound(let key, let keyContext):
+      summary = "Missing key: \(key.stringValue)"
+      context = keyContext
+    case .typeMismatch(let type, let typeContext):
+      summary = "Type mismatch: expected \(type)"
+      context = typeContext
+    case .valueNotFound(let type, let valueContext):
+      summary = "Value not found: expected \(type)"
+      context = valueContext
+    case .dataCorrupted(let corruptedContext):
+      summary = "Data corrupted"
+      context = corruptedContext
+    @unknown default:
+      return message(for: error)
+    }
+
+    let path =
+      context.codingPath
+      .enumerated()
+      .map { index, key in
+        if let intValue = key.intValue { return "[\(intValue)]" }
+        return index == 0 ? key.stringValue : ".\(key.stringValue)"
+      }
+      .joined()
+
+    return """
+      \(message(for: error))
+      \(summary)
+      Coding path: \(path.isEmpty ? "(root)" : path)
+      Debug description: \(context.debugDescription)
+      """
+  }
+
   private static func underlyingMessage(for error: any Error) -> String {
-    var result = "Underlying: \(typeName(for: error)) ->\n  \(nested(message(for: error)))"
+    var result = "Underlying: \(typeName(for: error)) ->\n  \(nested(detailedMessage(for: error)))"
 
     if let underlying = underlyingError(for: error) {
       result += "\n  \(nested(underlyingMessage(for: underlying)))"
