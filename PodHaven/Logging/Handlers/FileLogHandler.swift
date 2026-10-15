@@ -26,6 +26,8 @@ struct FileLogHandler: LogHandler {
 
     private static let truncationWindowBytes = 64 * 1024
 
+    private static let standInMessagePrefixLength = 256
+
     // Per-call-site rate limit. A runaway log site (e.g. a tight observation
     // loop) can otherwise fill the whole rolling buffer in seconds, evicting
     // the history that explains how the runaway began. Each call site gets a
@@ -44,6 +46,9 @@ struct FileLogHandler: LogHandler {
     let targetFileSizeBytes: Int
     private let historyPolicy: HistoryPolicy
     private let previousHistory: Data
+    // Recent tails write a larger record as a bounded stand-in, so one record
+    // cannot evict the current process's earlier records.
+    private let recordLimitBytes: Int?
     private let queue: DispatchQueue
     private let clockNow: @Sendable () -> ContinuousClock.Instant
 
@@ -69,12 +74,12 @@ struct FileLogHandler: LogHandler {
       self.targetFileSizeBytes = targetFileSizeBytes
       self.historyPolicy = historyPolicy
       var previousHistory = Data()
+      var recordLimitBytes: Int?
       if case .preservePreviousSession = historyPolicy {
+        let previousHistoryLimitBytes = min(maxFileSizeBytes / 2, targetFileSizeBytes / 2)
+        recordLimitBytes = (targetFileSizeBytes - previousHistoryLimitBytes) / 4
         do {
-          previousHistory = try Self.completeTail(
-            at: fileURL,
-            maxBytes: min(maxFileSizeBytes / 2, targetFileSizeBytes / 2)
-          )
+          previousHistory = try Self.completeTail(at: fileURL, maxBytes: previousHistoryLimitBytes)
           try previousHistory.write(to: fileURL, options: .atomic)
         } catch {
           Self.writerOSLog.error(
@@ -83,6 +88,7 @@ struct FileLogHandler: LogHandler {
         }
       }
       self.previousHistory = previousHistory
+      self.recordLimitBytes = recordLimitBytes
       self.clockNow = Container.shared.continuousClockNow()
       let fileName = fileURL.deletingPathExtension().lastPathComponent
       self.queue = DispatchQueue(
@@ -246,13 +252,35 @@ struct FileLogHandler: LogHandler {
     @discardableResult
     private func appendEntry(_ entry: Entry) throws -> UInt64 {
       dispatchPrecondition(condition: .onQueue(queue))
-      var data = try encoder.encode(entry)
-      data.append(0x0A)
+      var data = try encodedLine(entry)
+      if let recordLimitBytes, data.count > recordLimitBytes {
+        data = try standInLine(for: entry, originalBytes: data.count, limitBytes: recordLimitBytes)
+      }
 
       let writeHandle = try appendHandle ?? Self.openForAppending(at: fileURL)
       appendHandle = writeHandle
       try writeHandle.write(contentsOf: data)
       return try writeHandle.offset()
+    }
+
+    private func encodedLine(_ entry: Entry) throws -> Data {
+      var data = try encoder.encode(entry)
+      data.append(0x0A)
+      return data
+    }
+
+    private func standInLine(for entry: Entry, originalBytes: Int, limitBytes: Int) throws -> Data {
+      var standIn = entry
+      standIn.metadata = [
+        "fileLog.originalRecordBytes": "\(originalBytes)",
+        "fileLog.recordLimitBytes": "\(limitBytes)",
+      ]
+      let prefix = entry.message.prefix(Self.standInMessagePrefixLength)
+      standIn.message = prefix.endIndex < entry.message.endIndex ? "\(prefix)…" : entry.message
+      let line = try encodedLine(standIn)
+      guard line.count > limitBytes else { return line }
+      standIn.message = ""
+      return try encodedLine(standIn)
     }
 
     private static func openForAppending(at fileURL: URL) throws -> FileHandle {
@@ -540,8 +568,8 @@ struct FileLogHandler: LogHandler {
     let timestamp: Int64
     let subsystem: String
     let category: String
-    let message: String
-    let metadata: [String: String]?
+    var message: String
+    var metadata: [String: String]?
     let source: String
     let file: String
     let function: String

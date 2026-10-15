@@ -11,7 +11,11 @@ import Testing
 @Suite("of FileLogHandler tests", .container)
 struct FileLogHandlerTests {
   private struct DecodedEntry: Decodable {
+    let level: Int?
     let message: String
+    let metadata: [String: String]?
+    let file: String?
+    let function: String?
     let line: UInt
     let timestamp: Int64
     let sessionID: String?
@@ -192,6 +196,122 @@ struct FileLogHandlerTests {
     let entries = try decodedEntries(at: fileURL)
     #expect(entries.contains { $0.message == "prior-99" })
     #expect(entries.last?.message == "new session")
+  }
+
+  @Test(
+    "an oversized record cannot erase current-process records from configured recent tails",
+    arguments: zip(
+      [AppInfo.recentLogMaxFileSizeBytes, WidgetInfo.recentLogMaxFileSizeBytes],
+      [AppInfo.recentLogTargetFileSizeBytes, WidgetInfo.recentLogTargetFileSizeBytes]
+    )
+  )
+  func oversizedRecordKeepsCurrentProcessHistory(
+    maxFileSizeBytes: Int,
+    targetFileSizeBytes: Int
+  ) throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+    let priorHistoryCap = targetFileSizeBytes / 2
+    var prior = Data()
+    for index in 0..<(priorHistoryCap / 100) {
+      prior.append(
+        try JSONSerialization.data(withJSONObject: [
+          "message": "prior-\(index)", "line": index, "timestamp": index,
+          "sessionID": "prior-session", "version": "prior-version",
+          "buildNumber": "prior-build", "gitCommitHash": "prior-commit",
+        ])
+      )
+      prior.append(0x0A)
+    }
+    try prior.write(to: fileURL)
+
+    let handler = FileLogHandler(
+      label: "PodHaven/FileLogTest",
+      fileURL: fileURL,
+      maxFileSizeBytes: maxFileSizeBytes,
+      targetFileSizeBytes: targetFileSizeBytes,
+      historyPolicy: .preservePreviousSession,
+      writeSynchronously: { _ in true }
+    )
+    let preparedHistory = try Data(contentsOf: fileURL)
+    #expect(preparedHistory.count <= priorHistoryCap)
+    #expect(preparedHistory.count > priorHistoryCap - 200)
+
+    log(handler, message: "configureLogging: starting diagnostic session", line: 1)
+    log(handler, message: "Registered MetricKit subscriber", line: 2)
+    let oversizedMessage =
+      "MetricKit crash diagnostic received "
+      + String(repeating: "m", count: targetFileSizeBytes)
+    handler.log(
+      event: LogEvent(
+        level: .notice,
+        message: "\(oversizedMessage)",
+        metadata: ["metricKitDiagnostic": .string(String(repeating: "d", count: maxFileSizeBytes))],
+        source: "PodHavenTests",
+        file: "MetricKitMonitor.swift",
+        function: "emit(_:)",
+        line: 3
+      )
+    )
+    log(handler, message: "after oversized record", line: 4)
+
+    let data = try Data(contentsOf: fileURL)
+    #expect(data.count <= maxFileSizeBytes)
+    #expect(data.last == 0x0A)
+    #expect(data.starts(with: preparedHistory))
+
+    let entries = try decodedEntries(at: fileURL)
+    let current = entries.filter { $0.sessionID == FileLogHandler.sessionID }
+    #expect(entries.count - current.count == preparedHistory.split(separator: 0x0A).count)
+    #expect(current.map(\.line) == [1, 2, 3, 4])
+    #expect(
+      current.prefix(2).map(\.message) == [
+        "configureLogging: starting diagnostic session", "Registered MetricKit subscriber",
+      ]
+    )
+    #expect(current.last?.message == "after oversized record")
+
+    let standIn = try #require(current.first { $0.line == 3 })
+    #expect(standIn.level == Logging.Logger.Level.notice.intValue)
+    #expect(standIn.file == "MetricKitMonitor.swift")
+    #expect(standIn.function == "emit(_:)")
+    #expect(standIn.version == AppInfo.version)
+    #expect(standIn.buildNumber == AppInfo.buildNumber)
+    #expect(standIn.gitCommitHash == AppInfo.gitCommitHash)
+    #expect(standIn.message.hasPrefix("MetricKit crash diagnostic received m"))
+    #expect(standIn.message.hasSuffix("…"))
+    #expect(oversizedMessage.hasPrefix(standIn.message.dropLast()))
+    let originalBytes = try #require(standIn.metadata?["fileLog.originalRecordBytes"])
+    #expect(try #require(Int(originalBytes)) > maxFileSizeBytes + targetFileSizeBytes)
+    #expect(standIn.metadata?["metricKitDiagnostic"] == nil)
+  }
+
+  @Test("full rolling logs keep records too large for the recent tails verbatim")
+  func fullRollingLogKeepsOversizedRecordsVerbatim() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: AppInfo.logMaxFileSizeBytes,
+      targetFileSizeBytes: AppInfo.logTargetFileSizeBytes
+    )
+    let diagnostic = String(repeating: "d", count: AppInfo.recentLogMaxFileSizeBytes * 2)
+
+    handler.log(
+      event: LogEvent(
+        level: .notice,
+        message: "MetricKit crash diagnostic received",
+        metadata: ["metricKitDiagnostic": .string(diagnostic)],
+        source: "PodHavenTests",
+        file: "MetricKitMonitor.swift",
+        function: "emit(_:)",
+        line: 1
+      )
+    )
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(entries.map(\.message) == ["MetricKit crash diagnostic received"])
+    #expect(entries.first?.metadata == ["metricKitDiagnostic": diagnostic])
   }
 
   @Test("truncation keeps whole JSON lines and keeps appending to the live file")

@@ -24,9 +24,19 @@ not infer their build or session from the process uploading them.
 At the first recent-tail writer in a process, the writer retains complete prior
 records up to half its trimming target. It removes incomplete trailing writes.
 This bounded history remains in the file when current-process logging rolls
-over. The remaining space holds current-process records. Full feedback logs
-keep their existing rolling policy. Retention is bounded, so older records and
-records too large for the available space can still be lost.
+over. The remaining space holds current-process records.
+
+Each tail's per-record limit is a quarter of the current-process space left
+beside a full prior history: 12 KiB for the app tail and 3 KiB for the widget
+tail. A larger record, such as a raw MetricKit diagnostic, is written to the
+tail as a stand-in. The stand-in keeps the record's level, timestamp, logger,
+source location, session, and build fields. It also keeps a message prefix that
+ends in `…` when shortened. Its metadata is replaced by
+`fileLog.originalRecordBytes` and `fileLog.recordLimitBytes`.
+One record therefore cannot evict the process's earlier records, such as its
+launch timeline. Full feedback logs keep their existing rolling policy and
+complete records, including raw MetricKit diagnostics. Retention is still
+bounded, so older records can be lost to ordinary log volume.
 
 The app prepares and flushes its local logging before starting Sentry. This
 makes the app tail available when the SDK reports a previous termination.
@@ -178,6 +188,13 @@ version/build, multiple-version flag, and aggregate attribution.
 Capture-time file context also reached Sentry with both files present and with
 the widget file missing; it retained sizes and limits without paths or contents.
 
+On October 15, 2026, a one-off iOS Simulator probe checked oversized records.
+It seeded near-cap prior history in both tails. It then logged launch records,
+a 305 KiB raw MetricKit crash record from `MetricKitMonitor.diagnosticDirective`,
+and one later record. Both downloaded tails kept the prior history, launch
+records, a stand-in under 500 bytes, and the later record. Their sizes matched
+the `recent_log_files` context.
+
 Run `bin/sentry-metrickit-smoke --device <available-iOS-Simulator-UDID>` with
 authenticated Sentry CLI access to verify crash-diagnostic delivery. It builds
 an isolated Simulator probe from the current sources and uploads the probe's
@@ -194,8 +211,10 @@ installs on a physical device. Actual MetricKit delivery of a real watchdog
 kill remains an observation limit.
 
 Regression coverage checks prior-history survival under new-launch log volume,
-record boundaries and bounds, session/build fields, foreground and background
-reporting, aggregate attribution, and the explicit remote field selection.
+oversized-record stand-ins in both configured tails, complete oversized records
+in the full rolling log, record boundaries and bounds, session/build fields,
+foreground and background reporting, aggregate attribution, and the explicit
+remote field selection.
 Controlled MetricKit summaries use synthetic platform payloads; actual Apple
 delivery cadence and real-world recurrence remain observation limits.
 
