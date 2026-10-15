@@ -39,35 +39,39 @@ import Testing
     #expect(tracking.state == .paused)
   }
 
-  @Test("reporting resumes when the phone scene becomes active")
-  func resumesWhenPhoneSceneActive() {
+  @Test("the phone scene's own phase drives reporting while CarPlay stays connected")
+  func phoneScenePhaseDrivesReporting() async throws {
     gate.start()
-    #expect(tracking.state == .paused)
-
-    gate.handleScenePhaseChange(to: .active)
-
-    #expect(tracking.state == .reporting)
-  }
-
-  @Test(
-    "reporting pauses while the phone scene is not active and CarPlay stays connected",
-    arguments: [ScenePhase.inactive, .background]
-  )
-  func pausesWhilePhoneSceneNotActive(phase: ScenePhase) {
-    gate.start()
+    let tracking = self.tracking
+    let sharedState = self.sharedState
     let coordinator = Container.shared.carPlayCoordinator()
     let controller = FakeCarPlayInterfaceController()
-    defer { coordinator.disconnect(controller) }
-    coordinator.connect(controller)
-    gate.handleScenePhaseChange(to: .active)
-    #expect(tracking.state == .reporting)
+    let host = TestHostingController(
+      rootView: PhoneSceneView(appDelegate: AppDelegate()).environment(\.scenePhase, .inactive)
+    )
+    try await withHostedTestWindow(host) { _ in
+      try await Wait.until(
+        { sharedState.scenePhase == .inactive },
+        { "Phone scene did not publish its own inactive phase" }
+      )
+      coordinator.connect(controller)
+      defer { coordinator.disconnect(controller) }
+      #expect(tracking.state == .paused)
 
-    gate.handleScenePhaseChange(to: phase)
-
-    #expect(tracking.state == .paused)
-
-    gate.handleScenePhaseChange(to: .active)
-
-    #expect(tracking.state == .reporting)
+      let transitions: [(ScenePhase, FakeAppHangTracking.State)] = [
+        (.active, .reporting), (.background, .paused), (.active, .reporting),
+        (.inactive, .paused), (.active, .reporting),
+      ]
+      for (phase, expected) in transitions {
+        host.rootView = PhoneSceneView(appDelegate: AppDelegate()).environment(\.scenePhase, phase)
+        host.view.setNeedsLayout()
+        host.view.layoutIfNeeded()
+        try await Wait.until(
+          { sharedState.scenePhase == phase },
+          { "Phone phase is \(sharedState.scenePhase), expected \(phase)" }
+        )
+        #expect(tracking.state == expected)
+      }
+    }
   }
 }
