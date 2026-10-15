@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""Verify the automatic slow Siri catalog publication log from a real Simulator launch."""
+
+import argparse
+from importlib.machinery import SourceFileLoader
+from importlib.util import module_from_spec, spec_from_loader
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import time
+import uuid
+
+ROOT = Path(__file__).resolve().parents[1]
+BUNDLE = "com.artisanalsoftware.PodHaven.publicationsmoke"
+FIELDS = ["sentry.item_id", "message", "severity", "category", "subsystem", "version", "buildNumber",
+          "gitCommitHash", "logSessionID", "sentry.environment", "diagnostic-run"]
+KEYS = ["trigger", "publishMs", "fetchMs", "writeMs", "podcasts", "episodes", "bytes", "maxBytes",
+        "oversized", "openMs", "appState", "suppressed"]
+PRIVATE = ["Private Sentinel", "private-sentinel"]
+
+
+def load(name, path):
+    loader = SourceFileLoader(name, str(path))
+    module = module_from_spec(spec_from_loader(name, loader))
+    loader.exec_module(module)
+    return module
+
+
+probe = load("hang_probe", ROOT / "bin/sentry-hang-smoke")
+command = probe.command
+
+
+def fetch_logs(run):
+    fields = [argument for field in FIELDS for argument in ("--field", field)]
+    return json.loads(command("sentry", "explore", "artisanal-software/podhaven", "--dataset", "logs",
+                              "--query", "diagnostic-run:" + run, *fields, "--period", "1h",
+                              "--limit", "100", "--fresh", "--json"))
+
+
+def verify(logs, source, run):
+    serialized = json.dumps(logs)
+    for value in PRIVATE:
+        assert value not in serialized, "Controlled run logs exposed private media metadata"
+    rows = [row for row in logs if (row["message"] or "").startswith("siriCatalogPublication ")]
+    assert len(rows) == 1, f"Expected one controlled publication log, found {len(rows)}"
+    row = rows[0]
+    message = row["message"]
+    assert row["severity"] == "warn" and row["category"] == "SiriCatalogPublication"
+    assert row["subsystem"] == "PodHaven" and row["diagnostic-run"] == run
+    assert 0 < len(message.encode()) <= 512, "Unbounded publication summary"
+    match = re.fullmatch("siriCatalogPublication " + " ".join(key + r"=(\S+)" for key in KEYS), message)
+    assert match, f"Unexpected publication summary: {message}"
+    fields = dict(zip(KEYS, match.groups()))
+    publish, fetch, write = (int(fields[key]) for key in ("publishMs", "fetchMs", "writeMs"))
+    assert fields["trigger"] == "launch" and write >= 1000 and publish >= write
+    assert abs(publish - fetch - write) <= 1
+    assert fields["podcasts"] == "1" and fields["episodes"] == "1"
+    assert int(fields["maxBytes"]) == 32 * 1024 * 1024 and 0 < int(fields["bytes"]) < 4096
+    assert fields["oversized"] == "false" and int(fields["openMs"]) >= 0 and fields["suppressed"] == "0"
+    assert fields["appState"] in {"active", "inactive", "background"}
+    assert row["gitCommitHash"] == source["gitCommitHash"]
+    assert row["version"] and row["buildNumber"] and re.fullmatch(r"[0-9A-F-]{36}", row["logSessionID"])
+    return {"message": message, "fields": fields, "sessionID": row["logSessionID"],
+            "build": row["buildNumber"], "version": row["version"]}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--device", required=True, help="Available iOS Simulator UDID, never a physical device")
+    args = parser.parse_args()
+    devices = json.loads(command("xcrun", "simctl", "list", "devices", "available", "--json"))["devices"]
+    device = next((entry for runtime, entries in devices.items() if ".iOS-" in runtime
+                   for entry in entries if entry["udid"] == args.device), None)
+    if device is None:
+        raise RuntimeError("Only an available iOS Simulator is permitted")
+    output = ROOT / ".cache/sentry-siri-publication-smoke"
+    output.mkdir(parents=True, exist_ok=True)
+    run = uuid.uuid4().hex
+    evidence = output / run
+    evidence.mkdir()
+    source = probe.source_state()
+    (evidence / "source.json").write_text(json.dumps(source, indent=2) + "\n")
+    project = probe.prepare(output, bundle=BUNDLE, integration="sentry-siri-publication")
+    with (evidence / "build.log").open("w") as log:
+        subprocess.run([
+            "xcodebuild", "build", "-hideShellScriptEnvironment", "-project", str(project),
+            "-scheme", "PodHaven", "-configuration", "Debug", "-destination", "id=" + args.device,
+            "-derivedDataPath", str(output / "DerivedData"), "-skipMacroValidation",
+            "-resultBundlePath", str(evidence / "build.xcresult"),
+            "-clonedSourcePackagesDirPath", str(Path.home() / "Library/Developer/SharedSourcePackages/PodHaven"),
+            "LM_FORCE_LINK_GENERATION=YES", "CODE_SIGNING_ALLOWED=NO",
+            "GIT_COMMIT_HASH=" + source["gitCommitHash"],
+        ], cwd=ROOT, env={key: value for key, value in os.environ.items() if key != "SDKROOT"},
+            stdout=log, stderr=subprocess.STDOUT, check=True)
+    gate = load("swift_results", ROOT / "bin/check-swift-results")
+    build = json.loads(command("xcrun", "xcresulttool", "get", "build-results", "--path", str(evidence / "build.xcresult")))
+    assert build["errorCount"] == 0 and build["analyzerWarningCount"] == 0
+    assert build["warningCount"] == len(build.get("warnings", []))
+    assert all(gate.approved_sentry_warning(warning) for warning in build.get("warnings", []))
+    for line in (evidence / "build.log").read_text().splitlines():
+        assert not gate.BUILD_WARNING.search(line) or gate.approved_sentry_log_warning(line), line
+    if device["state"] != "Booted":
+        command("xcrun", "simctl", "boot", args.device)
+    command("xcrun", "simctl", "bootstatus", args.device, "-b")
+    app = output / "DerivedData/Build/Products/Debug-iphonesimulator/PodHaven.app"
+    command("xcrun", "simctl", "install", args.device, str(app))
+    command("xcrun", "simctl", "launch", "--terminate-running-process", args.device, BUNDLE,
+            env=dict(os.environ, SIMCTL_CHILD_PODHAVEN_PUBLICATION_RUN=run))
+    try:
+        print(f"Controlled run {run}; waiting for the automatic publication log", flush=True)
+        deadline = time.monotonic() + 180
+        while time.monotonic() < deadline:
+            listing = fetch_logs(run)
+            if any((row["message"] or "").startswith("siriCatalogPublication ") for row in listing.get("data", [])):
+                break
+            time.sleep(5)
+        else:
+            raise RuntimeError("The controlled publication log did not arrive within 180 seconds")
+        time.sleep(10)
+        listing = fetch_logs(run)
+        (evidence / "logs.json").write_text(json.dumps(listing, indent=2) + "\n")
+        result = verify(listing["data"], source, run)
+        assert probe.source_state() == source, "Sources changed during the smoke run"
+        result.update(run=run, source=source)
+        (evidence / "result.json").write_text(json.dumps(result, indent=2) + "\n")
+        print(json.dumps(result, indent=2))
+        print(f"Verified the remote publication log, bounds, attribution, and privacy: {evidence}")
+    finally:
+        subprocess.run(["xcrun", "simctl", "terminate", args.device, BUNDLE], check=False)
+
+
+if __name__ == "__main__":
+    main()

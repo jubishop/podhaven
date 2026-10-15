@@ -94,6 +94,7 @@ struct SiriCatalogTests {
     let file = Container.shared.siriCatalogFile()
     defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     db.startSiriCatalog(file)
+    try await db.siriCatalogPublished()
     #expect(try await file.read().entries.isEmpty)
     let series = try await Container.shared.repo()
       .insertSeries(
@@ -140,7 +141,7 @@ struct SiriCatalogTests {
             queries { $0.append(statement.sql) }
           }
         }
-        SiriCatalogPublisher(file: file).publish(db)
+        SiriCatalogPublisher(file: file).publish(db, trigger: .commit)
         db.trace(options: [])
         #expect(!queries().isEmpty)
         for query in queries() {
