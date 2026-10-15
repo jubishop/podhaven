@@ -114,7 +114,10 @@ or match leaves a pending marker. These files contain no query, media title,
 media ID, GUID, or feed URL.
 
 Phase durations exclude synchronous journal writes. Total duration includes
-diagnostic overhead between phases.
+diagnostic overhead between phases. In the app, it also includes any wait for
+the launch catalog publication, which no phase measures. A cold handoff can
+therefore be reported as slow; compare it with the same log session's
+`siriCatalogPublication trigger=launch` summary.
 
 Sentry receives an automatic event for a resolution taking at least one second
 or returning a failure, limited to one event per category per minute in the
