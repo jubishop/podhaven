@@ -24,9 +24,19 @@ not infer their build or session from the process uploading them.
 At the first recent-tail writer in a process, the writer retains complete prior
 records up to half its trimming target. It removes incomplete trailing writes.
 This bounded history remains in the file when current-process logging rolls
-over. The remaining space holds current-process records. Full feedback logs
-keep their existing rolling policy. Retention is bounded, so older records and
-records too large for the available space can still be lost.
+over. The remaining space holds current-process records.
+
+Each tail's per-record limit is a quarter of the current-process space left
+beside a full prior history: 12 KiB for the app tail and 3 KiB for the widget
+tail. A larger record, such as a raw MetricKit diagnostic, is written to the
+tail as a stand-in. The stand-in keeps the record's level, timestamp, logger,
+source location, session, and build fields. It also keeps a message prefix that
+ends in `…` when shortened. Its metadata is replaced by
+`fileLog.originalRecordBytes` and `fileLog.recordLimitBytes`.
+One record therefore cannot evict the process's earlier records, such as its
+launch timeline. Full feedback logs keep their existing rolling policy and
+complete records, including raw MetricKit diagnostics. Retention is still
+bounded, so older records can be lost to ordinary log volume.
 
 The app prepares and flushes its local logging before starting Sentry. This
 makes the app tail available when the SDK reports a previous termination.
@@ -194,8 +204,10 @@ installs on a physical device. Actual MetricKit delivery of a real watchdog
 kill remains an observation limit.
 
 Regression coverage checks prior-history survival under new-launch log volume,
-record boundaries and bounds, session/build fields, foreground and background
-reporting, aggregate attribution, and the explicit remote field selection.
+oversized-record stand-ins in both configured tails, complete oversized records
+in the full rolling log, record boundaries and bounds, session/build fields,
+foreground and background reporting, aggregate attribution, and the explicit
+remote field selection.
 Controlled MetricKit summaries use synthetic platform payloads; actual Apple
 delivery cadence and real-world recurrence remain observation limits.
 
