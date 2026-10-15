@@ -159,6 +159,43 @@ import Testing
     )
   }
 
+  @Test("importing OPML logs feed failures below the Sentry warning level with one summary")
+  func importOPMLSummarizesFeedFailures() async throws {
+    let validFeedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
+    let notFoundFeed1URL = URL(string: "https://feeds.invalid.com/notfound1")!
+    let notFoundFeed2URL = URL(string: "https://feeds.invalid.com/notfound2")!
+
+    let opmlURL = createTestOPMLURL()
+    await setupOPMLResponse(
+      to: opmlURL,
+      feeds: [
+        (title: "Lenny's Podcast", url: validFeedURL.absoluteString),
+        (title: "Not Found Feed 1", url: notFoundFeed1URL.absoluteString),
+        (title: "Not Found Feed 2", url: notFoundFeed2URL.absoluteString),
+      ]
+    )
+    await setupValidFeedResponse(to: validFeedURL, assetName: "lenny")
+    await setupNotFoundFeedResponse(to: notFoundFeed1URL)
+    await setupNotFoundFeedResponse(to: notFoundFeed2URL)
+
+    let captured = try await LogCapture.withSink { sink in
+      try await importOPML(from: opmlURL)
+      try await waitForAllComplete()
+      return sink.captured()
+    }
+
+    let feedFailures = captured.filter {
+      $0.message.contains("failed to download/parse feed")
+    }
+    #expect(feedFailures.count == 2)
+    #expect(feedFailures.allSatisfy { $0.level == .notice })
+    let summaries = captured.filter {
+      $0.level >= .warning && $0.message.contains("downloadOPMLFile")
+    }
+    #expect(summaries.count == 1)
+    #expect(summaries.first?.message.contains("2 of 3 new feeds failed") == true)
+  }
+
   @Test("importing OPML verifies progress tracking transitions")
   func importOPMLVerifiesProgressTracking() async throws {
     // Setup: Create OPML with 2 feeds

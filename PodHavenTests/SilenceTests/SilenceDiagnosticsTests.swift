@@ -67,7 +67,7 @@ struct SilenceDiagnosticsTests {
     #expect(entries.filter { $0.label.contains("Silence") && $0.level >= .warning }.isEmpty)
   }
 
-  @Test("a slow scan warns during decoding and once at completion without buffer spam")
+  @Test("a slow scan notes progress during decoding and once at completion without buffer spam")
   func slowScan() async throws {
     let url = try await prepare()
     defer { try? FileManager.default.removeItem(at: url) }
@@ -93,9 +93,10 @@ struct SilenceDiagnosticsTests {
       #expect(task.completionResults == [true])
       return sink.captured()
     }
-    let warnings = entries.filter { $0.label.contains("Silence") && $0.level == .warning }
-    #expect(warnings.count == 2)
-    let early = try #require(warnings.first { $0.message.contains("event=silenceRunSlow") })
+    #expect(entries.filter { $0.label.contains("Silence") && $0.level >= .warning }.isEmpty)
+    let notices = entries.filter { $0.label.contains("Silence") && $0.level == .notice }
+    #expect(notices.count == 2)
+    let early = try #require(notices.first { $0.message.contains("event=silenceRunSlow") })
     #expect(early.message.contains("publishedFiles=0"))
     #expect(early.message.contains("wallSeconds=20.0"))
     #expect(early.message.contains("outcome=running"))
@@ -104,7 +105,7 @@ struct SilenceDiagnosticsTests {
       entries.firstIndex { $0.message.contains("event=silenceAttemptFinished") }
     )
     #expect(earlyIndex < completionIndex)
-    #expect(warnings.last?.message.contains("outcome=completed") == true)
+    #expect(notices.last?.message.contains("outcome=completed") == true)
   }
 
   @Test(
@@ -145,7 +146,7 @@ struct SilenceDiagnosticsTests {
       return sink.captured()
     }
     let summary = try #require(entries.first { $0.message.contains("event=silenceRunFinished") })
-    #expect(summary.level == (stopReason == "thermal" ? .warning : .info))
+    #expect(summary.level == (stopReason == "thermal" ? .notice : .info))
     #expect(summary.message.contains("stopReason=\(stopReason)"))
     #expect(summary.message.contains("publishedFiles=0"))
     #expect(!summary.message.contains("discardedAudioSeconds=0.0"))

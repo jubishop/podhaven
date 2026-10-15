@@ -48,7 +48,7 @@ struct ThermalPressureMonitor: Sendable {
         if pressure.permitsDiscretionaryWork {
           Self.log.debug(message)
         } else {
-          Self.log.warning(message)
+          Self.log.notice(message)
         }
       }
 

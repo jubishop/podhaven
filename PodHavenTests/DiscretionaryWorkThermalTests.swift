@@ -28,6 +28,22 @@ struct DiscretionaryWorkThermalTests {
     #expect(Container.shared.sharedState().thermalPressure == .fair)
   }
 
+  @Test("throttling thermal changes log below the Sentry warning level")
+  func throttlingThermalChangesLogBelowWarning() throws {
+    Container.shared.currentThermalPressure.context(.test) { { .serious } }
+
+    let captured = LogCapture.withSink { sink in
+      Container.shared.thermalPressureMonitor().start()
+      Container.shared.notifier().post(ProcessInfo.thermalStateDidChangeNotification)
+      return sink.captured()
+    }
+
+    let change = try #require(
+      captured.first { $0.message == "Thermal state changed to: serious" }
+    )
+    #expect(change.level == .notice)
+  }
+
   @Test("embedding work waits through critical pressure and resumes after recovery")
   func embeddingWaitsAndResumes() async throws {
     let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(

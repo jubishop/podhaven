@@ -130,8 +130,8 @@ struct EmbeddingServiceTelemetryTests {
     #expect(recorder.seenInputs().contains(updatedDescription))
   }
 
-  @Test("slow embedding batches emit warning telemetry")
-  func slowBatchEmitsWarningTelemetry() async throws {
+  @Test("slow embedding batches keep telemetry below the Sentry warning level")
+  func slowBatchKeepsTelemetryBelowWarning() async throws {
     let podcastEpisode = try await makePodcastEpisode(
       podcastTitle: "Slow Podcast",
       podcastDescription: "Slow podcast description",
@@ -155,7 +155,7 @@ struct EmbeddingServiceTelemetryTests {
     let telemetry = try #require(
       captured.first { $0.message.contains("embeddingTelemetry event=batchCompleted") }
     )
-    #expect(telemetry.level == .warning)
+    #expect(telemetry.level == .info)
     #expect(telemetry.message.contains("wallSeconds=12.0"))
   }
 
