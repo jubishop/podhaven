@@ -37,6 +37,14 @@ extension Date {
     "dd MMM yyyy HH:mm:ss zzz"
   )
 
+  private static let rfc2822NoSeconds: DateFormatter = feedDateFormatter(
+    "EEE, dd MMM yyyy HH:mm zzz"
+  )
+
+  private static let rfc2822NoWeekdayNoSeconds: DateFormatter = feedDateFormatter(
+    "dd MMM yyyy HH:mm zzz"
+  )
+
   private static let iso8601: DateFormatter = feedDateFormatter("yyyy-MM-dd'T'HH:mm:ssXXXXX")
 
   private static let iso8601WithFractionalSeconds: DateFormatter = feedDateFormatter(
@@ -50,6 +58,8 @@ extension Date {
     guard !trimmed.isEmpty else { return nil }
     if let date = rfc2822.date(from: trimmed) { return date }
     if let date = rfc2822NoWeekday.date(from: trimmed) { return date }
+    if let date = rfc2822NoSeconds.date(from: trimmed) { return date }
+    if let date = rfc2822NoWeekdayNoSeconds.date(from: trimmed) { return date }
     if let date = iso8601.date(from: trimmed) { return date }
     if let date = iso8601WithFractionalSeconds.date(from: trimmed) { return date }
     return dateOnly.date(from: trimmed)
