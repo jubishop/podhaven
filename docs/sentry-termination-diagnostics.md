@@ -188,6 +188,13 @@ version/build, multiple-version flag, and aggregate attribution.
 Capture-time file context also reached Sentry with both files present and with
 the widget file missing; it retained sizes and limits without paths or contents.
 
+On October 15, 2026, a one-off iOS Simulator probe checked oversized records.
+It seeded near-cap prior history in both tails. It then logged launch records,
+a 305 KiB raw MetricKit crash record from `MetricKitMonitor.diagnosticDirective`,
+and one later record. Both downloaded tails kept the prior history, launch
+records, a stand-in under 500 bytes, and the later record. Their sizes matched
+the `recent_log_files` context.
+
 Run `bin/sentry-metrickit-smoke --device <available-iOS-Simulator-UDID>` with
 authenticated Sentry CLI access to verify crash-diagnostic delivery. It builds
 an isolated Simulator probe from the current sources and uploads the probe's
