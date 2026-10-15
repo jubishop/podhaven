@@ -163,6 +163,12 @@ struct MetricKitCrashReport {
     case noFrames
   }
 
+  private enum JSONScanState {
+    case structure
+    case string
+    case escapedCharacter
+  }
+
   let event: Sentry.Event
   let attachments: [Sentry.Attachment]
   let frameCount: Int
@@ -174,7 +180,8 @@ struct MetricKitCrashReport {
     begin: Date,
     end: Date
   ) throws {
-    let tree = try JSONDecoder().decode(CallStackTree.self, from: crash.callStackTreeJSON)
+    let tree = try JSONDecoder()
+      .decode(CallStackTree.self, from: Self.pruningDeepCallers(crash.callStackTreeJSON))
     let executable = Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String
     var threads: [SentryThread] = []
     var images: [DebugMeta] = []
@@ -338,6 +345,41 @@ struct MetricKitCrashReport {
       candidates = next.subFrames ?? []
     }
     return path.reversed()
+  }
+
+  // JSONDecoder rejects deeply nested documents, and each caller nests two levels
+  // below its callee. Replacing every container below the frame after
+  // maximumFramesPerThread with null keeps the frames the converter can use and
+  // still shows which stacks were truncated.
+  private static func pruningDeepCallers(_ json: Data) -> Data {
+    // A stack's nth frame object is 3 + 2n containers deep.
+    let maximumDepth = 3 + 2 * (maximumFramesPerThread + 1)
+    var pruned = Data()
+    pruned.reserveCapacity(json.count)
+    var state = JSONScanState.structure
+    var depth = 0
+    for byte in json {
+      switch (state, byte) {
+      case (.escapedCharacter, _):
+        state = .string
+      case (.string, UInt8(ascii: "\\")):
+        state = .escapedCharacter
+      case (.string, UInt8(ascii: "\"")):
+        state = .structure
+      case (.structure, UInt8(ascii: "\"")):
+        state = .string
+      case (.structure, UInt8(ascii: "{")), (.structure, UInt8(ascii: "[")):
+        depth += 1
+        if depth == maximumDepth + 1 { pruned.append(contentsOf: "null".utf8) }
+      case (.structure, UInt8(ascii: "}")), (.structure, UInt8(ascii: "]")):
+        depth -= 1
+        if depth == maximumDepth { continue }
+      default:
+        break
+      }
+      if depth <= maximumDepth { pruned.append(byte) }
+    }
+    return pruned
   }
 
   private static func hex(_ value: UInt64) -> String { "0x" + String(value, radix: 16) }

@@ -125,7 +125,11 @@ The event's size and quota use are bounded:
 - At most five crash events are sent per payload; a warning counts the rest.
 - At most 32 threads are kept, plus any thread-attributed stack beyond them.
 - At most 128 frames are kept per thread, keeping the frames closest to the
-  crash.
+  crash. `JSONDecoder` rejects documents nested more than 512 levels deep,
+  and each caller adds two levels. Before decoding, the converter therefore
+  prunes every caller after a stack's 129th frame. A deeper stack still keeps
+  its 128 frames closest to the crash and counts in `truncatedThreads`; the
+  attachment keeps the unpruned payload.
 - Termination reasons are capped at 512 characters, and identity fields at 64.
 - The raw `jsonRepresentation()` is attached as
   `metrickit-crash-diagnostic.json` when it is 256 KiB or smaller. Larger
