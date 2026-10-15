@@ -19,11 +19,14 @@ extension Container {
   }
 }
 
-final class SiriCatalogPublisher: TransactionObserver {
-  private let file: SiriCatalogFile
+final class SiriCatalogPublisher: TransactionObserver, Sendable {
   private enum State { case unchanged, changed, invalidated }
-  private var state = State.unchanged
-  private var lastPublished: SiriCatalog?
+
+  private let continuousClockNow = Container.shared.continuousClockNow()
+  private let diagnostics = Container.shared.siriCatalogPublicationDiagnostics()
+  private let file: SiriCatalogFile
+  private let state = ThreadSafe(State.unchanged)
+  private let lastPublished = ThreadSafe<SiriCatalog?>(nil)
   private static let log = Log.as("SiriCatalogPublisher")
 
   init(file: SiriCatalogFile) { self.file = file }
@@ -40,34 +43,35 @@ final class SiriCatalogPublisher: TransactionObserver {
     }
   }
 
-  func databaseDidChange(with event: DatabaseEvent) { state = .changed }
+  func databaseDidChange(with event: DatabaseEvent) { state(.changed) }
 
   func databaseWillCommit() {
-    guard state == .changed else { return }
+    guard state() == .changed else { return }
     do {
       try file.invalidate()
-      state = .invalidated
+      state(.invalidated)
     } catch {
       Self.log.caughtError("Could not invalidate Siri catalog before library commit", error)
     }
   }
 
   func databaseDidCommit(_ db: Database) {
-    guard state != .unchanged else { return }
-    state = .unchanged
-    publish(db)
+    guard state() != .unchanged else { return }
+    state(.unchanged)
+    publish(db, trigger: .commit)
   }
 
   func databaseDidRollback(_ db: Database) {
-    let invalidated = state == .invalidated
-    state = .unchanged
-    guard invalidated, let lastPublished else { return }
+    let invalidated = state() == .invalidated
+    state(.unchanged)
+    guard invalidated, let lastPublished = lastPublished() else { return }
     do { try file.write(lastPublished) } catch {
       Self.log.caughtError("Could not restore Siri catalog after rollback", error)
     }
   }
 
-  func publish(_ db: Database) {
+  func publish(_ db: Database, trigger: SiriCatalogPublicationDiagnostics.Trigger) {
+    let startedAt = continuousClockNow()
     do {
       let podcasts =
         try Podcast
@@ -106,10 +110,18 @@ final class SiriCatalogPublisher: TransactionObserver {
           )
         }
       let catalog = SiriCatalog(entries: entries)
-      try file.write(catalog)
-      lastPublished = catalog
-      Self.log.debug(
-        "Published Siri catalog: podcasts=\(podcasts.count), episodes=\(episodes.count)"
+      let fetchedAt = continuousClockNow()
+      let bytes = try file.write(catalog)
+      lastPublished(catalog)
+      diagnostics.record(
+        SiriCatalogPublicationDiagnostics.Publication(
+          trigger: trigger,
+          fetchDuration: fetchedAt - startedAt,
+          writeDuration: continuousClockNow() - fetchedAt,
+          podcasts: podcasts.count,
+          episodes: episodes.count,
+          bytes: bytes
+        )
       )
     } catch {
       Self.log.caughtError("Could not publish Siri catalog", error)

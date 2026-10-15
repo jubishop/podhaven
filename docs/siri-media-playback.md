@@ -15,15 +15,25 @@ app groups and receive distinct extension bundle identifiers.
 The catalog contains saved podcast and episode names, durable database IDs,
 and source identities. Source identities prevent a reused database ID from
 selecting different media. It contains no transcript, description, artwork,
-playback history, or downloaded audio. The app creates it at database startup
-and updates it synchronously after relevant commits, including background
-refresh and deletion. Before a relevant commit, the previous catalog becomes
-unavailable. A crash or failed write therefore causes a truthful temporary
-failure instead of silently trusting an obsolete snapshot. Rollback republishes
-the unchanged library. The app database stays in its current location. Each
-publication has a new generation ID. The main app checks that generation after
-its asynchronous lookup and before playback. Names, deletion, publication dates,
-and finished state invalidate pending selections; routine position writes do not.
+playback history, or downloaded audio.
+
+Launch database initialization never builds the catalog on the calling thread.
+It invalidates the previous file, then queues the first publication on the
+database writer ahead of any library write. That job registers the commit
+observer and publishes the committed library. Until it finishes, the extension
+sees a truthful temporary failure rather than an earlier process's snapshot.
+The main app's Siri handler waits for that first publication before reading the
+catalog, so a cold handoff resolves against the published library.
+
+Afterward, the app republishes synchronously on the writer after relevant
+commits, including background refresh and deletion. Before a relevant commit,
+the previous catalog becomes unavailable. A crash or failed write therefore
+causes a truthful temporary failure instead of silently trusting an obsolete
+snapshot. Rollback republishes the unchanged library. The app database stays in
+its current location. Each publication has a new generation ID. The main app
+checks that generation after its asynchronous lookup and before playback.
+Names, deletion, publication dates, and finished state invalidate pending
+selections; routine position writes do not.
 
 The extension rereads the catalog for resolution, confirmation, and handling.
 The system callback copies request fields into a Sendable value. An explicit
@@ -104,7 +114,10 @@ or match leaves a pending marker. These files contain no query, media title,
 media ID, GUID, or feed URL.
 
 Phase durations exclude synchronous journal writes. Total duration includes
-diagnostic overhead between phases.
+diagnostic overhead between phases. In the app, it also includes any wait for
+the launch catalog publication, which no phase measures. A cold handoff can
+therefore be reported as slow; compare it with the same log session's
+`siriCatalogPublication trigger=launch` summary.
 
 Sentry receives an automatic event for a resolution taking at least one second
 or returning a failure, limited to one event per category per minute in the
@@ -146,3 +159,46 @@ recovered hang. The helper lists both remote events, downloads the retained
 summaries, and verifies bounds, phase data, matching operation/session/build
 attribution, and absence of the private sentinel metadata. Evidence stays in
 ignored `.cache/sentry-siri-smoke/`. It never installs on a physical device.
+
+## Publication diagnostics
+
+Each catalog publication logs one bounded summary with fixed fields:
+
+| Field | Meaning |
+| --- | --- |
+| `trigger` | `launch` for the first publication in a process, `commit` afterward |
+| `publishMs`, `fetchMs`, `writeMs` | Total, row fetch and entry build, and JSON encode plus atomic write |
+| `podcasts`, `episodes` | Published entry counts |
+| `bytes`, `maxBytes`, `oversized` | Encoded size, the extension reader's limit, and whether readers will reject it |
+| `openMs` | Launch database open and migration time; `none` for commits |
+| `appState` | UIKit application state when launch initialization began; `none` for commits |
+| `suppressed` | Slow commit summaries kept local since the last commit warning |
+
+A summary becomes a warning when publication or launch open time reaches one
+second or the catalog exceeds the reader limit. `SentryLogHandler` forwards
+warnings to Sentry Logs with its existing version, build, commit, and log
+session attributes. Launch warnings occur at most once per process. Commit
+warnings are limited to one per 15 minutes per process; the rest stay as local
+debug summaries. Summaries contain no titles, feed URLs, GUIDs, or media IDs.
+Like the existing launch log, `appState` reflects UIKit during launch: the
+foreground Simulator smoke launch reported `background`, so this field alone
+does not prove a background launch.
+
+A cold Siri handoff that arrives during the first publication waits for it, so
+its latency includes the remaining publication time. Extension requests in that
+window fail truthfully.
+
+A local diagnostic benchmark seeded 110 podcasts and 110,000 episodes, giving a
+27,709,630-byte catalog. In a Debug test host on My Mac, the previous synchronous
+launch path held the main thread for 546–587 ms. After the change, launch
+initialization returned in 4.9–7.4 ms, and publication finished on the writer
+about 0.8–0.9 seconds after initialization began. Phone hardware is slower; the
+diagnostics report real devices.
+
+Run `bin/sentry-siri-publication-smoke --device <iOS-Simulator-UDID>` with Sentry
+CLI access. The helper builds an isolated probe from current sources and seeds a
+private sentinel library. It then runs the production launch path with a delayed
+catalog write and the production Sentry log configuration. It reads the remote log
+back and verifies its fields, bounds, build and session attribution, and the
+absence of sentinel metadata. Evidence stays in ignored
+`.cache/sentry-siri-publication-smoke/`. It never installs on a physical device.

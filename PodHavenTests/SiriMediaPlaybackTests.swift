@@ -55,6 +55,51 @@ import UIKit
     #expect(await Container.shared.playManager().settledOnDeckID == episodes[0].id)
   }
 
+  @Test("a cold Siri handoff waits for the pending launch catalog publication")
+  func pendingLaunchPublication() async throws {
+    let series = try await Container.shared.repo()
+      .insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(title: "A saved show"),
+          unsavedEpisodes: [try Create.unsavedEpisode(title: "A launch episode")]
+        )
+      )
+    defer { removeCatalog() }
+    let storage = FakeSiriCatalogStorage()
+    defer { storage.release() }
+    Container.shared.appDB()
+      .startSiriCatalog(
+        SiriCatalogFile(
+          url: Container.shared.siriCatalogFile().url,
+          replaceContents: storage.replace
+        )
+      )
+    try await Wait.until({ storage.catalogWriteHeld() }, { "Launch publication did not start" })
+    let intent = SiriTestIntent.named("A launch episode", type: .podcastEpisode)
+    let delegate: any UIApplicationDelegate = AppDelegate()
+    let handler = try #require(
+      delegate.application?(UIApplication.shared, handlerFor: intent) as? SiriMediaIntentHandler
+    )
+    let responses = ThreadSafe<[Int]>([])
+    try await LogCapture.withSink { sink in
+      handler.handle(intent: intent) { response in
+        responses { $0.append(response.code.rawValue) }
+      }
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains { $0.message == "Waiting for the launch Siri catalog publication" }
+        },
+        { "Siri handoff did not wait for the launch publication" }
+      )
+    }
+    #expect(responses().isEmpty)
+    storage.release()
+    try await Wait.until({ !responses().isEmpty }, { "Siri handoff did not complete" })
+    #expect(responses() == [INPlayMediaIntentResponseCode.success.rawValue])
+    #expect(Container.shared.sharedState().currentEpisodeID == series.episodes[0].id)
+  }
+
   @Test("explicit play resumes the paused current item without another asset load")
   func currentResume() async throws {
     let episodes = try await seed([
