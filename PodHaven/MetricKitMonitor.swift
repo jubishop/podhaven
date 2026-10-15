@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 import Logging
 import MetricKit
@@ -120,24 +121,70 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
 
   func didReceive(_ payloads: [MXDiagnosticPayload]) {
     for payload in payloads {
-      forward(payload.crashDiagnostics, as: .crash)
-      forward(payload.hangDiagnostics, as: .hang)
-      forward(payload.cpuExceptionDiagnostics, as: .cpuException)
-      forward(payload.diskWriteExceptionDiagnostics, as: .diskWriteException)
-      forward(payload.appLaunchDiagnostics, as: .appLaunch)
+      receive(payload)
+    }
+  }
+
+  func receive(_ payload: any MetricKitDiagnosticReporting) {
+    var eligible = 0
+    for crash in payload.crashReports {
+      emit(Self.diagnosticDirective(category: .crash, json: crash.jsonRepresentation()))
+      guard let termination = MetricKitCrashTermination(crash) else {
+        Self.log.debug(
+          """
+          MetricKit crash diagnostic left to the in-process crash reporter: \
+          signal=\(crash.signal?.stringValue ?? "none"), \
+          exceptionType=\(crash.exceptionType?.stringValue ?? "none")
+          """
+        )
+        continue
+      }
+      eligible += 1
+      guard eligible <= MetricKitCrashReport.maximumCapturesPerPayload else { continue }
+      forward(crash, termination: termination, from: payload)
+    }
+    if eligible > MetricKitCrashReport.maximumCapturesPerPayload {
+      Self.log.warning(
+        """
+        Skipped \(eligible - MetricKitCrashReport.maximumCapturesPerPayload) eligible \
+        MetricKit crash diagnostics beyond the per-payload capture limit
+        """
+      )
+    }
+    for diagnostic in payload.otherDiagnostics {
+      emit(Self.diagnosticDirective(category: diagnostic.category, json: diagnostic.json))
     }
   }
 
   // MARK: - Forwarding
 
-  private func forward<Diagnostic: MXDiagnostic>(
-    _ diagnostics: [Diagnostic]?,
-    as category: MetricKitDiagnosticCategory
+  private func forward(
+    _ crash: any MetricKitCrashReporting,
+    termination: MetricKitCrashTermination,
+    from payload: any MetricKitDiagnosticReporting
   ) {
-    guard let diagnostics else { return }
-    for diagnostic in diagnostics {
-      emit(Self.diagnosticDirective(category: category, json: diagnostic.jsonRepresentation()))
+    let report: MetricKitCrashReport
+    do {
+      report = try MetricKitCrashReport(
+        crash,
+        termination: termination,
+        begin: payload.timeStampBegin,
+        end: payload.timeStampEnd
+      )
+    } catch {
+      Self.log.caughtError(
+        "Could not convert a MetricKit \(termination.rawValue) crash diagnostic for Sentry",
+        error
+      )
+      return
     }
+    Container.shared.metricKitCrashCapture()(report.event, report.attachments)
+    Self.log.info(
+      """
+      Forwarded MetricKit \(termination.rawValue) crash diagnostic to Sentry: \
+      frames=\(report.frameCount), attachment=\(report.attachmentStatus)
+      """
+    )
   }
 
   private func emit(_ directive: MetricKitLogDirective) {
@@ -194,8 +241,9 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
 
   // The raw jsonRepresentation() rides verbatim in metadata so the call-stack
   // tree (binaryUUID + offset per frame) stays machine-parseable for offline
-  // symbolication; .notice keeps the entry out of Sentry Logs, since the native
-  // MetricKit integration already files the symbolicated issue.
+  // symbolication; .notice keeps the entry out of Sentry Logs. Sentry's native
+  // MetricKit integration files hang, CPU, and disk-write issues, but skips
+  // crashes, so receive(_:) forwards eligible crash diagnostics itself.
   static func diagnosticDirective(
     category: MetricKitDiagnosticCategory,
     json: Data

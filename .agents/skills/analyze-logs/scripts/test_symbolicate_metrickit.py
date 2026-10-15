@@ -101,6 +101,47 @@ class TestDetection(unittest.TestCase):
             self.assertEqual([e.category for e in entries], ["crash", "appLaunch"])
 
 
+class TestRawDiagnosticFile(unittest.TestCase):
+    def test_raw_crash_attachment_is_one_entry_without_a_log_timestamp(self) -> None:
+        import tempfile
+
+        payload = json.loads(json.dumps(SAMPLE_PAYLOAD))
+        payload["diagnosticMetaData"]["signal"] = 9
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "metrickit-crash-diagnostic.json"
+            path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            entries = list(sm.iter_metrickit_entries(path))
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        self.assertEqual(entry.category, "crash")
+        self.assertIsNone(entry.timestamp_ms)
+        self.assertEqual(entry.payload, payload)
+        self.assertEqual(len(sm.extract_call_stacks(entry.payload)[0].frames), 3)
+        symbolicated = sm.SymbolicatedEntry(
+            entry=entry,
+            architecture="arm64e",
+            diagnostic_meta=sm.diagnostic_metadata(entry.payload),
+            call_stacks=sm.extract_call_stacks(entry.payload),
+        )
+        self.assertIn("crash diagnostic — time unknown", sm.render_entry_text(symbolicated))
+        self.assertIsNone(sm.serialize_entry(symbolicated)["timestamp_ms"])
+
+    def test_single_record_log_is_not_a_raw_diagnostic(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            log = write_log(
+                Path(tmp),
+                {
+                    "timestamp": 200,
+                    "message": "MetricKit hang diagnostic received",
+                    "metadata": {"metricKitDiagnostic": json.dumps(SAMPLE_PAYLOAD)},
+                },
+            )
+            entries = list(sm.iter_metrickit_entries(log))
+        self.assertEqual([(e.category, e.timestamp_ms) for e in entries], [("hang", 200)])
+
+
 class TestFlattening(unittest.TestCase):
     def test_flatten_frames_walks_subframes(self) -> None:
         stacks = sm.extract_call_stacks(SAMPLE_PAYLOAD)

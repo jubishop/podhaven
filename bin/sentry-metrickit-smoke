@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+"""Forward a controlled MetricKit crash diagnostic from a Simulator probe and verify it in Sentry."""
+
+import argparse
+from importlib.machinery import SourceFileLoader
+from importlib.util import module_from_spec, spec_from_loader
+import json
+import os
+from pathlib import Path
+import plistlib
+import re
+import subprocess
+import sys
+import time
+import uuid
+
+ROOT = Path(__file__).resolve().parents[1]
+BUNDLE = "com.artisanalsoftware.PodHaven.metrickitsmoke"
+VERSION = "740.0"
+BUILD = "740"
+ATTACHMENT = "metrickit-crash-diagnostic.json"
+ATTACHMENT_LIMIT = 256 * 1024
+FUNCTIONS = (
+    ("AppLauncher.bootstrap", "PodHaven.AppLauncher.bootstrap() -> ()"),
+    ("MetricKitMonitor.receive", "PodHaven.MetricKitMonitor.receive(PodHaven.MetricKitDiagnosticReporting) -> ()"),
+    ("MetricKitCrashReport.init", "PodHaven.MetricKitCrashReport.init("),
+)
+SYSTEM_UUID = "7D8E9F0A-1B2C-3D4E-8F5A-6B7C8D9E0F1A"
+METADATA = {
+    "appVersion": VERSION, "appBuildVersion": BUILD, "bundleIdentifier": BUNDLE,
+    "osVersion": "iPhone OS 27.0 (24A430)", "platformArchitecture": "arm64", "deviceType": "iPhone18,1",
+    "exceptionType": 10, "exceptionCode": 0, "signal": 9,
+    "terminationReason": "Namespace FRONTBOARD, Code 0x8badf00d",
+}
+
+
+CONTEXT_KEYS = {
+    "termination", "attribution", "observation", "deliverySessionID", "appVersion", "appBuild",
+    "osVersion", "platformArchitecture", "deviceType", "bundleIdentifier", "periodStart", "periodEnd",
+    "exceptionType", "exceptionCode", "signal", "terminationReason", "threads", "omittedThreads",
+    "frames", "truncatedThreads", "rawPayloadBytes", "rawPayloadAttachment",
+}
+
+
+def load(name, path):
+    loader = SourceFileLoader(name, str(path))
+    module = module_from_spec(spec_from_loader(name, loader))
+    loader.exec_module(module)
+    return module
+
+
+probe = load("hang_probe", ROOT / "bin/sentry-hang-smoke")
+command = probe.command
+
+
+def api(path):
+    response = json.loads(command("sentry", "api", path, "--json"))
+    if response["status"] != 200:
+        raise RuntimeError(f"Sentry API returned HTTP {response['status']} for {path}")
+    return response["body"]
+
+
+def in_app_offsets(binary):
+    """Return text-segment offsets inside known app functions, outermost caller first."""
+    load_commands = command("otool", "-l", str(binary))
+    text = re.search(r"segname __TEXT\n\s+vmaddr (0x[0-9a-f]+)", load_commands)
+    if text is None:
+        raise RuntimeError("Probe binary has no __TEXT segment")
+    symbols = command("nm", "--defined-only", str(binary))
+    demangled = subprocess.run(["xcrun", "swift-demangle"], input=symbols,
+                               capture_output=True, text=True, check=True).stdout
+    offsets = []
+    for name, symbol in FUNCTIONS:
+        matches = [int(line.split()[0], 16) for line in demangled.splitlines()
+                   if re.match(r"[0-9a-f]+ [Tt] " + re.escape(symbol), line)]
+        if len(matches) != 1:
+            raise RuntimeError(f"Expected one {name} symbol, found {len(matches)}")
+        offsets.append(matches[0] - int(text.group(1), 16) + 8)
+    return offsets
+
+
+def diagnostic(binary_uuid, offsets):
+    """Build MetricKit crash JSON whose call tree roots at the outermost caller."""
+    frames = [("PodHaven", binary_uuid, offset) for offset in offsets]
+    frames.append(("libsystem_kernel.dylib", SYSTEM_UUID, 0x1234))
+    node = None
+    for name, image, offset in reversed(frames):
+        base = 0x1_0000_0000 if name == "PodHaven" else 0x1_a000_0000
+        entry = {"binaryUUID": image, "binaryName": name, "offsetIntoBinaryTextSegment": offset,
+                 "address": base + offset, "sampleCount": 1}
+        if node is not None:
+            entry["subFrames"] = [node]
+        node = entry
+    return {"version": "1.0.0",
+            "callStackTree": {"callStackPerThread": True,
+                              "callStacks": [{"threadAttributed": True, "callStackRootFrames": [node]}]},
+            "diagnosticMetaData": dict(METADATA)}
+
+
+def verify(event, data, remote_size, sent, offline, uploader_release, run):
+    assert 0 < len(data) <= ATTACHMENT_LIMIT and len(data) == remote_size, "Invalid attachment bounds"
+    assert data == sent, "Attachment is not the forwarded raw diagnostic"
+    payload = json.loads(data)
+    assert set(payload) == {"version", "callStackTree", "diagnosticMetaData"}, "Unexpected payload sections"
+    assert payload["diagnosticMetaData"] == METADATA, "Unexpected diagnostic metadata"
+    exceptions = [value for entry in event["entries"] if entry["type"] == "exception"
+                  for value in entry["data"]["values"]]
+    assert len(exceptions) == 1, "Expected one exception"
+    exception = exceptions[0]
+    mechanism = exception["mechanism"]
+    assert mechanism["type"] == "MXCrashDiagnostic" and mechanism["handled"] is False
+    assert mechanism.get("synthetic") is True and mechanism["meta"]["signal"]["number"] == 9
+    tags = {tag["key"]: tag["value"] for tag in event["tags"]}
+    release = f"{BUNDLE}@{VERSION}+{BUILD}"
+    assert tags["diagnostic-run"] == run and tags["metrickit-crash"] == "watchdog"
+    assert tags["release"] == release != uploader_release, "Release is not the diagnostic's build"
+    assert tags["dist"] == BUILD
+    context = event["contexts"]["metrickit_crash"]
+    fields = set(context) - {"type"}
+    assert fields == CONTEXT_KEYS, f"Unexpected crash context fields: {sorted(fields ^ CONTEXT_KEYS)}"
+    assert context["attribution"] == "diagnostic_metadata" and context["termination"] == "watchdog"
+    assert context["appVersion"] == VERSION and context["appBuild"] == BUILD
+    assert context["osVersion"] == METADATA["osVersion"]
+    assert context["rawPayloadAttachment"] == "included" and context["rawPayloadBytes"] == len(sent)
+    frames = exception["stacktrace"]["frames"]
+    in_app = [frame for frame in frames if frame.get("inApp")]
+    assert [frame.get("package") for frame in frames] == ["PodHaven"] * len(FUNCTIONS) + ["libsystem_kernel.dylib"]
+    assert len(in_app) == len(FUNCTIONS), "Unexpected in-app frames"
+    assert all(frame.get("symbolicatorStatus") == "symbolicated" for frame in in_app), "In-app frame unsymbolicated"
+    for frame, (name, _) in zip(in_app, FUNCTIONS):
+        assert name in (frame.get("function") or ""), f"Expected {name}, got {frame.get('function')}"
+    user = event.get("user") or {}
+    assert not any(user.get(key) for key in ("email", "username", "ip_address", "name")), "User identity attached"
+    entry, = offline["entries"]
+    offline_frames = [frame for stack in entry["callStacks"] for frame in stack["frames"]
+                      if frame["binaryName"] == "PodHaven"]
+    assert len(offline_frames) == len(FUNCTIONS)
+    for frame, (name, _) in zip(offline_frames, FUNCTIONS):
+        assert name in (frame["symbol"] or ""), f"Offline symbolication expected {name}, got {frame['symbol']}"
+    return {"attachmentBytes": len(data), "release": release, "uploaderRelease": uploader_release,
+            "inAppFunctions": [frame["function"] for frame in in_app],
+            "offlineSymbols": [frame["symbol"] for frame in offline_frames],
+            "title": event.get("title"), "groupID": event.get("groupID")}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--device", required=True, help="Available iOS Simulator UDID, never a physical device")
+    args = parser.parse_args()
+    token = os.environ.get("SENTRY_AUTH_TOKEN") or command("sentry", "auth", "token")
+    if not token or any(character.isspace() for character in token):
+        raise RuntimeError("Sentry did not return a usable authentication token")
+    devices = json.loads(command("xcrun", "simctl", "list", "devices", "available", "--json"))["devices"]
+    device = next((entry for runtime, entries in devices.items() if ".iOS-" in runtime
+                   for entry in entries if entry["udid"] == args.device), None)
+    if device is None:
+        raise RuntimeError("Only an available iOS Simulator is permitted")
+    output = ROOT / ".cache/sentry-metrickit-smoke"
+    output.mkdir(parents=True, exist_ok=True)
+    run = uuid.uuid4().hex
+    evidence = output / run
+    evidence.mkdir()
+    source = probe.source_state()
+    (evidence / "source.json").write_text(json.dumps(source, indent=2) + "\n")
+    project = probe.prepare(output, bundle=BUNDLE, integration="sentry-metrickit")
+    with (evidence / "build.log").open("w") as log:
+        subprocess.run([
+            "xcodebuild", "build", "-hideShellScriptEnvironment", "-project", str(project),
+            "-scheme", "PodHaven", "-configuration", "Debug", "-destination", "id=" + args.device,
+            "-derivedDataPath", str(output / "DerivedData"), "-skipMacroValidation",
+            "-resultBundlePath", str(evidence / "build.xcresult"),
+            "-clonedSourcePackagesDirPath", str(Path.home() / "Library/Developer/SharedSourcePackages/PodHaven"),
+            "LM_FORCE_LINK_GENERATION=YES", "CODE_SIGNING_ALLOWED=NO", "ENABLE_DEBUG_DYLIB=NO",
+            "DEBUG_INFORMATION_FORMAT=dwarf-with-dsym", "GIT_COMMIT_HASH=" + source["gitCommitHash"],
+        ], cwd=ROOT, env={key: value for key, value in os.environ.items() if key != "SDKROOT"},
+            stdout=log, stderr=subprocess.STDOUT, check=True)
+    gate = load("swift_results", ROOT / "bin/check-swift-results")
+    build = json.loads(command("xcrun", "xcresulttool", "get", "build-results", "--path", str(evidence / "build.xcresult")))
+    assert build["errorCount"] == 0 and build["analyzerWarningCount"] == 0
+    assert build["warningCount"] == len(build.get("warnings", []))
+    assert all(gate.approved_sentry_warning(warning) for warning in build.get("warnings", []))
+    for line in (evidence / "build.log").read_text().splitlines():
+        assert not gate.BUILD_WARNING.search(line) or gate.approved_sentry_log_warning(line), line
+    products = output / "DerivedData/Build/Products/Debug-iphonesimulator"
+    app = products / "PodHaven.app"
+    with (app / "Info.plist").open("rb") as handle:
+        info = plistlib.load(handle)
+    uploader_release = f"{info['CFBundleIdentifier']}@{info['CFBundleShortVersionString']}+{info['CFBundleVersion']}"
+    uuids = re.findall(r"UUID: ([0-9A-F-]{36})", command("dwarfdump", "--uuid", str(app / "PodHaven")))
+    if len(uuids) != 1:
+        raise RuntimeError(f"Expected one probe binary UUID, found {len(uuids)}")
+    offsets = in_app_offsets(app / "PodHaven")
+    upload = command("sentry-cli", "debug-files", "upload", "--org", "artisanal-software",
+                     "--project", "podhaven", "--wait", str(products / "PodHaven.app.dSYM"),
+                     stderr=subprocess.STDOUT)
+    (evidence / "dsym-upload.log").write_text(upload + "\n")
+    sent = json.dumps(diagnostic(uuids[0], offsets), separators=(",", ":")).encode()
+    (evidence / "sent-diagnostic.json").write_bytes(sent)
+    if device["state"] != "Booted":
+        command("xcrun", "simctl", "boot", args.device)
+    command("xcrun", "simctl", "bootstatus", args.device, "-b")
+    command("xcrun", "simctl", "install", args.device, str(app))
+    command("xcrun", "simctl", "launch", "--terminate-running-process", args.device, BUNDLE,
+            env=dict(os.environ, SIMCTL_CHILD_PODHAVEN_METRICKIT_RUN=run,
+                     SIMCTL_CHILD_PODHAVEN_METRICKIT_DIAGNOSTIC=sent.decode()))
+    try:
+        print(f"Controlled MetricKit crash run {run}; waiting for remote ingestion", flush=True)
+        deadline = time.monotonic() + 180
+        while time.monotonic() < deadline:
+            listing = json.loads(command("sentry", "explore", "artisanal-software/podhaven",
+                                         "--query", "diagnostic-run:" + run, "--field", "id",
+                                         "--period", "1h", "--fresh", "--json"))
+            if listing.get("data"):
+                break
+            time.sleep(5)
+        else:
+            raise RuntimeError("Controlled MetricKit crash did not arrive within 180 seconds")
+        event_id = listing["data"][0]["id"]
+        base = f"projects/artisanal-software/podhaven/events/{event_id}/"
+        event = api(base)
+        (evidence / "event.json").write_text(json.dumps(event, indent=2) + "\n")
+        attachments = api(base + "attachments/")
+        (evidence / "attachments.json").write_text(json.dumps(attachments, indent=2) + "\n")
+        matches = [item for item in attachments if item["name"] == ATTACHMENT]
+        assert len(matches) == 1, "Missing or duplicate raw MetricKit attachment"
+        item = matches[0]
+        data = subprocess.check_output([
+            "curl", "--fail", "--silent", "--show-error", "--location", "--max-time", "30", "--header", "@-",
+            "https://sentry.io/api/0/" + base + "attachments/" + str(item["id"]) + "/?download=1",
+        ], input=("Authorization: Bearer " + token + "\n").encode())
+        downloaded = evidence / "downloads"
+        downloaded.mkdir()
+        (downloaded / ATTACHMENT).write_bytes(data)
+        offline = json.loads(subprocess.check_output([
+            sys.executable, "-B", str(ROOT / ".agents/skills/analyze-logs/scripts/symbolicate_metrickit.py"),
+            str(downloaded / ATTACHMENT), "--json", "--cache-dir", str(evidence / "dsym-cache"),
+        ], cwd=ROOT, text=True))
+        (evidence / "offline-symbolication.json").write_text(json.dumps(offline, indent=2) + "\n")
+        result = verify(event, data, item["size"], sent, offline, uploader_release, run)
+        assert probe.source_state() == source, "Sources changed during the smoke run"
+        result.update(eventID=event_id, run=run, source=source,
+                      attachments=sorted((entry["name"], entry["size"]) for entry in attachments))
+        (evidence / "result.json").write_text(json.dumps(result, indent=2) + "\n")
+        print(json.dumps(result, indent=2))
+        print(f"Verified MetricKit crash forwarding from Sentry: {evidence}")
+    finally:
+        subprocess.run(["xcrun", "simctl", "terminate", args.device, BUNDLE], check=False)
+
+
+if __name__ == "__main__":
+    main()
