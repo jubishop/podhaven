@@ -169,6 +169,13 @@ checks skip overridden files. Exclude generated or externally owned docs with
 deliberate `checks.exclude` patterns in `.config/knowledge.json`, never to
 bypass failures in hand-written pages.
 
+A Project Starter sync may go directly to the default branch without a pull
+request or review, even where the project otherwise requires one. This covers
+the files `bin/sync` writes, `.project-starter.json`, and the release's manual
+follow-up when it touches only workflows or documentation. Its checks still
+run, other changes follow the project's usual process, and the carve-out never
+bypasses enforced branch protection.
+
 ## Deployment decisions
 
 Documentation, agent instructions, task setup, comments, and other
