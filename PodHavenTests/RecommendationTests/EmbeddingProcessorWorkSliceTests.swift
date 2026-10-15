@@ -80,8 +80,8 @@ class EmbeddingProcessorWorkSliceTests {
     #expect(fakeBGTaskScheduler.pendingIdentifiers.isEmpty)
   }
 
-  @Test("slow background slice emits a Sentry-visible summary warning")
-  func slowBackgroundSliceEmitsSummaryWarning() async throws {
+  @Test("slow background slice summary stays below the Sentry warning level")
+  func slowBackgroundSliceSummaryStaysBelowWarning() async throws {
     let clock = Container.shared.fakeContinuousClock()
     clock.freeze()
     let slowEmbedding = ContextualEmbedding(
@@ -124,7 +124,7 @@ class EmbeddingProcessorWorkSliceTests {
         $0.message.contains("event=embeddingWorkSliceCompleted")
       }
     )
-    #expect(summary.level == .warning)
+    #expect(summary.level == .info)
     #expect(summary.message.contains("mode=background"))
     #expect(summary.message.contains("state=empty"))
     #expect(summary.message.contains("processedCount=1"))

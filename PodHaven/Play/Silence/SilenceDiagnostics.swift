@@ -105,7 +105,7 @@ struct SilenceDiagnostics: Sendable {
       if permitted { history.warnings += 1 }
       if warning && !permitted { history.suppressedWarnings += 1 }
       return (
-        permitted ? .warning : .info,
+        permitted ? .notice : .info,
         """
         sessionID=\(history.sessionID) sessionRuns=\(history.runs) \
         sessionBackgroundRuns=\(history.backgroundRuns) \

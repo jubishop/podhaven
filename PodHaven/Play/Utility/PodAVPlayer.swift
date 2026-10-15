@@ -327,12 +327,12 @@ struct PodAVPlayerPlaybackSnapshot {
     }
 
     let startedAt = Date()
-    Self.log.warning(
+    Self.log.info(
       "event=mediaServicesRecoveryAssetLoad phase=started episodeID=\(episodeID) source=\(source.rawValue) resetElapsedSeconds=\(mediaServicesResetElapsed)"
     )
     do {
       let asset = try await loadEpisodeAsset(url)
-      Self.log.warning(
+      Self.log.info(
         "event=mediaServicesRecoveryAssetLoad phase=completed outcome=succeeded episodeID=\(episodeID) source=\(source.rawValue) resetElapsedSeconds=\(mediaServicesResetElapsed) durationSeconds=\(Date().timeIntervalSince(startedAt))"
       )
       return asset
@@ -365,10 +365,6 @@ struct PodAVPlayerPlaybackSnapshot {
 
   func playbackStatus() -> PlaybackStatus {
     PlaybackStatus(avPlayer.timeControlStatus)
-  }
-
-  func reasonForWaitingToPlay() -> String? {
-    avPlayer.reasonForWaitingToPlay?.rawValue
   }
 
   func playbackSnapshot() -> PodAVPlayerPlaybackSnapshot {

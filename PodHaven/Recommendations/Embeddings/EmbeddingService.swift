@@ -116,7 +116,6 @@ enum EmbeddingService {
   // lets BG-task expiry preserve work already done instead of paying a
   // multi-second hydration pass up front.
   private static let hydrationChunkSize = 64
-  private static let slowBatchThreshold: Duration = .seconds(10)
 
   // MARK: - Upsert Episode Embeddings
 
@@ -714,11 +713,7 @@ enum EmbeddingService {
       failedEpisodeCount: failedEpisodeCount,
       wallDuration: wallDuration
     )
-    if wallDuration >= slowBatchThreshold {
-      Self.log.warning("\(message)")
-    } else {
-      Self.log.info("\(message)")
-    }
+    Self.log.info("\(message)")
   }
 
   private static func batchTelemetryMessage(
