@@ -66,7 +66,7 @@ import UIKit
         alert.config != nil,
         sink.captured()
           .contains {
-            $0.message == "System memory warning received" && $0.level == .warning
+            $0.message == "System memory warning received" && $0.level == .notice
           }
       )
     }

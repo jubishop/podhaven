@@ -26,7 +26,7 @@ extension Container {
     task = Task(priority: Container.shared.taskPriority()(.utility)) {
       for await _ in warnings {
         guard !Task.isCancelled else { return }
-        Self.log.warning("System memory warning received")
+        Self.log.notice("System memory warning received")
         if AppInfo.environment.allowsDiagnostics, AppInfo.myDevice {
           alert("Memory warning received")
         }

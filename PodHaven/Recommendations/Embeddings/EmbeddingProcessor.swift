@@ -32,7 +32,6 @@ struct EmbeddingProcessor: Sendable {
 
   private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).embeddingComputation"
   private static let workSliceSize = 16
-  private static let slowWorkSliceThreshold: Duration = .seconds(20)
 
   private let backgroundTaskScheduler: BackgroundTaskScheduler
   private let foregroundTask = ThreadSafe<Task<Void, Never>?>(nil)
@@ -435,9 +434,7 @@ struct EmbeddingProcessor: Sendable {
       failedEpisodeCount=\(result.failedEpisodeCount) \
       wallSeconds=\(result.duration.asTimeInterval)
       """
-    let level: Logger.Level =
-      result.duration >= Self.slowWorkSliceThreshold ? .warning : .info
-    Self.log.log(level: level, message)
+    Self.log.info(message)
   }
 
   private func episodeIDsNeedingWork(

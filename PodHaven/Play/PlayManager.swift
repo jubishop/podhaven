@@ -106,10 +106,8 @@ final class PlayManager {
   var onDeckBecameCurrentAt: Date?
   private var lastLoggedTime = Date.distantPast
   private var lastNowPlayingElapsedWrite: CMTime?
-  private var lastBackgroundSnapshot: Date?
   var mediaServicesRecoveryState = MediaServicesRecoveryState.none
   var pendingPlaybackRequest = PendingPlaybackRequest.none
-  private var postPauseObservationTask: Task<Void, Never>?
   var widgetRouteRecovery: WidgetRouteRecovery?
   var widgetRouteRecoveryTask: Task<Void, Never>?
 
@@ -804,31 +802,6 @@ final class PlayManager {
 
   // MARK: - Remote Scrub Suppression
 
-  // Snapshot Now Playing state after a pause to diagnose delayed system scrub commands.
-  func startPostPauseObservation() {
-    postPauseObservationTask?.cancel()
-    postPauseObservationTask = Task { [weak self] in
-      guard let self else { return }
-      let pauseAt = Date()
-      for _ in 0..<9 {
-        do {
-          try await sleeper.sleep(for: .seconds(5))
-        } catch {
-          return
-        }
-        if Task.isCancelled { return }
-        let offset = Int(Date().timeIntervalSince(pauseAt).rounded())
-        await logBackgroundPlaybackSnapshot(
-          label: "post-pause +\(offset)s",
-          currentTime: podAVPlayer.currentTime()
-        )
-      }
-      // Clear only on graceful completion. The cancel path returns early so a
-      // replacement task assigned to this property isn't wiped out.
-      postPauseObservationTask = nil
-    }
-  }
-
   // Temporarily suppress remote scrub commands after episode transitions.
   // iOS may deliver stale scrub events from the finished episode's gesture
   // with the NEW episode's ID (captured at delivery time, not gesture time),
@@ -885,24 +858,6 @@ final class PlayManager {
     if abs(currentTime.seconds - (lastNowPlayingElapsedWrite ?? .zero).seconds) >= 3.0 {
       lastNowPlayingElapsedWrite = currentTime
       NowPlayingInfo.setCurrentTime(currentTime)
-    }
-
-    // Snapshot player and lock-screen state periodically for background diagnostics.
-    if let last = lastBackgroundSnapshot {
-      let snapshotDelta = now.timeIntervalSince(last)
-      if snapshotDelta >= 30 {
-        lastBackgroundSnapshot = now
-        Task { [weak self, currentTime, snapshotDelta] in
-          guard let self else { return }
-          let offset = Int(snapshotDelta.rounded())
-          await logBackgroundPlaybackSnapshot(
-            label: "periodic +\(offset)s",
-            currentTime: currentTime
-          )
-        }
-      }
-    } else {
-      lastBackgroundSnapshot = now
     }
   }
 

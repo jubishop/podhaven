@@ -1,11 +1,17 @@
 ---
 name: "nowplaying-elapsed-time-desync"
-description: "Recurring bug where iOS sends a stale backward scrub ~30–33s after AirPods-triggered background pause. 6 confirmed incidents. Both the incident-3 fix (event-driven writes) and the incident-5 fix (fb43f650, periodic CurrentPlaybackDate anchor + playbackState mirror) FAILED to prevent recurrence on 4/19. Response: removed CurrentPlaybackDate entirely (on-demand audio doesn't need it) and added a 30s wall-clock diagnostic snapshot to catch AVPlayer/dict/mediaserverd drift on the next incident."
+description: "Resolved 2026-10-14: no stale backward scrub after AirPods-triggered background pause since incident 6 on 2026-04-19. The last change before the quiet period removed CurrentPlaybackDate writes; its diagnostic snapshot logging has since been removed."
 type: "project"
-status: "active"
+status: "resolved"
 ---
 
 # Nowplaying elapsed time desync
+
+## Resolution — 2026-10-14
+
+No incident has been reported since incident 6 on 2026-04-19 (confirmed by @jubishop on 2026-10-14). The last change before that quiet period, cbff5c56, removed `MPNowPlayingInfoPropertyCurrentPlaybackDate` writes. That may be the fix, but no incident confirmed it.
+
+The diagnostic snapshot logging that cbff5c56 added (`logBackgroundPlaybackSnapshot`, the pause, post-pause, and 30s periodic snapshots, and `PodAVPlayer.reasonForWaitingToPlay()`) was removed once the issue was considered resolved. `logRemoteScrubDecision`, including its `eventTimestamp` lag, remains. If the bug recurs, restore the snapshot instrumentation from cbff5c56 and continue from the notes below.
 
 iOS can send a stale backward `playbackPosition` scrub ~30–33s after an AirPods-triggered background pause even when `MPNowPlayingInfoCenter` was freshly anchored. Treat every new report as a fresh data point — prior fixes did not hold.
 

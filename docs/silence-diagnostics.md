@@ -11,9 +11,17 @@ publishing a completed scan, the processor reconciles current eligibility and
 thermal state so delayed settings or thermal observations do not bypass the
 cancellation check.
 
-## Warning policy
+## Notice policy
 
-The initial long-run threshold is **20 seconds**, matching embedding computation.
+Exceptional events log at `.notice` and normal events at `.info`. Both stay in
+local logs (OSLog, the NDJSON file logs, and the recent-log attachments on
+Sentry events and feedback) and stay below the `.warning` level that reaches
+Sentry Logs. They logged at `.warning` until the
+[real-world assessment](#real-world-assessment) found no case for pacing. The
+`suppressedWarnings` and `warningSuppressed` fields keep their names and count
+suppressed notices.
+
+The long-run threshold is **20 seconds**.
 For silence, this measures one uninterrupted foreground or background drain,
 including all files in that drain. It is a telemetry convention, not a measured
 performance limit or an iOS deadline. Apple permits processing tasks to run for
@@ -21,19 +29,19 @@ minutes but can interrupt them; the expiration handler requests prompt cleanup.
 See [BGProcessingTask](https://developer.apple.com/documentation/backgroundtasks/bgprocessingtask)
 and [expirationHandler](https://developer.apple.com/documentation/backgroundtasks/bgtask/expirationhandler).
 
-- `silenceRunSlow`: one warning when a run first reaches the threshold. Progress
+- `silenceRunSlow`: one notice when a run first reaches the threshold. Progress
   checkpoints can emit this before the current file finishes or publishes a map.
-- `silenceRunFinished`: a terminal warning for a long run, a thermal interruption
+- `silenceRunFinished`: a terminal notice for a long run, a thermal interruption
   that discards audio already processed, or the third and subsequent expirations
   of the same content generation within the aggregation window.
 - Fast completion, isolated short expiration, lifecycle cancellation, and lost
-  eligibility remain below warning. Per-file attempt events also stay local.
-  Existing decoding/database error logs retain their error handling and severity.
+  eligibility stay at info, as do per-file attempt events. Existing
+  decoding/database error logs retain their error handling and severity.
 
-New diagnostics allow at most two warnings per run and six warnings in each
-15-minute window, measured with a monotonic clock. Excess warnings become local
-info summaries and increment a suppressed-warning counter. These are additional
-bounds on exceptional telemetry, not limits on analysis work.
+The diagnostics allow at most two notices per run and six notices in each
+15-minute window, measured with a monotonic clock. Excess notices become info
+summaries and increment the suppressed counter. These are bounds on exceptional
+telemetry, not limits on analysis work.
 
 Expiration history retains at most 64 content generations, uses a fixed window starting at the first expiration for that generation,
 and resets that entry after 15 minutes. All history resets on process launch. Counts describe a bounded observation
@@ -42,9 +50,8 @@ allow a later agent to correlate observations from different process sessions.
 
 ## Reading events
 
-All decision fields are in the message text. `SentryLogHandler` forwards that
-text and its existing build, version, and commit attributes. No change to the
-global warning-level Sentry filter or arbitrary logger metadata is needed.
+All decision fields are in the message text. Read them from local logs or a
+feedback log attachment; these events no longer reach Sentry Logs.
 
 | Field | Meaning |
 | --- | --- |
@@ -95,27 +102,43 @@ limits reset on relaunch. A final log and its network delivery cannot be
 guaranteed after an abrupt process termination. An expiration callback means
 iOS asked this grant to stop; it does not prove the process was killed.
 
-## Later real-world assessment
+## Real-world assessment
 
-The user will trigger a separate agent after the telemetry has run in the wild.
-Physical-device calibration and live Sentry delivery are not PR delivery gates.
+Assessed on 2026-10-14 from every `silenceRunSlow` and `silenceRunFinished`
+warning in Sentry Logs: 146 events from 2026-09-15 to 2026-10-14. They came
+from builds 577 through 586, in the TestFlight environment only, from two
+devices and 97 runs (82 background, 15 foreground). Every build included the
+task-priority change, and every event reported `taskPriority=9`, so no
+before-and-after priority comparison was possible. The silence code was the
+same in all of these builds.
 
-1. Record the deployed build, commit, environment, and observed task priority.
-   Account for the separate task-priority change when comparing builds.
-2. Find `event=silenceRunSlow` and `event=silenceRunFinished` in Sentry logs.
-   Verify that warning events contain the fields above. Use local logs or a
-   feedback log attachment to inspect routine attempts and lower-severity runs.
-3. Group by session and run. Pair the early snapshot with its terminal result.
-   Group by content generation to inspect restart cost across attempts/launches.
-4. Compare completed runs with expired runs, audio processed versus discarded,
-   thermal state, and concurrent work. Separate foreground and background runs.
-5. Use cumulative counters carefully: take differences within the same session,
-   not sums of cumulative values. Events omitted by rate limits and sessions
-   without warnings are not a representative sample of all users or all work.
-6. Report whether pacing is warranted, unsupported by the observed runs, or
-   still uncertain. Record unavailable data. If proposing pacing, explain both
-   its intended benefit and the risk of more expirations/restarts. Revisit the
-   initial threshold only with supporting evidence.
+| Terminal group | Runs | Median wall | Audio processed | Discarded |
+| --- | --- | --- | --- | --- |
+| Background, completed | 28 | 75s | 87.1h | 0.1% |
+| Background, expired | 10 | 108s | 59.2h | 10.4% |
+| Foreground, completed | 4 | 32s | 13.2h | 0% |
+| Foreground, interrupted by backgrounding | 9 | 38s | 17.4h | 36.7% |
+| No file attempted | 40 | 39s | 0 | 0 |
 
-Local regression tests establish message contents, severity, and bounds. They do
-not establish successful network delivery to Sentry or a need for pacing.
+- **Lost work** came from long files (35–117 minutes) interrupted mid-attempt.
+  Background expiration and leaving the app lost similar amounts. No content
+  generation expired three times within the aggregation window.
+- **Thermal pressure** stayed nominal or fair and never stopped or deferred a
+  run.
+- **Concurrent embedding or transcription work** did not coincide with slower
+  runs.
+- **44% of terminal warnings were runs with no file to analyze.** Their wall
+  time was mostly waiting (median process CPU 2.15s), and `ContinuousClock`
+  includes time while the process is suspended.
+- **Session counters** show these warnings covered about 35% of runs. Six slow
+  runs never reported a terminal event; the data cannot tell process
+  termination from lost delivery.
+
+Pacing is unsupported by the observed runs. Longer attempts would likely
+increase expirations, restarts, and discarded audio. The sample covers two
+TestFlight devices and only runs that crossed the warning level, so it does not
+represent all users. No CPU or energy figure is attributable to silence analysis
+alone.
+
+Because the warnings answered the question they were added for, the events now
+log below Sentry's level as described in the [notice policy](#notice-policy).

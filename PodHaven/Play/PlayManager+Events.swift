@@ -61,7 +61,7 @@ extension PlayManager {
 
     switch status {
     case .failed(.mediaServicesWereReset):
-      Self.log.warning(
+      Self.log.info(
         "event=mediaServicesResetItemFailure outcome=preservingPlayback episodeID=\(episodeID)"
       )
     case .failed(.other):
@@ -84,44 +84,6 @@ extension PlayManager {
     Self.log.debug("handleDidPlayToEnd: \(episodeID)")
 
     await finishEpisode(episodeID)
-  }
-
-  // Snapshot both our view of playback state (AVPlayer currentTime,
-  // timeControlStatus, reasonForWaitingToPlay) and iOS's dict view (elapsed,
-  // rate). `label` identifies the caller (periodic, pause, post-pause +5s,
-  // etc.) so the next stale-scrub incident has a trail of checkpoints across
-  // the whole session leading up to, through, and past the pause window.
-  func logBackgroundPlaybackSnapshot(label: String, currentTime: CMTime) async {
-    let avPlayerPlaybackStatus = await podAVPlayer.playbackStatus()
-    let waitingReason = await podAVPlayer.reasonForWaitingToPlay()
-    let applicationState = await Container.shared.uiApplication().applicationState
-    let routeOutputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType.rawValue)
-    let infoCenter = Container.shared.mpNowPlayingInfoCenter()
-    let nowPlayingElapsed: Double? =
-      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double
-    let nowPlayingRate: Double? =
-      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] as? Double
-
-    let elapsedString: String
-    if let nowPlayingElapsed {
-      elapsedString = String(describing: CMTime.seconds(nowPlayingElapsed))
-    } else {
-      elapsedString = "nil"
-    }
-
-    Self.log.debug(
-      """
-      playback snapshot (\(label))
-        avPlayerCurrentTime: \(currentTime)
-        nowPlayingElapsed: \(elapsedString)
-        nowPlayingRate: \(String(describing: nowPlayingRate))
-        sharedPlaybackStatus: \(sharedState.playbackStatus)
-        avPlayerPlaybackStatus: \(avPlayerPlaybackStatus)
-        waitingReason: \(String(describing: waitingReason))
-        appState: \(applicationState)
-        routeOutputs: \(routeOutputs)
-      """
-    )
   }
 
   private func logRemoteScrubDecision(
@@ -309,7 +271,15 @@ extension PlayManager {
       resumeEpisodeID = "nil"
     }
 
-    Self.log.warning(
+    let level: Logger.Level
+    switch outcome {
+    case .awaitingUserAction, .noEpisode:
+      level = .info
+    case .configurationFailed, .queueStateUnknown:
+      level = .warning
+    }
+    Self.log.log(
+      level: level,
       """
       event=mediaServicesResetHandled outcome=\(outcome.rawValue) \
       previousPlaybackStatus=\(previousPlaybackStatus) \
@@ -358,9 +328,6 @@ extension PlayManager {
         switch parsedNotification {
         case .pause:
           await pause()
-          let pausedAt = await podAVPlayer.currentTime()
-          await logBackgroundPlaybackSnapshot(label: "pause", currentTime: pausedAt)
-          startPostPauseObservation()
         case .resume:
           await play()
         case .ignore:

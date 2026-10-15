@@ -98,7 +98,7 @@ import Testing
       )
       let telemetry = sink.captured()
         .filter {
-          $0.level == .warning
+          $0.level == .info
             && $0.message.contains("event=mediaServicesResetHandled")
             && $0.message.contains("outcome=awaitingUserAction")
             && $0.message.contains("resumeEpisodeID=\(podcastEpisode.id)")
@@ -130,7 +130,7 @@ import Testing
       )
       let assetLoadTelemetry = sink.captured()
         .filter {
-          $0.level == .warning
+          $0.level == .info
             && $0.message.contains("event=mediaServicesRecoveryAssetLoad")
             && $0.message.contains("episodeID=\(podcastEpisode.id)")
             && $0.message.contains("source=remote")
@@ -369,7 +369,7 @@ import Testing
       )
       let telemetry = sink.captured()
         .filter {
-          $0.level == .warning
+          $0.level == .info
             && $0.message.contains("event=mediaServicesResetHandled")
             && $0.message.contains("outcome=noEpisode")
         }
@@ -564,6 +564,13 @@ import Testing
         },
         { @MainActor in "Expected the media-services item failure to be handled" }
       )
+      let itemFailure = try #require(
+        sink.captured()
+          .first {
+            $0.message.contains("event=mediaServicesResetItemFailure")
+          }
+      )
+      #expect(itemFailure.level == .info)
       #expect(sharedState.onDeck?.id == podcastEpisode.id)
       #expect(sharedState.currentEpisodeID == podcastEpisode.id)
 

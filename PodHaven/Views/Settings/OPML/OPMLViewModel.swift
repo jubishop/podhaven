@@ -104,14 +104,14 @@ extension Container {
       id: \.feedURL
     )
 
-    await withDiscardingTaskGroup { group in
+    let (newFeedCount, failedFeedCount) = await withTaskGroup(of: Bool.self) { group in
       for rssFeed in opml.rssFeeds {
         if let podcast = allPodcasts[id: rssFeed.feedURL] {
           Self.log.debug("Podcast: \(podcast.toString) already exists")
 
           if !podcast.subscribed {
             group.addTask { [weak self, podcast] in
-              guard let self else { return }
+              guard let self else { return false }
               do {
                 try await repo.markSubscribed(podcast.id)
                 if let podcast = try await repo.podcast(podcast.id) {
@@ -123,6 +123,7 @@ extension Container {
                   error
                 )
               }
+              return false
             }
           }
           opmlFile.finished.insert(OPMLOutline(status: .finished, text: rssFeed.title))
@@ -140,9 +141,10 @@ extension Container {
       }
 
       self.opmlFile = opmlFile
+      let newFeedCount = opmlFile.waiting.count
       for outline in opmlFile.waiting {
         group.addTask { [weak self, opmlFile, outline] in
-          guard let self = self else { return }
+          guard let self = self else { return false }
 
           let downloadTask = await downloadManager.addURL(outline.feedURL.rawValue)
 
@@ -166,21 +168,36 @@ extension Container {
             )
             try await repo.markSubscribed(podcastSeries.id)
             await updateOutlineStatus(outline, in: opmlFile, to: .finished)
+            return false
           } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
             await updateOutlineStatus(outline, in: opmlFile, to: .finished)
+            return false
           } catch {
             Self.log.caughtError(
               """
               downloadOPMLFile: \
               failed to download/parse feed '\(await outline.text)' (\(await outline.feedURL))
               """,
-              error
+              error,
+              level: .notice
             )
             await updateOutlineStatus(outline, in: opmlFile, to: .failed)
+            return ErrorKit.isRemarkable(error)
           }
         }
       }
+
+      var failedFeedCount = 0
+      for await failed in group where failed {
+        failedFeedCount += 1
+      }
+      return (newFeedCount, failedFeedCount)
     }
+
+    guard failedFeedCount > 0 else { return }
+    Self.log.warning(
+      "downloadOPMLFile: \(failedFeedCount) of \(newFeedCount) new feeds failed to download or parse"
+    )
   }
 
   private func updateOutlineStatus(

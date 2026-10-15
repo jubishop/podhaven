@@ -32,8 +32,8 @@ struct SilenceDiagnosticPolicyTests {
     }
   }
 
-  @Test("warning budget resets after its window and reports suppressed events")
-  func warningBudget() throws {
+  @Test("notice budget resets after its window and reports suppressed events")
+  func noticeBudget() throws {
     let clock = Container.shared.fakeContinuousClock()
     clock.freeze()
     let diagnostics = Container.shared.silenceDiagnostics()
@@ -49,7 +49,7 @@ struct SilenceDiagnosticPolicyTests {
       }
       return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
     }
-    #expect(entries.filter { $0.level == .warning }.count == 6)
+    #expect(entries.filter { $0.level == .notice }.count == 6)
     let last = try #require(entries.last)
     #expect(last.level == .info)
     #expect(last.message.contains("sessionRuns=5"))
@@ -68,7 +68,7 @@ struct SilenceDiagnosticPolicyTests {
       run.finish(expired: false)
       return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
     }
-    #expect(next.filter { $0.level == .warning }.count == 2)
+    #expect(next.filter { $0.level == .notice }.count == 2)
     #expect(next.last?.message.contains("suppressedWarnings=4") == true)
   }
 
@@ -88,14 +88,14 @@ struct SilenceDiagnosticPolicyTests {
       }
       return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
     }
-    let warnings = entries.filter { $0.level == .warning }
-    #expect(warnings.count == 1)
-    let warning = try #require(warnings.first)
-    #expect(warning.message.contains("expirationCount=3"))
-    #expect(warning.message.contains("expirationDiscardedSeconds=15.0"))
-    #expect(warning.message.contains("sessionDiscardedAudioSeconds=15.0"))
-    #expect(warning.message.contains("sessionExpirations=3"))
-    #expect(!warning.message.contains("previousExpiredRunID=none"))
+    let notices = entries.filter { $0.level == .notice }
+    #expect(notices.count == 1)
+    let notice = try #require(notices.first)
+    #expect(notice.message.contains("expirationCount=3"))
+    #expect(notice.message.contains("expirationDiscardedSeconds=15.0"))
+    #expect(notice.message.contains("sessionDiscardedAudioSeconds=15.0"))
+    #expect(notice.message.contains("sessionExpirations=3"))
+    #expect(!notice.message.contains("previousExpiredRunID=none"))
     clock.advance(by: .minutes(15))
     let aged = LogCapture.withSink { sink in
       let run = diagnostics.startRun(id: UUID(), background: true)
@@ -104,7 +104,7 @@ struct SilenceDiagnosticPolicyTests {
       run.finish(expired: true)
       return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
     }
-    #expect(aged.allSatisfy { $0.level < .warning })
+    #expect(aged.allSatisfy { $0.level < .notice })
     #expect(aged.last?.message.contains("expirationCount=1") == true)
     #expect(aged.last?.message.contains("previousExpiredRunID=none") == true)
   }
@@ -150,7 +150,7 @@ struct SilenceDiagnosticPolicyTests {
       let summary = try #require(entries.last)
       #expect(summary.message.contains("stopReason=\(reason.rawValue)"))
       #expect(summary.message.contains("discardedAudioSeconds=2.0"))
-      #expect(summary.level == (reason == .thermal ? .warning : .info))
+      #expect(summary.level == (reason == .thermal ? .notice : .info))
     }
     let deferred = LogCapture.withSink { sink in
       let run = diagnostics.startRun(id: UUID(), background: true)
