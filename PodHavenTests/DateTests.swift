@@ -41,6 +41,22 @@ struct DateTests {
     )
   }
 
+  @Test("parseFeedDate parses RFC-2822 dates that omit the optional seconds")
+  func parseRFC2822DatesWithoutSeconds() {
+    #expect(
+      Date.parseFeedDate("Thu, 31 Mar 2022 22:00 EST")
+        == utcDate(year: 2022, month: 4, day: 1, hour: 3)
+    )
+    #expect(
+      Date.parseFeedDate("Thu, 3 Jun 2021 19:30 EST")
+        == utcDate(year: 2021, month: 6, day: 4, minute: 30)
+    )
+    #expect(
+      Date.parseFeedDate("31 Mar 2022 22:00 +0000")
+        == utcDate(year: 2022, month: 3, day: 31, hour: 22)
+    )
+  }
+
   @Test("parseFeedDate parses ISO-8601 datetimes")
   func parseISO8601Datetimes() {
     #expect(
