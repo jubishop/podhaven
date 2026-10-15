@@ -52,7 +52,10 @@ final class SiriPlayback {
   private var presentation: (id: UUID, show: () -> Void)?
 
   lazy var handler = SiriMediaIntentHandler(
-    catalog: { try await Container.shared.siriCatalogFile().read() },
+    catalog: {
+      try await Container.shared.appDB().siriCatalogPublished()
+      return try await Container.shared.siriCatalogFile().read()
+    },
     authorized: { Container.shared.siriAuthorized()() },
     diagnostic: { Container.shared.siriResolutionDiagnostics().record($0) },
     playback: { completion in

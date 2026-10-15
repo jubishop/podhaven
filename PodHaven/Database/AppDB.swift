@@ -10,7 +10,9 @@ extension Container {
     Factory(self) { AppDB._onDisk }.scope(.cached)
   }
 
-  internal func initializeAppDB() {
+  @MainActor internal func initializeAppDB() {
+    siriCatalogPublicationDiagnostics()
+      .launching(applicationState: uiApplication().applicationState)
     _ = appDB()
   }
 
@@ -54,24 +56,32 @@ struct AppDB {
     AppInfo.documentsDirectory.appendingPathComponent("db.sqlite").path
 
   fileprivate static let _onDisk = {
-    Self.log.debug("creating onDisk AppDB")
     do {
       Assert.precondition(
         AppInfo.environment != .preview,
         "Creating onDisk AppDB in preview is not supported"
       )
-      let dbPool = try DatabasePool(path: sqlitePath, configuration: makeConfiguration())
-      let appDB = AppDB(dbPool)
-      appDB.startSiriCatalog(Container.shared.siriCatalogFile())
-      dbPool.add(
-        transactionObserver: WriteProbe(enabled: Container.shared.userSettings().$enableWriteProbe),
-        extent: .databaseLifetime
-      )
-      return appDB
+      return try launch(path: sqlitePath, siriCatalogFile: Container.shared.siriCatalogFile())
     } catch {
       Assert.fatal("Failed to initialize onDisk AppDB pool: \(ErrorKit.message(for: error))")
     }
   }()
+
+  static func launch(path: String, siriCatalogFile: SiriCatalogFile) throws -> AppDB {
+    Self.log.debug("creating onDisk AppDB")
+    let now = Container.shared.continuousClockNow()
+    let openedAt = now()
+    let dbPool = try DatabasePool(path: path, configuration: makeConfiguration())
+    let appDB = AppDB(dbPool)
+    let openDuration = now() - openedAt
+    // Synchronous writer access must precede the queued publication, or it waits for it.
+    dbPool.add(
+      transactionObserver: WriteProbe(enabled: Container.shared.userSettings().$enableWriteProbe),
+      extent: .databaseLifetime
+    )
+    appDB.startSiriCatalog(siriCatalogFile, openDuration: openDuration)
+    return appDB
+  }
 
   #if DEBUG
   static let onDisk = { _onDisk }()
@@ -116,6 +126,7 @@ struct AppDB {
   // MARK: - Initialization
 
   private let db: any DatabaseWriter
+  private let siriCatalogPublication = ThreadSafe<AsyncLatch<Void>?>(nil)
   private init(_ db: some DatabaseWriter, migrate: Bool = true) {
     self.db = db
     if migrate {
@@ -126,10 +137,26 @@ struct AppDB {
   var reader: Reader { Reader(self) }
   var writer: Writer { Writer(self) }
 
-  func startSiriCatalog(_ file: SiriCatalogFile) {
+  // The catalog stays invalid until the first publication, which runs on the writer
+  // queue ahead of any library write so a stale snapshot is never readable.
+  func startSiriCatalog(_ file: SiriCatalogFile, openDuration: Duration? = nil) {
+    let published = AsyncLatch<Void>()
+    siriCatalogPublication(published)
+    do { try file.invalidate() } catch {
+      Self.log.caughtError("Could not invalidate Siri catalog before launch publication", error)
+    }
     let publisher = SiriCatalogPublisher(file: file)
-    db.writeWithoutTransaction { db in publisher.publish(db) }
-    db.add(transactionObserver: publisher, extent: .databaseLifetime)
+    db.asyncWriteWithoutTransaction { db in
+      db.add(transactionObserver: publisher, extent: .databaseLifetime)
+      publisher.publish(db, trigger: .launch(openDuration: openDuration))
+      published.open()
+    }
+  }
+
+  func siriCatalogPublished() async throws {
+    guard let published = siriCatalogPublication(), !published.isOpen else { return }
+    Self.log.debug("Waiting for the launch Siri catalog publication")
+    try await published.wait()
   }
 
   struct Reader: Sendable {

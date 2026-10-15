@@ -210,17 +210,22 @@ extension FileHandle: SiriCatalogReadHandle {}
 struct SiriCatalogFile: Sendable {
   let url: URL
   private let openForReading: @Sendable (URL) async throws -> any SiriCatalogReadHandle
-  private static let maximumBytes = 32 * 1024 * 1024
+  private let replaceContents: @Sendable (Data, URL) throws -> Void
+  static let maximumBytes = 32 * 1024 * 1024
   private static let log = Log.as("SiriCatalogFile")
 
   init(
     url: URL,
     openForReading: @escaping @Sendable (URL) async throws -> any SiriCatalogReadHandle = {
       try FileHandle(forReadingFrom: $0)
+    },
+    replaceContents: @escaping @Sendable (Data, URL) throws -> Void = {
+      try $0.write(to: $1, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
   ) {
     self.url = url
     self.openForReading = openForReading
+    self.replaceContents = replaceContents
   }
 
   @concurrent func read() async throws -> SiriCatalog {
@@ -246,20 +251,21 @@ struct SiriCatalogFile: Sendable {
     return catalog
   }
 
-  func write(_ catalog: SiriCatalog) throws {
+  @discardableResult func write(_ catalog: SiriCatalog) throws -> Int {
+    let data = try JSONEncoder().encode(catalog)
+    try replace(with: data)
+    return data.count
+  }
+
+  func invalidate() throws {
+    try replace(with: Data())
+  }
+
+  private func replace(with data: Data) throws {
     try FileManager.default.createDirectory(
       at: url.deletingLastPathComponent(),
       withIntermediateDirectories: true
     )
-    try JSONEncoder().encode(catalog)
-      .write(
-        to: url,
-        options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
-      )
-  }
-
-  func invalidate() throws {
-    try Data()
-      .write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+    try replaceContents(data, url)
   }
 }
