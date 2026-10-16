@@ -28,7 +28,9 @@ take precedence over this block and the foundation pages wherever they differ.
   releasing production code unless an enforced CI gate runs it. Reuse passing
   results.
 - Keep accepted decisions separate from proposals, preserve unrelated changes,
-  and keep secrets and generated caches out of Git.
+  and keep generated caches out of Git. Keep secrets out of public
+  repositories only; a private one may commit them, such as its `.env` by
+  adding `!.env` after the `.gitignore` block.
 - Run `bin/setup` after cloning, `bin/doctor` to diagnose setup, and
   `bin/qmd-index` after uncommitted knowledge edits. Managed files listed in
   `.project-starter.json` change only through Project Starter or a recorded
