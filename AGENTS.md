@@ -87,7 +87,7 @@ take precedence over this block and the foundation pages wherever they differ.
 
 ## Testing
 - Before Swift validation, read the [current-revision workflow](docs/development-workflow.md#current-revision-swift-validation) for commands, targets, accessibility setup, and evidence checks.
-- Before pushing, merging, or releasing functionally material changes, require [full local validation](docs/foundation/engineering-policy.md#checks) with `bin/test-all --ensure --revision <sha>` on the final clean revision. Require zero skipped tests and the warning requirements above. Documentation, comments, and formatting-only changes use relevant focused checks.
+- Before pushing, merging, or releasing functionally material changes, require [full local validation](docs/foundation/engineering-policy.md#checks) with `bin/test-all --ensure --revision <sha>` on the final clean revision. Require zero skipped tests and the warning requirements above. Comments and formatting-only changes use relevant focused checks; changes outside the runtime, such as documentation, tests, CI, and tooling, need none.
 - Never substitute a historical revision or copy selected current files onto old source for acceptance. Label historical reproductions as diagnostic experiments.
 - Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`).
 - Use `FactoryKit` with `scope(.cached)` and then override with `context(.test)` in `PodHavenTests/Extensions/Container.swift` for test injection.

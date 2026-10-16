@@ -300,14 +300,15 @@ task into `Do After Merging` for the `after-merge` agent to execute and verify.
 
 **Decision — 2026-09-28:** Require the full local suite only for functionally
 material changes. The user requested this to avoid full app runs for changes
-that cannot affect functionality. Documentation, comments, and formatting-only
-changes use relevant document or formatting checks, including before push or
-merge.
+that cannot affect functionality. Comments and formatting-only changes use
+relevant syntax or formatting checks, including before push or merge. Since
+2026-10-15, changes outside the runtime, such as documentation, tests, CI, and
+tooling, need no checks under the
+[foundation policy](foundation/engineering-policy.md#changes-outside-the-runtime).
 
 Assess the complete change being delivered, not only the last commit. Changes
-to application behavior, data or migrations, dependencies, executable tooling,
-build or runtime configuration, tests, or release artifacts are functionally
-material. A documentation commit does not exempt unvalidated functional work
+to application behavior, data or migrations, dependencies, build or runtime
+configuration, or release artifacts are functionally material. A documentation commit does not exempt unvalidated functional work
 in the same delivery. If the effect is uncertain, run the full suite. The
 tradeoff is that non-functional deliveries do not produce fresh full-suite
 evidence. Creating a versioned release or fresh archive still uses the
@@ -318,12 +319,10 @@ Choose validation by the changed files and the stage of the work:
 | Work | Check |
 | --- | --- |
 | Discussion, planning, or read-only inspection | No checks. |
-| Documentation-only delivery | `bin/check --documents-only`; no full app suite. |
+| Changes outside the runtime, such as documentation, tests, CI, and tooling | None required; a focused check only when it is the cheap way to know the change works. |
 | Comments or formatting only | Relevant syntax or formatting checks; no full app suite. |
 | Ordinary application changes | Focused Swift build and suite-level tests locally during development. |
-| Tooling edits during development | Focused tooling tests and `bin/check`. |
-| Initial setup; changes to foundation tools, hooks, configuration, tests, or CI | `bin/check --full` after the edits are complete. |
-| A tooling PR ready for review | `bin/check --full` once for the final changes. |
+| Initial setup | `bin/check --full` after setup is complete. |
 | Pushing, merging, or releasing functionally material changes | `bin/test-all --ensure --revision <sha>` for the final clean revision, including integration with the latest `main` before a PR merge. |
 | Focused checks leave material uncertainty | Full validation for the affected application or tooling. |
 
