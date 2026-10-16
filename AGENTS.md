@@ -1,5 +1,6 @@
 <!-- project-starter:begin -->
-Project Starter manages this block; add project rules after it.
+Project Starter manages this block; add project rules after it. Project rules
+take precedence over this block and the foundation pages wherever they differ.
 
 - Keep durable guidance and non-derivable context in [memory](memory/README.md),
   and designs, decisions, and research in [docs](docs/README.md). Before
@@ -16,10 +17,13 @@ Project Starter manages this block; add project rules after it.
 - Follow the [engineering policy](docs/foundation/engineering-policy.md):
   fewer dependencies, red-green tests for behavior changes, cohesive files and
   pages, checkout-isolated validation, and the latest stable toolchains.
-- Run [checks](docs/foundation/engineering-policy.md#checks) by change:
-  `bin/check --documents-only` for Markdown, application checks for code, and
-  `bin/check --full` before merge or release unless an enforced CI gate runs
-  it. Skip checks for read-only work and reuse passing results.
+- Commit [changes outside the runtime](docs/foundation/engineering-policy.md#changes-outside-the-runtime),
+  such as Markdown, AI skills, tests, CI, and tooling, directly on the default
+  branch and push them without checks or a pull request.
+- For code the application runs, run
+  [checks](docs/foundation/engineering-policy.md#checks) by change: the
+  relevant application checks while editing, and `bin/check --full` before
+  merge or release unless an enforced CI gate runs it. Reuse passing results.
 - Keep accepted decisions separate from proposals, preserve unrelated changes,
   and keep secrets and generated caches out of Git.
 - Run `bin/setup` after cloning, `bin/doctor` to diagnose setup, and

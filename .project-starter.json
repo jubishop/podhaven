@@ -1,7 +1,7 @@
 {
-  "version": "2.5.0",
+  "version": "2.6.0",
   "source": "https://github.com/jubishop/project-starter",
-  "ref": "v2.5.0",
+  "ref": "v2.6.0",
   "managed": {
     "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
     "bin/_checks.py": "2c2a04c3569f5f588aec88f2f8a269b931b62d2ae51fe31c2bbf5f8c0e8b8c77",
@@ -17,13 +17,13 @@
     "bin/prep-worktree": "b95e77ebc0ef3bae7d868f5e5bcdb35a05e94aa2695dfc5fd44117edc72f9294",
     "bin/qmd-index": "8e7de8dcc353a768878f52c9fa5b4b9bbfab6db00a0d229f55b7af3a6f008fc5",
     "bin/setup": "22a1ba1d1cf981957dad1fce20da692d276b864e5e1bf0aa9d70fcc336c6332b",
-    "docs/foundation/README.md": "cb4353e07fd92f88a9dab03b8430a09cd6b678c0848294836de30c8e8cb5b869",
-    "docs/foundation/engineering-policy.md": "56c4afac530a39636bba27d1a63973067799ecd3e463b23b8d3a62686d24c072",
+    "docs/foundation/README.md": "076e13b51bc05a1f4e6807655ceb9899fd1744d3753ff23f451f420e2e7de658",
+    "docs/foundation/engineering-policy.md": "cc66e53bcd8af283bb45ce05ffd879528f0e8e311ccb1fd11239a6176718f771",
     "docs/foundation/knowledge-search.md": "7c724b07b16882342432a2e02781e7f902cd51f55c2c3cf630281cfee60d7f1e",
     "docs/foundation/task-tracking.md": "b4feef79fed6332528d851fba91bfd2b398f8a576931e4c8af0796ab9e0fd851"
   },
   "blocks": {
-    "AGENTS.md": "a930ef749be5b753dacc8a00c464ab28b7b225febc8a9b6767247cab95457e7a",
+    "AGENTS.md": "720a133174ae77b2ff53a3886f41a61d4776c587faf1438077ad9759dffe9171",
     ".gitignore": "f0fc16f4bf496f65540914731c3b59fa377b15cfe78f99e315082d2ec05f3927"
   },
   "overrides": {

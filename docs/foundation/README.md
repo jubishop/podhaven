@@ -2,7 +2,7 @@
 
 Shared pages managed by Project Starter. Its `bin/sync` replaces them with
 each release, so do not edit them here. Put project-specific rules in project
-pages and link to these; stronger project rules take precedence.
+pages and link to these; project rules take precedence wherever they differ.
 
 - [Engineering policy](engineering-policy.md): dependencies, tests, file and
   page organization, checkout isolation, runtime versions, checks, and

@@ -4,8 +4,10 @@ status: current
 
 # Engineering policy
 
-Shared engineering rules for projects built on Project Starter. Project pages
-may add stronger requirements, which take precedence.
+Shared engineering rules for projects built on Project Starter. A project's
+own instructions and pages take precedence over this policy and the managed
+`AGENTS.md` block wherever they differ, stricter or looser, so a project can
+set its own edge cases.
 
 ## Third-party dependencies
 
@@ -29,7 +31,7 @@ behavior. Use red-green TDD when practical:
 
 A test that passes both before and after the change does not demonstrate it.
 When testing first is impractical, say why, keep automated coverage, and
-report what was verified. Documentation-only edits need document checks, not
+report what was verified. Documentation-only edits need no tests, not
 new behavior tests.
 
 Test through external surfaces: user-visible outcomes, public interfaces, and
@@ -114,6 +116,19 @@ Raise the minimum when the project starts relying on a newer release.
 Application dependency lockfiles stay; this applies to runtimes and tools.
 Keep document and foundation checks independent of application runtimes.
 
+## Changes outside the runtime
+
+Commit a change that can't affect what runs when the application executes
+directly on the default branch, and push it without checks, tests, CI waits,
+or a pull request. This covers Markdown, including docs, memory, and agent
+instructions; AI skills; and tests, CI, and tooling the running application
+doesn't use, including Project Starter syncs. Run a quick check only when your
+judgment says it is the cheap way to know such a change works, such as a
+script you edited. Executable code and configuration the application runs or
+reads at runtime follow the [check schedule](#checks) and the project's
+delivery rules. A project may require more for specific files, such as
+documents that define what its application is allowed to do.
+
 ## Checks
 
 | Command | Runs |
@@ -130,17 +145,16 @@ startup; they should finish well under a second on a small repository.
 Choose checks by the change and its stage:
 
 - Discussion, planning, and read-only work: none.
-- Markdown edits: `bin/check --documents-only`, once per batch.
-- Code edits: the relevant application checks, run directly.
-- Setup, tooling, hook, CI, or test-infrastructure changes, or material
-  uncertainty: `bin/check --full` locally.
-- A Project Starter sync: none for the files `bin/sync` writes; its manual
-  follow-up, if any, follows these rules. Overridden files follow the
-  project's rules for its own tooling.
-- Merge or release: a successful `bin/check --full` for the delivered code,
-  from an enforced CI gate or, without one, run locally. A pending, skipped,
-  or failed CI run does not count. A Markdown-only change needs only a
-  passing `bin/check --documents-only`.
+- [Changes outside the runtime](#changes-outside-the-runtime), including
+  Markdown and Project Starter syncs: none required.
+- Edits to code the application runs: the relevant application checks, run
+  directly.
+- Material uncertainty about whether a change affects what runs:
+  `bin/check --full` locally.
+- Merge or release of code the application runs: a successful
+  `bin/check --full` for the delivered code, from an enforced CI gate or,
+  without one, run locally. A pending, skipped, or failed CI run does not
+  count.
 
 Batch edits before checking, and reuse a passing result until its inputs
 change. Report focused and full results separately.
@@ -149,7 +163,7 @@ change. Report focused and full results separately.
 
 CI runs `bin/check --full` for pull requests and pushes to the default
 branch. Its triggers set `paths-ignore: ['**.md']`, so a change to Markdown
-alone starts no hosted run; the local documents-only check is its gate. When
+alone starts no hosted run and needs no local check. When
 Markdown affects behavior, such as pages the application serves or tests
 read, use a `paths` filter instead: `'**'`, then `'!**.md'`, then those
 pages. A workflow skipped by a path filter reports no status, so do not make
@@ -169,22 +183,17 @@ checks skip overridden files. Exclude generated or externally owned docs with
 deliberate `checks.exclude` patterns in `.config/knowledge.json`, never to
 bypass failures in hand-written pages.
 
-A Project Starter sync may go directly to the default branch without a pull
-request or review, even where the project otherwise requires one. This covers
-the files `bin/sync` writes, `.project-starter.json`, and the release's manual
-follow-up when it touches only workflows or documentation. A sync with no
-manual follow-up also needs no checks, CI, or deployment: commit only the
-synced files, with `[skip ci]` in the message so GitHub Actions starts no push
-workflows, and push from a checkout with no other unpushed commits. Other
-changes follow the project's usual process, and the carve-out never bypasses
-enforced branch protection.
+A Project Starter sync writes only files outside the runtime, so it goes
+directly to the default branch like any other such change. With no manual
+follow-up, commit only the synced files, with `[skip ci]` in the message so
+GitHub Actions starts no push workflows, and push from a checkout with no
+other unpushed commits. Never bypass enforced branch protection.
 
 ## Deployment decisions
 
 Documentation, agent instructions, task setup, comments, and other
-nonfunctional changes may be pushed without a deployment or release; required
-checks still run. A Project Starter sync with no manual follow-up needs no
-deployment. Assess every change since the last successful release.
+nonfunctional changes may be pushed without a deployment or release. A
+Project Starter sync with no manual follow-up needs no deployment. Assess every change since the last successful release.
 Deploy when behavior, dependencies, assets, migrations, configuration, or
 operations change, when uncertain, or when asked. A project that deploys on
 push documents its supported skip mechanism and a manual override for edits a
