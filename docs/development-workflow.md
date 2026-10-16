@@ -302,13 +302,13 @@ task into `Do After Merging` for the `after-merge` agent to execute and verify.
 material changes. The user requested this to avoid full app runs for changes
 that cannot affect functionality. Comments and formatting-only changes use
 relevant syntax or formatting checks, including before push or merge. Since
-2026-10-15, changes outside the runtime, such as documentation, tests, CI, and
-tooling, need no checks under the
-[foundation policy](foundation/engineering-policy.md#changes-outside-the-runtime).
+2026-10-15, documentation needs no checks, as text under the
+[foundation policy](foundation/engineering-policy.md#kinds-of-change).
 
 Assess the complete change being delivered, not only the last commit. Changes
-to application behavior, data or migrations, dependencies, build or runtime
-configuration, or release artifacts are functionally material. A documentation commit does not exempt unvalidated functional work
+to application behavior, data or migrations, dependencies, executable tooling,
+build or runtime configuration, tests, or release artifacts are functionally
+material. A documentation commit does not exempt unvalidated functional work
 in the same delivery. If the effect is uncertain, run the full suite. The
 tradeoff is that non-functional deliveries do not produce fresh full-suite
 evidence. Creating a versioned release or fresh archive still uses the
@@ -319,10 +319,12 @@ Choose validation by the changed files and the stage of the work:
 | Work | Check |
 | --- | --- |
 | Discussion, planning, or read-only inspection | No checks. |
-| Changes outside the runtime, such as documentation, tests, CI, and tooling | None required; a focused check only when it is the cheap way to know the change works. |
+| Documentation-only delivery | No checks. |
 | Comments or formatting only | Relevant syntax or formatting checks; no full app suite. |
 | Ordinary application changes | Focused Swift build and suite-level tests locally during development. |
-| Initial setup | `bin/check --full` after setup is complete. |
+| Tooling edits during development | Focused tooling tests and `bin/check`. |
+| Initial setup; changes to foundation tools, hooks, configuration, tests, or CI | `bin/check --full` after the edits are complete. |
+| A tooling PR ready for review | `bin/check --full` once for the final changes. |
 | Pushing, merging, or releasing functionally material changes | `bin/test-all --ensure --revision <sha>` for the final clean revision, including integration with the latest `main` before a PR merge. |
 | Focused checks leave material uncertainty | Full validation for the affected application or tooling. |
 
@@ -405,7 +407,7 @@ policy and tool-managed ledgers cannot be edited by the model.
 When every check passes and the proposal changes notes, the runner commits the
 change in the isolated clone and pushes it to `main` on GitHub and SourceHut,
 using the checkout's Git identity. The owner chose direct commits on
-2026-10-15: memory is outside the runtime, and the commit is easy to revert. If
+2026-10-15: memory is text, and the commit is easy to revert. If
 `main` moved during the audit, the commit is rebased onto it, unless the move
 changed `memory/`; then the run fails and the next run audits the new notes.
 The user's checkout is never touched; pull to see the change.
