@@ -338,6 +338,7 @@ def run(root=ROOT, force=False):
             artifacts = repo / "artifacts"
             artifacts.mkdir(exist_ok=True)
             atomic_json(artifacts / "memory-audit-context.json", context)
+            atomic_json(run_dir / "memory-audit-context.json", context)
             qmd_dir = repo / ".cache/memory-audit-qmd"
             config_dir = qmd_dir / "config"
             config_dir.mkdir(parents=True)
@@ -391,6 +392,8 @@ def run(root=ROOT, force=False):
             report_failure(root, env, meta)
             raise
         finally:
+            # The run folder keeps the context, report, patch, and logs; the clone is only working space.
+            shutil.rmtree(run_dir / "repository", ignore_errors=True)
             meta["finishedAt"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
             atomic_json(run_dir / "run-meta.json", meta)
             atomic_json(state / "latest.json", meta)

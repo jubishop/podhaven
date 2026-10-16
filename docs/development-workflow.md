@@ -381,8 +381,9 @@ permissions, MCP servers, and hooks do not become part of the scheduled audit. T
 independent and uses no model.
 
 Each run fetches `origin/main` and audits that exact revision in an isolated
-local clone under `.cache/memory-audit/runs/`. Uncommitted working files are not
-audited or modified. GitHub issues and PRs are fetched in two bounded collections
+local clone under `.cache/memory-audit/runs/`. The run deletes the clone when it
+finishes and keeps its context, report, patch, and logs in the run folder.
+Uncommitted working files are not audited or modified. GitHub issues and PRs are fetched in two bounded collections
 with up to 1,000 entries each. The model uses that captured evidence and a
 separate keyword-only QMD index; it makes no network requests or QMD model
 downloads. Missing older GitHub items must be recorded as evidence gaps. The

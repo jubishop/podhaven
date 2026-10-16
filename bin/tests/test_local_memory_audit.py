@@ -173,14 +173,18 @@ class LocalAuditTests(unittest.TestCase):
         self.assertEqual(sorted(changed), ["memory/README.md", "memory/archive/incident.md", "memory/incident.md"])
         self.assertIn("memory audit", self.git("log", "-1", "--format=%s", published, root=self.origin))
         self.assertEqual(self.git("log", "-1", "--format=%an", published, root=self.origin), "Audit test")
+        tree = self.git("ls-tree", "-r", "--name-only", published, "memory", root=self.origin).splitlines()
+        self.assertNotIn("memory/incident.md", tree)
+        archived = self.git("show", published + ":memory/archive/incident.md", root=self.origin)
+        self.assertIn("status: resolved", archived)
+        index = self.git("show", published + ":memory/README.md", root=self.origin)
+        self.assertIn("Preserve this policy.", index)
+        self.assertNotIn("](incident.md)", index)
         run_dir = Path(output["directory"])
-        proposed = run_dir / "repository"
-        self.assertFalse((proposed / "memory/incident.md").exists())
-        self.assertIn("status: resolved", (proposed / "memory/archive/incident.md").read_text())
-        self.assertIn("Preserve this policy.", (proposed / "memory/README.md").read_text())
-        self.assertNotIn("](incident.md)", (proposed / "memory/README.md").read_text())
+        self.assertFalse((run_dir / "repository").exists())
         self.assertIn("memory/archive/incident.md", (run_dir / "memory-audit.patch").read_text())
-        self.git("apply", "--reverse", "--check", str(run_dir / "memory-audit.patch"), root=proposed)
+        # The user's edit is unstaged, so the index still matches the audited revision.
+        self.git("apply", "--cached", "--check", str(run_dir / "memory-audit.patch"))
 
     def test_unchanged_inputs_skip_model_and_force_runs_again(self):
         self.run_audit()
@@ -249,6 +253,8 @@ class LocalAuditTests(unittest.TestCase):
         state = self.repo / ".cache/memory-audit"
         meta = json.loads((state / "latest.json").read_text())
         self.assertFalse((Path(meta["directory"]) / "memory-audit.patch").exists())
+        self.assertFalse((Path(meta["directory"]) / "repository").exists())
+        self.assertTrue((Path(meta["directory"]) / "claude.log").exists())
         self.assertFalse((state / "last-success.json").exists())
 
     def test_lock_prevents_overlapping_audits(self):
@@ -343,8 +349,7 @@ class LocalAuditTests(unittest.TestCase):
         output = self.run_audit()
         run_dir = Path(output["directory"])
         self.assertEqual(output["status"], "success")
-        self.assertEqual((run_dir / "repository/memory/incident.md").read_text(), self.content)
-        self.assertFalse((run_dir / "repository/memory/archive/incident.md").exists())
+        # An empty patch shows the repair started from the restored notes.
         self.assertEqual((run_dir / "memory-audit.patch").read_text(), "")
         self.assertTrue((run_dir / "rejected-result.json").exists())
         calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
@@ -443,7 +448,7 @@ class LocalAuditTests(unittest.TestCase):
 
     def test_the_context_lists_commits_since_the_last_audit(self):
         output = self.run_audit()
-        context = json.loads((Path(output["directory"]) / "repository/artifacts/memory-audit-context.json").read_text())
+        context = json.loads((Path(output["directory"]) / "memory-audit-context.json").read_text())
         self.assertTrue(any(line.endswith("✅ test: Add memory audit fixture") for line in context["commitsSinceLastAudit"]))
 
     def test_runs_older_than_the_retention_window_are_pruned(self):
