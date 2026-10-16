@@ -121,18 +121,26 @@ Raise the minimum when the project starts relying on a newer release.
 Application dependency lockfiles stay; this applies to runtimes and tools.
 Keep document and foundation checks independent of application runtimes.
 
-## Changes outside the runtime
+## Kinds of change
 
-Commit a change that can't affect what runs when the application executes
-directly on the default branch, and push it without checks, tests, CI waits,
-or a pull request. This covers Markdown, including docs, memory, and agent
-instructions; AI skills; and tests, CI, and tooling the running application
-doesn't use, including Project Starter syncs. Run a quick check only when your
-judgment says it is the cheap way to know such a change works, such as a
-script you edited. Executable code and configuration the application runs or
-reads at runtime follow the [check schedule](#checks) and the project's
-delivery rules. A project may require more for specific files, such as
-documents that define what its application is allowed to do.
+How a change reaches the default branch depends on what it touches:
+
+1. **Text** is not code: Markdown, including docs, memory, and agent
+   instructions, and the prose of AI skills. Commit it directly on the default
+   branch and push it without checks or a pull request.
+2. **Development code** doesn't run in production: tests, CI workflows, hooks,
+   check scripts, development and deploy tooling, scripts in AI skills, and the
+   configuration they read. Run the [checks](#checks) it needs, then commit it
+   directly on the default branch and push it, without a pull request.
+3. **Production code** runs when the application executes: its code, the
+   configuration it reads, its dependencies, and whatever starts it, such as
+   service units or schedules. Run its checks and deliver it through a pull
+   request.
+
+A change that spans kinds follows the strictest kind it touches, and an
+uncertain change is treated as the stricter kind. A project's own rules take
+precedence, for example to require a pull request for a document that defines
+what its application may do, or to allow direct pushes of production code.
 
 ## Checks
 
@@ -150,16 +158,15 @@ startup; they should finish well under a second on a small repository.
 Choose checks by the change and its stage:
 
 - Discussion, planning, and read-only work: none.
-- [Changes outside the runtime](#changes-outside-the-runtime), including
-  Markdown and Project Starter syncs: none required.
-- Edits to code the application runs: the relevant application checks, run
-  directly.
-- Material uncertainty about whether a change affects what runs:
-  `bin/check --full` locally.
-- Merge or release of code the application runs: a successful
-  `bin/check --full` for the delivered code, from an enforced CI gate or,
-  without one, run locally. A pending, skipped, or failed CI run does not
-  count.
+- Text, and Project Starter syncs: none.
+- Development code: the checks that exercise it, such as the changed tests or
+  the tool's own tests. Changes to tests as a whole, CI, hooks, or the checks
+  themselves run `bin/check --full` locally.
+- Edits to production code: the relevant application checks, run directly.
+- Material uncertainty about what a change affects: `bin/check --full` locally.
+- Merge or release of production code: a successful `bin/check --full` for the
+  delivered code, from an enforced CI gate or, without one, run locally. A
+  pending, skipped, or failed CI run does not count.
 
 Batch edits before checking, and reuse a passing result until its inputs
 change. Report focused and full results separately.
@@ -188,9 +195,10 @@ checks skip overridden files. Exclude generated or externally owned docs with
 deliberate `checks.exclude` patterns in `.config/knowledge.json`, never to
 bypass failures in hand-written pages.
 
-A Project Starter sync writes only files outside the runtime, so it goes
-directly to the default branch like any other such change. With no manual
-follow-up, commit only the synced files, with `[skip ci]` in the message so
+A Project Starter sync writes text and development code that Project
+Starter's release checks already exercised, so it goes directly to the default
+branch without further checks. With no manual follow-up, commit only the
+synced files, with `[skip ci]` in the message so
 GitHub Actions starts no push workflows, and push from a checkout with no
 other unpushed commits. Never bypass enforced branch protection.
 

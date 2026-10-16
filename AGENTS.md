@@ -18,13 +18,15 @@ take precedence over this block and the foundation pages wherever they differ.
   fewer dependencies, red-green tests for behavior changes, flaky tests fixed
   or tracked in an issue, cohesive files and pages, checkout-isolated
   validation, and the latest stable toolchains.
-- Commit [changes outside the runtime](docs/foundation/engineering-policy.md#changes-outside-the-runtime),
-  such as Markdown, AI skills, tests, CI, and tooling, directly on the default
-  branch and push them without checks or a pull request.
-- For code the application runs, run
-  [checks](docs/foundation/engineering-policy.md#checks) by change: the
-  relevant application checks while editing, and `bin/check --full` before
-  merge or release unless an enforced CI gate runs it. Reuse passing results.
+- Deliver by [kind of change](docs/foundation/engineering-policy.md#kinds-of-change):
+  commit text, such as Markdown and AI skill prose, directly on the default
+  branch without checks; commit development code, such as tests, CI, and
+  tooling, directly after its checks pass; and deliver production code through
+  a pull request after its checks.
+- Run [checks](docs/foundation/engineering-policy.md#checks) by change: the
+  relevant checks while editing, and `bin/check --full` before merging or
+  releasing production code unless an enforced CI gate runs it. Reuse passing
+  results.
 - Keep accepted decisions separate from proposals, preserve unrelated changes,
   and keep secrets and generated caches out of Git.
 - Run `bin/setup` after cloning, `bin/doctor` to diagnose setup, and
