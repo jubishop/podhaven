@@ -6,7 +6,7 @@ type: "reference"
 
 # Lucide icon asset resync
 
-`LucideIcon` (`PodHaven/Database/Models/LucideIcon.swift`) is a `String` enum whose rawValue is the Lucide icon id, which doubles as the namespaced asset name under `PodHaven/Assets.xcassets/LucideIcons/<rawValue>.imageset`. The icons are vendored as local SVGs (lucide-static v1.18.0 at import time), one imageset per case. That rawValue is also what gets persisted: `DatabaseValueConvertible` writes it into the non-null `tag.icon` and `smartList.icon` columns (added in migration v61).
+`LucideIcon` (`PodHaven/Database/Models/LucideIcon.swift`) is a `String` enum whose rawValue is the Lucide icon id, which doubles as the namespaced asset name under `PodHaven/Assets.xcassets/LucideIcons/<rawValue>.imageset`. The icons are vendored as local SVGs (lucide-static v1.18.0 at import time), one imageset per case. That rawValue is also what gets persisted: `DatabaseValueConvertible` writes it into the non-null `tag.icon` and `smartList.icon` columns (added in migration v62).
 
 Three vendored ids have been renamed/removed on Lucide `main` but are still valid in the pinned v1.18.0, so nothing is broken today:
 
