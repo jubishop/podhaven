@@ -216,15 +216,8 @@ unrelated review items, and states that cannot be cancelled stop the command.
 `--status` and the initial readiness check remain read-only. A build or upload
 failure leaves the old submission intact.
 
-Uploads retain the existing Git tag, GitHub release, and SourceHut mirror
-behavior. The App Store upload mode does not distribute to external
-TestFlight testers.
-
-Keep GitHub (`origin`) and SourceHut (`sourcehut`) as separate Git remotes; do
-not configure SourceHut as an additional push URL for `origin`. If a mirror push
-is rejected as non-fast-forward, fetch both refs and inspect the commits unique
-to each side before repair. Preserve both histories, push normally, and confirm
-both refs point to the intended commit. Do not force-push to resolve divergence.
+Uploads retain the existing Git tag and GitHub release behavior. The App Store
+upload mode does not distribute to external TestFlight testers.
 
 ## Retry a release
 

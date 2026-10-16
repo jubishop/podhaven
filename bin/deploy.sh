@@ -56,7 +56,7 @@ Processing is checked every 30 seconds for up to two hours. Apple beta review ma
 PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS overrides this wait with a positive whole number of seconds.
 If processing times out, the upload is preserved. Check Build Uploads in App Store Connect,
 then retry with the same --notes; no new upload is needed.
-Successful uploads publish a Git tag and GitHub release and mirror to SourceHut.
+Successful uploads publish a Git tag and GitHub release.
 bin/shipit and bin/deploy.sh accept the same options.
 App Store uploads use bin/appstore --release VERSION --notes TEXT instead.
 HELP
@@ -422,9 +422,6 @@ on_exit() {
     # Leave $LOG_DIR in place so the log above can be re-read after the script exits.
   else
     git -C "$PROJECT_DIR" push origin "$tag" 2>/dev/null || true
-    echo "==> Mirroring ${branch} and ${tag} to sourcehut..."
-    git -C "$PROJECT_DIR" push sourcehut "$branch" || echo "warning: sourcehut push of ${branch} failed" >&2
-    git -C "$PROJECT_DIR" push sourcehut "$tag" || echo "warning: sourcehut push of ${tag} failed" >&2
     gh release create "$tag" --title "$tag" --notes "$tag_message" 2>/dev/null || true
     echo "==> Done. Tagged ${commit} as ${tag}"
     rm -rf "$LOG_DIR"

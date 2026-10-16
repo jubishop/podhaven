@@ -142,8 +142,8 @@ in Git's metadata directory supports retries; each new upload replaces it.
 `bin/shipit` increments the build number automatically. If Apple closes a version
 for external beta review, use `bin/version` to set a higher app version, commit it,
 and upload a new build. Successful runs also publish the Git tag and GitHub
-release and mirror the branch and tag to SourceHut. The existing generated GitHub
-release summary remains separate from the supplied TestFlight notes.
+release. The existing generated GitHub release summary remains separate from
+the supplied TestFlight notes.
 
 Other options:
 

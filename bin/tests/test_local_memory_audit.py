@@ -44,14 +44,9 @@ class LocalAuditTests(unittest.TestCase):
         audit.update_index(self.repo)
         self.git("add", ".")
         self.git("-c", "core.hooksPath=/dev/null", "commit", "-m", "✅ test: Add memory audit fixture")
-        # Like the real origin: fetch from GitHub, push to GitHub and SourceHut.
         self.origin = self.base / "origin.git"
-        self.mirror = self.base / "mirror.git"
-        for remote in (self.origin, self.mirror):
-            subprocess.run(["git", "init", "--quiet", "--bare", "-b", "main", str(remote)], check=True)
+        subprocess.run(["git", "init", "--quiet", "--bare", "-b", "main", str(self.origin)], check=True)
         self.git("remote", "add", "origin", str(self.origin))
-        for remote in (self.origin, self.mirror):
-            self.git("remote", "set-url", "--add", "--push", "origin", str(remote))
         self.git("push", "--quiet", "origin", "main")
         self.head = self.git("rev-parse", "HEAD")
         self.fake = self.base / "tools"
@@ -141,7 +136,7 @@ class LocalAuditTests(unittest.TestCase):
         return [call for call in calls if call["args"][:len(prefix)] == list(prefix)]
 
     def advance_origin(self, path, text):
-        """Push a commit to the remotes, as another session would while the audit runs."""
+        """Push a commit to origin, as another session would while the audit runs."""
         other = self.base / "other"
         if not other.exists():
             self.git("clone", "--quiet", str(self.origin), str(other), root=self.base)
@@ -150,8 +145,7 @@ class LocalAuditTests(unittest.TestCase):
         self.git("add", path, root=other)
         self.git("-c", "user.name=Other", "-c", "user.email=other@example.invalid",
                  "commit", "--quiet", "-m", "Other work", root=other)
-        for remote in (self.origin, self.mirror):
-            self.git("push", "--quiet", str(remote), "HEAD:main", root=other)
+        self.git("push", "--quiet", "origin", "HEAD:main", root=other)
 
     def fail_model(self):
         self.executable("claude", "import json,sys\n"
@@ -173,7 +167,6 @@ class LocalAuditTests(unittest.TestCase):
         self.assertEqual(self.git("rev-parse", "HEAD"), self.head)
         published = output["publishedCommit"]
         self.assertEqual(self.remote_head(self.origin), published)
-        self.assertEqual(self.remote_head(self.mirror), published)
         self.assertEqual(self.git("rev-parse", published + "^", root=self.origin), self.head)
         changed = self.git("show", "--no-renames", "--name-only", "--format=", published,
                            root=self.origin).splitlines()
@@ -376,7 +369,6 @@ class LocalAuditTests(unittest.TestCase):
             output = self.run_audit()
         published = output["publishedCommit"]
         self.assertEqual(self.remote_head(self.origin), published)
-        self.assertEqual(self.remote_head(self.mirror), published)
         self.assertEqual(self.git("log", "-1", "--format=%s", published + "^", root=self.origin), "Other work")
 
     def test_memory_changed_on_main_during_the_audit_fails_without_pushing(self):

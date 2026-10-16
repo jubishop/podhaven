@@ -96,8 +96,7 @@ class AppStoreCommandTests(unittest.TestCase):
         self.git("tag", "-a", "v1.0.1b569", "-m", "Previous build")
         remote = self.base / "remote.git"
         self.git("init", "--bare", str(remote))
-        for name in ("origin", "sourcehut"):
-            self.git("remote", "add", name, str(remote))
+        self.git("remote", "add", "origin", str(remote))
         self.git("push", "-u", "origin", "main")
         self.initial = self.git("rev-parse", "HEAD")
 

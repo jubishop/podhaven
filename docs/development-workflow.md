@@ -405,8 +405,8 @@ metadata, index coverage, and local links before exporting a patch. README
 policy and tool-managed ledgers cannot be edited by the model.
 
 When every check passes and the proposal changes notes, the runner commits the
-change in the isolated clone and pushes it to `main` on GitHub and SourceHut,
-using the checkout's Git identity. The owner chose direct commits on
+change in the isolated clone and pushes it to `main` on GitHub, using the
+checkout's Git identity. The owner chose direct commits on
 2026-10-15: memory is text, and the commit is easy to revert. If
 `main` moved during the audit, the commit is rebased onto it, unless the move
 changed `memory/`; then the run fails and the next run audits the new notes.

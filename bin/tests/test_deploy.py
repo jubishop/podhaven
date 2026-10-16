@@ -122,6 +122,12 @@ class DeployTests(unittest.TestCase):
         self.assertFalse(self.events("fastlane"))
         self.assertTrue(any('-exportArchive' in event[1] for event in self.events('xcodebuild')))
 
+    def test_successful_upload_pushes_only_its_tag_to_origin(self):
+        result = self.run_deploy()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        pushes = [event[1][2:] for event in self.events("git") if event[1][2:3] == ["push"]]
+        self.assertEqual(pushes, [["push", "origin", "v1.0.1b569"]])
+
     def test_archive_supports_package_macros_without_interactive_approval(self):
         result = self.run_deploy(UNAPPROVED_MACROS="1")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -260,8 +266,7 @@ class TaggedDeployTests(unittest.TestCase):
         self.git("commit", "--allow-empty", "-m", "Latest TestFlight build")
         self.git("tag", "-a", "v1.3.1b576", "-m", "Latest TestFlight build")
         self.git("init", "--bare", str(self.base / "remote.git"))
-        for name in ("origin", "sourcehut"):
-            self.git("remote", "add", name, str(self.base / "remote.git"))
+        self.git("remote", "add", "origin", str(self.base / "remote.git"))
         self.git("push", "-u", "origin", "main", "--tags")
         self.receipt = self.repo / ".git/podhaven-last-upload"
         self.receipt.write_text("v1.3.1b576\n")
