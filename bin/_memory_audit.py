@@ -1,4 +1,8 @@
-"""Local Claude audit orchestration; proposed edits never reach the user's checkout."""
+"""Local Claude audit orchestration.
+
+Validated edits are committed to main and pushed; the user's checkout is never touched. A failure
+shows a macOS notification and opens or updates one GitHub issue, which the next success closes.
+"""
 
 import argparse
 import fcntl
@@ -14,7 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from _checks import validate
 from _knowledge import atomic_json
@@ -24,10 +28,12 @@ ROOT = Path(__file__).resolve().parents[1]
 LABEL = "com.jubishop.podhaven.memory-audit"
 MODEL = "claude-haiku-5-5"
 REPOSITORY = "jubishop/podhaven"
+FAILURE_ISSUE = "Memory audit failing"
+RETENTION_DAYS = 60
 
 
-def command(args, cwd, env, timeout=120):
-    result = subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
+def command(args, cwd, env, timeout=120, input=None):
+    result = subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout, input=input)
     if result.returncode:
         raise RuntimeError(f"{args[0]} failed ({result.returncode}): {(result.stderr or result.stdout).strip()}")
     return result.stdout
@@ -110,6 +116,123 @@ def apply_result(repo, result, notes):
         raise
 
 
+def verify_session(repo, run_dir, notes):
+    """Reject a response unless the session read every active note and looked up evidence for each."""
+    repo = repo.resolve()
+    read, lookups = set(), 0
+    for name in ("first-attempt-events.jsonl", "events.jsonl"):
+        path = run_dir / name
+        if not path.exists():
+            continue
+        for line in path.read_text(errors="replace").splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            message = event.get("message") if isinstance(event, dict) else None
+            for block in (message.get("content") or []) if isinstance(message, dict) else []:
+                if not isinstance(block, dict) or block.get("type") != "tool_use":
+                    continue
+                arguments = block.get("input") if isinstance(block.get("input"), dict) else {}
+                if block.get("name") == "Read":
+                    target = Path(str(arguments.get("file_path", "")))
+                    target = (target if target.is_absolute() else repo / target).resolve()
+                    relative = target.relative_to(repo).as_posix() if target.is_relative_to(repo) else ""
+                    if relative in notes:
+                        read.add(relative)
+                        continue
+                if block.get("name") in ("Read", "Grep", "Glob", "Bash"):
+                    lookups += 1
+    unread = [note for note in notes if note not in read]
+    if unread:
+        raise ValueError("Read every active note in full with the Read tool before judging it; not read: "
+                         + ", ".join(unread))
+    if lookups < len(notes):
+        raise ValueError(f"Check each note's claims against source or the captured evidence: {lookups} source or "
+                         f"evidence lookups for {len(notes)} note{'s' if len(notes) != 1 else ''}")
+
+
+def publish(root, repo, base, env, changes):
+    """Commit the validated memory changes and push them to main; return the pushed commit."""
+    name = command(["git", "config", "user.name"], root, env).strip()
+    email = command(["git", "config", "user.email"], root, env).strip()
+    git = ["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=" + name, "-c", "user.email=" + email]
+    archived = sum(1 for change in changes if change["archive"])
+    updated = len(changes) - archived
+    command(git + ["add", "--all", "--", "memory"], repo, env)
+    command(git + ["commit", "--quiet", "-m", "📝 docs(memory): Apply the weekly memory audit", "-m",
+                   f"The audit of {base[:8]} archived {archived} and updated {updated} notes. It read every "
+                   "active note, and its proposal passed the memory checks."], repo, env)
+    command(["git", "remote", "add", "origin", command(["git", "remote", "get-url", "origin"], root, env).strip()],
+            repo, env)
+    for url in command(["git", "remote", "get-url", "--push", "--all", "origin"], root, env).splitlines():
+        command(["git", "remote", "set-url", "--add", "--push", "origin", url], repo, env)
+    command(["git", "fetch", "--quiet", "origin", "main"], repo, env)
+    latest = command(["git", "rev-parse", "FETCH_HEAD"], repo, env).strip()
+    if latest != base:
+        moved = subprocess.run(["git", "diff", "--quiet", base, latest, "--", "memory"], cwd=repo, env=env,
+                               capture_output=True, text=True)
+        if moved.returncode == 1:
+            raise RuntimeError("main changed memory/ during the audit; the next run audits the new notes")
+        if moved.returncode:
+            raise RuntimeError("git diff failed (" + str(moved.returncode) + "): " + moved.stderr.strip())
+        command(git + ["rebase", "--quiet", latest], repo, env)
+    command(["git", "-c", "core.hooksPath=/dev/null", "push", "--quiet", "origin", "HEAD:refs/heads/main"],
+            repo, env, timeout=300)
+    return command(["git", "rev-parse", "HEAD"], repo, env).strip()
+
+
+def failure_issue(root, env):
+    issues = json.loads(command(["gh", "issue", "list", "--repo", REPOSITORY, "--state", "open", "--search",
+                                 f'in:title "{FAILURE_ISSUE}"', "--json", "number,title"], root, env))
+    return next((item["number"] for item in issues if item.get("title") == FAILURE_ISSUE), None)
+
+
+def report_failure(root, env, meta):
+    """Notify on this Mac and open or update the failure issue; never raise."""
+    error = str(meta.get("error") or "Unknown error").replace(str(Path.home()), "~")
+    run_name = Path(meta["directory"]).name
+    try:
+        subprocess.run(["osascript", "-e", "on run argv", "-e",
+                        "display notification (item 1 of argv) with title (item 2 of argv)", "-e", "end run",
+                        error.splitlines()[0][:200], "PodHaven memory audit failed"],
+                       env=env, capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as problem:
+        print("Could not show the failure notification: " + str(problem), file=sys.stderr, flush=True)
+    body = (f"The weekly memory audit failed in run `{run_name}` at {meta.get('finishedAt')}.\n\n"
+            f"```\n{error[:3000]}\n```\n\nInspect `.cache/memory-audit/runs/{run_name}/` and "
+            "`.cache/memory-audit/latest.json` in the primary checkout on the Mac, fix the cause, and run "
+            "`bin/memory-audit run`. The next successful run closes this issue.\n")
+    try:
+        number = failure_issue(root, env)
+        if number:
+            command(["gh", "issue", "comment", str(number), "--repo", REPOSITORY, "--body-file", "-"],
+                    root, env, input=body)
+        else:
+            command(["gh", "issue", "create", "--repo", REPOSITORY, "--title", FAILURE_ISSUE, "--body-file", "-"],
+                    root, env, input=body)
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as problem:
+        print("Could not open or update the failure issue: " + str(problem), file=sys.stderr, flush=True)
+
+
+def close_failure_issue(root, env, run_name):
+    try:
+        number = failure_issue(root, env)
+        if number:
+            command(["gh", "issue", "close", str(number), "--repo", REPOSITORY, "--comment",
+                     f"Run `{run_name}` succeeded."], root, env)
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as problem:
+        print("Could not close the failure issue: " + str(problem), file=sys.stderr, flush=True)
+
+
+def prune_runs(state, keep):
+    cutoff = time.time() - RETENTION_DAYS * 86400
+    for directory in (state / "runs").glob("*"):
+        if directory.is_dir() and not directory.is_symlink() and str(directory) not in keep \
+                and directory.stat().st_mtime < cutoff:
+            shutil.rmtree(directory)
+
+
 def run_model(repo, run_dir, env, prompt, timeout=5400):
     # Restricted mode ignores user and project settings. Without edit tools or edit rules, any write,
     # network command, or read outside the clone needs approval, which --permission-prompts none denies.
@@ -158,12 +281,16 @@ def run(root=ROOT, force=False):
             return {"status": "skipped", "reason": "Another local audit is running"}
         runs = state / "runs"
         runs.mkdir(exist_ok=True)
+        previous_path = state / "last-success.json"
+        previous = json.loads(previous_path.read_text()) if previous_path.exists() else None
+        last = json.loads((state / "latest.json").read_text()) if (state / "latest.json").exists() else {}
+        prune_runs(state, {item.get("directory") for item in (previous or {}, last)})
         prefix = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-")
         run_dir = Path(tempfile.mkdtemp(prefix=prefix, dir=runs))
         meta = {"status": "running", "directory": str(run_dir), "model": MODEL, "provider": "claude.ai"}
         atomic_json(state / "latest.json", meta)
+        env = environment()
         try:
-            env = environment()
             command(["git", "fetch", "--quiet", "origin", "main"], root, env)
             base = command(["git", "rev-parse", "FETCH_HEAD"], root, env).strip()
             meta["baseSha"] = base
@@ -176,9 +303,9 @@ def run(root=ROOT, force=False):
             prompt = (ROOT / "bin/memory-audit-prompt.md").read_text()
             fingerprint = hashlib.sha256(json.dumps(context, sort_keys=True).encode() + prompt.encode()
                                          + Path(__file__).read_bytes()).hexdigest()
-            previous_path = state / "last-success.json"
-            previous = json.loads(previous_path.read_text()) if previous_path.exists() else None
-            if not force and previous and previous["inputHash"] == fingerprint:
+            # A run after a failure or crash always audits, so the failure issue can close.
+            if not force and previous and previous["inputHash"] == fingerprint \
+                    and last.get("status") in ("success", "skipped"):
                 meta.update(status="skipped", reason="No repository, issue, PR, or audit instruction changes",
                             previousDirectory=previous["directory"])
                 return meta
@@ -197,12 +324,17 @@ def run(root=ROOT, force=False):
                      str(root), str(repo)], root, env)
             command(["git", "-c", "core.hooksPath=/dev/null", "checkout", "--quiet", "--detach", base], repo, env)
             command(["git", "remote", "remove", "origin"], repo, env)
+            since = (previous or {}).get("completedAt") or \
+                (datetime.now(timezone.utc) - timedelta(days=7)).isoformat(timespec="seconds")
+            commits = command(["git", "log", "--since=" + since, "--no-merges", "--date=short",
+                               "--format=%h %ad %s", base], repo, env).splitlines()
             notes = sorted(path.relative_to(repo).as_posix() for path in (repo / "memory").glob("*.md")
                            if path.name != "README.md")
             if (repo / "memory").is_symlink() or any((repo / path).is_symlink() for path in notes):
                 raise ValueError("Active memory notes must not be symbolic links")
             context.update(activeNoteCount=len(notes), activeNotes=notes, lastSuccessfulAudit=previous,
-                           runDateUtc=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+                           runDateUtc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                           commitsSinceLastAudit=commits)
             artifacts = repo / "artifacts"
             artifacts.mkdir(exist_ok=True)
             atomic_json(artifacts / "memory-audit-context.json", context)
@@ -221,6 +353,7 @@ def run(root=ROOT, force=False):
                     raise ValueError("The read-only audit changed its checkout")
                 result = json.loads((run_dir / "result.json").read_text())
                 try:
+                    verify_session(repo, run_dir, notes)
                     apply_result(repo, result, notes)
                     break
                 except ValueError as error:
@@ -232,7 +365,9 @@ def run(root=ROOT, force=False):
                                         ("claude.log", "first-attempt-claude.log")):
                         (run_dir / name).rename(run_dir / saved)
                     prompt += ("\n\nYour previous response failed validation. The runner restored the original notes. "
-                               "Repair this response using the findings you already gathered; do not repeat the whole audit. "
+                               "Repair this response using the findings you already gathered; do not repeat work you "
+                               "already did. If the error says notes were not read or claims were not checked, do that "
+                               "work now; the runner counts both attempts. "
                                "If an archive breaks links in an existing archive, ledger, or doc, keep that active note "
                                "because those referring files are outside your edit scope. Update findings, report counts, "
                                "and proposed contents together. Return the complete corrected JSON.\n\nValidation error:\n"
@@ -242,13 +377,18 @@ def run(root=ROOT, force=False):
             patch = command(["git", "diff", "--binary", "HEAD", "--", "memory"], repo, env)
             (run_dir / "memory-audit.patch").write_text(patch)
             (run_dir / "memory-audit-report.md").write_text(result["report"])
-            meta.update(status="success", inputHash=fingerprint, activeNoteCount=len(notes),
-                        changedFiles=command(["git", "diff", "--name-only", "HEAD"], repo, env).splitlines(),
+            changed = command(["git", "diff", "--name-only", "HEAD"], repo, env).splitlines()
+            if changed:
+                meta["publishedCommit"] = publish(root, repo, base, env, result["changes"])
+            meta.update(status="success", inputHash=fingerprint, activeNoteCount=len(notes), changedFiles=changed,
                         completedAt=datetime.now(timezone.utc).isoformat(timespec="seconds"))
             atomic_json(previous_path, meta)
+            close_failure_issue(root, env, run_dir.name)
             return meta
         except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError) as error:
-            meta.update(status="failed", error=str(error))
+            meta.update(status="failed", error=str(error),
+                        finishedAt=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+            report_failure(root, env, meta)
             raise
         finally:
             meta["finishedAt"] = datetime.now(timezone.utc).isoformat(timespec="seconds")

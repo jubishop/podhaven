@@ -383,9 +383,11 @@ local clone under `.cache/memory-audit/runs/`. Uncommitted working files are not
 audited or modified. GitHub issues and PRs are fetched in two bounded collections
 with up to 1,000 entries each. The model uses that captured evidence and a
 separate keyword-only QMD index; it makes no network requests or QMD model
-downloads. Missing older GitHub items must be recorded as evidence gaps.
-Unchanged repository, GitHub, and audit inputs skip the model call. A lock
-prevents overlapping local runs. Model attempts share a 90-minute execution limit.
+downloads. Missing older GitHub items must be recorded as evidence gaps. The
+runner also lists the commits since the last successful audit, so the model
+needs no `git log`. Unchanged repository, GitHub, and audit inputs skip the
+model call, except right after a failed or interrupted run. A lock prevents
+overlapping local runs. Model attempts share a 90-minute execution limit.
 
 Claude has only Bash, read, and search tools, and no session is saved. Writes,
 network commands, and reads outside the clone need approval, which the job
@@ -393,11 +395,25 @@ denies automatically. Only `jq` and `qmd search` are explicitly allowed, beyond
 Claude Code's built-in read-only commands. It returns structured findings and
 complete proposed note contents. The runner requires one finding per active note, permits
 only updates to existing active notes or archival moves, and prevents overwriting
-existing archives. It regenerates the README's active-note list and validates
+existing archives. From the session log, it also requires that the model read
+every active note with the Read tool and made at least one source or evidence
+lookup per note. On 2026-10-10 a run had kept all 16 notes in 32 seconds
+without reading any. It regenerates the README's active-note list and validates
 metadata, index coverage, and local links before exporting a patch. README
-policy and tool-managed ledgers cannot be edited by the model. Changes remain
-uncommitted in the isolated clone; there are no automatic commits, pushes, PRs,
-or issue comments.
+policy and tool-managed ledgers cannot be edited by the model.
+
+When every check passes and the proposal changes notes, the runner commits the
+change in the isolated clone and pushes it to `main` on GitHub and SourceHut,
+using the checkout's Git identity. The owner chose direct commits on
+2026-10-15: memory is outside the runtime, and the commit is easy to revert. If
+`main` moved during the audit, the commit is rebased onto it, unless the move
+changed `memory/`; then the run fails and the next run audits the new notes.
+The user's checkout is never touched; pull to see the change.
+
+A failed run shows a macOS notification and opens a public GitHub issue titled
+`Memory audit failing`, or comments on the open one, with the error and the
+run's directory name. The next successful run closes it. A run that changes
+nothing stays silent.
 
 When proposal validation fails, the runner restores the original notes and gives
 Claude one repair attempt with the rejected response and exact error. A second
@@ -419,9 +435,9 @@ Successful run directories contain `memory-audit-report.md`,
 `memory-audit.patch`, and the proposed `repository/` checkout. All attempts keep
 `run-meta.json`; model attempts also keep `events.jsonl`, `claude.log`, and the
 structured result when available. A failure never updates `last-success.json`.
-Logs and proposals stay local and ignored by Git. Review a successful report
-and patch against its recorded `baseSha` before applying any changes. Retained
-runs can be removed manually after their proposals are no longer needed.
+Logs stay local and ignored by Git; `latest.json` and `last-success.json`
+record any `publishedCommit`. Each run deletes run directories older than 60
+days, except those the state files name.
 
 To stop the local schedule:
 
