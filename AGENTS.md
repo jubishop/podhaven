@@ -15,8 +15,9 @@ take precedence over this block and the foundation pages wherever they differ.
   run `td usage --new-session -q` once per new context and keep handoffs
   current. See [task tracking](docs/foundation/task-tracking.md).
 - Follow the [engineering policy](docs/foundation/engineering-policy.md):
-  fewer dependencies, red-green tests for behavior changes, cohesive files and
-  pages, checkout-isolated validation, and the latest stable toolchains.
+  fewer dependencies, red-green tests for behavior changes, flaky tests fixed
+  or tracked in an issue, cohesive files and pages, checkout-isolated
+  validation, and the latest stable toolchains.
 - Commit [changes outside the runtime](docs/foundation/engineering-policy.md#changes-outside-the-runtime),
   such as Markdown, AI skills, tests, CI, and tooling, directly on the default
   branch and push them without checks or a pull request.

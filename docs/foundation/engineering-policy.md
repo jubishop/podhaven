@@ -54,6 +54,11 @@ files, processes, and data clear ownership and validating independence. Keep
 sequential execution where interference remains, and never hide failures with
 retries or weaker assertions.
 
+### Flaky tests
+
+Never ignore a flaky test. Fix it on the spot, or make sure a GitHub issue
+tracks it so it can be addressed later.
+
 ## File organization
 
 Keep each file focused on one responsibility or feature area. About 1,000
