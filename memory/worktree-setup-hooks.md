@@ -12,7 +12,9 @@ Use the [development workflow](../docs/development-workflow.md) for maintained s
 
 When cleanup deletes a removed worktree's DerivedData, the shared clone's `workspace-state.json` may still record Sentry xcframework paths through that deleted DerivedData. Every remaining worktree then fails with `error: There is no XCFramework found at '~/Library/Developer/Xcode/DerivedData/PodHaven-<hash>/SourcePackages/artifacts/sentry-cocoa/Sentry/Sentry.xcframework'` even though the artifacts still exist under `~/Library/Developer/SharedSourcePackages/PodHaven/artifacts/`.
 
-Fix: rewrite the stale prefix in `~/Library/Developer/SharedSourcePackages/PodHaven/workspace-state.json` to point at the shared clone itself:
+Automatic cleanup repairs this. `bin/_worktrees.py` rewrites `workspace-state.json` references from the deleted DerivedData to the shared clone during orphan-cache removal (`artifact_references`, `bin/_worktrees.py:106-134`, applied in the repair block at lines 173-191). It verifies each replacement target and defers the repair while Xcode or package users hold the shared cache. `bin/post-worktree-remove` and the installed cleanup agent both run `bin/prune-worktree-caches --apply`, so a stale path should persist only when that cleanup was deferred or failed. Check `.cache/worktree-cleanup/last-error.json` first.
+
+Manual fix, when cleanup has not run: rewrite the stale prefix in `~/Library/Developer/SharedSourcePackages/PodHaven/workspace-state.json` to point at the shared clone itself:
 
 ```sh
 sed -i '' "s|<stale DerivedData path>/SourcePackages|$HOME/Library/Developer/SharedSourcePackages/PodHaven|g" workspace-state.json

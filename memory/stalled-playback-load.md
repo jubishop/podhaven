@@ -32,7 +32,7 @@ disprove writer contention: `Repo.updateDuration` logs before its own
 ## Instrumentation added
 
 `PodHaven/Play/PlayManager.swift` logs incoming/outgoing episode details and
-before/after timing for each awaited phase in `performLoad(_:)`, including the
+before/after timing for each awaited phase in `performLoad(_:loadID:)`, including the
 outgoing queue restore.
 
 GRDB writer contention on `Queue.unshift(_:)` is visible through the generic

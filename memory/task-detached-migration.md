@@ -12,12 +12,14 @@ type: "reference"
 
 The reason `Task.detached` typically gets reached for is to escape `@MainActor` so a hot CPU loop doesn't run on the main thread. There's a better way that preserves priority, cancellation, and the structured-concurrency chain.
 
-**Pattern:** declare the CPU work as a `nonisolated async` function on a Sendable / value type — e.g. a static method on an `enum`. `await`-ing it from `@MainActor` runs the body on the cooperative pool, while priority, cancellation, and the parent task's lineage all flow through.
+**Pattern:** mark the CPU work `@concurrent`: a static method on an `enum`, or a method on a `Sendable` type. `await`-ing it from `@MainActor` runs the body off the caller's actor, while priority, cancellation, and the parent task's lineage all flow through. `EmbeddingService.podcastContextVector` and `RecommendationEngine.similarityScores` use this form.
+
+This project sets `SWIFT_APPROACHABLE_CONCURRENCY = YES` with `SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated` (`PodHaven.xcodeproj/project.pbxproj`). Under that setting, a plain `nonisolated async` function runs on its caller's actor, not the cooperative pool, so it does not move CPU work off the main actor. Use `@concurrent` for that.
 
 ```swift
 enum Heavy {
-  nonisolated static func crunch(_ data: Data) async -> Result {
-    // CPU work runs on the cooperative pool, off main.
+  @concurrent static func crunch(_ data: Data) async -> Result {
+    // CPU work runs off the caller's actor.
     ...
   }
 }
