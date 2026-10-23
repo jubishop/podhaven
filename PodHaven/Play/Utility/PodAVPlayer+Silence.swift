@@ -238,8 +238,9 @@ extension PodAVPlayer {
     }
     guard latestSeekID == id, isCurrent(source) else { return true }
     let currentPolicy = SilencePolicy(mode: state.effectiveSilenceMode, rate: Double(selectedRate))
+    let from = avPlayer.currentTime()
     guard state.effectiveQuietAudioProtection == protection, avPlayer.timeControlStatus == .playing,
-      let target = currentPolicy.cut(in: interval, from: avPlayer.currentTime().seconds)
+      let target = currentPolicy.cut(in: interval, from: from.seconds)
     else {
       cancelAutomaticSilenceWork()
       return false
@@ -247,15 +248,33 @@ extension PodAVPlayer {
     silenceState.consumedInterval = lower
     removePeriodicTimeObserver()
     removeSilenceBoundary()
+    let session = AVAudioSession.sharedInstance()
+    let routeOutputs = session.currentRoute.outputs.map(\.portType.rawValue)
+    let outputLatencyMs = Int((session.outputLatency * 1000).rounded())
+    let ioBufferMs = Int((session.ioBufferDuration * 1000).rounded())
+    let clockNow = Container.shared.continuousClockNow()
+    let requestedAt = clockNow()
     avPlayer.seek(
       to: CMTime(seconds: target, preferredTimescale: 600_000),
       toleranceBefore: .zero,
       toleranceAfter: .zero
     ) {
       [weak self] completed in
+      let seekMs = Int((clockNow() - requestedAt) / .milliseconds(1))
       Task { @MainActor [weak self] in
         guard let self, self.latestSeekID == id, self.isCurrent(source) else { return }
         let actual = self.avPlayer.currentTime()
+        Self.log.info(
+          """
+          event=silenceCut episodeID=\(source.episodeID) playerGeneration=\(source.generation) \
+          mode=\(currentPolicy.mode) protection=\(protection) rate=\(currentPolicy.rate) \
+          intervalStart=\(interval.start) intervalEnd=\(interval.end) from=\(from.seconds) \
+          target=\(target) actual=\(actual.seconds) \
+          removedSeconds=\(actual.seconds - from.seconds) completed=\(completed) \
+          seekMs=\(seekMs) routeOutputs=\(routeOutputs) outputLatencyMs=\(outputLatencyMs) \
+          ioBufferMs=\(ioBufferMs)
+          """
+        )
         self.lastDatabaseUpdateTime = actual
         await self.saveCurrentTime(actual)
         guard self.latestSeekID == id, self.isCurrent(source) else { return }
@@ -264,7 +283,6 @@ extension PodAVPlayer {
         self.currentTimeContinuation.yield(PodAVPlayerEvent(source: source, value: actual))
         self.addPeriodicTimeObserver()
         self.refreshSilenceBoundary()
-        Self.log.debug("Automatic silence seek completed=\(completed) actual=\(actual.seconds)")
       }
     }
     return true

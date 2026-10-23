@@ -142,3 +142,26 @@ alone.
 
 Because the warnings answered the question they were added for, the events now
 log below Sentry's level as described in the [notice policy](#notice-policy).
+
+## Playback cut records
+
+Each automatic cut that completes for the current item logs one `.info`
+`event=silenceCut` record from `PodAVPlayer.shortenSilenceIfNeeded()`. Like the
+analysis events, it stays out of Sentry Logs and reaches Sentry in the log
+attachments on events and feedback. It helps explain why a cut sounded like a
+skip: clipped speech, a dropout during the seek, or a retained pause that is
+too short.
+
+| Field | Meaning |
+| --- | --- |
+| `episodeID`, `playerGeneration` | Episode and player item that made the cut |
+| `mode`, `protection`, `rate` | Effective preset, quiet audio protection, and selected playback rate |
+| `intervalStart`, `intervalEnd` | Source bounds of the quiet interval being shortened |
+| `from`, `target`, `actual` | Position when the seek was requested, the requested landing, and the landing the player reports |
+| `removedSeconds` | Source audio skipped: `actual` minus `from` |
+| `completed`, `seekMs` | Whether the seek completed, and monotonic time from the request to its completion handler |
+| `routeOutputs`, `outputLatencyMs`, `ioBufferMs` | Audio session output ports, output latency, and I/O buffer duration when the seek was requested |
+
+Positions are source seconds. `seekMs` excludes the later hop to the main actor
+and the position save. Output latency is the audio session's report; it does
+not show whether `AVPlayer` already compensates for it.
