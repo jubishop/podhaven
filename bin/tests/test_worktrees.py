@@ -202,7 +202,8 @@ class CacheTests(unittest.TestCase):
             caches.install_agent(self.repo)
         plist = home / "Library/LaunchAgents" / (caches.LABEL + ".plist")
         self.assertEqual(plistlib.loads(plist.read_bytes())["ProgramArguments"],
-                         [str(python), str(self.repo / "bin/prune-worktree-caches"), "--apply", "--quiet"])
+                         ["/bin/sh", "-c", 'exec "$0" "$@"', str(python),
+                          str(self.repo / "bin/prune-worktree-caches"), "--apply", "--quiet"])
         self.assertEqual([json.loads(line)[0] for line in calls.read_text().splitlines()], ["print", "bootstrap"])
 
 

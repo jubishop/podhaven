@@ -91,8 +91,10 @@ logged in. Cleanup also runs during `bin/prep-worktree` and after `ghdw` removal
 There is no routine maintenance command to remember. Reinstall the agent after
 moving the primary checkout. Its plist is
 `~/Library/LaunchAgents/com.jubi.podhaven.worktree-cleanup.plist`. The agent
-runs uv's default `~/.local/bin/python3`, so it follows Python updates without
-a reinstall; the installer refuses to write the agent until
+starts uv's default `~/.local/bin/python3` through `/bin/sh`, so it follows
+Python updates without a reinstall: macOS pins a login item to its program's
+signature, which Apple's shell keeps and each new interpreter changes. The
+installer refuses to write the agent until
 `uv python install --default` has created that interpreter.
 
 Cleanup only removes a DerivedData folder when its plist and path hash identify
@@ -364,8 +366,8 @@ It runs on Saturday at 06:00 in the Mac's local time zone (Pacific on the
 maintainer's machine). A sleeping Mac runs a missed calendar job after wake;
 the user must be logged in. The LaunchAgent is
 `~/Library/LaunchAgents/com.jubishop.podhaven.memory-audit.plist`.
-Like the cleanup agent, it runs uv's default `~/.local/bin/python3`, which
-follows Python updates; the installer refuses until `uv python install --default`
+Like the cleanup agent, it starts uv's default `~/.local/bin/python3` through
+`/bin/sh`, so it follows Python updates; the installer refuses until `uv python install --default`
 has created that interpreter. Tools under an fnm Node version are scheduled
 through fnm's default alias, so Node updates do not need a reinstall. Reinstall
 after moving the checkout or changing other tool locations. The installer

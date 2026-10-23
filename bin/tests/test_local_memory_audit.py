@@ -292,7 +292,8 @@ class LocalAuditTests(unittest.TestCase):
             result = audit.install(self.repo)
         settings = plistlib.loads(Path(result["plist"]).read_bytes())
         self.assertEqual(settings["StartCalendarInterval"], {"Weekday": 6, "Hour": 6, "Minute": 0})
-        self.assertEqual(settings["ProgramArguments"], [str(python), "-B", str(self.repo / "bin/memory-audit"), "run"])
+        self.assertEqual(settings["ProgramArguments"],
+                         ["/bin/sh", "-c", 'exec "$0" "$@"', str(python), "-B", str(self.repo / "bin/memory-audit"), "run"])
         self.assertEqual(settings["EnvironmentVariables"]["PATH"].split(os.pathsep)[0], str(python.parent))
         calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
         self.assertEqual([call[0] for call in calls], ["print", "bootstrap", "enable"])

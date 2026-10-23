@@ -275,7 +275,9 @@ def install_agent(root):
     if not os.access(python, os.X_OK):
         raise RuntimeError("Missing the default Python " + str(python) + "; run `uv python install --default`")
     destination = Path.home() / "Library/LaunchAgents" / (LABEL + ".plist")
-    value = {"Label": LABEL, "ProgramArguments": [str(python), str(root / "bin/prune-worktree-caches"), "--apply", "--quiet"],
+    # macOS pins a login item to its program's signature, which Apple's shell keeps across Python updates.
+    value = {"Label": LABEL, "ProgramArguments": ["/bin/sh", "-c", 'exec "$0" "$@"', str(python),
+                                                  str(root / "bin/prune-worktree-caches"), "--apply", "--quiet"],
              "WorkingDirectory": str(root), "StartInterval": 3600, "RunAtLoad": True,
              "ProcessType": "Background", "LowPriorityIO": True,
              "EnvironmentVariables": {"PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"},

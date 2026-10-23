@@ -427,7 +427,8 @@ def install(root=ROOT):
     plist = agents / (LABEL + ".plist")
     settings = {
         "Label": LABEL,
-        "ProgramArguments": [str(python), "-B", str(root / "bin/memory-audit"), "run"],
+        # macOS pins a login item to its program's signature, which Apple's shell keeps across Python updates.
+        "ProgramArguments": ["/bin/sh", "-c", 'exec "$0" "$@"', str(python), "-B", str(root / "bin/memory-audit"), "run"],
         "WorkingDirectory": str(root),
         "EnvironmentVariables": {"PATH": os.pathsep.join(dict.fromkeys(tool_paths))},
         "StartCalendarInterval": {"Weekday": 6, "Hour": 6, "Minute": 0},
