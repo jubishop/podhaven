@@ -290,9 +290,12 @@ extension PodAVPlayer {
 
   private func activateCachedSilence() async {
     guard let source = eventSource, latestSeekID == nil,
-      avPlayer.timeControlStatus != .waitingToPlayAtSpecifiedRate,
       !Container.shared.sharedState().playbackStatus.loading
     else { return }
+    guard avPlayer.timeControlStatus == .paused else {
+      Self.log.debug("activateCachedSilence: waiting for a pause to switch to downloaded audio")
+      return
+    }
     let id = UUID()
     latestSeekID = id
     silenceState.pending = .preparation
@@ -316,15 +319,14 @@ extension PodAVPlayer {
       guard let streamingItem = avPlayer.current else { return }
       let time = avPlayer.currentTime()
       guard await savePlaybackTick(time, episodeID: source.episodeID),
-        latestSeekID == id, isCurrent(source)
+        latestSeekID == id, isCurrent(source), avPlayer.timeControlStatus == .paused
       else {
         if latestSeekID == id { cancelAutomaticSilenceWork() }
         return
       }
-      silenceState.replacementIntent = PlaybackStatus(avPlayer.timeControlStatus)
+      silenceState.replacementIntent = .paused
       silenceState.pending = nil
       removeObservers()
-      avPlayer.pause()
       bind(item, to: source.episodeID, content: content)
       guard let replacementSource = eventSource else { return }
       latestSeekID = id

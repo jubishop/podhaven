@@ -748,6 +748,7 @@ struct PodAVPlayerPlaybackSnapshot {
           await self.shortenSilenceIfNeeded()
           return
         }
+        if status == .paused { await self.updateSilencePlayback() }
         let currentTime = avPlayer.currentTime()
         if latestSeekID == nil, await swapToCached(from: eventSource) {
           avPlayer.seek(to: currentTime)

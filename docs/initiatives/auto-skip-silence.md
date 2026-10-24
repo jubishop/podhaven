@@ -124,7 +124,7 @@ Turning Off prevents further automatic skips immediately. Other effective change
 
 - Keep original episode audio and **original source time everywhere**: duration, progress, scrubbing, chapter navigation, transcript timestamps, Now Playing, and persisted positions. Silence skipping advances the position; it does not shorten the displayed duration or rewrite the cached audio.
 - Playback starts normally when analysis is missing, pending, failed, stale, or unavailable. Skips require a valid map for the **exact local file currently bound to the player**. A cached file merely existing is insufficient; never use its map against a remote stream.
-- Coordinate download/analysis readiness with the existing remote-to-cache item replacement. When the feature is enabled and the local source is ready, activate it without requiring the user to scrub or restart the episode. Preserve source position, selected rate, play/pause state, and the temporary override. If the local source fails, normal remote playback may continue with skipping inactive.
+- Coordinate download/analysis readiness with the existing remote-to-cache item replacement. When the feature is enabled and the local source is ready, activate it without requiring the user to scrub or restart the episode. Never switch sources while audio is playing, because replacing the item is audible: switch right away when playback is already paused, and otherwise at the next pause for any reason, such as the user pausing or an interruption. Until then, playback keeps streaming with skipping inactive. Preserve source position, selected rate, play/pause state, and the temporary override. If the local source fails, normal remote playback may continue with skipping inactive.
 - Extend the existing `AVPlayable` OS boundary and its real `AVPlayer` conformance for tolerance-controlled seeking, and boundary observation if used. Use sample-accurate seek requests (`toleranceBefore` and `toleranceAfter` zero) for automatic cuts initially; measure actual behavior with supported media.
 - Schedule from media time. Boundary observers can help, with the existing time stream as reconciliation; they are not guaranteed to report every boundary. Always validate the actual current source time and current item/generation before deciding. Do not add a polling loop or rely solely on the three-second database checkpoint.
 - Cut only inside a detected quiet interval. Retain protection on both sides and land **before the end of the quiet interval**, not after speech resumes. Recheck that a late callback still has a useful forward cut available. If it does not, let the audio play normally.
@@ -153,7 +153,7 @@ Useful current code locations: `PodHaven/Environment/UserSettings.swift`; `PodHa
 - Synthetic mono/stereo PCM, opposite-phase channels, silence at boundaries, brief sounds inside gaps, quiet speech/music fixtures, short gaps, different sample rates, long files, no silence, all silence, discontinuities, cancellation, and decode failure.
 - Raw-SQL migrations; analysis round trips; stale version/file identity; same URL/path/duration with replaced bytes; shared cache references; eviction/deletion and out-of-order analysis completion; valid analysis reuse after disabling/re-enabling.
 - All eligible downloads, including non-queued ones; current/queue priority; no work for ineligible audio; only one worker; eligibility changes; background expiration/thermal deferral; no library scan per playback tick; bounded failures and cleanup.
-- Remote playback with an available local map still never auto-skips until switched to that local asset. Readiness and item replacement preserve current position/rate/play state and temporary settings without user seeking. Stale/failed analysis leaves playback usable.
+- Remote playback with an available local map still never auto-skips until switched to that local asset. Readiness and item replacement wait for a pause and preserve current position/rate/play state and temporary settings without user seeking. Stale/failed analysis leaves playback usable.
 - Known quiet ranges produce correct precise-seek targets; late/missed boundaries do not cut speech; no loops; manual seeking into silence triggers a safe remaining-silence cut after completion (or after resuming from pause); actual seek completion/failure/interruption; competing manual actions; paused/buffering states; item/episode changes; route changes and media-services reset; queue/end-of-episode/Stop After Current Episode behavior.
 - Source timestamps remain consistent in UI, database, transcripts/chapters, and Now Playing. Heard coverage includes audio before/after cuts and excludes removed spans as far as the existing bitmap can represent. Automatic cuts do not interfere with Undo Seek.
 - Menu choices and placement; no player explanations/reset/Custom controls; correct persistence scope; accessible selection/reading order; narrow and large-text layouts with chapters/transcript; isolated previews compile.
@@ -284,10 +284,10 @@ podcast preferences.
 
 ### Cache-switch failure behavior
 
-The player restores its confirmed source position when switching from streaming
-to downloaded audio. Turning Off or pausing during this operation preserves
-position restoration and the latest playback intent. A manual seek or a new
-episode supersedes the operation.
+The player switches from streaming to downloaded audio only while paused and
+restores its confirmed source position. Turning Off, playing, or pausing during
+this operation preserves position restoration and the latest playback intent.
+A manual seek or a new episode supersedes the operation.
 
 If positioning the downloaded item fails, the player restores the original
 streaming item at the confirmed position. Silence shortening stays inactive,

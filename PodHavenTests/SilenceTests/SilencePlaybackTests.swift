@@ -376,6 +376,7 @@ import Testing
       }
     defer { release.signal() }
     PlayBarViewModel().selectSilenceMode(.gentle)
+    await manager.pause()
     try await Wait.until(maxAttempts: 200, { entered() }, { "Cached asset load did not start" })
     #expect(!Container.shared.podAVPlayer().playbackSnapshot().isFromCache)
     #expect(player.preciseSeekRequests.isEmpty)
@@ -388,7 +389,9 @@ import Testing
     }
     #expect(player.preciseSeekRequests.first?.0 == .seconds(2))
     #expect(Container.shared.sharedState().silenceOverride?.mode == .gentle)
+    try await PlayHelpers.waitForPeriodicTimeObserver()
     (player.current as! FakeAVPlayerItem).setStatus(.readyToPlay)
+    await manager.play()
     player.advanceTime(to: .seconds(2))
     try await Wait.until(maxAttempts: 200) { @MainActor in
       player.preciseSeekRequests.count == 2
