@@ -49,6 +49,65 @@ import Testing
     try await PlayHelpers.waitFor(.seconds(3.7))
   }
 
+  @Test("an automatic cut records its decision, landing, and seek timing")
+  func automaticCutRecord() async throws {
+    let clock = Container.shared.fakeContinuousClock()
+    clock.freeze()
+    Container.shared.userSettings().$quietAudioProtection.new(.medium)
+    let (episode, records) = try await LogCapture.withSink { sink in
+      let (episode, player) = try await prepared(.init(start: 1, end: 4))
+      player.seekHandler = { _ in
+        clock.advance(by: .milliseconds(80))
+        return true
+      }
+      let manager = Container.shared.playManager()
+      await manager.setRate(2)
+      await manager.play()
+      player.advanceTime(to: .seconds(1.5))
+      try await Wait.until(maxAttempts: 200) {
+        sink.captured().contains { $0.message.hasPrefix("event=silenceCut ") }
+      } _: {
+        "Automatic cut was not recorded"
+      }
+      return (episode, sink.captured().filter { $0.message.hasPrefix("event=silenceCut ") })
+    }
+
+    #expect(records.count == 1)
+    let record = try #require(records.first)
+    #expect(record.level == .info)
+    let fields = Dictionary(
+      record.message.split(separator: " ")
+        .compactMap { pair -> (String, String)? in
+          let parts = pair.split(separator: "=", maxSplits: 1)
+          guard parts.count == 2 else { return nil }
+          return (String(parts[0]), String(parts[1]))
+        },
+      uniquingKeysWith: { first, _ in first }
+    )
+    func seconds(_ key: String) throws -> Double {
+      let value = try #require(fields[key], "Missing \(key)")
+      return try #require(Double(value), "Non-numeric \(key)")
+    }
+    let target = 4 - 0.3 / sqrt(2)
+    #expect(fields["episodeID"] == "\(episode.id)")
+    #expect(fields["mode"] == "gentle")
+    #expect(fields["protection"] == "medium")
+    #expect(try seconds("rate") == 2)
+    #expect(try seconds("intervalStart") == 1)
+    #expect(try seconds("intervalEnd") == 4)
+    #expect(try seconds("from") == 1.5)
+    #expect(abs(try seconds("target") - target) < 0.001)
+    #expect(abs(try seconds("actual") - target) < 0.001)
+    #expect(abs(try seconds("removedSeconds") - (target - 1.5)) < 0.001)
+    #expect(fields["completed"] == "true")
+    #expect(fields["seekMs"] == "80")
+    #expect(fields["routeOutputs"] != nil)
+    let outputLatency = try #require(fields["outputLatencyMs"])
+    #expect(Int(outputLatency) != nil)
+    let ioBuffer = try #require(fields["ioBufferMs"])
+    #expect(Int(ioBuffer) != nil)
+  }
+
   @Test("selecting another episode clears the temporary mode")
   func resetOnNewEpisode() async throws {
     let (first, second) = try await Create.twoPodcastEpisodes()
