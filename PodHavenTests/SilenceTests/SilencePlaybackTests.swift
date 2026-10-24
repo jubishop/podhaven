@@ -263,28 +263,39 @@ import Testing
     #expect(player.preciseSeekRequests.count == 1)
   }
 
-  @Test("CarPlay playback keeps streaming until the route leaves CarPlay")
+  @Test("CarPlay playback keeps streaming until a pause after the route leaves CarPlay")
   func carPlayKeepsStream() async throws {
     Container.shared.fakeAudioSession().routeOutputs([.carAudio])
-    let episode = try await Create.podcastEpisode()
-    try await Container.shared.playManager().play(episode)
-    try await PlayHelpers.waitFor(.playing)
-    let download = try await CacheHelpers.waitForDownloadTask(episode.id)
-    try await CacheHelpers.simulateBackgroundFinish(download)
-    _ = try await CacheHelpers.waitForCached(episode.id)
-    try await Wait.until(maxAttempts: 200) { @MainActor in
-      Container.shared.sharedState().onDeck?.cacheStatus == .cached
-    } _: {
-      "On-deck episode was not marked cached"
-    }
-    Container.shared.userSettings().$silenceMode.new(.gentle)
-    await Container.shared.podAVPlayer().updateSilencePlayback()
-    #expect(!Container.shared.podAVPlayer().playbackSnapshot().isFromCache)
-    changeRoute(to: [.builtInSpeaker], reason: .oldDeviceUnavailable)
-    try await Wait.until(maxAttempts: 200) { @MainActor in
-      Container.shared.podAVPlayer().playbackSnapshot().isFromCache
-    } _: {
-      "Leaving CarPlay did not switch to the downloaded audio"
+    try await LogCapture.withSink { sink in
+      let episode = try await Create.podcastEpisode()
+      try await Container.shared.playManager().play(episode)
+      try await PlayHelpers.waitFor(.playing)
+      let player = Container.shared.avPlayer() as! FakeAVPlayer
+      let download = try await CacheHelpers.waitForDownloadTask(episode.id)
+      try await CacheHelpers.simulateBackgroundFinish(download)
+      _ = try await CacheHelpers.waitForCached(episode.id)
+      try await Wait.until(maxAttempts: 200) { @MainActor in
+        Container.shared.sharedState().onDeck?.cacheStatus == .cached
+      } _: {
+        "On-deck episode was not marked cached"
+      }
+      Container.shared.userSettings().$silenceMode.new(.gentle)
+      await Container.shared.podAVPlayer().updateSilencePlayback()
+      #expect(!Container.shared.podAVPlayer().playbackSnapshot().isFromCache)
+      changeRoute(to: [.builtInSpeaker], reason: .oldDeviceUnavailable)
+      await Container.shared.podAVPlayer().audioRouteChanged()
+      #expect(
+        sink.captured()
+          .contains { $0.message.hasPrefix("activateCachedSilence: waiting for a pause") }
+      )
+      #expect(!Container.shared.podAVPlayer().playbackSnapshot().isFromCache)
+      player.pause()
+      try await Wait.until(maxAttempts: 200) { @MainActor in
+        Container.shared.podAVPlayer().playbackSnapshot().isFromCache
+          && !player.preciseSeekRequests.isEmpty
+      } _: {
+        "Pausing after leaving CarPlay did not switch to the downloaded audio"
+      }
     }
   }
 
@@ -417,6 +428,7 @@ import Testing
       }
     defer { release.signal() }
     PlayBarViewModel().selectSilenceMode(.gentle)
+    await manager.pause()
     try await Wait.until(maxAttempts: 200, { entered() }, { "Cached asset load did not start" })
     #expect(!Container.shared.podAVPlayer().playbackSnapshot().isFromCache)
     #expect(player.preciseSeekRequests.isEmpty)
@@ -429,7 +441,9 @@ import Testing
     }
     #expect(player.preciseSeekRequests.first?.0 == .seconds(2))
     #expect(Container.shared.sharedState().silenceOverride?.mode == .gentle)
+    try await PlayHelpers.waitForPeriodicTimeObserver()
     (player.current as! FakeAVPlayerItem).setStatus(.readyToPlay)
+    await manager.play()
     player.advanceTime(to: .seconds(2))
     try await Wait.until(maxAttempts: 200) { @MainActor in
       player.preciseSeekRequests.count == 2
