@@ -79,6 +79,10 @@ extension Container {
       }
     }
   }
+
+  var audioRouteOutputs: Factory<@Sendable () -> [AVAudioSession.Port]> {
+    Factory(self) { { AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType) } }
+  }
 }
 
 @globalActor
