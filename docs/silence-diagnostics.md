@@ -146,11 +146,12 @@ log below Sentry's level as described in the [notice policy](#notice-policy).
 ## Playback cut records
 
 Each automatic cut that completes for the current item logs one `.info`
-`event=silenceCut` record from `PodAVPlayer.shortenSilenceIfNeeded()`. Like the
-analysis events, it stays out of Sentry Logs and reaches Sentry in the log
-attachments on events and feedback. It helps explain why a cut sounded like a
-skip: clipped speech, a dropout during the seek, or a retained pause that is
-too short.
+`event=silenceCut` record from `PodAVPlayer.shortenSilenceIfNeeded()`. It stays
+out of Sentry Logs. In-app feedback carries it in the attached `log.ndjson`;
+other Sentry events carry it only while it remains in the smaller
+`recent-log.ndjson` tail. It helps explain why a cut sounded like a skip:
+clipped speech, a dropout during the seek, or a retained pause that is too
+short.
 
 | Field | Meaning |
 | --- | --- |
