@@ -111,7 +111,7 @@ struct SilenceProtectionFormatTests {
       SilenceSettingsHelp.text == """
         Shortens clear pauses while keeping natural space around speech. Gentle keeps more space, Balanced shortens more, and Aggressive removes the most. Higher playback speeds shorten pauses a little more automatically. Off keeps the original pauses.
 
-        Requires downloaded audio and completed audio analysis. Playback continues normally while analysis is pending.
+        Requires downloaded audio and completed audio analysis. Playback continues normally while analysis is pending. Pauses aren't shortened during CarPlay playback.
         """
     )
   }

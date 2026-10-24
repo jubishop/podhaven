@@ -100,6 +100,7 @@ extension Container: @retroactive AutoRegistering {
         Task { await audioSession.setActive(active) }
       }
     }
+    audioRouteOutputs.context(.test) { { self.fakeAudioSession().routeOutputs() } }
 
     nlContextualEmbedding.context(.test) { FakeEmbeddable() }.scope(.cached)
 

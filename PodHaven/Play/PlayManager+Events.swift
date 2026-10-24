@@ -380,6 +380,7 @@ extension PlayManager {
 
         guard sharedState.onDeck != nil else { continue }
         await podAVPlayer.savePosition()
+        await podAVPlayer.audioRouteChanged()
       }
     }
 

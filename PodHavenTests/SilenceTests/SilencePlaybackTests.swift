@@ -49,65 +49,6 @@ import Testing
     try await PlayHelpers.waitFor(.seconds(3.7))
   }
 
-  @Test("an automatic cut records its decision, landing, and seek timing")
-  func automaticCutRecord() async throws {
-    let clock = Container.shared.fakeContinuousClock()
-    clock.freeze()
-    Container.shared.userSettings().$quietAudioProtection.new(.medium)
-    let (episode, records) = try await LogCapture.withSink { sink in
-      let (episode, player) = try await prepared(.init(start: 1, end: 4))
-      player.seekHandler = { _ in
-        clock.advance(by: .milliseconds(80))
-        return true
-      }
-      let manager = Container.shared.playManager()
-      await manager.setRate(2)
-      await manager.play()
-      player.advanceTime(to: .seconds(1.5))
-      try await Wait.until(maxAttempts: 200) {
-        sink.captured().contains { $0.message.hasPrefix("event=silenceCut ") }
-      } _: {
-        "Automatic cut was not recorded"
-      }
-      return (episode, sink.captured().filter { $0.message.hasPrefix("event=silenceCut ") })
-    }
-
-    #expect(records.count == 1)
-    let record = try #require(records.first)
-    #expect(record.level == .info)
-    let fields = Dictionary(
-      record.message.split(separator: " ")
-        .compactMap { pair -> (String, String)? in
-          let parts = pair.split(separator: "=", maxSplits: 1)
-          guard parts.count == 2 else { return nil }
-          return (String(parts[0]), String(parts[1]))
-        },
-      uniquingKeysWith: { first, _ in first }
-    )
-    func seconds(_ key: String) throws -> Double {
-      let value = try #require(fields[key], "Missing \(key)")
-      return try #require(Double(value), "Non-numeric \(key)")
-    }
-    let target = 4 - 0.3 / sqrt(2)
-    #expect(fields["episodeID"] == "\(episode.id)")
-    #expect(fields["mode"] == "gentle")
-    #expect(fields["protection"] == "medium")
-    #expect(try seconds("rate") == 2)
-    #expect(try seconds("intervalStart") == 1)
-    #expect(try seconds("intervalEnd") == 4)
-    #expect(try seconds("from") == 1.5)
-    #expect(abs(try seconds("target") - target) < 0.001)
-    #expect(abs(try seconds("actual") - target) < 0.001)
-    #expect(abs(try seconds("removedSeconds") - (target - 1.5)) < 0.001)
-    #expect(fields["completed"] == "true")
-    #expect(fields["seekMs"] == "80")
-    #expect(fields["routeOutputs"] != nil)
-    let outputLatency = try #require(fields["outputLatencyMs"])
-    #expect(Int(outputLatency) != nil)
-    let ioBuffer = try #require(fields["ioBufferMs"])
-    #expect(Int(ioBuffer) != nil)
-  }
-
   @Test("selecting another episode clears the temporary mode")
   func resetOnNewEpisode() async throws {
     let (first, second) = try await Create.twoPodcastEpisodes()
@@ -268,6 +209,81 @@ import Testing
     player.advanceTime(to: .seconds(3))
     try await PlayHelpers.waitFor(.seconds(3))
     #expect(player.preciseSeekRequests.count == 1)
+  }
+
+  @Test("CarPlay playback leaves quiet intervals uncut")
+  func carPlayKeepsSilence() async throws {
+    Container.shared.fakeAudioSession().routeOutputs([.carAudio])
+    let (_, player) = try await prepared()
+    await Container.shared.playManager().play()
+    player.advanceTime(to: .seconds(2))
+    try await waitForTickOrCut(at: .seconds(2), player)
+    #expect(player.preciseSeekRequests.isEmpty)
+    #expect(Container.shared.sharedState().effectiveSilenceMode == .gentle)
+  }
+
+  @Test("leaving CarPlay resumes shortening the current silence")
+  func leavingCarPlayResumesCuts() async throws {
+    Container.shared.fakeAudioSession().routeOutputs([.carAudio])
+    let (_, player) = try await prepared()
+    await Container.shared.playManager().play()
+    player.advanceTime(to: .seconds(2))
+    try await waitForTickOrCut(at: .seconds(2), player)
+    try #require(player.preciseSeekRequests.isEmpty)
+    changeRoute(to: [.builtInSpeaker], reason: .oldDeviceUnavailable)
+    try await Wait.until(maxAttempts: 200) { @MainActor in
+      abs(player.currentTime().seconds - 9.7) < 0.001
+    } _: {
+      "Leaving CarPlay did not resume silence shortening"
+    }
+  }
+
+  @Test("switching to CarPlay cancels a pending automatic seek")
+  func enteringCarPlayCancelsCut() async throws {
+    let (_, player) = try await prepared()
+    let release = AsyncSemaphore(value: 0)
+    player.seekHandler = { _ in
+      await release.wait()
+      return true
+    }
+    defer { release.signal() }
+    await Container.shared.playManager().play()
+    player.advanceTime(to: .seconds(2))
+    try await Wait.until(maxAttempts: 200) {
+      await MainActor.run { !player.preciseSeekRequests.isEmpty }
+    } _: {
+      "Automatic seek was not requested"
+    }
+    changeRoute(to: [.carAudio], reason: .newDeviceAvailable)
+    try await PlayHelpers.waitForPeriodicTimeObserver()
+    release.signal()
+    player.advanceTime(to: .seconds(3))
+    try await PlayHelpers.waitFor(.seconds(3))
+    #expect(player.currentTime().seconds == 3)
+    #expect(player.preciseSeekRequests.count == 1)
+  }
+
+  private func changeRoute(
+    to outputs: [AVAudioSession.Port],
+    reason: AVAudioSession.RouteChangeReason
+  ) {
+    Container.shared.fakeAudioSession().routeOutputs(outputs)
+    Container.shared.notifier().continuation(for: AVAudioSession.routeChangeNotification)
+      .yield(
+        Notification(
+          name: AVAudioSession.routeChangeNotification,
+          userInfo: [AVAudioSessionRouteChangeReasonKey: reason.rawValue]
+        )
+      )
+  }
+
+  private func waitForTickOrCut(at time: CMTime, _ player: FakeAVPlayer) async throws {
+    try await Wait.until(maxAttempts: 200) { @MainActor in
+      Container.shared.sharedState().onDeck?.currentTime == time
+        || !player.preciseSeekRequests.isEmpty
+    } _: {
+      "Playback neither reported \(time) nor cut silence"
+    }
   }
 
   @Test("temporary selection wins over defaults without changing persisted preferences")

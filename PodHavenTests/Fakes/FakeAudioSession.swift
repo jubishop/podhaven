@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import FactoryKit
 import Foundation
 
@@ -26,4 +27,6 @@ actor FakeAudioSession {
     activeCalls.append(active)
     self.active = active
   }
+
+  nonisolated let routeOutputs = ThreadSafe<[AVAudioSession.Port]>([.builtInSpeaker])
 }

@@ -9,11 +9,13 @@ import Tagged
 
 @MainActor struct SilencePlaybackState {
   enum Pending { case cut, preparation, replacement }
+  enum Route { case carPlay, other }
   var content: CachedAudioContent?
   var map: SilenceMap?
   var protection: QuietAudioProtection?
   var consumedInterval: Int?
   var pending: Pending?
+  var route: Route = .other
   var replacementIntent: PlaybackStatus?
   var streamingFallback: (any AVPlayableItem)?
   var boundary: (token: Any, player: any AVPlayable)?
@@ -23,6 +25,7 @@ import Tagged
 extension PodAVPlayer {
   func startSilenceObservation() {
     guard silenceState.observations.isEmpty, let source = eventSource else { return }
+    silenceState.route = currentAudioRoute()
     let state = Container.shared.sharedState()
     let settings = Container.shared.userSettings()
     let store = Container.shared.silenceStore()
@@ -123,6 +126,21 @@ extension PodAVPlayer {
     removeSilenceBoundary()
   }
 
+  // CarPlay renders each cut's seek as an audible skip.
+  private var automaticSilenceMode: SilenceMode {
+    guard silenceState.route == .other else { return .off }
+    return Container.shared.sharedState().effectiveSilenceMode
+  }
+
+  private func currentAudioRoute() -> SilencePlaybackState.Route {
+    Container.shared.audioRouteOutputs()().contains(.carAudio) ? .carPlay : .other
+  }
+
+  func audioRouteChanged() async {
+    silenceState.route = currentAudioRoute()
+    await updateSilencePlayback()
+  }
+
   private func synchronizeSilenceProtection() {
     let protection = Container.shared.sharedState().effectiveQuietAudioProtection
     guard silenceState.protection != protection else { return }
@@ -135,7 +153,7 @@ extension PodAVPlayer {
   func updateSilencePlayback() async {
     synchronizeSilenceProtection()
     let state = Container.shared.sharedState()
-    if state.effectiveSilenceMode == .off {
+    if automaticSilenceMode == .off {
       if silenceState.pending != .replacement { cancelAutomaticSilenceWork() }
       removeSilenceBoundary()
       return
@@ -150,11 +168,11 @@ extension PodAVPlayer {
   func refreshSilenceBoundary() {
     removeSilenceBoundary()
     let state = Container.shared.sharedState()
-    guard state.effectiveSilenceMode != .off, latestSeekID == nil,
+    guard automaticSilenceMode != .off, latestSeekID == nil,
       avPlayer.timeControlStatus == .playing,
       let map = silenceState.map, let source = eventSource
     else { return }
-    let policy = SilencePolicy(mode: state.effectiveSilenceMode, rate: Double(selectedRate))
+    let policy = SilencePolicy(mode: automaticSilenceMode, rate: Double(selectedRate))
     let now = avPlayer.currentTime().seconds
     guard
       let interval = map.intervals(for: state.effectiveQuietAudioProtection)
@@ -187,7 +205,7 @@ extension PodAVPlayer {
   func shortenSilenceIfNeeded() async -> Bool {
     synchronizeSilenceProtection()
     let state = Container.shared.sharedState()
-    guard state.effectiveSilenceMode != .off, !state.playbackStatus.loading, latestSeekID == nil,
+    guard automaticSilenceMode != .off, !state.playbackStatus.loading, latestSeekID == nil,
       avPlayer.timeControlStatus == .playing, avPlayer.current?.status == .readyToPlay,
       let source = eventSource, let content = silenceState.content, let map = silenceState.map,
       playbackSnapshot().isFromCache, periodicTimeObservation != nil
@@ -203,7 +221,7 @@ extension PodAVPlayer {
     }
     guard lower < intervals.count, silenceState.consumedInterval != lower else { return false }
     let interval = intervals[lower]
-    let policy = SilencePolicy(mode: state.effectiveSilenceMode, rate: Double(selectedRate))
+    let policy = SilencePolicy(mode: automaticSilenceMode, rate: Double(selectedRate))
     guard policy.cut(in: interval, from: time) != nil else { return false }
     let id = UUID()
     latestSeekID = id
@@ -223,7 +241,7 @@ extension PodAVPlayer {
       return false
     }
     guard latestSeekID == id, isCurrent(source) else { return true }
-    guard state.effectiveSilenceMode != .off, state.effectiveQuietAudioProtection == protection,
+    guard automaticSilenceMode != .off, state.effectiveQuietAudioProtection == protection,
       avPlayer.timeControlStatus == .playing
     else {
       cancelAutomaticSilenceWork()
@@ -237,10 +255,9 @@ extension PodAVPlayer {
       return false
     }
     guard latestSeekID == id, isCurrent(source) else { return true }
-    let currentPolicy = SilencePolicy(mode: state.effectiveSilenceMode, rate: Double(selectedRate))
-    let from = avPlayer.currentTime()
+    let currentPolicy = SilencePolicy(mode: automaticSilenceMode, rate: Double(selectedRate))
     guard state.effectiveQuietAudioProtection == protection, avPlayer.timeControlStatus == .playing,
-      let target = currentPolicy.cut(in: interval, from: from.seconds)
+      let target = currentPolicy.cut(in: interval, from: avPlayer.currentTime().seconds)
     else {
       cancelAutomaticSilenceWork()
       return false
@@ -248,33 +265,15 @@ extension PodAVPlayer {
     silenceState.consumedInterval = lower
     removePeriodicTimeObserver()
     removeSilenceBoundary()
-    let session = AVAudioSession.sharedInstance()
-    let routeOutputs = session.currentRoute.outputs.map(\.portType.rawValue)
-    let outputLatencyMs = Int((session.outputLatency * 1000).rounded())
-    let ioBufferMs = Int((session.ioBufferDuration * 1000).rounded())
-    let clockNow = Container.shared.continuousClockNow()
-    let requestedAt = clockNow()
     avPlayer.seek(
       to: CMTime(seconds: target, preferredTimescale: 600_000),
       toleranceBefore: .zero,
       toleranceAfter: .zero
     ) {
       [weak self] completed in
-      let seekMs = Int((clockNow() - requestedAt) / .milliseconds(1))
       Task { @MainActor [weak self] in
         guard let self, self.latestSeekID == id, self.isCurrent(source) else { return }
         let actual = self.avPlayer.currentTime()
-        Self.log.info(
-          """
-          event=silenceCut episodeID=\(source.episodeID) playerGeneration=\(source.generation) \
-          mode=\(currentPolicy.mode) protection=\(protection) rate=\(currentPolicy.rate) \
-          intervalStart=\(interval.start) intervalEnd=\(interval.end) from=\(from.seconds) \
-          target=\(target) actual=\(actual.seconds) \
-          removedSeconds=\(actual.seconds - from.seconds) completed=\(completed) \
-          seekMs=\(seekMs) routeOutputs=\(routeOutputs) outputLatencyMs=\(outputLatencyMs) \
-          ioBufferMs=\(ioBufferMs)
-          """
-        )
         self.lastDatabaseUpdateTime = actual
         await self.saveCurrentTime(actual)
         guard self.latestSeekID == id, self.isCurrent(source) else { return }
@@ -283,6 +282,7 @@ extension PodAVPlayer {
         self.currentTimeContinuation.yield(PodAVPlayerEvent(source: source, value: actual))
         self.addPeriodicTimeObserver()
         self.refreshSilenceBoundary()
+        Self.log.debug("Automatic silence seek completed=\(completed) actual=\(actual.seconds)")
       }
     }
     return true
@@ -309,7 +309,7 @@ extension PodAVPlayer {
       }
       let (_, item, content) = try await loadAsset(for: episode, mediaServicesResetElapsed: nil)
       guard latestSeekID == id, isCurrent(source) else { return }
-      guard let content, Container.shared.sharedState().effectiveSilenceMode != .off else {
+      guard let content, automaticSilenceMode != .off else {
         cancelAutomaticSilenceWork()
         return
       }
