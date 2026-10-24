@@ -9,7 +9,7 @@ enum SilenceSettingsHelp {
     pauses a little more automatically. Off keeps the original pauses.
 
     Requires downloaded audio and completed audio analysis. Playback continues normally while \
-    analysis is pending.
+    analysis is pending. Pauses aren't shortened during CarPlay playback.
     """
 }
 
