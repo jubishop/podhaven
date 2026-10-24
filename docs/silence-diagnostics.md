@@ -158,11 +158,12 @@ short.
 | `episodeID`, `playerGeneration` | Episode and player item that made the cut |
 | `mode`, `protection`, `rate` | Effective preset, quiet audio protection, and selected playback rate |
 | `intervalStart`, `intervalEnd` | Source bounds of the quiet interval being shortened |
-| `from`, `target`, `actual` | Position when the seek was requested, the requested landing, and the landing the player reports |
-| `removedSeconds` | Source audio skipped: `actual` minus `from` |
+| `from`, `target`, `actual` | Position when the seek was requested, the requested landing, and the position the player reports once the completion reaches the main actor |
+| `removedSeconds` | `actual` minus `from`: the source audio skipped, plus any played before `actual` was read |
 | `completed`, `seekMs` | Whether the seek completed, and monotonic time from the request to its completion handler |
 | `routeOutputs`, `outputLatencyMs`, `ioBufferMs` | Audio session output ports, output latency, and I/O buffer duration when the seek was requested |
 
-Positions are source seconds. `seekMs` excludes the later hop to the main actor
-and the position save. Output latency is the audio session's report; it does
+Positions are source seconds. Playback resumes once the seek lands, so `actual`
+can run past `target` by the main-actor hop times the rate. `seekMs` excludes
+that hop and the position save. Output latency is the audio session's report; it does
 not show whether `AVPlayer` already compensates for it.
