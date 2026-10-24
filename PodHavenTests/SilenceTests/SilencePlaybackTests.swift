@@ -263,6 +263,31 @@ import Testing
     #expect(player.preciseSeekRequests.count == 1)
   }
 
+  @Test("CarPlay playback keeps streaming until the route leaves CarPlay")
+  func carPlayKeepsStream() async throws {
+    Container.shared.fakeAudioSession().routeOutputs([.carAudio])
+    let episode = try await Create.podcastEpisode()
+    try await Container.shared.playManager().play(episode)
+    try await PlayHelpers.waitFor(.playing)
+    let download = try await CacheHelpers.waitForDownloadTask(episode.id)
+    try await CacheHelpers.simulateBackgroundFinish(download)
+    _ = try await CacheHelpers.waitForCached(episode.id)
+    try await Wait.until(maxAttempts: 200) { @MainActor in
+      Container.shared.sharedState().onDeck?.cacheStatus == .cached
+    } _: {
+      "On-deck episode was not marked cached"
+    }
+    Container.shared.userSettings().$silenceMode.new(.gentle)
+    await Container.shared.podAVPlayer().updateSilencePlayback()
+    #expect(!Container.shared.podAVPlayer().playbackSnapshot().isFromCache)
+    changeRoute(to: [.builtInSpeaker], reason: .oldDeviceUnavailable)
+    try await Wait.until(maxAttempts: 200) { @MainActor in
+      Container.shared.podAVPlayer().playbackSnapshot().isFromCache
+    } _: {
+      "Leaving CarPlay did not switch to the downloaded audio"
+    }
+  }
+
   private func changeRoute(
     to outputs: [AVAudioSession.Port],
     reason: AVAudioSession.RouteChangeReason
