@@ -137,6 +137,73 @@ import Testing
     #expect(player.defaultRate == 1.5)
   }
 
+  @Test("resuming before the paused switch binds keeps streaming until the next pause")
+  func resumeDuringSwitch() async throws {
+    Container.shared.userSettings().$silenceMode.new(.gentle)
+    try await LogCapture.withSink { sink in
+      let episode = try await Create.podcastEpisode()
+      let manager = Container.shared.playManager()
+      try await manager.play(episode)
+      try await PlayHelpers.waitFor(.playing)
+      let player = Container.shared.avPlayer() as! FakeAVPlayer
+      player.resetTimeOnReplacement = true
+      player.advanceTime(to: .seconds(12))
+      let streamingItem = try #require(player.current)
+      let task = try await CacheHelpers.waitForDownloadTask(episode.id)
+      try await CacheHelpers.simulateBackgroundFinish(task)
+      let url = try await CacheHelpers.waitForCached(episode.id)
+      try await Wait.until(maxAttempts: 200) { @MainActor in
+        sink.captured()
+          .contains { $0.message.hasPrefix("activateCachedSilence: waiting for a pause") }
+      } _: {
+        "The finished download was not considered for silence shortening"
+      }
+      let entered = ThreadSafe(false)
+      let release = AsyncSemaphore(value: 0)
+      let loader = Container.shared.fakeEpisodeAssetLoader()
+      await loader.respond(to: url) { _ in
+        entered(true)
+        await release.wait()
+        return (true, .seconds(30))
+      }
+      defer { release.signal() }
+      let seeks = player.seekRequests.count
+
+      await manager.pause()
+      try await Wait.until(maxAttempts: 200, { entered() }, { "The paused switch did not start" })
+      await loader.respond(to: url, data: (true, .seconds(30)))
+      await manager.play()
+      release.signal()
+      try await Wait.until(maxAttempts: 200) { @MainActor in
+        sink.captured()
+          .contains {
+            $0.message == "swapToCached: swapped to cached version"
+              || $0.message.hasPrefix("Skipping paused cache swap")
+          }
+      } _: {
+        "The cancelled switch did not settle"
+      }
+      #expect(player.current === streamingItem)
+      #expect(player.timeControlStatus == .playing)
+      #expect(player.seekRequests.count == seeks)
+
+      await manager.pause()
+      try await Wait.until(maxAttempts: 200) { @MainActor in
+        Container.shared.podAVPlayer().playbackSnapshot().isFromCache
+          && player.seekRequests.count == seeks + 1
+      } _: {
+        "Pausing again did not switch to the downloaded file"
+      }
+      try await PlayHelpers.waitForPeriodicTimeObserver()
+      let restoration = try #require(player.preciseSeekRequests.first)
+      #expect(player.preciseSeekRequests.count == 1)
+      #expect(restoration.0 == .seconds(12))
+      #expect(restoration.1 == .zero)
+      #expect(restoration.2 == .zero)
+      #expect(player.timeControlStatus == .paused)
+    }
+  }
+
   @Test("failed cache positioning restores streaming and suppresses automatic retry")
   func failedReplacement() async throws {
     let (episode, player) = try await streaming()

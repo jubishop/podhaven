@@ -748,7 +748,13 @@ struct PodAVPlayerPlaybackSnapshot {
           await self.shortenSilenceIfNeeded()
           return
         }
-        if status == .paused { await self.updateSilencePlayback() }
+        if status == .paused {
+          await self.updateSilencePlayback()
+          guard avPlayer.timeControlStatus == .paused else {
+            Self.log.debug("Skipping paused cache swap because playback resumed")
+            return
+          }
+        }
         let currentTime = avPlayer.currentTime()
         if latestSeekID == nil, await swapToCached(from: eventSource) {
           avPlayer.seek(to: currentTime)
