@@ -393,7 +393,8 @@ def refresh(force):
             unchanged = (not force and prior.get("fingerprint") == before and
                          (cache() / "index.sqlite").is_file() and previous.get("status") == "success")
             if not unchanged:
-                for command in ("update", "embed"):
+                # Cleanup drops vectors of replaced or removed pages, which update and embed keep.
+                for command in ("update", "embed", "cleanup"):
                     with command_environment() as env:
                         subprocess.run([tool, command], cwd=ROOT, env=env, check=True)
             after_config, _ = config()

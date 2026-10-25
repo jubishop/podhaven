@@ -50,7 +50,7 @@ class KnowledgeTests(unittest.TestCase):
                         OLD_HOOKS=str(self.base / "old-hooks.jsonl"), QMD_CONFIG_DIR="/wrong-config",
                         XDG_CACHE_HOME="/wrong-cache", INDEX_PATH="/wrong-index")
         self.tool("qmd", '''
-import json, os, subprocess, sys, time
+import hashlib, json, os, subprocess, sys, time
 from pathlib import Path
 if sys.argv[1:] == ["--version"]:
     if os.environ.get("BROKEN_QMD"):
@@ -70,14 +70,30 @@ if os.environ.get("REWRITE_QMD_CONFIG"):
     (Path(record["config"]) / "index.yml").write_text("models:\\n  embed: upstream-default\\n")
 with open(os.environ["EVENTS"], "a") as stream:
     stream.write(json.dumps(record) + "\\n")
-if sys.argv[1] in ("update", "embed"):
+if sys.argv[1] in ("update", "embed", "cleanup"):
     time.sleep(float(os.environ.get("QMD_TEST_DELAY", "0.02")))
+    while sys.argv[1] == "cleanup" and Path(os.environ.get("CLEANUP_GATE", "/nonexistent")).exists():
+        time.sleep(0.01)
     if sys.argv[1] == "update" and os.environ.get("FAIL_UPDATE"):
         sys.exit(23)
     if sys.argv[1] == "embed" and os.environ.get("FAIL_EMBED"):
         sys.exit(24)
+    if sys.argv[1] == "cleanup" and os.environ.get("FAIL_CLEANUP"):
+        sys.exit(26)
     if not os.environ.get("NO_INDEX"):
-        Path(record["index"]).touch()
+        # Model QMD's content-addressed vectors: replaced pages leave orphans until cleanup.
+        index = Path(record["index"])
+        state = json.loads(index.read_text()) if index.exists() else {"documents": [], "vectors": []}
+        if sys.argv[1] == "update":
+            state["documents"] = sorted(hashlib.sha256(path.read_bytes()).hexdigest()
+                                        for collection in record["collections"].values()
+                                        for path in Path(collection["path"]).glob(collection["pattern"])
+                                        if path.is_file() and ".cache" not in path.parts)
+        elif sys.argv[1] == "embed":
+            state["vectors"] = sorted(set(state["vectors"]) | set(state["documents"]))
+        else:
+            state["vectors"] = sorted(set(state["vectors"]) & set(state["documents"]))
+        index.write_text(json.dumps(state))
 else:
     if os.environ.get("FAIL_QUERY"):
         print("partial results must not escape")
@@ -85,6 +101,9 @@ else:
     if os.environ.get("EDIT_DURING_QUERY"):
         with (Path.cwd() / "docs/README.md").open("a") as stream:
             stream.write("Changed during lookup.\\n")
+    if sys.argv[1] == "status":
+        state = json.loads(Path(record["index"]).read_text())
+        record["orphaned"] = len(set(state["vectors"]) - set(state["documents"]))
     print(json.dumps(record))
 ''')
         self.tool("direnv", '''
@@ -266,7 +285,7 @@ fcntl.flock = flock
                              set(json.loads((self.repo / ".config/knowledge.json").read_text())["collections"]))
         self.assertEqual(json.loads(self.run_command("bin/doctor", "--json").stdout)["freshness"], "current")
         self.drain()
-        self.assertEqual([r["command"] for r in self.records()], ["update", "embed", "search", "query"])
+        self.assertEqual([r["command"] for r in self.records()], ["update", "embed", "cleanup", "search", "query"])
 
     def test_lookup_recovers_configuration_rewritten_by_an_external_qmd(self):
         self.run_command("bin/setup")
@@ -316,7 +335,7 @@ fcntl.flock = flock
                 self.assertEqual(report["freshness"], "stale")
                 initial = len(self.records())
                 self.assertIn("freshness", self.run_command("bin/knowledge", "search", "reference").stderr)
-                self.assertEqual([r["command"] for r in self.records()[initial:]], ["update", "embed", "search"])
+                self.assertEqual([r["command"] for r in self.records()[initial:]], ["update", "embed", "cleanup", "search"])
                 initial = len(self.records())
                 self.drain()
                 self.assertEqual(self.records()[initial:], [])
@@ -392,7 +411,7 @@ fcntl.flock = flock
         self.drain()
         self.run_command("git", "config", "--unset", "knowledge.homeMemoryPath")
         self.drain()
-        self.assertEqual(len(self.records()), initial + 6)
+        self.assertEqual(len(self.records()), initial + 9)
         self.assertNotIn("home-memory", self.records()[-1]["collections"])
 
     def test_missing_home_memory_notice_and_relative_path_rejection(self):
@@ -431,7 +450,40 @@ fcntl.flock = flock
         self.run_command("bin/setup")
         (self.repo / ".cache/qmd/index.sqlite").unlink()
         self.drain()
-        self.assertEqual([r["command"] for r in self.records()], ["update", "embed"] * 2)
+        self.assertEqual([r["command"] for r in self.records()], ["update", "embed", "cleanup"] * 2)
+
+    def test_refresh_reclaims_vectors_of_replaced_pages(self):
+        self.run_command("bin/setup")
+        page = self.repo / "docs/README.md"
+        page.write_text(page.read_text() + "\nReplacement guidance.\n")
+        self.drain()
+        self.assertEqual(json.loads(self.run_command("bin/knowledge", "status").stdout)["orphaned"], 0)
+        cleanups = [r for r in self.records() if r["command"] == "cleanup"]
+        self.assertTrue(cleanups)
+        for record in cleanups:
+            self.assertEqual(record["index"], str(self.repo / ".cache/qmd/index.sqlite"))
+            self.assertEqual(Path(record["config"]).parent, self.repo / ".cache/qmd")
+
+    def test_lookup_during_cleanup_waits_for_verified_results(self):
+        self.run_command("bin/setup")
+        page = self.repo / "docs/README.md"
+        page.write_text(page.read_text() + "\nReplacement guidance.\n")
+        gate = self.base / "cleanup gate"
+        gate.touch()
+        initial = len(self.records())
+        self.run_command("bin/qmd-index", "--background", extra={"CLEANUP_GATE": str(gate)})
+        self.wait_for_command(initial + 3)
+        process = subprocess.Popen(["bin/knowledge", "search", "reference"], cwd=self.repo, env=self.env,
+                                   text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            with self.assertRaises(subprocess.TimeoutExpired):
+                process.communicate(timeout=0.5)
+        finally:
+            gate.unlink()
+            stdout, stderr = process.communicate(timeout=10)
+        self.assertEqual(process.returncode, 0, (stdout, stderr))
+        self.assertEqual(json.loads(stdout)["command"], "search")
+        self.assertEqual([r["command"] for r in self.records()[initial:]], ["update", "embed", "cleanup", "search"])
 
     def test_lookups_refresh_uncommitted_changes_without_polluting_stdout(self):
         self.run_command("bin/setup")
@@ -442,7 +494,7 @@ fcntl.flock = flock
                 initial = len(self.records())
                 result = self.run_command("bin/knowledge", command, "reference")
                 self.assertEqual(json.loads(result.stdout)["command"], command)
-                self.assertEqual([r["command"] for r in self.records()[initial:]], ["update", "embed", command])
+                self.assertEqual([r["command"] for r in self.records()[initial:]], ["update", "embed", "cleanup", command])
                 initial = len(self.records())
                 self.run_command("bin/knowledge", command, "reference")
                 self.assertEqual([r["command"] for r in self.records()[initial:]], [command])
@@ -450,7 +502,7 @@ fcntl.flock = flock
 
     def test_lookup_refuses_failed_refresh_and_recovers_on_next_attempt(self):
         self.run_command("bin/setup")
-        for failure in ("FAIL_UPDATE", "FAIL_EMBED"):
+        for failure in ("FAIL_UPDATE", "FAIL_EMBED", "FAIL_CLEANUP"):
             with self.subTest(failure=failure):
                 note = self.repo / "docs/README.md"
                 note.write_text(note.read_text() + "\nChanged.\n")
@@ -670,7 +722,7 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
             output = process.communicate(timeout=20)
             self.assertEqual(process.returncode, 0, output)
         self.drain()
-        self.assertEqual([r["command"] for r in self.records()], ["update", "embed"])
+        self.assertEqual([r["command"] for r in self.records()], ["update", "embed", "cleanup"])
 
     def test_lookup_waits_for_worker_lock_release_after_completed_refresh(self):
         self.run_command("bin/setup")
@@ -721,7 +773,7 @@ fcntl.flock = flock
         # Wait for the worker's own follow-up before enqueuing any foreground request.
         self.wait_for_command(4)
         self.drain()
-        self.assertEqual([r["command"] for r in self.records()], ["update", "embed"] * 2)
+        self.assertEqual([r["command"] for r in self.records()], ["update", "embed", "cleanup"] * 2)
         self.run_command("bin/doctor")
 
     def test_update_failure_skips_embed_and_releases_worker(self):
@@ -746,7 +798,7 @@ fcntl.flock = flock
         config["collections"]["docs"]["context"]["/"] = "Changed description"
         path.write_text(json.dumps(config))
         self.drain()
-        self.assertEqual(len(self.records()), initial + 2)
+        self.assertEqual(len(self.records()), initial + 3)
 
     def test_only_full_check_runs_application_checks_after_foundation_checks(self):
         self.tool("shellcheck", "import sys\nsys.exit(0)\n")
