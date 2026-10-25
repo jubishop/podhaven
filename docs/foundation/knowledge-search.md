@@ -4,9 +4,10 @@ status: current
 
 # Knowledge search
 
-Projects keep knowledge as Markdown in `memory/` and `docs/` and search it
-with optional [QMD](https://github.com/tobi/qmd). Each checkout has its own
-index, and Git hooks refresh it in the background.
+Projects keep knowledge as Markdown in `memory/` and `docs/` and search it,
+along with the root `README.md`, with optional
+[QMD](https://github.com/tobi/qmd). Each checkout has its own index, and Git
+hooks refresh it in the background.
 
 ## Search
 
@@ -31,9 +32,13 @@ executable, run `git config --local knowledge.qmdPath /absolute/path/to/qmd`.
 
 `.config/knowledge.json` defines collections, exclusions, and the short
 descriptions attached to results. Edit it rather than the generated
-`.config/qmd/index.yml`. Collections use `**/*.md` patterns. Each QMD command
-receives a temporary copy of the generated configuration, so QMD can rewrite
-that copy without affecting freshness checks.
+`.config/qmd/index.yml`. A collection's pattern is `**/*.md`, for every
+Markdown page under its directory, or one Markdown file name, for that file
+alone; a missing file indexes nothing until it returns. The `readme` collection uses `README.md` in the checkout root, so
+search returns `qmd://readme/README.md` without indexing other root-level or
+nested pages. Each QMD command receives a temporary copy of the generated
+configuration, so QMD can rewrite that copy without affecting freshness
+checks.
 
 ## Search failures
 

@@ -87,8 +87,12 @@ def config(include_local=True):
         raise ValueError("Expected schema_version 1 and collections in .config/knowledge.json")
     rendered = {"collections": {}}
     for name, collection in shared["collections"].items():
-        if collection.get("pattern") != "**/*.md":
-            raise ValueError("This foundation fingerprints Markdown collections with pattern **/*.md")
+        pattern = collection.get("pattern")
+        # A literal file name matches only that file in the collection directory,
+        # so a root README collection never reaches nested docs or worktrees.
+        single_file = pattern != "**/*.md"
+        if single_file and not (isinstance(pattern, str) and re.fullmatch(r"[A-Za-z0-9_-][A-Za-z0-9._-]*\.md", pattern)):
+            raise ValueError("Collection " + name + " needs pattern **/*.md or one Markdown file name in its directory")
         path = (ROOT / collection["path"]).resolve()
         if not path.is_relative_to(ROOT):
             raise ValueError("Shared collection paths must stay inside the checkout; use knowledge.homeMemoryPath for home notes")
@@ -147,6 +151,29 @@ def qmd_tool():
     return command, result.stdout.strip()
 
 
+def collection_files(collection):
+    root = Path(collection["path"])
+    if collection["pattern"] != "**/*.md":
+        # A missing file indexes nothing, as in QMD, so sparse copies of a checkout still search.
+        if (root / collection["pattern"]).is_file():
+            yield root / collection["pattern"]
+        return
+    seen = set()
+    def scan_error(error):
+        raise error
+    for directory, directories, files in os.walk(root, followlinks=True, onerror=scan_error):
+        resolved = Path(directory).resolve()
+        if resolved in seen:
+            directories[:] = []
+            continue
+        seen.add(resolved)
+        directories[:] = sorted(d for d in directories if d not in {
+            ".git", ".cache", "node_modules", "vendor", "dist", "build"})
+        for filename in sorted(files):
+            if filename.endswith(".md"):
+                yield Path(directory) / filename
+
+
 def snapshot(rendered, version):
     # QMD's Git suffix can come from a surrounding repository, not its own build.
     # Keep the release (including prerelease/build metadata) as the stable input.
@@ -156,27 +183,13 @@ def snapshot(rendered, version):
     for name, collection in sorted(rendered["collections"].items()):
         root = Path(collection["path"])
         count = 0
-        seen = set()
-        def scan_error(error):
-            raise error
-        for directory, directories, files in os.walk(root, followlinks=True, onerror=scan_error):
-            resolved = Path(directory).resolve()
-            if resolved in seen:
-                directories[:] = []
+        for path in collection_files(collection):
+            relative = path.relative_to(root).as_posix()
+            if matches(relative, collection.get("ignore", [])):
                 continue
-            seen.add(resolved)
-            directories[:] = sorted(d for d in directories if d not in {
-                ".git", ".cache", "node_modules", "vendor", "dist", "build"})
-            for filename in sorted(files):
-                if not filename.endswith(".md"):
-                    continue
-                path = Path(directory) / filename
-                relative = path.relative_to(root).as_posix()
-                if matches(relative, collection.get("ignore", [])):
-                    continue
-                content_hash = hashlib.sha256(path.read_bytes()).hexdigest()
-                digest.update(json.dumps([name, relative, content_hash]).encode())
-                count += 1
+            content_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+            digest.update(json.dumps([name, relative, content_hash]).encode())
+            count += 1
         counts[name] = count
     return digest.hexdigest(), counts
 

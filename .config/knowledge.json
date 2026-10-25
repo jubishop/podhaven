@@ -1,6 +1,13 @@
 {
   "schema_version": 1,
   "collections": {
+    "readme": {
+      "path": ".",
+      "pattern": "README.md",
+      "context": {
+        "/": "The project's purpose, main entry points, and development setup."
+      }
+    },
     "memory": {
       "path": "memory",
       "pattern": "**/*.md",
