@@ -81,7 +81,7 @@ def matches(path, patterns):
                for pattern in patterns)
 
 
-def config(include_local=True):
+def config():
     shared = read_json(ROOT / ".config/knowledge.json")
     if shared.get("schema_version") != 1 or not isinstance(shared.get("collections"), dict):
         raise ValueError("Expected schema_version 1 and collections in .config/knowledge.json")
@@ -104,7 +104,7 @@ def config(include_local=True):
             raise ValueError("includeByDefault must be a boolean: " + name)
         rendered["collections"][name] = dict(collection, path=str(path))
     warnings = []
-    home = setting("homeMemoryPath") if include_local else ""
+    home = setting("homeMemoryPath")
     if home:
         path = Path(home).expanduser()
         if not path.is_absolute():

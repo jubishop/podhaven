@@ -346,111 +346,37 @@ delivery does not require building the Swift app.
 
 `bin/test-all` includes `bin/check --full` and the separate application,
 macro, skill, and shell tests. `bin/check --full` alone is not a full test run.
-`bin/tests` covers the knowledge worker, cache ownership and artifact repair,
-and audit validation gates. `bin/smoke-knowledge` checks real QMD retrieval and
+`bin/tests` covers the knowledge worker and cache ownership and artifact
+repair; Project Starter tests the shared memory audit. `bin/smoke-knowledge` checks real QMD retrieval and
 linked-worktree isolation in disposable repositories. It reuses
 `~/.cache/qmd/models` and does not publish changes.
 
 `.project-starter.json` records the installed Project Starter release, the
-hashes of its managed files, and this project's overrides of `bin/_knowledge.py`
-and `bin/_checks.py`. Update them with Project Starter's `bin/sync`, and merge
-upstream changes into the overridden helpers by hand.
+hashes of its managed files, the enabled `memory-audit` feature, and this
+project's override of `bin/_knowledge.py`. Update them with Project Starter's
+`bin/sync`, and merge upstream changes into the overridden helper by hand.
 
 ## Scheduled memory audit
 
-Run `bin/memory-audit install` on macOS to register the weekly launchd job.
-It runs on Saturday at 06:00 in the Mac's local time zone (Pacific on the
-maintainer's machine). A sleeping Mac runs a missed calendar job after wake;
-the user must be logged in. The LaunchAgent is
-`~/Library/LaunchAgents/com.jubishop.podhaven.memory-audit.plist`.
-Like the cleanup agent, it starts uv's default `~/.local/bin/python3` through
-`/bin/sh`, so it follows Python updates; the installer refuses until `uv python install --default`
-has created that interpreter. Tools under an fnm Node version are scheduled
-through fnm's default alias, so Node updates do not need a reinstall. Reinstall
-after moving the checkout or changing other tool locations. The installer
-resolves runtime directories and checks that QMD starts with the scheduled PATH.
-Installation does not run an audit immediately.
+A weekly local job checks every active [memory](../memory/README.md) note
+against the code and GitHub evidence, archives or updates stale notes, and
+commits validated changes to `main`. It is Project Starter's shared
+[memory audit](foundation/memory-audit.md) feature, whose page covers
+installing, running, inspecting, and stopping it, and its model, validation,
+and failure handling. PodHaven's `memoryAudit` settings in
+`.config/knowledge.json` add:
 
-The job uses `claude -p` with `claude-haiku-5-5`, high effort, and the saved
-Claude subscription login. It refuses API-key or third-party provider login
-and excludes API keys from its environment. Subscription limits and any
-purchased usage apply. There are no OpenRouter requests. Restricted mode
-excludes user and project Claude settings and instruction files, so personal
-permissions, MCP servers, and hooks do not become part of the scheduled audit. The Sentry Feedback GitHub workflow remains
-independent and uses no model.
+- **Schedule:** the default Saturday at 06:00 in the Mac's local time zone.
+  Audits on the same Mac take turns through the feature's shared lock.
+- **Failure issue:** a new `Memory audit failing` issue gets the
+  `memory-audit-failure` label.
+- **Index:** archiving a note removes its entry from the README's
+  "Active notes" list.
+- **Context:** the prompt records that this subscription-backed Claude Code
+  job replaced the paid OpenRouter audit and the later Codex job, and that the
+  Sentry Feedback GitHub workflow, which uses no model, stays in use.
 
-Each run fetches `origin/main` and audits that exact revision in an isolated
-local clone under `.cache/memory-audit/runs/`. The run deletes the clone when it
-finishes and keeps its context, report, patch, and logs in the run folder.
-Uncommitted working files are not audited or modified. GitHub issues and PRs are fetched in two bounded collections
-with up to 1,000 entries each. The model uses that captured evidence and a
-separate keyword-only QMD index; it makes no network requests or QMD model
-downloads. Missing older GitHub items must be recorded as evidence gaps. The
-runner also lists the commits since the last successful audit, so the model
-needs no `git log`. Unchanged repository, GitHub, and audit inputs skip the
-model call, except right after a failed or interrupted run. A lock prevents
-overlapping local runs. Model attempts share a 90-minute execution limit.
-
-Claude has only Bash, read, and search tools, and no session is saved. Writes,
-network commands, and reads outside the clone need approval, which the job
-denies automatically. Only `jq` and `qmd search` are explicitly allowed, beyond
-Claude Code's built-in read-only commands. It returns structured findings and
-complete proposed note contents. The runner requires one finding per active note, permits
-only updates to existing active notes or archival moves, and prevents overwriting
-existing archives. From the session log, it also requires that the model read
-every active note with the Read tool and made at least one source or evidence
-lookup per note. On 2026-10-10 a run had kept all 16 notes in 32 seconds
-without reading any. It regenerates the README's active-note list and validates
-metadata, index coverage, and local links before exporting a patch. README
-policy and tool-managed ledgers cannot be edited by the model.
-
-When every check passes and the proposal changes notes, the runner commits the
-change in the isolated clone and pushes it to `main` on GitHub, using the
-checkout's Git identity. The owner chose direct commits on
-2026-10-15: memory is text, and the commit is easy to revert. If
-`main` moved during the audit, the commit is rebased onto it, unless the move
-changed `memory/`; then the run fails and the next run audits the new notes.
-The user's checkout is never touched; pull to see the change.
-
-A failed run shows a macOS notification and opens a public GitHub issue titled
-`Memory audit failing`, or comments on the open one, with the error and the
-run's directory name. The next successful run closes it. A run that changes
-nothing stays silent.
-
-When proposal validation fails, the runner restores the original notes and gives
-Claude one repair attempt with the rejected response and exact error. A second
-invalid response fails the run. An archive that would break links in immutable
-archives, ledgers, or docs must instead remain active. Rejected output and the
-first attempt's logs are retained alongside the final attempt.
-
-Run and inspect an audit:
-
-```sh
-bin/memory-audit run
-bin/memory-audit run --force
-cat .cache/memory-audit/latest.json
-launchctl print gui/$(id -u)/com.jubishop.podhaven.memory-audit
-```
-
-`latest.json` records success, failure, or a skipped run and its directory.
-Successful run directories contain `memory-audit-report.md`,
-`memory-audit.patch`, and the proposed `repository/` checkout. All attempts keep
-`run-meta.json`; model attempts also keep `events.jsonl`, `claude.log`, and the
-structured result when available. A failure never updates `last-success.json`.
-Logs stay local and ignored by Git; `latest.json` and `last-success.json`
-record any `publishedCommit`. Each run deletes run directories older than 60
-days, except those the state files name.
-
-To stop the local schedule:
-
-```sh
-launchctl bootout gui/$(id -u)/com.jubishop.podhaven.memory-audit
-```
-
-Remove its plist to keep it from loading at the next login. The retired GitHub
-Memory Audit workflow must remain disabled until its deletion is merged.
-
-`.project-starter.json` records the copied release and tested QMD version.
-Compare future releases manually and merge relevant improvements. These files
-belong to the project; there is no automatic updater or runtime dependency on
-the starter repository. Retain `LICENSE.project-starter` with copied material.
+Run `bin/memory-audit install` in the primary checkout to register or update
+the LaunchAgent, and
+`launchctl print gui/$(id -u)/com.jubishop.podhaven.memory-audit` to inspect
+it.

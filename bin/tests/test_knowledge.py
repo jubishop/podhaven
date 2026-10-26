@@ -251,6 +251,7 @@ fcntl.flock = flock
         self.assertEqual(record["cwd"], str(self.repo))
         self.assertEqual(record["index"], str(self.repo / ".cache/qmd/index.sqlite"))
         self.assertEqual(set(record["collections"]), {"readme", "memory", "docs", "sentry-history", "foundation"})
+        self.assertFalse(record["collections"]["sentry-history"]["includeByDefault"])
         self.assertIn("context", record["collections"]["docs"])
         result = self.run_command("../bin/knowledge", "search", "reference", root=self.repo / "docs")
         self.assertEqual(json.loads(result.stdout)["index"], record["index"])
@@ -259,16 +260,6 @@ fcntl.flock = flock
         self.assertEqual(self.env["XDG_CACHE_HOME"], "/wrong-cache")
         if (self.repo / ".envrc").exists():
             self.assertNotIn("export XDG_CACHE_HOME", (self.repo / ".envrc").read_text())
-
-    def test_ci_configuration_excludes_personal_notes_and_preserves_history_scope(self):
-        home = self.base / "private notes"
-        home.mkdir()
-        self.run_command("git", "config", "knowledge.homeMemoryPath", str(home))
-        result = json.loads(self.run_command("bin/knowledge-config", "--ci").stdout)
-        self.assertNotIn("home-memory", result["collections"])
-        self.assertFalse(result["collections"]["sentry-history"]["includeByDefault"])
-        self.assertEqual(result["collections"]["memory"]["path"], str(self.repo / "memory"))
-        self.assertFalse((self.repo / ".cache").exists())
 
     def test_default_setup_needs_no_environment_file(self):
         self.assertFalse((self.repo / ".envrc").exists())
@@ -964,7 +955,6 @@ fcntl.flock = flock
         self.assertIn("missing from", result.stderr)
         with (self.repo / "memory/README.md").open("a") as stream:
             stream.write("\n- [Example](example.md)\n")
-        self.run_command("bin/memory-index")
         self.run_command("bin/check", "--documents-only")
 
     def test_archived_pages_cannot_remain_in_active_indexes(self):

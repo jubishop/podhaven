@@ -75,12 +75,10 @@ Older versions of `analyze-sentry-feedback` wrote `memory/sentry_feedback/<path-
 
 ## Active notes
 
-Run `bin/memory-index` after adding, renaming, or archiving an ordinary note.
-The command owns only the list between the markers. Preserve all policy text.
-The scheduled audit generates this section after validating the model patch;
-the model cannot edit this README. `bin/check` rejects stale generated content.
-
-<!-- ACTIVE_MEMORY_START -->
+Link every active note from the list below, one list item per note. When the
+weekly [memory audit](../docs/development-workflow.md#scheduled-memory-audit)
+archives a note, it removes that note's entry after validating its proposal;
+the model cannot edit this README.
 
 - [Build variants: Development / Debug / Release](build-variants-dev-debug-release.md): PodHaven's three app build variants — Development (.dev), Debug (.debug), Release (production) — their bundle IDs, isolated on-disk data directories, which scheme action builds each, and how runtime environment (separate axis) drives logging.
 - [CarPlay artwork test observability](carplay-artwork-test-observability.md): CPListItem.image returns CarPlay's downscaled copy, and Nuke memory-cache hits did not reach the pipeline delegate; observe row artwork size through a recording ImagePipeline delegate on a cache miss
@@ -98,5 +96,3 @@ the model cannot edit this README. `bin/check` rejects stale generated content.
 - [Stalled playback load](stalled-playback-load.md): Investigation notes for feedback podhaven:7514288031, where playback stayed in loading after selecting an episode. Use when a future report says an episode load sat on the loading indicator, especially around PlayManager.performLoad, Queue.unshift, or DB writer access.
 - [\`Task.detached\` migration pattern](task-detached-migration.md): Why \`Task.detached\` is banned and how to hop off \`@MainActor\` for CPU work without it.
 - [Worktree cache lessons](worktree-setup-hooks.md): Past worktree cache failures, stale SwiftPM artifact paths, and approaches that broke Xcode builds.
-
-<!-- ACTIVE_MEMORY_END -->

@@ -1,7 +1,8 @@
-"""Local Claude audit orchestration.
+"""Run, schedule, or show the settings of the weekly Claude audit of this project's memory notes.
 
 Validated edits are committed to main and pushed; the user's checkout is never touched. A failure
 shows a macOS notification and opens or updates one GitHub issue, which the next success closes.
+Project Starter manages this file; see docs/foundation/memory-audit.md.
 """
 
 import argparse
@@ -20,16 +21,23 @@ import tempfile
 import time
 from datetime import datetime, timedelta, timezone
 
-from _checks import validate
+from _checks import link_targets, local_target, validate
 from _knowledge import atomic_json
-from _memory_index import update as update_index
 
 ROOT = Path(__file__).resolve().parents[1]
-LABEL = "com.jubishop.podhaven.memory-audit"
 MODEL = "claude-haiku-5-5"
-REPOSITORY = "jubishop/podhaven"
 FAILURE_ISSUE = "Memory audit failing"
 RETENTION_DAYS = 60
+WEEKDAYS = ("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+SETTINGS = ("repository", "launchAgentLabel", "schedule", "issueLabels", "commitTrailers", "indexHeading", "context",
+            "lockWaitMinutes")
+# Every project's audit on this machine computes the same path, so their runs take turns.
+TURN_LOCK = Path(".cache/project-starter/memory-audit.lock")
+GITHUB_URL = r"(?:git@github\.com:|ssh://git@github\.com/|https://github\.com/)([A-Za-z0-9-]+)/([A-Za-z0-9._-]+?)(?:\.git)?/?"
+# Renders the clone's shared search collections with its own Project Starter loader. A fresh clone has
+# no local Git settings, so the personal home-memory collection is never added.
+INDEX_CONFIG = ("import json, sys; sys.path.insert(0, sys.argv[1]); from _knowledge import config; "
+                "print(json.dumps(config()[0], indent=2, sort_keys=True))")
 
 
 def command(args, cwd, env, timeout=120, input=None):
@@ -43,6 +51,67 @@ def environment():
     return {key: os.environ[key] for key in
             ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "CLAUDE_CONFIG_DIR")
             if key in os.environ}
+
+
+def settings(root, env):
+    """Return the memoryAudit settings from .config/knowledge.json, validated and with defaults."""
+    raw = json.loads((root / ".config/knowledge.json").read_text()).get("memoryAudit", {})
+
+    def invalid(message):
+        return ValueError("memoryAudit in .config/knowledge.json: " + message)
+
+    def one_line(value):
+        return isinstance(value, str) and value.strip() == value and value and "\n" not in value
+
+    if not isinstance(raw, dict):
+        raise invalid("must be an object")
+    unknown = sorted(set(raw) - set(SETTINGS))
+    if unknown:
+        raise invalid("unsupported " + ", ".join(unknown) + "; the settings are " + ", ".join(SETTINGS))
+    repository = raw.get("repository")
+    if repository is None:
+        origin = subprocess.run(["git", "remote", "get-url", "origin"], cwd=root, env=env, capture_output=True, text=True)
+        match = re.fullmatch(GITHUB_URL, origin.stdout.strip()) if not origin.returncode else None
+        if not match:
+            raise ValueError("The memory audit reports to GitHub, but origin is " + (origin.stdout.strip() or "missing")
+                             + "; set memoryAudit.repository to OWNER/NAME in .config/knowledge.json")
+        repository = match[1] + "/" + match[2]
+    elif not isinstance(repository, str) or not re.fullmatch(r"[A-Za-z0-9-]+/[A-Za-z0-9._-]+", repository):
+        raise invalid("repository must be a GitHub OWNER/NAME")
+    owner, name = repository.split("/")
+    label = raw.get("launchAgentLabel", f"com.{owner}.{name}.memory-audit".lower())
+    if not isinstance(label, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", label):
+        raise invalid("launchAgentLabel must be letters, digits, dots, hyphens, and underscores, such as "
+                      "com.owner.project.memory-audit")
+    schedule = raw.get("schedule", {})
+    if not isinstance(schedule, dict) or set(schedule) - {"weekday", "hour", "minute"}:
+        raise invalid("schedule must be an object with only weekday, hour, and minute")
+    schedule = {"weekday": "Saturday", "hour": 6, "minute": 0} | schedule
+    if schedule["weekday"] not in WEEKDAYS:
+        raise invalid("schedule.weekday must be one of " + ", ".join(WEEKDAYS))
+    for key, limit in (("hour", 23), ("minute", 59)):
+        value = schedule[key]
+        if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= limit:
+            raise invalid(f"schedule.{key} must be a whole number from 0 to {limit}")
+    labels = raw.get("issueLabels", [])
+    # The GitHub CLI splits a --label value at commas.
+    if not isinstance(labels, list) or not all(one_line(item) and "," not in item for item in labels):
+        raise invalid("issueLabels must be a list of existing GitHub label names without commas")
+    trailers = raw.get("commitTrailers", {})
+    if not isinstance(trailers, dict) or not all(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*", key) and one_line(value)
+                                                 for key, value in trailers.items()):
+        raise invalid('commitTrailers must map trailer names such as "Deploy" to one-line values')
+    heading = raw.get("indexHeading", "Active pages")
+    if not one_line(heading) or heading.startswith("#"):
+        raise invalid("indexHeading must be the text of memory/README.md's level-two heading over its active notes")
+    context = raw.get("context", "")
+    if not isinstance(context, str):
+        raise invalid("context must be a string")
+    wait = raw.get("lockWaitMinutes", 180)
+    if not isinstance(wait, int) or isinstance(wait, bool) or wait < 0:
+        raise invalid("lockWaitMinutes must be a whole number of minutes, 0 or more")
+    return {"repository": repository, "launchAgentLabel": label, "schedule": schedule, "issueLabels": labels,
+            "commitTrailers": trailers, "indexHeading": heading, "context": context.strip(), "lockWaitMinutes": wait}
 
 
 def output_schema():
@@ -62,7 +131,47 @@ def output_schema():
     })
 
 
-def apply_result(repo, result, notes):
+def audit_prompt(options):
+    prompt = (ROOT / "bin/memory-audit-prompt.md").read_text().replace("{{indexHeading}}", options["indexHeading"])
+    context = "## Project context\n\n" + options["context"] + "\n\n" if options["context"] else ""
+    return prompt.replace("{{projectContext}}\n\n", context)
+
+
+def remove_index_entries(readme, archived, heading):
+    """Drop the list entries that link to archived notes from the README's hand-maintained active index.
+
+    Only the index section changes; any other README link to an archived note stays, so validation
+    rejects that archive.
+    """
+    output, entry, inside = [], [], False
+
+    def finish():
+        try:
+            targets = link_targets("".join(entry))
+        except ValueError:
+            targets = []
+        if not any(local_target(readme, target)[0] in archived for target in targets):
+            output.extend(entry)
+        entry.clear()
+
+    for line in readme.read_text().splitlines(keepends=True):
+        if entry and line.strip() and line[0] in " \t":
+            entry.append(line)
+            continue
+        if entry:
+            finish()
+        if line.startswith("#"):
+            inside = line.rstrip() == "## " + heading
+        if inside and re.match(r"[-*+] ", line):
+            entry.append(line)
+        else:
+            output.append(line)
+    if entry:
+        finish()
+    readme.write_text("".join(output).rstrip("\n") + "\n")
+
+
+def apply_result(repo, result, notes, heading):
     findings = result["findings"]
     if (len(findings) != len(notes) or {item["path"] for item in findings} != set(notes)
             or any(item["verdict"] not in ("keep", "archive") or not item["evidence"].strip()
@@ -97,16 +206,18 @@ def apply_result(repo, result, notes):
     originals = {source: source.read_bytes() for source, _, _ in planned}
     readme = repo / "memory/README.md"
     originals[readme] = readme.read_bytes()
+    archived = {source.resolve() for source, destination, _ in planned if source != destination}
     try:
         for source, destination, content in planned:
             destination.parent.mkdir(exist_ok=True)
             destination.write_text(content)
             if source != destination:
                 source.unlink()
-        errors = validate(repo, generated_memory_index=True)
+        if archived:
+            remove_index_entries(readme, archived, heading)
+        errors = validate(repo)
         if errors:
             raise ValueError("\n".join(errors))
-        update_index(repo)
     except (OSError, ValueError):
         for source, destination, _ in planned:
             if source != destination:
@@ -152,17 +263,21 @@ def verify_session(repo, run_dir, notes):
                          f"evidence lookups for {len(notes)} note{'s' if len(notes) != 1 else ''}")
 
 
-def publish(root, repo, base, env, changes):
-    """Commit the validated memory changes and push them to main; return the pushed commit."""
+def publish(root, repo, base, env, changes, options):
+    """Commit the validated memory changes and push them to main on GitHub; return the pushed commit."""
     name = command(["git", "config", "user.name"], root, env).strip()
     email = command(["git", "config", "user.email"], root, env).strip()
+    # Hooks stay off in the disposable clone; no hook gates a memory-only commit.
     git = ["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=" + name, "-c", "user.email=" + email]
     archived = sum(1 for change in changes if change["archive"])
     updated = len(changes) - archived
+    message = ["-m", "📝 docs(memory): Apply the weekly memory audit", "-m",
+               f"The audit of {base[:8]} archived {archived} and updated {updated} notes. It read every "
+               "active note, and its proposal passed the memory checks."]
+    if options["commitTrailers"]:
+        message += ["-m", "\n".join(key + ": " + value for key, value in options["commitTrailers"].items())]
     command(git + ["add", "--all", "--", "memory"], repo, env)
-    command(git + ["commit", "--quiet", "-m", "📝 docs(memory): Apply the weekly memory audit", "-m",
-                   f"The audit of {base[:8]} archived {archived} and updated {updated} notes. It read every "
-                   "active note, and its proposal passed the memory checks."], repo, env)
+    command(git + ["commit", "--quiet", *message], repo, env)
     command(["git", "remote", "add", "origin", command(["git", "remote", "get-url", "origin"], root, env).strip()],
             repo, env)
     for url in command(["git", "remote", "get-url", "--push", "--all", "origin"], root, env).splitlines():
@@ -182,47 +297,81 @@ def publish(root, repo, base, env, changes):
     return command(["git", "rev-parse", "HEAD"], repo, env).strip()
 
 
-def failure_issue(root, env):
-    issues = json.loads(command(["gh", "issue", "list", "--repo", REPOSITORY, "--state", "open", "--search",
+def failure_issue(root, env, repository):
+    issues = json.loads(command(["gh", "issue", "list", "--repo", repository, "--state", "open", "--search",
                                  f'in:title "{FAILURE_ISSUE}"', "--json", "number,title"], root, env))
     return next((item["number"] for item in issues if item.get("title") == FAILURE_ISSUE), None)
 
 
-def report_failure(root, env, meta):
+def report_failure(root, env, meta, options):
     """Notify on this Mac and open or update the failure issue; never raise."""
     error = str(meta.get("error") or "Unknown error").replace(str(Path.home()), "~")
     run_name = Path(meta["directory"]).name
+    project = options["repository"].split("/")[1] if options else root.name
     try:
         subprocess.run(["osascript", "-e", "on run argv", "-e",
                         "display notification (item 1 of argv) with title (item 2 of argv)", "-e", "end run",
-                        error.splitlines()[0][:200], "PodHaven memory audit failed"],
+                        error.splitlines()[0][:200], project + " memory audit failed"],
                        env=env, capture_output=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as problem:
         print("Could not show the failure notification: " + str(problem), file=sys.stderr, flush=True)
+    if not options:
+        print("Could not open or update the failure issue without valid settings", file=sys.stderr, flush=True)
+        return
+    repository = options["repository"]
     body = (f"The weekly memory audit failed in run `{run_name}` at {meta.get('finishedAt')}.\n\n"
             f"```\n{error[:3000]}\n```\n\nInspect `.cache/memory-audit/runs/{run_name}/` and "
             "`.cache/memory-audit/latest.json` in the primary checkout on the Mac, fix the cause, and run "
             "`bin/memory-audit run`. The next successful run closes this issue.\n")
     try:
-        number = failure_issue(root, env)
+        number = failure_issue(root, env, repository)
         if number:
-            command(["gh", "issue", "comment", str(number), "--repo", REPOSITORY, "--body-file", "-"],
+            command(["gh", "issue", "comment", str(number), "--repo", repository, "--body-file", "-"],
                     root, env, input=body)
-        else:
-            command(["gh", "issue", "create", "--repo", REPOSITORY, "--title", FAILURE_ISSUE, "--body-file", "-"],
-                    root, env, input=body)
+            return
+        create = ["gh", "issue", "create", "--repo", repository, "--title", FAILURE_ISSUE, "--body-file", "-"]
+        labels = [argument for label in options["issueLabels"] for argument in ("--label", label)]
+        try:
+            command(create + labels, root, env, input=body)
+        except RuntimeError as problem:
+            if not labels:
+                raise
+            # An unlabeled issue still reports the failure.
+            command(create, root, env, input=body + "\nThe runner could not apply the labels "
+                    + ", ".join(options["issueLabels"]) + ": " + str(problem) + "\n")
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as problem:
         print("Could not open or update the failure issue: " + str(problem), file=sys.stderr, flush=True)
 
 
-def close_failure_issue(root, env, run_name):
+def close_failure_issue(root, env, repository, run_name):
     try:
-        number = failure_issue(root, env)
+        number = failure_issue(root, env, repository)
         if number:
-            command(["gh", "issue", "close", str(number), "--repo", REPOSITORY, "--comment",
+            command(["gh", "issue", "close", str(number), "--repo", repository, "--comment",
                      f"Run `{run_name}` succeeded."], root, env)
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as problem:
         print("Could not close the failure issue: " + str(problem), file=sys.stderr, flush=True)
+
+
+def take_turn(minutes, state, meta):
+    """Wait for this machine's audit lock, which other projects' audits share; return its open file."""
+    path = Path.home() / TURN_LOCK
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock = path.open("a")
+    deadline = time.monotonic() + minutes * 60
+    while True:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return lock
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                lock.close()
+                raise RuntimeError(f"Waited {minutes} minutes for another memory audit on this machine to release "
+                                   f"{path}; the next run tries again") from None
+            if meta["status"] != "waiting":
+                meta["status"] = "waiting"
+                atomic_json(state / "latest.json", meta)
+            time.sleep(1)
 
 
 def prune_runs(state, keep):
@@ -239,7 +388,7 @@ def run_model(repo, run_dir, env, prompt, timeout=5400):
     permissions = {"allow": ["Bash(jq *)", "Bash(qmd search *)"]}
     args = ["claude", "-p", "--restricted", "--no-session-persistence", "--strict-mcp-config",
             "--model", MODEL, "--effort", "high", "--tools", "Bash,Read,Glob,Grep",
-            "--permission-mode", "default", "--permission-prompts", "none",
+            "--permission-mode", "manual", "--permission-prompts", "none",
             "--settings", json.dumps({"permissions": permissions}),
             "--output-format", "stream-json", "--verbose", "--json-schema", json.dumps(output_schema())]
     with (run_dir / "events.jsonl").open("w") as events, (run_dir / "claude.log").open("w") as log:
@@ -270,6 +419,21 @@ def run_model(repo, run_dir, env, prompt, timeout=5400):
     atomic_json(run_dir / "result.json", result)
 
 
+def prepare_search(repo, env):
+    """Build the keyword-only search index of the clone's shared collections; return its environment."""
+    qmd_dir = repo / ".cache/memory-audit-qmd"
+    config_dir = qmd_dir / "config"
+    config_dir.mkdir(parents=True)
+    config = json.loads(command([sys.executable, "-B", "-I", "-c", INDEX_CONFIG, str(repo / "bin")], repo, env))
+    for name, collection in config["collections"].items():
+        if not Path(collection["path"]).resolve().is_relative_to(repo.resolve()):
+            raise ValueError("The audit's search index may hold only the clone's own collections: " + name)
+    (config_dir / "index.yml").write_text(json.dumps(config, indent=2, sort_keys=True) + "\n")
+    env = env | {"QMD_CONFIG_DIR": str(config_dir), "XDG_CACHE_HOME": str(qmd_dir / "cache")}
+    command(["qmd", "update"], repo, env, timeout=300)
+    return env
+
+
 def run(root=ROOT, force=False):
     root = root.resolve()
     state = root / ".cache/memory-audit"
@@ -290,7 +454,13 @@ def run(root=ROOT, force=False):
         meta = {"status": "running", "directory": str(run_dir), "model": MODEL, "provider": "claude.ai"}
         atomic_json(state / "latest.json", meta)
         env = environment()
+        options = turn = None
         try:
+            options = settings(root, env)
+            repository, heading = options["repository"], options["indexHeading"]
+            # Waiting happens before the evidence is gathered and before the model's time limit starts.
+            turn = take_turn(options["lockWaitMinutes"], state, meta)
+            meta["status"] = "running"
             command(["git", "fetch", "--quiet", "origin", "main"], root, env)
             base = command(["git", "rev-parse", "FETCH_HEAD"], root, env).strip()
             meta["baseSha"] = base
@@ -298,9 +468,9 @@ def run(root=ROOT, force=False):
             for kind, key, extra in (("issue", "issues", "labels"), ("pr", "pullRequests", "mergedAt,headRefName")):
                 fields = "number,title,state,closedAt,updatedAt,url,body," + extra
                 context[key] = json.loads(command([
-                    "gh", kind, "list", "--repo", REPOSITORY, "--state", "all", "--limit", "1000", "--json", fields,
+                    "gh", kind, "list", "--repo", repository, "--state", "all", "--limit", "1000", "--json", fields,
                 ], root, env))
-            prompt = (ROOT / "bin/memory-audit-prompt.md").read_text()
+            prompt = audit_prompt(options)
             fingerprint = hashlib.sha256(json.dumps(context, sort_keys=True).encode() + prompt.encode()
                                          + Path(__file__).read_bytes()).hexdigest()
             # A run after a failure or crash always audits, so the failure issue can close.
@@ -324,14 +494,24 @@ def run(root=ROOT, force=False):
                      str(root), str(repo)], root, env)
             command(["git", "-c", "core.hooksPath=/dev/null", "checkout", "--quiet", "--detach", base], repo, env)
             command(["git", "remote", "remove", "origin"], repo, env)
-            since = (previous or {}).get("completedAt") or \
-                (datetime.now(timezone.utc) - timedelta(days=7)).isoformat(timespec="seconds")
-            commits = command(["git", "log", "--since=" + since, "--no-merges", "--date=short",
-                               "--format=%h %ad %s", base], repo, env).splitlines()
+            # The runner's context and search index are not part of the audited checkout.
+            with (repo / ".git/info/exclude").open("a") as exclude:
+                exclude.write("\n/artifacts/\n/.cache/\n")
             notes = sorted(path.relative_to(repo).as_posix() for path in (repo / "memory").glob("*.md")
                            if path.name != "README.md")
             if (repo / "memory").is_symlink() or any((repo / path).is_symlink() for path in notes):
                 raise ValueError("Active memory notes must not be symbolic links")
+            if "## " + heading not in (repo / "memory/README.md").read_text().splitlines():
+                raise ValueError(f"memory/README.md has no '## {heading}' heading over its active notes; add it or "
+                                 "set memoryAudit.indexHeading in .config/knowledge.json")
+            if not notes:
+                meta.update(status="skipped", reason="No active memory notes to audit")
+                close_failure_issue(root, env, repository, run_dir.name)
+                return meta
+            since = (previous or {}).get("completedAt") or \
+                (datetime.now(timezone.utc) - timedelta(days=7)).isoformat(timespec="seconds")
+            commits = command(["git", "log", "--since=" + since, "--no-merges", "--date=short",
+                               "--format=%h %ad %s", base], repo, env).splitlines()
             context.update(activeNoteCount=len(notes), activeNotes=notes, lastSuccessfulAudit=previous,
                            runDateUtc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                            commitsSinceLastAudit=commits)
@@ -339,13 +519,7 @@ def run(root=ROOT, force=False):
             artifacts.mkdir(exist_ok=True)
             atomic_json(artifacts / "memory-audit-context.json", context)
             atomic_json(run_dir / "memory-audit-context.json", context)
-            qmd_dir = repo / ".cache/memory-audit-qmd"
-            config_dir = qmd_dir / "config"
-            config_dir.mkdir(parents=True)
-            env.update(QMD_CONFIG_DIR=str(config_dir), XDG_CACHE_HOME=str(qmd_dir / "cache"))
-            config = command([sys.executable, "-B", "bin/knowledge-config", "--ci"], repo, env)
-            (config_dir / "index.yml").write_text(config)
-            command(["qmd", "update"], repo, env, timeout=300)
+            env = prepare_search(repo, env)
             deadline = time.monotonic() + 5400
             for attempt in range(2):
                 run_model(repo, run_dir, env, prompt, timeout=max(1, deadline - time.monotonic()))
@@ -355,7 +529,7 @@ def run(root=ROOT, force=False):
                 result = json.loads((run_dir / "result.json").read_text())
                 try:
                     verify_session(repo, run_dir, notes)
-                    apply_result(repo, result, notes)
+                    apply_result(repo, result, notes, heading)
                     break
                 except ValueError as error:
                     if attempt:
@@ -369,9 +543,10 @@ def run(root=ROOT, force=False):
                                "Repair this response using the findings you already gathered; do not repeat work you "
                                "already did. If the error says notes were not read or claims were not checked, do that "
                                "work now; the runner counts both attempts. "
-                               "If an archive breaks links in an existing archive, ledger, or doc, keep that active note "
-                               "because those referring files are outside your edit scope. Update findings, report counts, "
-                               "and proposed contents together. Return the complete corrected JSON.\n\nValidation error:\n"
+                               "If an archive breaks links in memory/README.md outside its active index, an existing "
+                               "archive, a ledger, or a doc, keep that active note because those referring files are "
+                               "outside your edit scope. Update findings, report counts, and proposed contents "
+                               "together. Return the complete corrected JSON.\n\nValidation error:\n"
                                + str(error) + "\n\nPrevious response:\n" + json.dumps(result))
             command(["git", "add", "--intent-to-add", "--", "memory"], repo, env)
             command(["git", "diff", "--check"], repo, env)
@@ -380,16 +555,16 @@ def run(root=ROOT, force=False):
             (run_dir / "memory-audit-report.md").write_text(result["report"])
             changed = command(["git", "diff", "--name-only", "HEAD"], repo, env).splitlines()
             if changed:
-                meta["publishedCommit"] = publish(root, repo, base, env, result["changes"])
+                meta["publishedCommit"] = publish(root, repo, base, env, result["changes"], options)
             meta.update(status="success", inputHash=fingerprint, activeNoteCount=len(notes), changedFiles=changed,
                         completedAt=datetime.now(timezone.utc).isoformat(timespec="seconds"))
             atomic_json(previous_path, meta)
-            close_failure_issue(root, env, run_dir.name)
+            close_failure_issue(root, env, repository, run_dir.name)
             return meta
         except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError) as error:
             meta.update(status="failed", error=str(error),
                         finishedAt=datetime.now(timezone.utc).isoformat(timespec="seconds"))
-            report_failure(root, env, meta)
+            report_failure(root, env, meta, options)
             raise
         finally:
             # The run folder keeps the context, report, patch, and logs; the clone is only working space.
@@ -397,17 +572,21 @@ def run(root=ROOT, force=False):
             meta["finishedAt"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
             atomic_json(run_dir / "run-meta.json", meta)
             atomic_json(state / "latest.json", meta)
+            if turn:
+                turn.close()
 
 
 def install(root=ROOT):
     if sys.platform != "darwin":
         raise RuntimeError("The launchd schedule requires macOS")
     root = root.resolve()
+    options = settings(root, environment())
+    label, schedule = options["launchAgentLabel"], options["schedule"]
     python = Path.home() / ".local/bin/python3"
     if not os.access(python, os.X_OK):
         raise RuntimeError(f"Missing the default Python {python}; run `uv python install --default`")
     tool_paths = [str(python.parent)]
-    for executable in ("claude", "qmd", "gh", "git", "rg", "node", "bun"):
+    for executable in ("claude", "qmd", "gh", "git", "rg", "jq", "node", "bun"):
         path = shutil.which(executable)
         if not path:
             if executable in ("node", "bun"):
@@ -424,40 +603,48 @@ def install(root=ROOT):
     agents.mkdir(parents=True, exist_ok=True)
     log_dir = root / ".cache/memory-audit"
     log_dir.mkdir(parents=True, exist_ok=True)
-    plist = agents / (LABEL + ".plist")
-    settings = {
-        "Label": LABEL,
+    plist = agents / (label + ".plist")
+    settings_plist = {
+        "Label": label,
         # macOS pins a login item to its program's signature, which Apple's shell keeps across Python updates.
         "ProgramArguments": ["/bin/sh", "-c", 'exec "$0" "$@"', str(python), "-B", str(root / "bin/memory-audit"), "run"],
         "WorkingDirectory": str(root),
         "EnvironmentVariables": {"PATH": os.pathsep.join(dict.fromkeys(tool_paths))},
-        "StartCalendarInterval": {"Weekday": 6, "Hour": 6, "Minute": 0},
+        "StartCalendarInterval": {"Weekday": WEEKDAYS.index(schedule["weekday"]), "Hour": schedule["hour"],
+                                  "Minute": schedule["minute"]},
         "ProcessType": "Background",
         "StandardOutPath": str(log_dir / "launchd.log"),
         "StandardErrorPath": str(log_dir / "launchd-error.log"),
     }
-    scheduled_env = environment() | settings["EnvironmentVariables"]
+    scheduled_env = environment() | settings_plist["EnvironmentVariables"]
     command(["qmd", "--version"], root, scheduled_env)
     domain = f"gui/{os.getuid()}"
-    loaded = subprocess.run(["launchctl", "print", domain + "/" + LABEL], capture_output=True)
+    loaded = subprocess.run(["launchctl", "print", domain + "/" + label], capture_output=True)
     if loaded.returncode == 0:
         if re.search(rb"\bpid = \d+", loaded.stdout):
             raise RuntimeError("The scheduled audit is running; reinstall after it finishes")
-        command(["launchctl", "bootout", domain + "/" + LABEL], root, environment())
-    plist.write_bytes(plistlib.dumps(settings))
+        command(["launchctl", "bootout", domain + "/" + label], root, environment())
+    plist.write_bytes(plistlib.dumps(settings_plist))
     command(["plutil", "-lint", str(plist)], root, environment())
     command(["launchctl", "bootstrap", domain, str(plist)], root, environment())
-    command(["launchctl", "enable", domain + "/" + LABEL], root, environment())
-    return {"status": "installed", "plist": str(plist), "schedule": "Saturday 06:00, Mac local time"}
+    command(["launchctl", "enable", domain + "/" + label], root, environment())
+    return {"status": "installed", "plist": str(plist),
+            "schedule": f"{schedule['weekday']} {schedule['hour']:02d}:{schedule['minute']:02d}, Mac local time"}
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("run", "install"))
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("action", choices=("run", "install", "settings"),
+                        help="audit now, register the weekly LaunchAgent, or print the resolved settings")
     parser.add_argument("--force", action="store_true", help="Audit even when inputs match the last successful run")
     args = parser.parse_args()
     try:
-        result = install() if args.action == "install" else run(force=args.force)
+        if args.action == "install":
+            result = install()
+        elif args.action == "settings":
+            result = settings(ROOT, environment())
+        else:
+            result = run(force=args.force)
         print(json.dumps(result, indent=2), flush=True)
         return 0
     except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError) as error:
