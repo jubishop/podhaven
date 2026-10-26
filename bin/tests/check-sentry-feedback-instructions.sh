@@ -63,13 +63,13 @@ if ! grep -Fq "\`bin/snfeedback podhaven:7485822944\`" "$CAPTURE/comment"; then
   exit 1
 fi
 
-if ! grep -Fq '<!-- issuefix-prerequisite: analyze-sentry-feedback podhaven:7485822944 -->' "$CAPTURE/comment"; then
-  echo "check-sentry-feedback did not declare the issuefix analysis prerequisite" >&2
+if ! grep -Fq '<!-- fix-issue-prerequisite: analyze-sentry-feedback podhaven:7485822944 -->' "$CAPTURE/comment"; then
+  echo "check-sentry-feedback did not declare the fix-issue analysis prerequisite" >&2
   exit 1
 fi
 
-if ! grep -Fq "passed to \`issuefix\`" "$CAPTURE/comment"; then
-  echo "check-sentry-feedback did not explain the issuefix intake path" >&2
+if ! grep -Fq "passed to \`fix-issue\`" "$CAPTURE/comment"; then
+  echo "check-sentry-feedback did not explain the fix-issue intake path" >&2
   exit 1
 fi
 

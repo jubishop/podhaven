@@ -298,7 +298,7 @@ updates its canonical GitHub issue only when the findings materially change.
 
 Both skills require the GitHub issue to include Sentry closeout instructions.
 After GitHub closure, the closing agent resolves the linked Sentry item and
-reads back its resolved status. For PR-backed work, `issuefix` carries that
+reads back its resolved status. For PR-backed work, `fix-issue` carries that
 task into `Do After Merging` for the `after-merge` agent to execute and verify.
 
 ## Checks and project extensions

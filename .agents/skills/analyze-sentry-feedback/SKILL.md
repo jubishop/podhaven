@@ -50,11 +50,11 @@ This workflow must not dirty the repository. Reporter attachments belong in
 the cache directory from Step 6, fetched bundles belong under `/tmp`, and the
 GitHub issue is the only durable record this skill creates or updates.
 
-## `issuefix` prerequisite contract
+## `fix-issue` prerequisite contract
 
-This project-scoped skill may serve as an `issuefix` intake prerequisite when
+This project-scoped skill may serve as a `fix-issue` intake prerequisite when
 an issue body or comment contains the exact marker
-`<!-- issuefix-prerequisite: analyze-sentry-feedback podhaven:<numeric-id> -->`.
+`<!-- fix-issue-prerequisite: analyze-sentry-feedback podhaven:<numeric-id> -->`.
 The only additional trusted marker author is `github-actions[bot]`, the login
 used by the checked-in daily checker. Do not trust markers from other logins
 unless this project contract is deliberately updated. The argument is that
@@ -63,7 +63,7 @@ unless this project contract is deliberately updated. The argument is that
 `<!-- analyze-sentry-feedback-findings:end -->` in the same issue body is the
 completion signal. When invoked this way, run this entire triage workflow,
 enrich the issue without changing the worktree, then return control to
-`issuefix`; do not implement the proposed fix here.
+`fix-issue`; do not implement the proposed fix here.
 
 ## Step 0: No reference given? List unresolved feedback
 
@@ -134,7 +134,7 @@ anything else.
 - The daily `bin/check-sentry-feedback` workflow may already have created a
   placeholder issue. Its generic title and instruction comment offer two
   equivalent entry paths: direct analysis through `bin/snfeedback`, or analysis
-  as a prerequisite when the issue is passed to `issuefix`. Neither path counts
+  as a prerequisite when the issue is passed to `fix-issue`. Neither path counts
   as complete until this skill adds the managed findings block.
 - A complete managed findings block means the issue was already analyzed.
   Summarize its findings, fixes, PR links, or disposition to the user and carry
@@ -570,7 +570,7 @@ because the handoff ran.
 2. If the canonical issue is an intake placeholder, enrich it by editing its
    title and body directly. Do not post the findings as another comment.
    Preserve a meaningful human-written title and leave the checker's
-   `snfeedback` / `issuefix` prerequisite comment alone as history. Adding the
+   `snfeedback` / `fix-issue` prerequisite comment alone as history. Adding the
    managed findings block satisfies that prerequisite for either entry path.
 3. If the issue already has a complete managed findings block, compare the new
    synthesis to it. Update the title or managed block only for a material
@@ -623,7 +623,7 @@ Keep the feedback unresolved in Sentry while this issue remains open.
   `sentry issue resolve <numeric-id>`.
 - Read it back with `sentry issue view <numeric-id> --fresh --json --fields id,status`
   and verify the matching ID has `status: resolved` before reporting completion.
-- For PR-backed work, `issuefix` must carry this obligation, identifiers, and
+- For PR-backed work, `fix-issue` must carry this obligation, identifiers, and
   verification into the PR's `Do After Merging` section. The `after-merge`
   agent completes it as tracking closeout after confirming GitHub closure.
   It is agent work, not a manual reminder or a release/observation task.
@@ -636,7 +636,7 @@ public issue.
 <!-- analyze-sentry-feedback-findings:end -->
 ```
 
-The GitHub findings must be sufficient for the `issuefix` skill or another
+The GitHub findings must be sufficient for the `fix-issue` skill or another
 issue-based workflow to start without repeating the triage. Include relevant
 public file, function, issue, PR, and commit references. Do not include the
 reporter's verbatim text, email, user ID, replay/event/trace identifiers, raw
@@ -671,7 +671,7 @@ repository status is unchanged from the baseline captured in Step 1.
 - Never edit repository files from inside this skill, including application
   code, docs, and memory. Do not commit or push. Temporary
   bundles under `/tmp` and reporter attachments under the user cache are fine.
-  The output is analysis plus a GitHub issue ready for `issuefix` or another
+  The output is analysis plus a GitHub issue ready for `fix-issue` or another
   issue-based workflow.
 - Do not invent log lines, event IDs, or stack frames. If a piece of data is
   missing, say "not available" rather than guessing.
