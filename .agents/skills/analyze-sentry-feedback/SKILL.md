@@ -145,13 +145,11 @@ anything else.
 - If multiple issues match, prefer the exact-marker issue, report the
   duplicates, and update only the canonical issue in Step 9.
 - If no issue matches, remember that one must be created in Step 9.
-- Search `git knowledge search "issue ID or symptom" -c sentry-history` during
-  triage. This collection is excluded from default searches. If QMD is unavailable,
-  use `rg` in `memory/sentry_feedback/`. Verify old hypotheses against current
-  evidence before applying them.
-- A legacy `memory/sentry_feedback/<path-safe-slug>.md` file may be read as
-  historical evidence when it exists, but never create, edit, or delete one.
-  GitHub is the canonical record for all new analysis.
+- Search earlier feedback by symptom too:
+  `gh issue list --repo jubishop/podhaven --label sentry-feedback --state all --search "<symptom>"`.
+  Every feedback issue carries this label, including #760–#770, which hold
+  the triage logs of feedback analyzed before GitHub tracking. Verify old
+  hypotheses against current evidence before applying them.
 
 Keep the canonical issue number, URL, title, body, state, and Sentry permalink
 for Step 9. Do not modify it until the evidence has been synthesized.
@@ -560,13 +558,15 @@ The existing feedback issue remains canonical even when a new analysis calls
 for reopening it. The markers and managed findings below are required task
 constraints for `create-issue`, including its duplicate handling and draft
 format. If it finds an existing issue, continue with enrichment or reuse here
-instead of creating another. Do not change labels or other metadata merely
+instead of creating another. Every feedback issue carries the
+`sentry-feedback` label: add it whenever the canonical issue lacks it, even
+when nothing else changes. Do not change other labels or metadata merely
 because the handoff ran.
 
 1. If no matching issue exists after duplicate checks, use `create-issue` to
-   create one in `jubishop/podhaven` with a concise action-oriented title and
-   the body below. For the diagnostic fallback, use a title such as
-   `Add diagnostics for <symptom>`.
+   create one in `jubishop/podhaven` with a concise action-oriented title, the
+   `sentry-feedback` label, and the body below. For the diagnostic fallback,
+   use a title such as `Add diagnostics for <symptom>`.
 2. If the canonical issue is an intake placeholder, enrich it by editing its
    title and body directly. Do not post the findings as another comment.
    Preserve a meaningful human-written title and leave the checker's
@@ -579,8 +579,9 @@ because the handoff ran.
    proposed resolution or verification plan, or missing/incorrect Sentry
    closeout and merge-handoff instructions. Rewording, formatting cleanup, a
    rerun timestamp, or repeated evidence is not material.
-4. If nothing material changed, make **no GitHub writes**: do not edit the
-   title, body, state, or comments. Report the outcome as `reused unchanged`.
+4. If nothing material changed, make **no GitHub writes** beyond adding a
+   missing `sentry-feedback` label: do not edit the title, body, state, or
+   comments. Report the outcome as `reused unchanged`.
 5. If a matching issue is closed but the current synthesis shows work remains,
    reopen it rather than creating a duplicate. If its prior disposition still
    holds and the managed findings remain accurate, leave it closed and reuse it
@@ -650,7 +651,8 @@ remains, honor that only after the issue records the disposition.
 Replace all placeholders with this feedback's actual identifiers before
 handing the body to `create-issue`. Read back any created or changed issue.
 Verify its title, sanitized body, feedback marker, complete findings block,
-Sentry closeout and merge-handoff instructions, state, and any required metadata.
+Sentry closeout and merge-handoff instructions, state, `sentry-feedback` label,
+and any other required metadata.
 The `create-issue` verification covers new issues; apply the same readback
 standard to enrichment and reopening.
 
@@ -667,7 +669,7 @@ repository status is unchanged from the baseline captured in Step 1.
 - Quote the user's feedback verbatim in the private report. Never copy it or
   reporter-identifying details into the public GitHub issue.
 - Never edit repository files from inside this skill, including application
-  code, docs, and `memory/sentry_feedback/`. Do not commit or push. Temporary
+  code, docs, and memory. Do not commit or push. Temporary
   bundles under `/tmp` and reporter attachments under the user cache are fine.
   The output is analysis plus a GitHub issue ready for `issuefix` or another
   issue-based workflow.

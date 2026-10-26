@@ -26,7 +26,7 @@ chmod +x "$STUBS/sentry"
 cat > "$STUBS/gh" <<'EOF'
 #!/bin/sh
 if [ "$1" = api ] && [ "$4" = 'repos/jubishop/podhaven/issues?state=all&per_page=100' ]; then
-  printf '%s\n' '[[{"number":99,"body":"https://artisanal-software.sentry.io/issues/feedback/?feedbackSlug=podhaven%3A7485822944"},{"number":42,"body":"<!-- sentry-feedback:podhaven:7485822944 -->"}]]'
+  printf '%s\n' '[[{"number":99,"labels":[{"name":"sentry-feedback"}],"body":"https://artisanal-software.sentry.io/issues/feedback/?feedbackSlug=podhaven%3A7485822944"},{"number":42,"labels":[{"name":"sentry-feedback"}],"body":"<!-- sentry-feedback:podhaven:7485822944 -->"}]]'
   exit 0
 fi
 if [ "$1" = api ] && [ "$4" = 'repos/jubishop/podhaven/issues/42/comments?per_page=100' ]; then

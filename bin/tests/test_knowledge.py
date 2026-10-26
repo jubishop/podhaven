@@ -250,8 +250,7 @@ fcntl.flock = flock
         record = self.records()[0]
         self.assertEqual(record["cwd"], str(self.repo))
         self.assertEqual(record["index"], str(self.repo / ".cache/qmd/index.sqlite"))
-        self.assertEqual(set(record["collections"]), {"readme", "memory", "docs", "sentry-history", "foundation"})
-        self.assertFalse(record["collections"]["sentry-history"]["includeByDefault"])
+        self.assertEqual(set(record["collections"]), {"readme", "memory", "docs", "foundation"})
         self.assertIn("context", record["collections"]["docs"])
         result = self.run_command("../bin/knowledge", "search", "reference", root=self.repo / "docs")
         self.assertEqual(json.loads(result.stdout)["index"], record["index"])

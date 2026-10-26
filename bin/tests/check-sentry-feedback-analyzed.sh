@@ -26,7 +26,7 @@ chmod +x "$STUBS/sentry"
 cat > "$STUBS/gh" <<'EOF'
 #!/bin/sh
 if [ "$1" = api ] && [ "$4" = 'repos/jubishop/podhaven/issues?state=all&per_page=100' ]; then
-  printf '%s\n' '[[{"number":42,"body":"<!-- sentry-feedback:podhaven:7485822944 -->\n<!-- analyze-sentry-feedback-findings:start -->\n<!-- analyze-sentry-feedback-findings:end -->"}]]'
+  printf '%s\n' '[[{"number":42,"labels":[{"name":"sentry-feedback"}],"body":"<!-- sentry-feedback:podhaven:7485822944 -->\n<!-- analyze-sentry-feedback-findings:start -->\n<!-- analyze-sentry-feedback-findings:end -->"}]]'
   exit 0
 fi
 printf '%s\n' "$*" >> "$CHECK_SENTRY_TEST_CAPTURE/forbidden"

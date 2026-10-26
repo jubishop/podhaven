@@ -7,6 +7,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/.agents/scripts/sentry-cli/lib.sh"
 
 GH_REPO="${GH_REPO:-jubishop/podhaven}"
+LABEL="sentry-feedback"
 DRY_RUN="${DRY_RUN:-false}"
 
 case "$DRY_RUN" in
@@ -58,7 +59,7 @@ fi
 gh api --paginate --slurp \
   "repos/$GH_REPO/issues?state=all&per_page=100" \
   > "$ALL_ISSUES_JSON"
-jq '[.[][] | select(has("pull_request") | not) | {number, body}]' \
+jq '[.[][] | select(has("pull_request") | not) | {number, body, labels: [.labels[]?.name]}]' \
   "$ALL_ISSUES_JSON" \
   > "$ISSUES_JSON"
 
@@ -116,6 +117,15 @@ while IFS= read -r feedback; do
 
   if [[ -n "$EXISTING_NUMBER" ]]; then
     TRACKED=$((TRACKED + 1))
+    if ! jq -e --argjson number "$EXISTING_NUMBER" --arg label "$LABEL" \
+      'any(.[]; .number == $number and any(.labels[]; . == $label))' \
+      "$ISSUES_JSON" >/dev/null; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        echo "Would add the $LABEL label to issue #$EXISTING_NUMBER"
+      else
+        gh issue edit "$EXISTING_NUMBER" --repo "$GH_REPO" --add-label "$LABEL" >/dev/null
+      fi
+    fi
     if jq -e \
       --argjson number "$EXISTING_NUMBER" \
       --arg start_marker "$ANALYSIS_START_MARKER" \
@@ -161,6 +171,7 @@ while IFS= read -r feedback; do
   ISSUE_URL="$(gh issue create \
     --repo "$GH_REPO" \
     --title "Triage Sentry feedback $SHORT_ID" \
+    --label "$LABEL" \
     --body-file "$BODY_PATH")"
   CREATED=$((CREATED + 1))
   write_instruction_comment "$ISSUE_URL" "$SLUG" "$PERMALINK"

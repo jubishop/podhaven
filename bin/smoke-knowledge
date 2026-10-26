@@ -44,6 +44,11 @@ def main():
         shutil.copy2(ROOT / ".config/knowledge.json", repo / ".config/knowledge.json")
         for name in ("README.md", "AGENTS.md", "LICENSE", ".gitignore", ".project-starter.json"):
             shutil.copy2(ROOT / name, repo / name)
+        # Checks require every managed file, including ones outside the copied directories.
+        for name in json.loads((ROOT / ".project-starter.json").read_text())["managed"]:
+            if not (repo / name).exists():
+                (repo / name).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / name, repo / name)
         sys.path.insert(0, str(ROOT / "bin"))
         from _checks import link_targets, local_target
         for page in (ROOT / "docs").rglob("*.md"):
@@ -81,7 +86,6 @@ def main():
             stream.write("\n- [Search isolation proof](retrieval-proof.md)\n")
         for directory, filename, content in (
             ("memory/archive", "old-rule.md", "---\nname: old-rule\ndescription: An archived rule.\ntype: project\nstatus: resolved\n---\n\n# Old rule\n\narchivemarkerzeta\n"),
-            ("memory/sentry_feedback", "legacy.md", "# Historical Sentry record\n\nhistorymarkerzeta\n"),
             ("memory/pr_reviews", "old-review.md", "# Review ledger\n\nreviewmarkerzeta\n"),
             ("docs/archive", "retired.md", "---\nstatus: archived\n---\n\n# Retired reference\n\ndocsarchivemarkerzeta\n"),
         ):
@@ -101,10 +105,9 @@ def main():
         assert "Current PodHaven" in json.dumps(result), result
         assert "orionmosaic" in run("bin/knowledge", "get", "qmd://docs/retrieval-proof.md").stdout
         passed("keyword retrieval, collection descriptions, focused reads, and subdirectory routing")
-        for term in ("archivemarkerzeta", "reviewmarkerzeta", "docsarchivemarkerzeta", "historymarkerzeta"):
+        for term in ("archivemarkerzeta", "reviewmarkerzeta", "docsarchivemarkerzeta"):
             assert not json.loads(run("bin/knowledge", "search", term, "--json").stdout), term
-        assert json.loads(run("bin/knowledge", "search", "historymarkerzeta", "-c", "sentry-history", "--json").stdout)
-        passed("archive and review exclusions, explicit Sentry history retrieval")
+        passed("archive and review exclusions")
         result = json.loads(run("bin/knowledge", "vsearch", "Each branch needs an independent search database", "--json", "-n", "5").stdout)
         assert result and any(name in json.dumps(result) for name in ("retrieval-proof.md", "development-workflow.md")), result
         passed("real embedding generation and semantic retrieval")

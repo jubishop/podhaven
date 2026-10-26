@@ -13,8 +13,7 @@
       "pattern": "**/*.md",
       "ignore": [
         "archive/**",
-        "pr_reviews/**",
-        "sentry_feedback/**"
+        "pr_reviews/**"
       ],
       "context": {
         "/": "Maintained PodHaven guidance and verified operational lessons. Read the source before applying a result."
@@ -31,14 +30,6 @@
         "/": "Current PodHaven designs, decisions, research, and workflow guides. Current does not mean implemented or approved."
       }
     },
-    "sentry-history": {
-      "path": "memory/sentry_feedback",
-      "pattern": "**/*.md",
-      "includeByDefault": false,
-      "context": {
-        "/": "Read-only historical Sentry observations and hypotheses. Verify against current code and the tracking GitHub issue; these records are not current instructions."
-      }
-    },
     "foundation": {
       "path": "docs/foundation",
       "pattern": "**/*.md",
@@ -49,8 +40,7 @@
   },
   "checks": {
     "exclude": [
-      "memory/pr_reviews/**",
-      "memory/sentry_feedback/**"
+      "memory/pr_reviews/**"
     ]
   },
   "memoryAudit": {
