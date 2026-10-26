@@ -98,10 +98,8 @@ def config():
             raise ValueError("Shared collection paths must stay inside the checkout; use knowledge.homeMemoryPath for home notes")
         if not path.is_dir():
             raise ValueError("Collection directory is missing: " + str(path))
-        if set(collection) - {"path", "pattern", "ignore", "context", "includeByDefault"}:
+        if set(collection) - {"path", "pattern", "ignore", "context"}:
             raise ValueError("Unsupported collection setting: " + name)
-        if "includeByDefault" in collection and not isinstance(collection["includeByDefault"], bool):
-            raise ValueError("includeByDefault must be a boolean: " + name)
         rendered["collections"][name] = dict(collection, path=str(path))
     warnings = []
     home = setting("homeMemoryPath")
@@ -280,8 +278,6 @@ def prepare(root):
     if primary and primary.resolve() == root:
         git("config", "--local", "knowledge.primaryWorktree", str(root), root=root)
     prepare_models(root)
-    from _worktrees import prepare_xcode
-    prepare_xcode(root)
     if not shutil.which("direnv"):
         print("direnv absent: environment approval skipped.")
         return
@@ -468,7 +464,6 @@ def wait_for(ticket, timeout=None, output=None):
         time.sleep(0.05)
 
 
-
 def current_index(version):
     rendered, warnings = config()
     for warning in warnings:
@@ -479,7 +474,6 @@ def current_index(version):
             (state.get("last_success") or {}).get("fingerprint") == fingerprint and
             (cache() / "index.sqlite").is_file() and
             configuration_matches(rendered) and not worker_active())
-
 
 
 def lookup(args):
@@ -506,7 +500,6 @@ def lookup(args):
         raise RuntimeError("Knowledge changed during lookup; results discarded. Retry after bin/qmd-index completes.")
     sys.stdout.write(result.stdout)
     return 0
-
 
 
 def diagnose():
@@ -571,20 +564,6 @@ def diagnose():
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         report["freshness"] = "unknown"
         report["issues"].append(str(error))
-    try:
-        from _worktrees import diagnose_xcode
-        report["xcode"] = diagnose_xcode(ROOT)
-        if report["xcode"]["available"]:
-            if not report["xcode"]["packages_link_valid"]:
-                report["issues"].append("Xcode package link needs attention; run bin/prep-worktree.")
-            if not report["xcode"]["agent_loaded"]:
-                report["notices"].append("Hourly cleanup is not loaded; run bin/install-cleanup-agent in the primary checkout.")
-            if report["xcode"]["cleanup_error"]:
-                report["issues"].append("Automatic cleanup failed; inspect xcode.cleanup_error.")
-            for item in (report["xcode"].get("last_cleanup") or {}).get("deferred", []):
-                report["notices"].append("Cleanup deferred: " + item["path"] + ": " + item["reason"])
-    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
-        report["issues"].append("Xcode diagnostics failed: " + str(error))
     return report
 
 
@@ -632,7 +611,6 @@ def cli(action):
             else:
                 for key in ("root", "primary_checkout", "hooks_mode", "hooks_path", "git_version", "python", "qmd_version", "direnv_version", "shellcheck_version", "index", "models", "shared_models", "worker_running", "freshness", "collections", "last_refresh"):
                     print(key + ": " + str(report.get(key)))
-                print("xcode: " + json.dumps(report.get("xcode")))
                 for message in report["notices"] + report["issues"]:
                     print(message)
             return bool(report["issues"])

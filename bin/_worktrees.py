@@ -238,7 +238,7 @@ def prepare_xcode(root):
             if not link.exists() and not link.is_symlink():
                 link.symlink_to(shared, target_is_directory=True)
             elif not link.is_symlink() or link.resolve() != shared:
-                print("Preserved existing SourcePackages; inspect with bin/doctor: " + str(link))
+                print("Preserved existing SourcePackages; inspect with bin/doctor-xcode: " + str(link))
         suffix = Path("PodHaven.xcodeproj/project.xcworkspace/xcuserdata") / (getpass.getuser() + ".xcuserdatad/WorkspaceSettings.xcsettings")
         source, target = paths["primary"] / suffix, root / suffix
         if source.is_file() and not target.exists():
@@ -262,6 +262,20 @@ def diagnose_xcode(root):
             "last_cleanup": read_json(paths["state"] / "cleanup.json"),
             "cleanup_error": read_json(paths["primary"] / ".cache/worktree-cleanup/last-error.json"),
             "agent_plist": str(agent), "agent_installed": agent.is_file(), "agent_loaded": loaded}
+
+
+def xcode_health(root):
+    report = dict(diagnose_xcode(root), issues=[], notices=[])
+    if report["available"]:
+        if not report["packages_link_valid"]:
+            report["issues"].append("Xcode package link needs attention; run bin/prep-worktree.")
+        if not report["agent_loaded"]:
+            report["notices"].append("Hourly cleanup is not loaded; run bin/install-cleanup-agent in the primary checkout.")
+        if report["cleanup_error"]:
+            report["issues"].append("Automatic cleanup failed; inspect cleanup_error in bin/doctor-xcode --json.")
+        for item in (report["last_cleanup"] or {}).get("deferred", []):
+            report["notices"].append("Cleanup deferred: " + item["path"] + ": " + item["reason"])
+    return report
 
 
 def install_agent(root):

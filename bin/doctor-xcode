@@ -1,0 +1,26 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import sys
+from pathlib import Path
+sys.dont_write_bytecode = True
+from _worktrees import xcode_health
+
+parser = argparse.ArgumentParser(description="Report Xcode cache sharing, cleanup results, and the hourly cleanup job; "
+                                             "exit 1 when something needs attention.")
+parser.add_argument("--json", action="store_true")
+args = parser.parse_args()
+try:
+    report = xcode_health(Path(__file__).resolve().parents[1])
+except Exception as error:
+    print("Xcode diagnostics failed: " + str(error), file=sys.stderr)
+    sys.exit(1)
+if args.json:
+    print(json.dumps(report, indent=2))
+else:
+    for key, value in report.items():
+        if key not in ("issues", "notices"):
+            print(key + ": " + (value if isinstance(value, str) else json.dumps(value)))
+    for message in report["notices"] + report["issues"]:
+        print(message)
+sys.exit(bool(report["issues"]))

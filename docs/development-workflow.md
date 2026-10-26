@@ -15,6 +15,7 @@ Run from the repository root:
 bin/setup
 bin/install-cleanup-agent  # macOS, primary checkout only
 bin/doctor
+bin/doctor-xcode           # macOS
 bin/check --full
 ```
 
@@ -76,6 +77,9 @@ covered by the next preparation or hourly sweep.
 
 ## Xcode caches and automatic cleanup
 
+`bin/setup-application` prepares Xcode caches. `bin/setup`, `bin/prep-worktree`,
+and the Git hook that sets up each new worktree all run it.
+
 Each checkout gets private DerivedData at Xcode's default path. Its
 `SourcePackages` link points to the shared `~/Library/Developer/SharedSourcePackages/PodHaven`
 folder. Preparation copies missing per-user workspace settings from the primary
@@ -106,7 +110,7 @@ an orphan's `SourcePackages` link is replaced with its verified, existing shared
 target. Repair requires Xcode and package users to be closed. Unverifiable
 references defer cleanup. Shared packages and QMD model weights are retained.
 
-Inspect candidates with `bin/prune-worktree-caches --dry-run`. Use `bin/doctor`
+Inspect candidates with `bin/prune-worktree-caches --dry-run`. Use `bin/doctor-xcode`
 to read the latest removal totals, deferred reasons, errors, package-link health,
 and hourly job state. The latest report replaces its predecessor under the
 common Git directory's `knowledge/xcode/cleanup.json`; fatal errors use a single
@@ -132,8 +136,10 @@ do not share mutable build output to save setup time.
 
 ## Diagnostics
 
-`bin/doctor` also reports Xcode cache and cleanup state; see
+`bin/doctor` checks the shared foundation; see
 [diagnostics](foundation/knowledge-search.md#diagnostics).
+`bin/doctor-xcode` reports Xcode cache and cleanup state and exits 1 when
+something needs attention; `--json` prints the full report.
 
 ## File organization
 
@@ -352,9 +358,9 @@ linked-worktree isolation in disposable repositories. It reuses
 `~/.cache/qmd/models` and does not publish changes.
 
 `.project-starter.json` records the installed Project Starter release, the
-hashes of its managed files, the enabled `memory-audit` feature, and this
-project's override of `bin/_knowledge.py`. Update them with Project Starter's
-`bin/sync`, and merge upstream changes into the overridden helper by hand.
+hashes of its managed files, and the enabled `memory-audit` feature. Update
+them with Project Starter's `bin/sync`. PodHaven overrides no managed file:
+its Xcode preparation runs from the project-owned `bin/setup-application`.
 
 ## Scheduled memory audit
 

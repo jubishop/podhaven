@@ -8,13 +8,15 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+SOURCE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(SOURCE))
 import _worktrees as caches
 
 
@@ -205,6 +207,48 @@ class CacheTests(unittest.TestCase):
                          ["/bin/sh", "-c", 'exec "$0" "$@"', str(python),
                           str(self.repo / "bin/prune-worktree-caches"), "--apply", "--quiet"])
         self.assertEqual([json.loads(line)[0] for line in calls.read_text().splitlines()], ["print", "bootstrap"])
+
+    def unloaded_agent(self):
+        tools = self.base / "tools"
+        tools.mkdir(exist_ok=True)
+        launchctl = tools / "launchctl"
+        launchctl.write_text("#!/bin/sh\nexit 1\n")
+        launchctl.chmod(0o755)
+        return {**os.environ, "PATH": str(tools) + os.pathsep + os.environ["PATH"]}
+
+    @unittest.skipUnless(sys.platform == "darwin", "Xcode diagnostics are macOS-only")
+    def test_health_reports_link_and_cleanup_failures_as_issues_and_the_rest_as_notices(self):
+        (self.repo / "PodHaven.xcodeproj").mkdir()
+        error = self.repo / ".cache/worktree-cleanup/last-error.json"
+        error.parent.mkdir(parents=True)
+        error.write_text(json.dumps({"at": "2026-10-26T09:00:00-07:00", "error": "Disk full"}))
+        state = Path(self.git("rev-parse", "--path-format=absolute", "--git-common-dir").strip()) / "knowledge/xcode"
+        state.mkdir(parents=True)
+        (state / "cleanup.json").write_text(json.dumps({"deferred": [{"path": "/caches/old", "reason": "Xcode is open"}]}))
+        with patch.dict(os.environ, self.unloaded_agent()):
+            report = caches.xcode_health(self.repo)
+        self.assertEqual(report["issues"], ["Xcode package link needs attention; run bin/prep-worktree.",
+                                            "Automatic cleanup failed; inspect cleanup_error in bin/doctor-xcode --json."])
+        self.assertEqual(report["notices"], ["Hourly cleanup is not loaded; run bin/install-cleanup-agent in the primary checkout.",
+                                             "Cleanup deferred: /caches/old: Xcode is open"])
+
+    @unittest.skipUnless(sys.platform == "darwin", "Xcode preparation is macOS-only")
+    def test_application_setup_prepares_xcode_and_the_doctor_reports_it_healthy(self):
+        (self.repo / "bin").mkdir()
+        for name in ("setup-application", "doctor-xcode", "_worktrees.py", "_knowledge.py"):
+            shutil.copy2(SOURCE / name, self.repo / "bin" / name)
+        (self.repo / "PodHaven.xcodeproj").mkdir()
+        environment = self.unloaded_agent()
+        subprocess.run([str(self.repo / "bin/setup-application")], cwd=self.repo, env=environment, check=True,
+                       capture_output=True)
+        link = self.derived / ("PodHaven-" + caches.xcode_hash(self.repo / "PodHaven.xcodeproj")) / "SourcePackages"
+        self.assertEqual(link.resolve(), self.shared)
+        result = subprocess.run([str(self.repo / "bin/doctor-xcode"), "--json"], cwd=self.repo, env=environment,
+                                text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertTrue(report["packages_link_valid"])
+        self.assertEqual(report["issues"], [])
 
 
 if __name__ == "__main__":

@@ -29,9 +29,7 @@
     "AGENTS.md": "96bce82e85bc5c05f359996ff03f7c6fd127bbc01e1e3aaa26f8fade24d58c0c",
     ".gitignore": "25eeca4e619f1c731bc245b73427fcd0d85b5264265beb758010f6eda123242d"
   },
-  "overrides": {
-    "bin/_knowledge.py": "Xcode worktree cache preparation and diagnostics, and includeByDefault collections"
-  },
+  "overrides": {},
   "features": [
     "memory-audit"
   ]

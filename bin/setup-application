@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+"""Prepare this checkout's Xcode caches; bin/setup, bin/prep-worktree, and new worktrees run it."""
+import sys
+from pathlib import Path
+sys.dont_write_bytecode = True
+from _worktrees import prepare_xcode
+
+try:
+    prepare_xcode(Path(__file__).resolve().parents[1])
+except Exception as error:
+    print("Xcode preparation failed: " + str(error), file=sys.stderr)
+    sys.exit(1)
