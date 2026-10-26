@@ -43,7 +43,7 @@
       "path": "docs/foundation",
       "pattern": "**/*.md",
       "context": {
-        "/": "Shared Project Starter policy for engineering, knowledge search, and task tracking. Project pages may add stronger rules."
+        "/": "Shared Project Starter policy for engineering and knowledge search. Project pages may add stronger rules."
       }
     }
   },

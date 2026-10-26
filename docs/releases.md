@@ -17,7 +17,7 @@ except when an active beta review requires the next patch version.
 
 ## Nonfunctional changes
 
-Documentation, agent instructions, task tracking, comments, and other changes
+Documentation, agent instructions, comments, and other changes
 that do not affect the shipped app may be committed and pushed without a
 version change, TestFlight upload, or App Store release. Run the checks required
 for the actual change. Assess any earlier unreleased changes before deciding

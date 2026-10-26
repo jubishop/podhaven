@@ -58,15 +58,6 @@ worktrees
 # Python
 *$py.class
 
-# Sidecar
-.sidecar/
-.sidecar-agent
-.sidecar-task
-.sidecar-pr
-.sidecar-start.sh
-.sidecar-base
-.td-root
-
 # project-starter:begin
 .DS_Store
 .cache/
@@ -78,5 +69,4 @@ worktrees
 __pycache__/
 *.py[cod]
 worktrees/
-.todos/
 # project-starter:end

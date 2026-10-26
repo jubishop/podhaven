@@ -9,4 +9,3 @@ pages and link to these; project rules take precedence wherever they differ.
   deployment.
 - [Knowledge search](knowledge-search.md): search commands, failures,
   refreshes, home memory, worktrees, hooks, and diagnostics.
-- [Task tracking](task-tracking.md): td setup, progress, handoffs, and review.

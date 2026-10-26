@@ -1,7 +1,7 @@
 {
-  "version": "2.13.0",
+  "version": "3.0.0",
   "source": "https://github.com/jubishop/project-starter",
-  "ref": "v2.13.0",
+  "ref": "v3.0.0",
   "managed": {
     "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
     "bin/_checks.py": "2c2a04c3569f5f588aec88f2f8a269b931b62d2ae51fe31c2bbf5f8c0e8b8c77",
@@ -17,14 +17,13 @@
     "bin/prep-worktree": "b95e77ebc0ef3bae7d868f5e5bcdb35a05e94aa2695dfc5fd44117edc72f9294",
     "bin/qmd-index": "8e7de8dcc353a768878f52c9fa5b4b9bbfab6db00a0d229f55b7af3a6f008fc5",
     "bin/setup": "22a1ba1d1cf981957dad1fce20da692d276b864e5e1bf0aa9d70fcc336c6332b",
-    "docs/foundation/README.md": "076e13b51bc05a1f4e6807655ceb9899fd1744d3753ff23f451f420e2e7de658",
+    "docs/foundation/README.md": "5233244709e2051873746d0bb898b2fcbe7b06b96612e27374f669ec419a9d04",
     "docs/foundation/engineering-policy.md": "eb7478cd4432a88a2c28b0951bdc19b7f7ac04fa8d283d05032c322b684f18e7",
-    "docs/foundation/knowledge-search.md": "bc82fb2c122e51f845efb87edb1f5ff8f5b8871b8e7ae2610f6ce3bf02505d4a",
-    "docs/foundation/task-tracking.md": "b4feef79fed6332528d851fba91bfd2b398f8a576931e4c8af0796ab9e0fd851"
+    "docs/foundation/knowledge-search.md": "bc82fb2c122e51f845efb87edb1f5ff8f5b8871b8e7ae2610f6ce3bf02505d4a"
   },
   "blocks": {
-    "AGENTS.md": "cebf015e269456ded27d8332bd24aa205248d12c5cba139016a885e34bbd2e7a",
-    ".gitignore": "f0fc16f4bf496f65540914731c3b59fa377b15cfe78f99e315082d2ec05f3927"
+    "AGENTS.md": "96bce82e85bc5c05f359996ff03f7c6fd127bbc01e1e3aaa26f8fade24d58c0c",
+    ".gitignore": "25eeca4e619f1c731bc245b73427fcd0d85b5264265beb758010f6eda123242d"
   },
   "overrides": {
     "bin/_knowledge.py": "Xcode worktree cache preparation and diagnostics, and includeByDefault collections for CI configuration",

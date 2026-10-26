@@ -11,9 +11,6 @@ take precedence over this block and the foundation pages wherever they differ.
   repair fails, pause knowledge-dependent work until the user approves a
   fallback; never silently substitute `rg` or direct reads. See
   [search failures](docs/foundation/knowledge-search.md#search-failures).
-- Use td for work with multiple stages, interruptions, blockers, or handoffs;
-  run `td usage --new-session -q` once per new context and keep handoffs
-  current. See [task tracking](docs/foundation/task-tracking.md).
 - Follow the [engineering policy](docs/foundation/engineering-policy.md):
   fewer dependencies, red-green tests for behavior changes, flaky tests fixed
   or filed as an issue right away, cohesive files and pages, checkout-isolated

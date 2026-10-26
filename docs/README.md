@@ -10,7 +10,7 @@ status: draft | current | superseded | archived
 ---
 ```
 
-Status describes document authority, not implementation progress. Use `draft` or `current` for active docs and `superseded` or `archived` under `docs/archive/`. Use [td](foundation/task-tracking.md) for local progress and handoffs, and GitHub issues for shared scope and acceptance criteria. Put multi-PR build plans in `docs/initiatives/` and decision surveys in `docs/research/`. Update the lists below when adding/removing docs.
+Status describes document authority, not implementation progress. Use `draft` or `current` for active docs and `superseded` or `archived` under `docs/archive/`. Use GitHub issues for tracked work, scope, and acceptance criteria. Put multi-PR build plans in `docs/initiatives/` and decision surveys in `docs/research/`. Update the lists below when adding/removing docs.
 
 Keep each page focused on one topic or reader task. Review long pages before
 extending them, and move independent topics into linked pages when useful.
@@ -19,7 +19,7 @@ Preserve decision reasons and evidence. Follow the
 
 ## Development
 
-- [Project Starter foundation](foundation/README.md): shared engineering, knowledge search, and task tracking policy.
+- [Project Starter foundation](foundation/README.md): shared engineering and knowledge search policy.
 - [Development workflow](development-workflow.md): setup, search, hooks, cache isolation, dependencies, testing, and validation
 - [Versioning and releases](releases.md): version commits, TestFlight uploads, automated App Store submissions, and retry behavior
 - [Universal Links](universal-links.md): associated domains, website fallback, and coordinated app rollout
