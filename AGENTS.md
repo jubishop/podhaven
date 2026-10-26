@@ -16,7 +16,7 @@ take precedence over this block and the foundation pages wherever they differ.
   current. See [task tracking](docs/foundation/task-tracking.md).
 - Follow the [engineering policy](docs/foundation/engineering-policy.md):
   fewer dependencies, red-green tests for behavior changes, flaky tests fixed
-  or tracked in an issue, cohesive files and pages, checkout-isolated
+  or filed as an issue right away, cohesive files and pages, checkout-isolated
   validation, and the latest stable toolchains.
 - Deliver by [kind of change](docs/foundation/engineering-policy.md#kinds-of-change):
   commit text, such as Markdown and AI skill prose, directly on the default

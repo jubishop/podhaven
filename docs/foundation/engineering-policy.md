@@ -56,8 +56,11 @@ retries or weaker assertions.
 
 ### Flaky tests
 
-Never ignore a flaky test. Fix it on the spot, or make sure a GitHub issue
-tracks it so it can be addressed later.
+Never ignore a flaky test. Fix it on the spot when the fix fits the current
+change. When it doesn't, such as when it lies outside the pull request's
+scope, file a GitHub issue for it right away, without waiting to be asked, or
+reuse the one that already tracks it, so a later agent can fix it. Name that
+issue when reporting the work.
 
 ## File organization
 
