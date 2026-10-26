@@ -303,6 +303,20 @@ def prepare(root):
     print("Environment file preserved. After reviewing it, use direnv allow if needed.")
 
 
+def setup_application(root):
+    """Run the project-owned dependency setup in a checkout; return its exit status."""
+    application = root / "bin/setup-application"
+    if not application.exists():
+        return 0
+    if not os.access(application, os.X_OK):
+        raise RuntimeError("bin/setup-application must be executable")
+    code = subprocess.run([str(application)], cwd=root, env=git_environment()).returncode
+    if code:
+        print("bin/setup-application failed in " + str(root) + " (exit " + str(code) + "); run it there again.",
+              file=sys.stderr)
+    return code
+
+
 def hooks_path():
     path = Path(git("rev-parse", "--git-path", "hooks"))
     return path if path.is_absolute() else ROOT / path
@@ -584,8 +598,9 @@ def cli(action):
         if action == "prep":
             if len(args) > 1:
                 raise ValueError("Usage: bin/prep-worktree [checkout-root]")
-            prepare(Path(args[0]) if args else ROOT)
-            return 0
+            root = Path(args[0]).resolve() if args else ROOT
+            prepare(root)
+            return setup_application(root)
         if action == "setup":
             if args:
                 raise ValueError("Usage: bin/setup")
@@ -599,13 +614,8 @@ def cli(action):
                 print("Preserved existing git knowledge alias; use bin/knowledge directly.")
             prepare(ROOT)
             code = wait_for(enqueue())
-            application = ROOT / "bin/setup-application"
-            if code or not application.exists():
-                return code
-            if not os.access(application, os.X_OK):
-                raise RuntimeError("bin/setup-application must be executable")
             # Project-owned dependency setup runs only after the foundation is ready.
-            return subprocess.run([str(application)], cwd=ROOT).returncode
+            return code or setup_application(ROOT)
         if action == "index":
             if len(args) == 2 and args[0] == "--worker":
                 return worker(int(args[1]))
@@ -634,9 +644,14 @@ def cli(action):
                 observed = read_json(cache() / "hooks.json")
                 observed[event] = {"at": stamp(), "path": str(hooks_path())}
                 atomic_json(cache() / "hooks.json", observed)
-            if event == "post-checkout" and len(args) >= 4 and args[3] == "1" and args[1] and set(args[1]) == {"0"}:
+            new_checkout = event == "post-checkout" and len(args) >= 4 and args[3] == "1" and args[1] and set(args[1]) == {"0"}
+            if new_checkout:
                 prepare(ROOT)
             enqueue()
+            if new_checkout:
+                # A new worktree gets the project's dependencies, such as its .venv, as bin/setup gives a fresh
+                # clone; a failure is reported but leaves Git a usable checkout.
+                setup_application(ROOT)
             return 0
         if action == "knowledge":
             allowed = {"search", "query", "vsearch", "get", "multi-get", "ls", "status", "--version"}

@@ -1,11 +1,13 @@
 """Validate the documented Markdown subset and the portable foundation."""
 
 import ast
+from datetime import datetime, timedelta, timezone
 import hashlib
 import html
 import json
 import os
 from pathlib import Path
+import platform
 import re
 import shutil
 import subprocess
@@ -13,10 +15,12 @@ import sys
 import unicodedata
 from urllib.parse import unquote, urlsplit
 
-from _knowledge import matches
+from _knowledge import git, matches
 
 
 MARKERS = ("project-starter:begin", "project-starter:end")
+# A passing application run stands for its clean tree and environment this long.
+REUSE_WINDOW = timedelta(hours=12)
 
 
 def digest(data):
@@ -304,11 +308,89 @@ def validate(root, areas=("memory", "docs"), options=None, generated_memory_inde
     return errors
 
 
+def environment(root):
+    """Fingerprint what besides the tree can change application results."""
+    # platform.platform() differs between Python releases on the same machine.
+    facts = {"platform": " ".join((platform.system(), platform.release(), platform.machine()))}
+    for tool in ("python3", "node"):
+        if shutil.which(tool):
+            result = subprocess.run([tool, "--version"], text=True, capture_output=True)
+            facts[tool] = (result.stdout + result.stderr).strip()
+    venv = root / ".venv"
+    if venv.is_dir():
+        configuration = venv / "pyvenv.cfg"
+        facts["venv"] = configuration.read_text() if configuration.is_file() else ""
+        # Distribution folders name each installed package and its version.
+        facts["packages"] = sorted(path.name for path in venv.glob("lib/*/site-packages/*.*-info"))
+    lock = root / "node_modules/.package-lock.json"
+    if lock.is_file():
+        facts["node_modules"] = digest(lock.read_bytes())
+    return digest(json.dumps(facts, sort_keys=True).encode())
+
+
+def clean_tree(root):
+    """Return the tree of a checkout with no uncommitted or untracked changes, or None."""
+    if git("status", "--porcelain", "--untracked-files=all", root=root):
+        return None
+    return git("rev-parse", "--verify", "--quiet", "HEAD^{tree}", root=root, optional=True) or None
+
+
+def pass_record(root, tree):
+    folder = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir", root=root)) / "project-starter/check-passes"
+    return folder / (tree + ".json")
+
+
+def reusable_pass(root, tree, fingerprint):
+    """Return a recent passing application run for this tree and environment, or None."""
+    try:
+        record = json.loads(pass_record(root, tree).read_text())
+        passed = datetime.fromisoformat(record["passed_at"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if record.get("environment") != fingerprint or datetime.now(timezone.utc) - passed > REUSE_WINDOW:
+        return None
+    return record
+
+
+def record_pass(root, tree, fingerprint):
+    path = pass_record(root, tree)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Expired records can never be reused, so they don't accumulate.
+    expired = datetime.now().timestamp() - REUSE_WINDOW.total_seconds()
+    for old in path.parent.glob("*.json"):
+        if old.stat().st_mtime < expired:
+            old.unlink(missing_ok=True)
+    temporary = path.with_name("." + path.name + "." + str(os.getpid()))
+    temporary.write_text(json.dumps({"tree": tree, "commit": git("rev-parse", "HEAD", root=root),
+                                     "passed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                                     "environment": fingerprint}) + "\n")
+    temporary.replace(path)
+
+
+def application_checks(root, application, reuse):
+    """Run bin/check-application, or reuse its recent pass on the same clean tree and environment."""
+    tree = clean_tree(root)
+    fingerprint = environment(root) if tree else None
+    record = reusable_pass(root, tree, fingerprint) if tree and reuse else None
+    if record:
+        passed = datetime.fromisoformat(record["passed_at"]).astimezone().strftime("%Y-%m-%d %H:%M")
+        print("Reused the application checks that passed at " + passed + " on commit " + record["commit"][:12] +
+              " for this clean tree and environment; bin/check --full --no-reuse runs them again.", flush=True)
+        return
+    subprocess.run([str(application)], cwd=root, check=True)
+    # Record only a run whose checkout stayed clean at the same tree.
+    if tree and clean_tree(root) == tree:
+        try:
+            record_pass(root, tree, fingerprint)
+        except OSError as error:
+            print("Could not record the passing application checks for reuse: " + str(error), file=sys.stderr)
+
+
 def main():
     root = Path(__file__).resolve().parents[1]
     try:
-        if sys.argv[1:] not in ([], ["--documents-only"], ["--full"], ["--memory-audit"]):
-            raise ValueError("Usage: bin/check [--documents-only | --full | --memory-audit]")
+        if sys.argv[1:] not in ([], ["--documents-only"], ["--full"], ["--full", "--no-reuse"], ["--memory-audit"]):
+            raise ValueError("Usage: bin/check [--documents-only | --full [--no-reuse] | --memory-audit]")
         memory_audit = sys.argv[1:] == ["--memory-audit"]
         errors = manifest_errors(root) + validate(root, generated_memory_index=memory_audit)
         if not memory_audit:
@@ -337,7 +419,7 @@ def main():
             subprocess.run(["shellcheck", "--shell=sh", *map(str, shell_files)], cwd=root, check=True)
         subprocess.run(["git", "diff", "--check"], cwd=root, check=True)
         subprocess.run(["git", "diff", "--cached", "--check"], cwd=root, check=True)
-        if sys.argv[1:] != ["--full"]:
+        if sys.argv[1:2] != ["--full"]:
             print("Fast foundation checks passed. Use bin/check --full for application validation.", flush=True)
             return 0
         application = root / "bin/check-application"
@@ -346,7 +428,7 @@ def main():
             return 0
         if not os.access(application, os.X_OK):
             raise RuntimeError("bin/check-application must be executable")
-        subprocess.run([str(application)], cwd=root, check=True)
+        application_checks(root, application, reuse="--no-reuse" not in sys.argv)
         print("Full foundation and application checks passed.", flush=True)
         return 0
     except (OSError, ValueError, RuntimeError, SyntaxError, subprocess.SubprocessError) as error:

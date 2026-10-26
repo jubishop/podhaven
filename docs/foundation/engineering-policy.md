@@ -174,6 +174,15 @@ Choose checks by the change and its stage:
 Batch edits before checking, and reuse a passing result until its inputs
 change. Report focused and full results separately.
 
+`bin/check --full` reuses a passing `bin/check-application` run on its own: when
+the checkout has no uncommitted or untracked changes, and that run passed in
+the last 12 hours for the same tree and environment (the platform, `python3`
+and `node` versions, and the packages in `.venv` and `node_modules`), it says
+which commit passed and skips the application checks. A reused result counts
+as a successful `bin/check --full` for that tree. Worktrees of a repository
+share the record, and `bin/check --full --no-reuse` runs the application checks
+regardless.
+
 ### Hosted CI
 
 CI runs `bin/check --full` for pull requests and pushes to the default

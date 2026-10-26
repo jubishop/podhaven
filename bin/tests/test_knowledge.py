@@ -651,6 +651,35 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
         self.assertEqual(approvals.read_text(), before)
         self.run_command("git", "worktree", "remove", "--force", str(worktree))
 
+    def test_new_worktree_runs_application_setup_without_stopping_git(self):
+        calls = self.base / "setup calls"
+        application = self.repo / "bin/setup-application"
+        application.write_text("#!" + sys.executable + "\nimport os, sys\n"
+                               "open(os.environ['SETUP_CALLS'], 'a').write(os.getcwd() + '\\n')\n"
+                               "sys.exit(int(os.environ.get('SETUP_EXIT', '0')))\n")
+        application.chmod(0o755)
+        self.env["SETUP_CALLS"] = str(calls)
+        self.run_command("bin/setup")
+        self.commit()
+        calls.unlink()
+        worktree = self.base / "linked checkout"
+        self.run_command("git", "worktree", "add", "-b", "feature", str(worktree))
+        self.assertEqual(calls.read_text(), str(worktree) + "\n")
+        # Switching branches in an existing checkout doesn't run it.
+        self.run_command("git", "checkout", "-b", "other", root=worktree)
+        self.assertEqual(calls.read_text(), str(worktree) + "\n")
+        self.run_command("bin/prep-worktree", root=worktree)
+        self.assertEqual(calls.read_text().splitlines(), [str(worktree)] * 2)
+        self.assertNotEqual(self.run_command("bin/prep-worktree", root=worktree, extra={"SETUP_EXIT": "4"},
+                                             check=False).returncode, 0)
+        # A failed setup reports itself but still leaves Git a usable worktree.
+        failed = self.base / "failed checkout"
+        result = self.run_command("git", "worktree", "add", "-b", "failed", str(failed), extra={"SETUP_EXIT": "4"})
+        self.assertIn("bin/setup-application", result.stderr)
+        self.assertTrue((failed / "bin/check").is_file())
+        self.drain(root=worktree)
+        self.drain(root=failed)
+
     def test_existing_models_are_preserved_and_shared_with_worktree(self):
         models = self.repo / ".cache/qmd/models"
         models.mkdir(parents=True)
@@ -832,6 +861,65 @@ fcntl.flock = flock
         self.assertNotEqual(self.run_command("bin/check", "--full", check=False).returncode, 0)
         self.assertFalse(calls.exists())
 
+    def test_full_check_reuses_a_recent_application_pass_for_the_same_clean_tree_and_environment(self):
+        self.tool("shellcheck", "import sys\nsys.exit(0)\n")
+        calls = self.base / "application calls"
+        application = self.repo / "bin/check-application"
+        application.write_text("#!" + sys.executable + "\nimport os, sys\n"
+                               "open(os.environ['APP_CALLS'], 'a').write('called\\n')\n"
+                               "sys.exit(int(os.environ.get('APP_EXIT', '0')))\n")
+        application.chmod(0o755)
+        self.env["APP_CALLS"] = str(calls)
+        (self.repo / ".git/info/exclude").write_text(".venv/\n")
+        self.commit()
+
+        def runs(*args, reused=False):
+            result = self.run_command("bin/check", "--full", *args)
+            self.assertIn("Full foundation and application checks passed", result.stdout)
+            self.assertEqual("Reused the application checks that passed" in result.stdout, reused, result.stdout)
+            return len(calls.read_text().splitlines())
+
+        self.assertEqual(runs(), 1)
+        self.assertEqual(runs(reused=True), 1)
+        self.assertEqual(runs("--no-reuse"), 2)
+        # A failed run records nothing and doesn't clear the earlier pass for another tree.
+        self.assertNotEqual(self.run_command("bin/check", "--full", "--no-reuse", extra={"APP_EXIT": "3"},
+                                             check=False).returncode, 0)
+        self.assertEqual(runs(reused=True), 3)
+
+        # Uncommitted changes always run, and a new tree runs once.
+        with (self.repo / "docs/README.md").open("a") as stream:
+            stream.write("\nAnother line.\n")
+        self.assertEqual(runs(), 4)
+        self.assertEqual(runs(), 5)
+        self.commit()
+        self.assertEqual(runs(), 6)
+        self.assertEqual(runs(reused=True), 6)
+
+        # A linked worktree at the same commit shares the record.
+        worktree = self.base / "linked checkout"
+        self.run_command("git", "worktree", "add", "-b", "feature", str(worktree))
+        result = self.run_command("bin/check", "--full", root=worktree)
+        self.assertIn("Reused the application checks that passed", result.stdout)
+
+        # Installed packages are part of the environment.
+        packages = self.repo / ".venv/lib/python3/site-packages"
+        (packages / "example-1.0.dist-info").mkdir(parents=True)
+        self.assertEqual(runs(), 7)
+        self.assertEqual(runs(reused=True), 7)
+        (packages / "example-1.0.dist-info").rename(packages / "example-2.0.dist-info")
+        self.assertEqual(runs(), 8)
+
+        # A pass older than 12 hours runs again.
+        records = list(Path(self.run_command("git", "rev-parse", "--path-format=absolute", "--git-common-dir")
+                            .stdout.strip(), "project-starter/check-passes").glob("*.json"))
+        self.assertTrue(records)
+        for record in records:
+            data = json.loads(record.read_text())
+            data["passed_at"] = "2000-01-01T00:00:00+00:00"
+            record.write_text(json.dumps(data))
+        self.assertEqual(runs(), 9)
+
     def test_fast_check_still_rejects_syntax_and_lint_errors(self):
         self.tool("shellcheck", "import sys\nsys.exit(0)\n")
         (self.repo / "tests").mkdir()
@@ -859,7 +947,7 @@ fcntl.flock = flock
         self.assertIn("trailing whitespace", result.stdout)
 
     def test_check_rejects_unknown_or_combined_modes(self):
-        for args in (("--unknown",), ("--full", "--documents-only")):
+        for args in (("--unknown",), ("--full", "--documents-only"), ("--no-reuse",), ("--no-reuse", "--full")):
             with self.subTest(args=args):
                 result = self.run_command("bin/check", *args, check=False)
                 self.assertNotEqual(result.returncode, 0)

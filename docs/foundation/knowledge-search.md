@@ -101,7 +101,9 @@ git worktree add -b feature-name worktrees/feature-name
 ```
 
 The first checkout prepares a new worktree, and `bin/prep-worktree` repeats
-that preparation. Each checkout keeps its own `.cache/qmd/index.sqlite`.
+that preparation. Both run the project's executable `bin/setup-application`,
+when present, so a new worktree gets its dependencies, such as a `.venv`; a
+failure in a new worktree is reported without stopping Git. Each checkout keeps its own `.cache/qmd/index.sqlite`.
 Every project shares model files at `~/.cache/qmd/models`, independent of
 `XDG_CACHE_HOME`, through each checkout's `.cache/qmd/models` link. Setup
 migrates old local caches after verifying their contents and stops without

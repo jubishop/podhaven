@@ -1,11 +1,11 @@
 {
-  "version": "3.0.1",
+  "version": "3.1.0",
   "source": "https://github.com/jubishop/project-starter",
-  "ref": "v3.0.1",
+  "ref": "v3.1.0",
   "managed": {
     "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
-    "bin/_checks.py": "2c2a04c3569f5f588aec88f2f8a269b931b62d2ae51fe31c2bbf5f8c0e8b8c77",
-    "bin/_knowledge.py": "e664fcfa53650adb1532f3c3c374563d0ea7987de03fd3117c8654d1c7ab753c",
+    "bin/_checks.py": "ba3022ba5ec11858263d8fa527afaa4fc31c00576787e42fbf7fd6b4abd92b76",
+    "bin/_knowledge.py": "a2fb0d379f2b75cfbdb4c872b80acc114ba313c1723c7b2563f2e7b69340fdc4",
     "bin/check": "1eb794b0695f4840553f89d5be40060c58a749e9b3a261ac6992b5617c3ab57f",
     "bin/doctor": "bafccb584f6e9fb9fe161d3021f9d3832dc1e51ccabb9bee5794b0222894b79f",
     "bin/hooks/post-checkout": "521c755dea87b8f54d29aa4cad151d636f3bea6803720a05af137f11f35fe795",
@@ -18,8 +18,8 @@
     "bin/qmd-index": "8e7de8dcc353a768878f52c9fa5b4b9bbfab6db00a0d229f55b7af3a6f008fc5",
     "bin/setup": "22a1ba1d1cf981957dad1fce20da692d276b864e5e1bf0aa9d70fcc336c6332b",
     "docs/foundation/README.md": "5233244709e2051873746d0bb898b2fcbe7b06b96612e27374f669ec419a9d04",
-    "docs/foundation/engineering-policy.md": "eb7478cd4432a88a2c28b0951bdc19b7f7ac04fa8d283d05032c322b684f18e7",
-    "docs/foundation/knowledge-search.md": "bc82fb2c122e51f845efb87edb1f5ff8f5b8871b8e7ae2610f6ce3bf02505d4a"
+    "docs/foundation/engineering-policy.md": "8252b708b4eb84e094fac71eecd8a23849637db9c78c9863e7f4ba279efd00c0",
+    "docs/foundation/knowledge-search.md": "579697bb63ccfb5f28fea863ab55acf23a2127b27e82c036e5fe97e392974fbd"
   },
   "blocks": {
     "AGENTS.md": "96bce82e85bc5c05f359996ff03f7c6fd127bbc01e1e3aaa26f8fade24d58c0c",
