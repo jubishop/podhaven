@@ -25,3 +25,5 @@ Evaluate audit quality through complete claim coverage, current source and
 GitHub evidence, justified keep/archive decisions, valid links, and useful
 consolidation. Generic coding benchmarks do not establish memory-curation
 quality. Revisit the model only when audit results show a concrete need.
+
+**Current runner:** Commit `e1407934` (Project Starter 3.2.0) moved the job onto Project Starter's shared memory-audit feature, which sets `MODEL = "claude-haiku-5-5"` in `bin/_memory_audit.py`. Issue #759 tracks that move and was still open on 2026-10-26. When the shared feature changes, keep the Haiku, subscription-authentication, and no-separately-billed-API constraints above.
