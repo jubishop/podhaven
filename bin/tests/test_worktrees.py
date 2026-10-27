@@ -2,7 +2,7 @@
 
 import getpass
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 import io
 import json
 import os
@@ -207,6 +207,42 @@ class CacheTests(unittest.TestCase):
                          ["/bin/sh", "-c", 'exec "$0" "$@"', str(python),
                           str(self.repo / "bin/prune-worktree-caches"), "--apply", "--quiet"])
         self.assertEqual([json.loads(line)[0] for line in calls.read_text().splitlines()], ["print", "bootstrap"])
+
+    @contextmanager
+    def running_agent(self, lingers):
+        # Like launchd stopping a running job: the old service lingers after bootout, and bootstrap fails until it is gone.
+        home, tools = self.base / "home", self.base / "tools"
+        tools.mkdir()
+        python = home / ".local/bin/python3"
+        python.parent.mkdir(parents=True)
+        python.symlink_to(sys.executable)
+        calls = self.base / "launchctl.jsonl"
+        launchctl = tools / "launchctl"
+        launchctl.write_text(f"#!{sys.executable}\nimport json, pathlib, sys\n"
+                             f"calls = pathlib.Path({str(calls)!r})\n"
+                             "names = [json.loads(line)[0] for line in calls.read_text().splitlines()] if calls.exists() else []\n"
+                             "with calls.open('a') as f: f.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+                             f"present = 'bootout' not in names or names[names.index('bootout') + 1:].count('print') < {lingers}\n"
+                             "sys.exit({'print': 0 if present else 113, 'bootstrap': 5 if present else 0}.get(sys.argv[1], 0))\n")
+        launchctl.chmod(0o755)
+        clock = [0.0]
+        def sleep(seconds):
+            clock[0] += seconds
+        with patch.object(caches.sys, "platform", "darwin"), patch.object(Path, "home", return_value=home), \
+                patch.dict(os.environ, {"PATH": str(tools) + os.pathsep + os.environ["PATH"]}), \
+                patch("time.monotonic", lambda: clock[0]), patch("time.sleep", sleep), redirect_stdout(io.StringIO()):
+            yield lambda: [json.loads(line)[0] for line in calls.read_text().splitlines()]
+
+    def test_reinstall_bootstraps_once_the_running_agent_is_gone(self):
+        with self.running_agent(lingers=3) as launchctl_calls:
+            caches.install_agent(self.repo)
+            self.assertEqual(launchctl_calls(), ["print", "bootout", "print", "print", "print", "print", "bootstrap"])
+
+    def test_reinstall_fails_clearly_when_the_agent_never_stops(self):
+        with self.running_agent(lingers=10**6) as launchctl_calls:
+            with self.assertRaisesRegex(RuntimeError, "launchd did not stop " + caches.LABEL + " within 30 seconds"):
+                caches.install_agent(self.repo)
+            self.assertNotIn("bootstrap", launchctl_calls())
 
     def unloaded_agent(self):
         tools = self.base / "tools"

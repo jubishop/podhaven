@@ -11,6 +11,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import time
 from contextlib import contextmanager
 
 from _knowledge import atomic_json, git, git_environment, primary_checkout, read_json, stamp
@@ -307,6 +308,13 @@ def install_agent(root):
         temporary.replace(destination)
         if loaded:
             subprocess.run(["launchctl", "bootout", domain + "/" + LABEL], check=True)
+            # bootout returns while a running job stops, and bootstrap fails until launchd has removed it.
+            timeout = 30
+            deadline = time.monotonic() + timeout
+            while subprocess.run(["launchctl", "print", domain + "/" + LABEL], capture_output=True).returncode == 0:
+                if time.monotonic() > deadline:
+                    raise RuntimeError("launchd did not stop " + LABEL + " within " + str(timeout) + " seconds")
+                time.sleep(0.2)
             loaded = False
     if not loaded:
         subprocess.run(["launchctl", "bootstrap", domain, str(destination)], check=True)
