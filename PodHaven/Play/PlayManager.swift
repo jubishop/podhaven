@@ -518,7 +518,7 @@ final class PlayManager {
     NowPlayingInfo.clear()
     stateManager.clearOnDeck()
     onDeckBecameCurrentAt = nil
-    CommandCenter.updateNextTrack()
+    Task { @MainActor in CommandCenter.updateNextTrack() }
   }
 
   @discardableResult
@@ -830,7 +830,7 @@ final class PlayManager {
     loadTransition?.state = .establishedPlayback(podcastEpisode.id)
     loadTransition?.establishedPlayback = (podcastEpisode.id, loadID)
     onDeckBecameCurrentAt = Date()
-    CommandCenter.updateNextTrack()
+    Task { @MainActor in CommandCenter.updateNextTrack() }
     fetchImage(for: podcastEpisode)
 
     if podcastEpisode.episode.currentTime != CMTime.zero {

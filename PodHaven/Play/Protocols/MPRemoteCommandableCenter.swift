@@ -19,9 +19,11 @@ protocol MPChangePlaybackRateCommandEventable: MPRemoteCommandEventable {
   var playbackRate: Float { get }
 }
 
+@MainActor
 protocol MPRemoteCommandable: AnyObject {
+  // Handlers stay nonisolated: MediaPlayer doesn't document which thread calls them.
   func addCommandTarget(
-    handler: @escaping (any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus
+    handler: @escaping @Sendable (any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus
   )
   func removeCommandTarget()
   var isEnabled: Bool { get set }
@@ -41,6 +43,7 @@ protocol MPFeedbackCommandable: MPRemoteCommandable {
   var localizedShortTitle: String { get set }
 }
 
+@MainActor
 protocol MPRemoteCommandableCenter {
   var play: any MPRemoteCommandable { get }
   var pause: any MPRemoteCommandable { get }
