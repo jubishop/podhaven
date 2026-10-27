@@ -1,0 +1,221 @@
+#!/bin/bash
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=.agents/scripts/sentry-cli/lib.sh
+source "$ROOT/.agents/scripts/sentry-cli/lib.sh"
+
+GH_REPO="${GH_REPO:-jubishop/podhaven}"
+LABEL="sentry-issue"
+DRY_RUN="${DRY_RUN:-false}"
+
+case "$DRY_RUN" in
+  true | false) ;;
+  *)
+    echo "Error: DRY_RUN must be true or false" >&2
+    exit 1
+    ;;
+esac
+
+for command_name in gh jq; do
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "Error: required command not found: $command_name" >&2
+    exit 1
+  fi
+done
+
+require_sentry_auth
+
+TEMP_BASE="${RUNNER_TEMP:-/tmp}"
+WORK_DIR="$(mktemp -d "$TEMP_BASE/podhaven-sentry-issues.XXXXXX")"
+trap 'rm -rf "$WORK_DIR"' EXIT
+
+SENTRY_ISSUES_JSON="$WORK_DIR/sentry-issues.json"
+ALL_ISSUES_JSON="$WORK_DIR/all-issues.json"
+ISSUES_JSON="$WORK_DIR/issues.json"
+
+sentry_cmd issue list "$SENTRY_TARGET" \
+  --query 'is:unresolved !issue.category:feedback' \
+  --period 365d \
+  --limit 1000 \
+  --sort new \
+  --fresh \
+  --json \
+  --fields id,shortId,permalink \
+  > "$SENTRY_ISSUES_JSON"
+
+if ! jq -e '
+  .data | type == "array" and all(.[];
+    (.id | type == "string" and test("^[0-9]+$"))
+    and (.shortId | type == "string" and test("^[A-Z0-9-]+$"))
+    and (.permalink | type == "string" and test("^https://[^/]+\\.sentry\\.io/"))
+  )
+' "$SENTRY_ISSUES_JSON" >/dev/null; then
+  echo "Error: Sentry returned an unexpected issue response" >&2
+  exit 1
+fi
+if [[ "$(jq '.hasMore // false' "$SENTRY_ISSUES_JSON")" != false ]]; then
+  echo "Error: Sentry has more than 1000 unresolved issues; refusing to check a partial list" >&2
+  exit 1
+fi
+
+gh api --paginate --slurp \
+  "repos/$GH_REPO/issues?state=all&per_page=100" \
+  > "$ALL_ISSUES_JSON"
+jq '[.[][] | select(has("pull_request") | not) | {number, state, body, labels: [.labels[]?.name]}]' \
+  "$ALL_ISSUES_JSON" \
+  > "$ISSUES_JSON"
+
+TOTAL="$(jq '.data | length' "$SENTRY_ISSUES_JSON")"
+CREATED=0
+RECURRED=0
+TRACKED=0
+COMMENTS_ADDED=0
+
+write_instruction_comment() {
+  local issue_reference="$1"
+  local id="$2"
+  local short_id="$3"
+  local permalink="$4"
+  local comment_path="$WORK_DIR/comment.md"
+
+  {
+    printf '<!-- snissue:%s -->\n' "$id"
+    printf '<!-- fix-issue-prerequisite: analyze-sentry-issue %s -->\n' "$id"
+    printf 'This issue is intake only and must be analyzed before implementation.\n\n'
+    printf -- "- Run \`bin/snissue %s\` from a PodHaven checkout to analyze it directly.\n" "$id"
+    printf -- "- If passed to \`fix-issue\`, it will run the same analysis prerequisite, refresh this issue, and then continue from the findings.\n\n"
+    printf 'Event details remain in Sentry: [%s](%s).\n' "$short_id" "$permalink"
+  } > "$comment_path"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "Would add agent instructions to $issue_reference"
+    return
+  fi
+
+  gh issue comment "$issue_reference" \
+    --repo "$GH_REPO" \
+    --body-file "$comment_path" \
+    >/dev/null
+  COMMENTS_ADDED=$((COMMENTS_ADDED + 1))
+}
+
+create_intake_issue() {
+  local title="$1"
+  local id="$2"
+  local short_id="$3"
+  local permalink="$4"
+  local body_path="$5"
+  local issue_url
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    write_instruction_comment "the new issue for $short_id" "$id" "$short_id" "$permalink"
+    return
+  fi
+
+  issue_url="$(gh issue create \
+    --repo "$GH_REPO" \
+    --title "$title" \
+    --label "$LABEL" \
+    --body-file "$body_path")"
+  write_instruction_comment "$issue_url" "$id" "$short_id" "$permalink"
+  echo "Created: $issue_url"
+}
+
+while IFS= read -r sentry_issue; do
+  ID="$(jq -r '.id' <<< "$sentry_issue")"
+  SHORT_ID="$(jq -r '.shortId' <<< "$sentry_issue")"
+  PERMALINK="$(jq -r '.permalink' <<< "$sentry_issue")"
+  ISSUE_MARKER="<!-- sentry-issue:$ID -->"
+  COMMENT_MARKER="<!-- snissue:$ID -->"
+  BODY_PATH="$WORK_DIR/issue-body.md"
+
+  MATCHES="$(jq -c \
+    --arg marker "$ISSUE_MARKER" \
+    --arg link "https?://(artisanal-software[.])?sentry[.]io/(organizations/artisanal-software/)?issues/$ID([/?#[:space:]<>)]|\$)" \
+    '[.[]
+      | (.body // "") as $body
+      | select(($body | contains($marker)) or ($body | test($link)))
+      | . + {
+          marked: ($body | contains($marker)),
+          analyzed: (
+            (($body | contains("<!-- analyze-sentry-issue-findings:start -->"))
+              and ($body | contains("<!-- analyze-sentry-issue-findings:end -->")))
+            or (($body | contains($marker) | not) and ($body | test("(?m)^## Sentry closeout[[:space:]]*$")))
+          )
+        }]
+      | sort_by([(if .marked then 0 else 1 end), -.number])' \
+    "$ISSUES_JSON")"
+  OPEN_MATCH="$(jq -c 'first(.[] | select(.state == "open")) // empty' <<< "$MATCHES")"
+
+  if [[ -n "$OPEN_MATCH" ]]; then
+    TRACKED=$((TRACKED + 1))
+    EXISTING_NUMBER="$(jq -r '.number' <<< "$OPEN_MATCH")"
+    if ! jq -e --arg label "$LABEL" 'any(.labels[]; . == $label)' <<< "$OPEN_MATCH" >/dev/null; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        echo "Would add the $LABEL label to issue #$EXISTING_NUMBER"
+      else
+        gh issue edit "$EXISTING_NUMBER" --repo "$GH_REPO" --add-label "$LABEL" >/dev/null
+      fi
+    fi
+    if jq -e '.analyzed' <<< "$OPEN_MATCH" >/dev/null; then
+      echo "Already analyzed: $SHORT_ID in issue #$EXISTING_NUMBER"
+      continue
+    fi
+
+    COMMENTS_JSON="$WORK_DIR/comments-$EXISTING_NUMBER.json"
+    gh api --paginate --slurp \
+      "repos/$GH_REPO/issues/$EXISTING_NUMBER/comments?per_page=100" \
+      > "$COMMENTS_JSON"
+    if ! jq -e --arg marker "$COMMENT_MARKER" \
+      'any(.[][]; (.body // "") | contains($marker))' \
+      "$COMMENTS_JSON" >/dev/null; then
+      write_instruction_comment "$EXISTING_NUMBER" "$ID" "$SHORT_ID" "$PERMALINK"
+    fi
+    echo "Already tracked: $SHORT_ID in issue #$EXISTING_NUMBER"
+    continue
+  fi
+
+  CLOSED_NUMBERS="$(jq -r '[.[].number] | sort | map("#" + tostring) | join(", ")' <<< "$MATCHES")"
+  if [[ -n "$CLOSED_NUMBERS" ]]; then
+    {
+      printf '%s\n' "$ISSUE_MARKER"
+      printf 'An unresolved Sentry issue needs triage again after its tracking issues closed.\n\n'
+      printf -- '- **Sentry issue:** [%s](%s)\n' "$SHORT_ID" "$PERMALINK"
+      printf -- '- **Earlier tracking issues:** %s\n\n' "$CLOSED_NUMBERS"
+      printf 'Event details remain in Sentry because this repository is public.\n'
+    } > "$BODY_PATH"
+    if [[ "$DRY_RUN" == "true" ]]; then
+      echo "Would create issue: Triage recurrence of Sentry issue $SHORT_ID (after $CLOSED_NUMBERS)"
+    else
+      RECURRED=$((RECURRED + 1))
+    fi
+    create_intake_issue "Triage recurrence of Sentry issue $SHORT_ID" "$ID" "$SHORT_ID" "$PERMALINK" "$BODY_PATH"
+    continue
+  fi
+
+  {
+    printf '%s\n' "$ISSUE_MARKER"
+    printf 'An unresolved Sentry issue needs triage.\n\n'
+    printf -- '- **Sentry issue:** [%s](%s)\n\n' "$SHORT_ID" "$PERMALINK"
+    printf 'Event details remain in Sentry because this repository is public.\n'
+  } > "$BODY_PATH"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "Would create issue: Triage Sentry issue $SHORT_ID"
+  else
+    CREATED=$((CREATED + 1))
+  fi
+  create_intake_issue "Triage Sentry issue $SHORT_ID" "$ID" "$SHORT_ID" "$PERMALINK" "$BODY_PATH"
+done < <(jq -c '.data | sort_by(.id | tonumber)[]' "$SENTRY_ISSUES_JSON")
+
+SUMMARY="Found $TOTAL unresolved Sentry issue(s): created $CREATED intake issue(s), created $RECURRED recurrence issue(s), found $TRACKED already tracked, added $COMMENTS_ADDED instruction comment(s)."
+echo "$SUMMARY"
+
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  {
+    echo "## Sentry issue check"
+    echo ""
+    echo "$SUMMARY"
+  } >> "$GITHUB_STEP_SUMMARY"
+fi

@@ -285,21 +285,43 @@ and a numbered prompt otherwise. Listing requires authenticated `sentry` and
 `gh` commands plus `jq`; analysis requires Claude Code (`claude`).
 
 `bin/snissue` shows severity, available event and user counts, and the state
-of a GitHub issue whose title or body references the Sentry issue. It accepts
-a Sentry issue URL, a short ID such as `PODHAVEN-42`, or a numeric ID to skip
-the picker. Selection launches Claude Code with `/analyze-sentry-issue` from
-the current checkout root. That skill diagnoses the issue and recommends a fix,
-then uses `create-issue` to track sanitized findings in GitHub without changing
-application code. Existing issues are reused when they already own the work.
+of the GitHub issue that tracks the Sentry issue. It accepts a Sentry issue
+URL, a short ID such as `PODHAVEN-42`, or a numeric ID to skip the picker.
+Selection launches Claude Code with `/analyze-sentry-issue` from the current
+checkout root. `bin/snfeedback` does the same for feedback with
+`/analyze-sentry-feedback`. Each skill reads its tracking issue's history,
+diagnoses the item, recommends a fix, and uses `create-issue` to track
+sanitized findings in GitHub without changing application code. It updates
+the canonical issue only when the findings materially change.
 
-`bin/snfeedback` launches Claude Code with `/analyze-sentry-feedback`, which
-also uses `create-issue`. It preserves the feedback tracking markers and
-updates its canonical GitHub issue only when the findings materially change.
+The daily Sentry Intake GitHub workflow gives every unresolved item a tracking
+issue. `bin/check-sentry-feedback` covers feedback and `bin/check-sentry-issues`
+covers error issues. Each creates an intake issue with a body marker, its
+label, and an instruction comment declaring its analysis skill as a
+`fix-issue` prerequisite. When an error issue recurs after all its tracking
+issues closed, the checker opens a recurrence intake issue that links them
+instead of reopening shipped work.
 
-Both skills require the GitHub issue to include Sentry closeout instructions.
-After GitHub closure, the closing agent resolves the linked Sentry item and
-reads back its resolved status. For PR-backed work, `fix-issue` carries that
-task into `Do After Merging` for the `after-merge` agent to execute and verify.
+| | Feedback | Error issues |
+| --- | --- | --- |
+| Label | `sentry-feedback` | `sentry-issue` |
+| Body marker | `<!-- sentry-feedback:<slug> -->` | `<!-- sentry-issue:<numeric-id> -->` |
+| Findings block | `analyze-sentry-feedback-findings` | `analyze-sentry-issue-findings` |
+
+The pickers and checkers match an issue by its marker or a link to the Sentry
+item; the pickers show it as intake, analyzed, closed, or untracked. Error issues
+analyzed before the marker existed count as analyzed when their body has a
+`## Sentry closeout` section.
+
+Both skills require the GitHub issue to include a Sentry record and closeout
+instructions. Sentry drops events after its retention period and drops an
+issue once they all age out; a recurrence then gets a new short ID, so later
+triage finds the history by the record's signature. After GitHub closure, the
+closing agent resolves the linked Sentry item, in the fix's commit when there
+is one, or archives an error accepted as noise, and reads back its status.
+For PR-backed work, `fix-issue` carries that task into `Do After Merging` for
+the `after-merge` agent to execute and verify. Never delete a Sentry issue;
+its history goes with it.
 
 ## Checks and project extensions
 
@@ -380,7 +402,7 @@ and failure handling. PodHaven's `memoryAudit` settings in
   "Active notes" list.
 - **Context:** the prompt records that this subscription-backed Claude Code
   job replaced the paid OpenRouter audit and the later Codex job, and that the
-  Sentry Feedback GitHub workflow, which uses no model, stays in use.
+  Sentry Intake GitHub workflow, which uses no model, stays in use.
 
 Run `bin/memory-audit install` in the primary checkout to register or update
 the LaunchAgent, and

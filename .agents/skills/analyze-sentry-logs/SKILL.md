@@ -71,6 +71,12 @@ Trace each pattern far enough through source and logs to establish its trigger,
 likely user impact, and whether it reflects expected behavior or a defect.
 Choose the search method and amount of source context needed for that judgment.
 
+Check each pattern's history before assessing it. Fetch the open and closed
+GitHub issues labeled `sentry-issue` or `sentry-feedback` once, and search
+memory with `bin/knowledge search`. Cite a matching issue or note, and keep
+its settled disposition, such as an error accepted as noise, unless new
+evidence contradicts it; say what changed when it does.
+
 Assess severity, available diagnostic context, and concrete nearby failure
 paths that lack useful logging. Investigate bursts using timestamps and
 available user/trace context before attributing them to duplicate work. For

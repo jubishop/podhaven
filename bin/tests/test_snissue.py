@@ -11,6 +11,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "bin/snissue"
 FISH = shutil.which("fish")
+FINDINGS = "<!-- analyze-sentry-issue-findings:start -->\n<!-- analyze-sentry-issue-findings:end -->"
 
 
 class SentryIssueLauncherTests(unittest.TestCase):
@@ -36,15 +37,21 @@ class SentryIssueLauncherTests(unittest.TestCase):
             "hasMore": False,
         })
         self.write("gh.json", [[
-            {"number": 90, "state": "open", "title": "PODHAVEN-AC", "body": "PR",
+            {"number": 90, "state": "open", "title": "PODHAVEN-AC", "body": "<!-- sentry-issue:1003 -->",
              "pull_request": {}},
             {"number": 91, "state": "open", "title": "PODHAVEN-AC0", "body": ""},
             {"number": 92, "state": "open", "title": "", "body": "https://artisanal-software.sentry.io/issues/10030/"},
             {"number": 93, "state": "open", "title": "PODHAVEN-AC", "body": "Reference only"},
+            {"number": 41, "state": "closed", "title": "Earlier fix",
+             "body": "<!-- sentry-issue:1001 -->\n" + FINDINGS},
         ], [
             {"number": 42, "state": "closed", "title": "Tracked issue",
              "body": "https://artisanal-software.sentry.io/issues/1003/?query=is%3Aunresolved"},
             {"number": 43, "state": "open", "title": "Investigate PODHAVEN-AA", "body": None},
+            {"number": 44, "state": "open", "title": "Triage Sentry issue PODHAVEN-AB",
+             "body": "<!-- sentry-issue:1002 -->\n<!-- analyze-sentry-issue-findings:start -->"},
+            {"number": 45, "state": "open", "title": "Legacy analysis",
+             "body": "https://artisanal-software.sentry.io/issues/1001/\n\n## Sentry closeout\n"},
         ]])
 
     def write(self, name, value):
@@ -135,8 +142,8 @@ else:
         self.assertIn("Synthetic new issue", rows[0])
         self.assertIn("4 events; 2 users", rows[0])
         self.assertIn("GitHub: #42 closed", rows[0])
-        self.assertIn("GitHub: untracked", rows[1])
-        self.assertIn("GitHub: #43 open", rows[2])
+        self.assertIn("GitHub: #44 intake", rows[1])
+        self.assertIn("GitHub: #45 analyzed", rows[2])
         self.assertEqual(self.read("sentry.args"), [
             "issue", "list", "artisanal-software/podhaven",
             "--query", "is:unresolved !issue.category:feedback",
@@ -149,6 +156,15 @@ else:
         calls = (self.directory / "calls").read_text().splitlines()
         self.assertEqual(calls.count("gh"), 1)
         self.assertEqual(calls.count("sentry"), 1)
+
+    def test_mentions_and_pull_requests_do_not_track(self):
+        self.write("gh.json", [[
+            {"number": 90, "state": "open", "title": "", "body": "<!-- sentry-issue:1003 -->",
+             "pull_request": {}},
+            {"number": 93, "state": "open", "title": "PODHAVEN-AC", "body": "Reference only"},
+        ]])
+        self.assert_launched(self.run_command(), "1003")
+        self.assertIn("GitHub: untracked", self.read("picker.json")[0])
 
     def test_picker_launches_selected_row(self):
         self.env["SNISSUE_SELECT"] = "2"

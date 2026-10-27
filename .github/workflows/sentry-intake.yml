@@ -1,4 +1,4 @@
-name: Sentry Feedback
+name: Sentry Intake
 
 on:
   schedule:
@@ -7,12 +7,12 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: sentry-feedback
+  group: sentry-intake
   cancel-in-progress: false
 
 jobs:
   check:
-    name: Check unresolved feedback
+    name: Check unresolved feedback and issues
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -36,3 +36,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: bin/check-sentry-feedback
+
+      - name: Create issues for new or recurring errors
+        if: ${{ !cancelled() }}
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: bin/check-sentry-issues

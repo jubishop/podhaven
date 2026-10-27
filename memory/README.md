@@ -69,13 +69,18 @@ When a note is no longer relevant for day-to-day lookup — resolved incidents, 
 
 `memory/pr_reviews/<pr-number>.md` files are tool-managed review ledgers written by the `/review`, `/prfix`, and `/team-review` skills. They use those skills' own frontmatter (`pr`, `title`, `branch`, `base`, `repo`) rather than the page schema above, and are excluded from `qmd` indexing — the `memory` collection ignores `pr_reviews/**` alongside `archive/**`. `/team-review` only appends `pending` findings for a later `/review` pass; don't reformat ledgers to the page schema or hand-edit them; the skills own their lifecycle.
 
-## Sentry feedback history
+## Sentry history
 
-Sentry feedback history lives in GitHub issues labeled
-[`sentry-feedback`](https://github.com/jubishop/podhaven/issues?q=label%3Asentry-feedback),
-one per feedback report, not in memory. The `analyze-sentry-feedback` skill
-creates and updates them. Issues #760–#770 hold the triage logs that earlier
-versions kept in `memory/sentry_feedback/`.
+Sentry history lives in GitHub issues, not in memory. Issues labeled
+[`sentry-feedback`](https://github.com/jubishop/podhaven/issues?q=label%3Asentry-feedback)
+track one feedback report each; the `analyze-sentry-feedback` skill creates
+and updates them. Issues #760–#770 hold the triage logs that earlier versions
+kept in `memory/sentry_feedback/`. Issues labeled
+[`sentry-issue`](https://github.com/jubishop/podhaven/issues?q=label%3Asentry-issue)
+track work from Sentry error issues; the `analyze-sentry-issue` skill creates
+and updates them. Each issue keeps a sanitized Sentry record that outlives
+Sentry's retention. Memory keeps only lessons that span issues, such as an
+error accepted as noise.
 
 ## Active notes
 

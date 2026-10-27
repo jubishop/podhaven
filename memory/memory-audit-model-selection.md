@@ -14,7 +14,7 @@ OpenRouter audit or switch to API-key billing without a new user request.
 a local launchd job that used Luna through their ChatGPT subscription. This
 superseded the previous DeepSeek/OpenRouter preference and its per-run dollar
 budget. On 2026-10-09, the user moved the job to Claude Code with Haiku. The
-Sentry Feedback workflow should stay on GitHub: it uses no AI model.
+Sentry Intake workflow should stay on GitHub: it uses no AI model.
 
 **How to apply:** Keep subscription authentication explicit and retain local
 reports and proposed patches for human review. Subscription usage limits still

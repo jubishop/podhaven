@@ -48,6 +48,6 @@
       "memory-audit-failure"
     ],
     "indexHeading": "Active notes",
-    "context": "The user selected this local Claude Code job with Haiku through their Claude subscription to replace the paid OpenRouter memory audit and the later Codex job. That choice supersedes older model preferences in the notes. The Sentry Feedback GitHub workflow remains in use."
+    "context": "The user selected this local Claude Code job with Haiku through their Claude subscription to replace the paid OpenRouter memory audit and the later Codex job. That choice supersedes older model preferences in the notes. The Sentry Intake GitHub workflow remains in use."
   }
 }

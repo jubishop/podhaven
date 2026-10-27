@@ -102,25 +102,33 @@ function __snissue_pick
         set -l parts (string split \t -- "$raw_row")
         set -l id "$parts[1]"
         set -l short_id "$parts[2]"
-        set -l github_match (printf '%s\n' $github_issues_json | jq -r \
-            --arg id "$id" --arg short_id "$short_id" '
+        set -l github_match (printf '%s\n' $github_issues_json | jq -r --arg id "$id" '
                 if type != "array" or any(.[]; type != "array") then
                     error("expected paginated GitHub issues")
                 else . end
-                | def candidate_issues: .[][] | select(has("pull_request") | not);
-                def issue_text: (.title // "") + "\n" + (.body // "");
-                (
-                    first(candidate_issues | select(issue_text | test(
-                        "https?://(artisanal-software[.])?sentry[.]io/(organizations/artisanal-software/)?issues/"
-                        + $id + "([/?#[:space:]<>)]|$)"
-                    )))
-                    // first(candidate_issues | select(
-                        ($short_id | test("^PODHAVEN-[A-Z0-9]+$"))
-                        and (issue_text | test("(^|[^A-Z0-9-])" + $short_id + "([^A-Z0-9-]|$)"))
-                    ))
-                )
-                | select(. != null)
-                | [.number, .state]
+                | ("<!-- sentry-issue:" + $id + " -->") as $marker
+                | ("https?://(artisanal-software[.])?sentry[.]io/(organizations/artisanal-software/)?issues/"
+                    + $id + "([/?#[:space:]<>)]|$)") as $link
+                | [
+                    .[][]
+                    | select(has("pull_request") | not)
+                    | (.body // "") as $body
+                    | select(($body | contains($marker)) or ($body | test($link)))
+                    | . + {
+                        marked: ($body | contains($marker)),
+                        analyzed: (
+                            (($body | contains("<!-- analyze-sentry-issue-findings:start -->"))
+                                and ($body | contains("<!-- analyze-sentry-issue-findings:end -->")))
+                            or (($body | contains($marker) | not) and ($body | test("(?m)^## Sentry closeout[[:space:]]*$")))
+                        )
+                    }
+                ]
+                | sort_by([(if .state == "open" then 0 else 1 end), (if .marked then 0 else 1 end), -.number])
+                | first(.[])
+                | [
+                    .number,
+                    (if .state != "open" then "closed" elif .analyzed then "analyzed" else "intake" end)
+                ]
                 | @tsv')
         if test $status -ne 0
             echo "Error: GitHub returned invalid issue data"
@@ -130,7 +138,7 @@ function __snissue_pick
         set -l tracking untracked
         if test -n "$github_match"
             set -l github_parts (string split \t -- "$github_match")
-            if test (count $github_parts) -ne 2; or not string match -qr '^[0-9]+$' -- "$github_parts[1]"; or not contains -- "$github_parts[2]" open closed
+            if test (count $github_parts) -ne 2; or not string match -qr '^[0-9]+$' -- "$github_parts[1]"; or not contains -- "$github_parts[2]" intake analyzed closed
                 echo "Error: GitHub returned invalid issue data"
                 return 1
             end

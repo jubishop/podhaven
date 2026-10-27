@@ -46,9 +46,10 @@ or short ID), use `analyze-sentry-issue`. The no-argument listing in Step 0 is
 the one exception: it only enumerates open entries so the user can pick one to
 triage.
 
-This workflow must not dirty the repository. Reporter attachments belong in
-the cache directory from Step 6, fetched bundles belong under `/tmp`, and the
-GitHub issue is the only durable record this skill creates or updates.
+This workflow must not dirty the repository. Fetched bundles and reporter
+attachments belong in the invocation's temporary working directory from
+Step 3, which is deleted before the final response. The GitHub issue is the
+only durable record this skill creates or updates.
 
 ## `fix-issue` prerequisite contract
 
@@ -109,12 +110,10 @@ From the argument, extract:
 1. **Feedback slug**: prefer the value of `feedbackSlug=` in the URL (URL-decode
    it). If only a numeric ID is provided, assume the slug is `podhaven:<id>`.
 2. **Numeric feedback ID**: the part after `:` in the slug.
-3. **Path-safe slug**: the slug with `:` replaced by `-` (e.g.
-   `podhaven-7485822944`) — names the attachment cache parent (Step 6).
-4. **Sentry org**: `artisanal-software` (default for this repo).
-5. **Project ID**: `4508469264711681` if present in the URL, else assume the
+3. **Sentry org**: `artisanal-software` (default for this repo).
+4. **Project ID**: `4508469264711681` if present in the URL, else assume the
    PodHaven project.
-6. **User notes alongside the link**: any free-text the user typed in the same
+5. **User notes alongside the link**: any free-text the user typed in the same
    argument that isn't part of the URL/slug. Treat it as triage instructions
    (e.g. "I think this is the search bug from last week", "ignore the widget
    side", "user is on TestFlight build 412"). Carry these notes forward — they
@@ -149,11 +148,14 @@ anything else.
 - If multiple issues match, prefer the exact-marker issue, report the
   duplicates, and update only the canonical issue in Step 9.
 - If no issue matches, remember that one must be created in Step 9.
-- Search earlier feedback by symptom too:
-  `gh issue list --repo jubishop/podhaven --label sentry-feedback --state all --search "<symptom>"`.
-  Every feedback issue carries this label, including #760–#770, which hold
-  the triage logs of feedback analyzed before GitHub tracking. Verify old
-  hypotheses against current evidence before applying them.
+- Search earlier feedback and error issues by symptom too:
+  `gh issue list --repo jubishop/podhaven --state all --search 'label:sentry-feedback,sentry-issue <symptom>'`.
+  Every feedback issue carries `sentry-feedback`, including #760–#770, which
+  hold the triage logs of feedback analyzed before GitHub tracking. Issues
+  from Sentry error issues carry `sentry-issue`; search their Sentry record
+  terms too, because Sentry purges old issues and files a recurrence under a
+  new short ID. Verify old hypotheses against current evidence before
+  applying them.
 
 Keep the canonical issue number, URL, title, body, state, and Sentry permalink
 for Step 9. Do not modify it until the evidence has been synthesized.
@@ -306,13 +308,11 @@ session.
    - `widget-log.ndjson` — the widget log
    If other `.ndjson` files appear, download them too and mention them. If a
    name diverges from the expected pair, note it and proceed with what you got.
-3. Create a fresh investigation directory under the feedback's cache parent.
-   Keep `ATTACHMENT_DIR` as the exact destination for this selected event:
+3. Create a fresh investigation directory inside `$FEEDBACK_WORK`. Keep
+   `ATTACHMENT_DIR` as the exact destination for this selected event:
 
 ```bash
-ATTACHMENT_CACHE="$HOME/Library/Caches/analyze-sentry-feedback/<path-safe-slug>"
-mkdir -p "$ATTACHMENT_CACHE"
-ATTACHMENT_RUN="$(mktemp -d "$ATTACHMENT_CACHE/investigation.XXXXXX")"
+ATTACHMENT_RUN="$(mktemp -d "$FEEDBACK_WORK/investigation.XXXXXX")"
 ATTACHMENT_DIR="$ATTACHMENT_RUN/attachments"
 bash .agents/scripts/sentry-cli/download_event_attachments.sh \
   --event <event_id> \
@@ -321,8 +321,8 @@ bash .agents/scripts/sentry-cli/download_event_attachments.sh \
   --all
 ```
 
-Replace `<path-safe-slug>` with Step 1's value. The helper rejects any existing
-destination, including an empty directory or symlink. It keeps
+The helper rejects any existing destination, including an empty directory or
+symlink. It keeps
 the original log filenames (`log.ndjson`, `widget-log.ndjson`) inside that path.
 It creates `.incomplete` before writing attachment bytes and removes the marker
 only after every selected download succeeds. On failure or interruption, preserve
@@ -358,7 +358,7 @@ Fallbacks, in order, if the attachment route fails:
 exact `$ATTACHMENT_DIR` with `.agents/skills/analyze-logs/scripts/log_summary.py`.
 Set `LOG_PATH="$ATTACHMENT_DIR/log.ndjson"` when that file exists; use
 `$ATTACHMENT_DIR/widget-log.ndjson` for the widget log when present. Report a
-missing log instead of searching the cache parent or a prior investigation.
+missing log instead of searching another investigation directory.
 This step contains the incident-specific workflow and flags needed here; do not load the full
 `analyze-logs` skill on top of it. Read
 `.agents/skills/analyze-logs/references/podhaven-log-format.md` only when exact
@@ -612,6 +612,12 @@ Keep the feedback unresolved in Sentry while this issue remains open.
 - **Evidence:** <minimal technical evidence needed to act>
 - **Unknowns:** <material gaps, or "None">
 
+## Sentry record
+
+- **Feedback:** submitted <PT date>; build <release> (`<git-commit-hash>`)
+- **Related Sentry issues:** <for each, the short ID, sanitized title,
+  exception type, and top in-app frames; or "None">
+
 ## Proposed resolution
 
 <files/functions or investigative boundary, proposed behavior, and why>
@@ -626,11 +632,16 @@ Keep the feedback unresolved in Sentry while this issue remains open.
   (`<shortId>`, numeric issue ID `<numeric-id>`) with
   `sentry issue resolve <numeric-id>`.
 - <one bullet per related Sentry issue the fix also resolves, if any> Also
-  resolve [Sentry issue `<related shortId>`](<related permalink>) (numeric
-  issue ID `<related numeric-id>`) with
-  `sentry issue resolve <related numeric-id>`.
+  update [Sentry issue `<related shortId>`](<related permalink>) (numeric
+  issue ID `<related numeric-id>`). When a merged commit fixes it, resolve it
+  in that commit, so only builds that contain the fix can regress it:
+  `sentry issue resolve <related numeric-id> --in @commit:jubishop/podhaven@<merge-commit-sha>`.
+  If Sentry rejects the commit, or no commit fixes it, use `--in @next`. When
+  the error is accepted as expected behavior, archive it instead with
+  `sentry issue archive <related numeric-id> --until auto`.
 - Read each back with `sentry issue view <numeric-id> --fresh --json --fields id,status`
-  and verify every matching ID has `status: resolved` before reporting completion.
+  and verify every matching ID has `status: resolved`, or `status: ignored`
+  after archiving, before reporting completion.
 - For PR-backed work, `fix-issue` must carry this obligation, identifiers,
   links, and verification into the PR's `Do After Merging` section. The
   `after-merge` agent completes it as tracking closeout after confirming
@@ -646,7 +657,9 @@ public issue.
 ```
 
 The GitHub findings must be sufficient for the `fix-issue` skill or another
-issue-based workflow to start without repeating the triage. Include relevant
+issue-based workflow to start without repeating the triage. The Sentry record
+is what lets later triage recognize the failure after Sentry purges the
+feedback and its related issues. Include relevant
 public file, function, issue, PR, and commit references. Do not include the
 reporter's verbatim text, email, user ID, replay/event/trace identifiers, raw
 log lines, or other private/device-specific data. Summarize only the technical
@@ -664,7 +677,8 @@ beside its short and numeric IDs; an issue's permalink is
 related-issue bullet when the fix resolves no other Sentry issue. Read back
 any created or changed issue. Verify its title, sanitized body, feedback
 marker, complete findings block, Sentry closeout and merge-handoff
-instructions, state, `sentry-feedback` label, and any other required metadata.
+instructions, Sentry record, state, `sentry-feedback` label, and any other
+required metadata.
 The `create-issue` verification covers new issues; apply the same readback
 standard to enrichment and reopening.
 
@@ -681,10 +695,12 @@ repository status is unchanged from the baseline captured in Step 1.
 - Quote the user's feedback verbatim in the private report. Never copy it or
   reporter-identifying details into the public GitHub issue.
 - Never edit repository files from inside this skill, including application
-  code, docs, and memory. Do not commit or push. Temporary
-  bundles under `/tmp` and reporter attachments under the user cache are fine.
-  The output is analysis plus a GitHub issue ready for `fix-issue` or another
-  issue-based workflow.
+  code, docs, and memory. Do not commit or push. Keep bundles and reporter
+  attachments in `$FEEDBACK_WORK`, and delete it before the final response,
+  including after a failed or partial investigation. The output is analysis
+  plus a GitHub issue ready for `fix-issue` or another issue-based workflow.
+- Never delete a Sentry issue or feedback item: deletion destroys its history,
+  and a recurrence returns as an unrelated new issue.
 - Do not invent log lines, event IDs, or stack frames. If a piece of data is
   missing, say "not available" rather than guessing.
 - If the feedback has no linked event and the logs show nothing notable in
