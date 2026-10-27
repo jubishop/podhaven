@@ -34,7 +34,7 @@ extension PlayManager {
       mediaServicesRecoveryState = .none
       stateManager.clearOnDeck()
     }
-    CommandCenter.updateNextTrack()
+    Task { @MainActor in CommandCenter.updateNextTrack() }
   }
 
   func restoreMediaServicesRecoveryPresentation(_ podcastEpisode: PodcastEpisode) {
@@ -42,7 +42,7 @@ extension PlayManager {
     stateManager.setOnDeck(podcastEpisode)
     onDeckBecameCurrentAt = nil
     setStatus(.stopped)
-    CommandCenter.updateNextTrack()
+    Task { @MainActor in CommandCenter.updateNextTrack() }
   }
 
   func completeMediaServicesRecovery() {

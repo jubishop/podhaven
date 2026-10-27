@@ -13,7 +13,7 @@ protocol FakeMPRemoteCommandable: MPRemoteCommandable {
 }
 extension FakeMPRemoteCommandable {
   func addCommandTarget(
-    handler: @escaping (any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus
+    handler: @escaping @Sendable (any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus
   ) {
     self.handler = handler
   }
@@ -29,32 +29,103 @@ extension FakeMPRemoteCommandable {
   }
 }
 
+// MediaPlayer command objects are not thread-safe, so record writes made off
+// the main thread.
+final class FakeMPRemoteCommandWrites: Sendable {
+  private let offMainWrites = ThreadSafe<[String]>([])
+
+  var offMain: [String] { offMainWrites() }
+
+  func record(_ name: String, _ property: String) {
+    guard !Thread.isMainThread else { return }
+    offMainWrites { $0.append("\(name).\(property)") }
+  }
+}
+
 final class FakeMPRemoteCommand: FakeMPRemoteCommandable {
-  var handler: ((any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus)?
-  var isEnabled: Bool = false
+  private let name: String
+  private let writes: FakeMPRemoteCommandWrites
+
+  var handler: ((any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus)? {
+    didSet { writes.record(name, "handler") }
+  }
+  var isEnabled: Bool = false {
+    didSet { writes.record(name, "isEnabled") }
+  }
+
+  nonisolated init(_ name: String, writes: FakeMPRemoteCommandWrites) {
+    self.name = name
+    self.writes = writes
+  }
 }
 
 final class FakeMPSkipCommand: FakeMPRemoteCommandable, MPSkipCommandable {
-  var handler: ((any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus)?
-  var isEnabled: Bool = false
-  var preferredIntervals: [NSNumber] = []
+  private let name: String
+  private let writes: FakeMPRemoteCommandWrites
+
+  var handler: ((any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus)? {
+    didSet { writes.record(name, "handler") }
+  }
+  var isEnabled: Bool = false {
+    didSet { writes.record(name, "isEnabled") }
+  }
+  var preferredIntervals: [NSNumber] = [] {
+    didSet { writes.record(name, "preferredIntervals") }
+  }
+
+  nonisolated init(_ name: String, writes: FakeMPRemoteCommandWrites) {
+    self.name = name
+    self.writes = writes
+  }
 }
 
 final class FakeMPChangePlaybackRateCommand:
   FakeMPRemoteCommandable,
   MPChangePlaybackRateCommandable
 {
-  var handler: ((any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus)?
-  var isEnabled: Bool = false
-  var supportedPlaybackRates: [NSNumber] = []
+  private let name: String
+  private let writes: FakeMPRemoteCommandWrites
+
+  var handler: ((any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus)? {
+    didSet { writes.record(name, "handler") }
+  }
+  var isEnabled: Bool = false {
+    didSet { writes.record(name, "isEnabled") }
+  }
+  var supportedPlaybackRates: [NSNumber] = [] {
+    didSet { writes.record(name, "supportedPlaybackRates") }
+  }
+
+  nonisolated init(_ name: String, writes: FakeMPRemoteCommandWrites) {
+    self.name = name
+    self.writes = writes
+  }
 }
 
 final class FakeMPFeedbackCommand: FakeMPRemoteCommandable, MPFeedbackCommandable {
-  var handler: ((any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus)?
-  var isEnabled: Bool = false
-  var isActive: Bool = false
-  var localizedTitle: String = ""
-  var localizedShortTitle: String = ""
+  private let name: String
+  private let writes: FakeMPRemoteCommandWrites
+
+  var handler: ((any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus)? {
+    didSet { writes.record(name, "handler") }
+  }
+  var isEnabled: Bool = false {
+    didSet { writes.record(name, "isEnabled") }
+  }
+  var isActive: Bool = false {
+    didSet { writes.record(name, "isActive") }
+  }
+  var localizedTitle: String = "" {
+    didSet { writes.record(name, "localizedTitle") }
+  }
+  var localizedShortTitle: String = "" {
+    didSet { writes.record(name, "localizedShortTitle") }
+  }
+
+  nonisolated init(_ name: String, writes: FakeMPRemoteCommandWrites) {
+    self.name = name
+    self.writes = writes
+  }
 }
 
 // MARK: - Fake Events
@@ -117,20 +188,30 @@ final class FakeMPRemoteCommandCenter: MPRemoteCommandableCenter {
   private let _bookmarkCommand: FakeMPFeedbackCommand
   private let _ratingCommand: FakeMPRemoteCommand
 
-  init() {
-    self._playCommand = FakeMPRemoteCommand()
-    self._pauseCommand = FakeMPRemoteCommand()
-    self._togglePlayPauseCommand = FakeMPRemoteCommand()
-    self._skipForwardCommand = FakeMPSkipCommand()
-    self._skipBackwardCommand = FakeMPSkipCommand()
-    self._changePlaybackPositionCommand = FakeMPRemoteCommand()
-    self._changePlaybackRateCommand = FakeMPChangePlaybackRateCommand()
-    self._nextTrackCommand = FakeMPRemoteCommand()
-    self._previousTrackCommand = FakeMPRemoteCommand()
-    self._likeCommand = FakeMPFeedbackCommand()
-    self._dislikeCommand = FakeMPFeedbackCommand()
-    self._bookmarkCommand = FakeMPFeedbackCommand()
-    self._ratingCommand = FakeMPRemoteCommand()
+  nonisolated let writes: FakeMPRemoteCommandWrites
+
+  nonisolated init() {
+    let writes = FakeMPRemoteCommandWrites()
+    self.writes = writes
+    self._playCommand = FakeMPRemoteCommand("play", writes: writes)
+    self._pauseCommand = FakeMPRemoteCommand("pause", writes: writes)
+    self._togglePlayPauseCommand = FakeMPRemoteCommand("togglePlayPause", writes: writes)
+    self._skipForwardCommand = FakeMPSkipCommand("skipForward", writes: writes)
+    self._skipBackwardCommand = FakeMPSkipCommand("skipBackward", writes: writes)
+    self._changePlaybackPositionCommand = FakeMPRemoteCommand(
+      "changePlaybackPosition",
+      writes: writes
+    )
+    self._changePlaybackRateCommand = FakeMPChangePlaybackRateCommand(
+      "changePlaybackRate",
+      writes: writes
+    )
+    self._nextTrackCommand = FakeMPRemoteCommand("nextTrack", writes: writes)
+    self._previousTrackCommand = FakeMPRemoteCommand("previousTrack", writes: writes)
+    self._likeCommand = FakeMPFeedbackCommand("like", writes: writes)
+    self._dislikeCommand = FakeMPFeedbackCommand("dislike", writes: writes)
+    self._bookmarkCommand = FakeMPFeedbackCommand("bookmark", writes: writes)
+    self._ratingCommand = FakeMPRemoteCommand("rating", writes: writes)
   }
 
   var play: any MPRemoteCommandable { _playCommand }

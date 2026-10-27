@@ -20,9 +20,9 @@ extension MPChangePlaybackRateCommandEvent: MPChangePlaybackRateCommandEventable
 
 extension MPRemoteCommand: MPRemoteCommandable {
   func addCommandTarget(
-    handler: @escaping (any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus
+    handler: @escaping @Sendable (any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus
   ) {
-    addTarget { event in  // Calls the real MPRemoteCommand.addTarget
+    addTarget { @Sendable event in  // Calls the real MPRemoteCommand.addTarget
       handler(event)
     }
   }

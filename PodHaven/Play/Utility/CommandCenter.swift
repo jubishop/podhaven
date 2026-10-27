@@ -21,6 +21,7 @@ extension Container {
   }
 }
 
+@MainActor
 enum CommandCenter: Sendable {
   enum Command {
     case play, pause, togglePlayPause
@@ -39,7 +40,7 @@ enum CommandCenter: Sendable {
     case dislike(sourceEpisodeID: Episode.ID?)
   }
 
-  private static let log = Log.as(LogSubsystem.Play.commandCenter)
+  private nonisolated static let log = Log.as(LogSubsystem.Play.commandCenter)
 
   static func registerRemoteCommandHandlers() {
     log.debug("Now registering remote command handlers")
@@ -48,7 +49,7 @@ enum CommandCenter: Sendable {
     let commandCenter = Container.shared.mpRemoteCommandCenter()
     let continuation = Container.shared.commandCenterStream().continuation
 
-    let yield: (Command) -> Void = { command in
+    let yield: @Sendable (Command) -> Void = { command in
       log.debug("Remote command received: \(command)")
       Task {
         await appLauncher.prepareForPlayback()

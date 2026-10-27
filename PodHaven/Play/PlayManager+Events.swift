@@ -145,7 +145,7 @@ extension PlayManager {
     )
   }
 
-  private func handleTrackBehaviorChange() {
+  private func handleTrackBehaviorChange() async {
     Self.log.debug(
       """
       handleTrackBehaviorChange:
@@ -155,11 +155,11 @@ extension PlayManager {
       """
     )
 
-    CommandCenter.updateNextTrack()
+    await CommandCenter.updateNextTrack()
     NowPlayingInfo.updateQueueCount()
   }
 
-  private func handleSkipIntervalsChange() {
+  private func handleSkipIntervalsChange() async {
     Self.log.debug(
       """
       handleSkipIntervalsChange:
@@ -168,15 +168,15 @@ extension PlayManager {
       """
     )
 
-    CommandCenter.updateSkipIntervals()
+    await CommandCenter.updateSkipIntervals()
   }
 
-  private func handleScrubbingChange() {
+  private func handleScrubbingChange() async {
     Self.log.debug(
       "handleScrubbingChange: commandCenterScrubbingEnabled: \(userSettings.commandCenterScrubbingEnabled)"
     )
 
-    CommandCenter.updateScrubbing()
+    await CommandCenter.updateScrubbing()
   }
 
   private func cancelLoadForMediaServicesReset() async {
@@ -229,7 +229,7 @@ extension PlayManager {
     Self.log.debug("handleMediaServicesReset: reset AVPlayer scope")
 
     // Re-register on the fresh factory instances
-    CommandCenter.registerRemoteCommandHandlers()
+    await CommandCenter.registerRemoteCommandHandlers()
     Self.log.debug("handleMediaServicesReset: remote command handlers re-registered")
 
     beginMediaServicesRecovery(interruptedEpisodeID: interruptedEpisodeID)
@@ -666,7 +666,7 @@ extension PlayManager {
       guard let self else { return }
       for await _ in userSettings.$nextTrackBehavior.stream() {
         Self.log.debug("nextTrackBehavior changed to: \(userSettings.nextTrackBehavior)")
-        handleTrackBehaviorChange()
+        await handleTrackBehaviorChange()
       }
     }
 
@@ -674,7 +674,7 @@ extension PlayManager {
       guard let self else { return }
       for await _ in userSettings.$skipForwardInterval.stream() {
         Self.log.debug("skipForwardInterval changed to: \(userSettings.skipForwardInterval)s")
-        handleSkipIntervalsChange()
+        await handleSkipIntervalsChange()
       }
     }
 
@@ -682,7 +682,7 @@ extension PlayManager {
       guard let self else { return }
       for await _ in userSettings.$skipBackwardInterval.stream() {
         Self.log.debug("skipBackwardInterval changed to: \(userSettings.skipBackwardInterval)s")
-        handleSkipIntervalsChange()
+        await handleSkipIntervalsChange()
       }
     }
 
@@ -692,7 +692,7 @@ extension PlayManager {
         Self.log.debug(
           "commandCenterScrubbingEnabled changed to: \(userSettings.commandCenterScrubbingEnabled)"
         )
-        handleScrubbingChange()
+        await handleScrubbingChange()
       }
     }
 
@@ -706,14 +706,14 @@ extension PlayManager {
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in userSettings.$commandCenterLikeAction.stream() {
-        CommandCenter.updateFeedbackCommands()
+        await CommandCenter.updateFeedbackCommands()
       }
     }
 
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in userSettings.$commandCenterDislikeAction.stream() {
-        CommandCenter.updateFeedbackCommands()
+        await CommandCenter.updateFeedbackCommands()
       }
     }
 
@@ -723,7 +723,7 @@ extension PlayManager {
       guard let self else { return }
       for await _ in sharedState.$queuedPodcastEpisodes.stream() {
         Self.log.debug("queue changed, count: \(sharedState.queueCount)")
-        handleTrackBehaviorChange()
+        await handleTrackBehaviorChange()
       }
     }
 
@@ -733,8 +733,8 @@ extension PlayManager {
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in sharedState.$onDeck.stream() {
-        CommandCenter.updateBookmark()
-        CommandCenter.updateFeedbackCommands()
+        await CommandCenter.updateBookmark()
+        await CommandCenter.updateFeedbackCommands()
       }
     }
 
@@ -743,7 +743,7 @@ extension PlayManager {
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in sharedState.$tags.stream() {
-        CommandCenter.updateFeedbackCommands()
+        await CommandCenter.updateFeedbackCommands()
       }
     }
   }
