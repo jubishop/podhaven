@@ -63,7 +63,8 @@ block from `<!-- analyze-sentry-issue-findings:start -->` through
 `<!-- analyze-sentry-issue-findings:end -->` in the same issue body is the
 completion signal. When invoked this way, run this entire workflow, enrich the
 issue without changing the worktree, then return control to `fix-issue`; do
-not implement the proposed fix here.
+not implement the proposed fix here. Treat the user instructions given to
+`fix-issue` as this skill's triage notes.
 
 ## Step 0: No reference given? List unresolved issues
 
@@ -243,6 +244,9 @@ capture it. Explain how those signals would distinguish the remaining
 plausible causes. Keep the cause explicitly unknown; a speculative fix,
 generic investigation, or monitor-only recommendation does not satisfy this
 fallback. Use an action-oriented title such as `Add diagnostics for <symptom>`.
+A user's explicit disposition, such as accepting the error as noise, takes
+precedence over this fallback: record it and the evidence reviewed as the
+proposed resolution, and use the archive closeout.
 
 Every proposed evidence-gathering change must automatically capture and send
 the needed evidence to Sentry, including through automatically uploaded log

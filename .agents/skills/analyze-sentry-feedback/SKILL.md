@@ -68,7 +68,8 @@ deliberately updated. The argument is that
 `<!-- analyze-sentry-feedback-findings:end -->` in the same issue body is the
 completion signal. When invoked this way, run this entire triage workflow,
 enrich the issue without changing the worktree, then return control to
-`fix-issue`; do not implement the proposed fix here.
+`fix-issue`; do not implement the proposed fix here. Treat the user
+instructions given to `fix-issue` as this skill's triage notes.
 
 ## Step 0: No reference given? List unresolved feedback
 
@@ -546,7 +547,9 @@ targeted telemetry, logging, breadcrumbs, or retention changes needed to
 capture it. Explain how those signals would distinguish the remaining
 plausible causes. Keep the cause explicitly unknown; a speculative fix,
 generic investigation, or monitor-only recommendation does not satisfy this
-fallback.
+fallback. A user's explicit disposition, such as accepting the report as
+expected behavior, takes precedence over this fallback: record it and the
+evidence reviewed as the proposed resolution.
 
 Every proposed evidence-gathering change must automatically capture and send
 the needed evidence to Sentry, including through automatically uploaded log
