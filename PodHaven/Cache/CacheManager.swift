@@ -221,20 +221,10 @@ struct CacheManager {
     downloadLatches { $0.removeValue(forKey: attempt) }?.open()
   }
 
-  func updateDownloadProgress(
-    _ progress: Double,
-    for attempt: CacheDownloadAttempt,
-    bytesWritten: Int64? = nil,
-    bytesExpected: Int64? = nil
-  ) {
+  func updateDownloadProgress(_ progress: Double, for attempt: CacheDownloadAttempt) {
     downloadRegistry { registry in
       guard registry.activeAttempts[attempt.episodeID] == attempt else { return }
-      sharedState.updateDownloadProgress(
-        for: attempt.episodeID,
-        progress: progress,
-        bytesWritten: bytesWritten,
-        bytesExpected: bytesExpected
-      )
+      sharedState.updateDownloadProgress(for: attempt.episodeID, progress: progress)
     }
   }
 

@@ -60,6 +60,7 @@ struct AppLauncher: Sendable {
     guard AppInfo.environment != .preview else { return }
 
     configureLogging()
+    Self.removeRetiredChartDiagnostics()
     guard AppInfo.environment != .testing else { return }
 
     // Registered here rather than in the foreground-gated startSystemMonitoring
@@ -216,6 +217,22 @@ struct AppLauncher: Sendable {
     }
   }
 
+  private static func removeRetiredChartDiagnostics() {
+    let logDirectory = AppInfo.recentLogFileURL.deletingLastPathComponent()
+    for url in [
+      logDirectory.appendingPathComponent("chart-progress", isDirectory: true),
+      logDirectory.appendingPathComponent("chart-progress.ndjson"),
+    ] {
+      do {
+        try Container.shared.fileManager().removeItem(at: url)
+        log.info("Removed retired chart diagnostics at \(url.lastPathComponent)")
+      } catch {
+        guard !ErrorKit.isMissingFile(error) else { continue }
+        log.caughtError("Could not remove retired chart diagnostics", error)
+      }
+    }
+  }
+
   private static func bootstrapOSLogAndFileLog(
     extraHandlers: @escaping @Sendable (String) -> [any LogHandler] = { _ in [] }
   ) {
@@ -291,14 +308,8 @@ struct AppLauncher: Sendable {
     options.beforeSendLog = sentryBeforeSendLog
     options.beforeSendWithHint = { event, hint in
       guard let event = eventProcessor.process(event) else { return nil }
-      hint.attachments.removeAll { $0.filename == "chart-progress.ndjson" }
-      let chartAttachment = Container.shared.chartProgressDiagnostics()
-        .attachment(
-          sessionID: event.tags?["log-session-id"] ?? FileLogHandler.sessionID
-        )
       let attachments =
-        recentLogAttachments + [chartAttachment]
-        + Container.shared.siriResolutionDiagnostics().attachments()
+        recentLogAttachments + Container.shared.siriResolutionDiagnostics().attachments()
       for attachment in attachments
       where !hint.attachments.contains(where: { $0.filename == attachment.filename }) {
         hint.attachments.append(attachment)
@@ -315,7 +326,6 @@ struct AppLauncher: Sendable {
     scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
     scope.setTag(value: FileLogHandler.sessionID, key: "log-session-id")
     scope.setUser(Sentry.User(userId: AppInfo.deviceIdentifier))
-    _ = Container.shared.chartProgressDiagnostics()
     for attachment in recentLogAttachments {
       scope.addAttachment(attachment)
     }
