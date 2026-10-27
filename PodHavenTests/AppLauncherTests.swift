@@ -97,22 +97,20 @@ struct AppLauncherTests {
     let attachments = items.filter { $0.header["type"] as? String == "attachment" }
     let expected =
       missingWidget
-      ? ["chart-progress.ndjson", "recent-log.ndjson"]
-      : ["chart-progress.ndjson", "recent-log.ndjson", "recent-widget-log.ndjson"]
+      ? ["recent-log.ndjson"]
+      : ["recent-log.ndjson", "recent-widget-log.ndjson"]
     #expect(
       attachments.compactMap { $0.header["filename"] as? String }.sorted() == expected.sorted()
     )
     #expect(
       attachments.allSatisfy { $0.header["content_type"] as? String == "application/x-ndjson" }
     )
-    #expect(
-      attachments.filter { $0.header["filename"] as? String != "chart-progress.ndjson" }
-        .allSatisfy { $0.data == content }
-    )
+    #expect(attachments.allSatisfy { $0.data == content })
     let outgoing = try #require(items.first { $0.header["type"] as? String == "event" })
     let json = try #require(JSONSerialization.jsonObject(with: outgoing.data) as? [String: Any])
     let contexts = try #require(json["contexts"] as? [String: Any])
     #expect(contexts["recent_log_files"] != nil)
+    #expect(contexts["chart_progress_file"] == nil)
     #expect((contexts["podcast_detail_performance"] != nil) == !initialScope)
     #expect(json["environment"] as? String == AppInfo.environment.rawValue)
     if initialScope {
@@ -141,18 +139,38 @@ struct AppLauncherTests {
     hint.attachments = [tail, full, photo]
     let event = Event(level: .error)
     #expect(callback(event, hint) === event)
-    #expect(hint.attachments.count == 5)
+    #expect(hint.attachments.count == 4)
     #expect(hint.attachments[0] === tail)
     #expect(hint.attachments[1] === full)
     #expect(hint.attachments[2] === photo)
+    #expect(hint.attachments[3].filename == "recent-widget-log.ndjson")
     #expect(callback(event, hint) === event)
-    #expect(hint.attachments.count == 5)
+    #expect(hint.attachments.count == 4)
     let exception = Exception(value: "disk write", type: "MXDiskWriteException")
     exception.mechanism = Mechanism(type: "mx_disk_write_exception")
     event.exceptions = [exception]
     let filteredHint = Hint()
     #expect(callback(event, filteredHint) == nil)
     #expect(filteredHint.attachments.isEmpty)
+  }
+
+  @Test("launch removes retired chart diagnostic storage and keeps recent logs")
+  @MainActor func launchRemovesRetiredChartStorage() throws {
+    let fileManager = try #require(Container.shared.fileManager() as? FakeFileManager)
+    let logDirectory = AppInfo.recentLogFileURL.deletingLastPathComponent()
+    let retired = [
+      logDirectory.appendingPathComponent("chart-progress/session.bin"),
+      logDirectory.appendingPathComponent("chart-progress.ndjson"),
+    ]
+    for file in retired + [AppInfo.recentLogFileURL] {
+      try fileManager.writeDataSynchronously(Data("evidence".utf8), to: file)
+    }
+
+    Container.shared.appLauncher().bootstrap()
+    Container.shared.appLauncher().bootstrap()
+
+    #expect(retired.allSatisfy { !fileManager.fileExists(at: $0) })
+    #expect(fileManager.fileExists(at: AppInfo.recentLogFileURL))
   }
 
   @Test("outgoing feedback preserves full logs and photos alongside recent tails")

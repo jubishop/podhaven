@@ -39,9 +39,7 @@ struct OPMLImportSheet: View {
           .green: Double(opmlFile.finished.count),
           .blue: Double(opmlFile.downloading.count),
           .red: Double(opmlFile.failed.count),
-        ],
-        source: .opml,
-        waitingCount: opmlFile.waiting.count
+        ]
       )
       .frame(maxWidth: .infinity)
       .accessibilityElement(children: .ignore)

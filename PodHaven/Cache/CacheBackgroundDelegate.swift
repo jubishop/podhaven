@@ -111,9 +111,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       if let episode = try await self.episode(for: downloadTask) {
         cacheManager.updateDownloadProgress(
           Double(totalBytesWritten) / Double(totalBytesExpectedToWrite),
-          for: CacheDownloadAttempt(episodeID: episode.id, taskID: downloadTask.taskID),
-          bytesWritten: totalBytesWritten,
-          bytesExpected: totalBytesExpectedToWrite
+          for: CacheDownloadAttempt(episodeID: episode.id, taskID: downloadTask.taskID)
         )
       }
     } catch {

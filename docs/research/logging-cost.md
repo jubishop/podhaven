@@ -73,10 +73,11 @@ through the flush was 34.337 ms. Suppression summaries also consume output
 space; admission does not eliminate all later accounting work.
 
 For the mapped chart case, exporting the retained history separately took a
-median 1.855 ms and produced 7,853 bytes. Export happens during event
-preparation, outside the rendering path. The integrated chart tests also
-compare capture with the former journal; see
-[chart diagnostics](../chart-progress-diagnostics.md#cost-measurement).
+median 1.855 ms and produced 7,853 bytes. Export happened during event
+preparation, outside the rendering path. The mapped chart store was later
+removed with the Charts progress ring in
+[#775](https://github.com/jubishop/podhaven/issues/775), so its rows are
+historical measurements only.
 
 The isolated component probe passed its result/raw-log checks. Its temporary
 harness and evidence remain under `.cache/logging-725/integrated-micro*` and
@@ -98,8 +99,7 @@ actionable warning/error reporting.
 - Keep the existing burst of 50 and refill of one record per second per
   `(file, line)`. Admission is first-come; it does not promise fairness when many
   sites fill the aggregate cap. Each rejected site retains its count and source
-  context even if none of its entries were accepted. Chart-state fairness is
-  handled independently by the mapped store.
+  context even if none of its entries were accepted.
 - Routine foreground and background file entries use the background-priority
   worker without waiting. Critical records still bypass admission and finish
   synchronously. Existing explicit lifecycle flushes remain in place. Routine
@@ -119,9 +119,10 @@ actionable warning/error reporting.
   rotation, and previous-session history.
 
 The chart store from [#724](https://github.com/jubishop/podhaven/issues/724)
-replaces this branch's provisional synchronous chart journal. There is no
+replaced this branch's provisional synchronous chart journal. There is no
 remaining production caller for the provisional lazy-message overload, so it
-was removed. Chart updates do not enter `FileLogHandler`.
+was removed. Chart updates never entered `FileLogHandler`, and #775 later
+removed the chart store itself.
 
 ## Playback evidence limits
 
@@ -167,4 +168,5 @@ revision/sequence, retention limits, and byte bounds. Evidence is under
 This verifies integration of the new logger with #724's automatic crash
 evidence. The original Charts trap was not reproduced. No physical iPhone was
 used. #724 owns its completed Sentry tracking closeout; this logging change
-does not claim to fix that crash.
+does not claim to fix that crash. #775 later replaced the Charts progress ring
+and removed the chart store, its probe, and `bin/sentry-charts-smoke`.

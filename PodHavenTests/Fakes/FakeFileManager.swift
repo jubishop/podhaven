@@ -68,7 +68,14 @@ final class FakeFileManager: FileManaging, Sendable {
     if let error = removeItemErrors({ $0.removeValue(forKey: url) }) { throw error }
     // Match the real FileManager's missing-file error shape so production code
     // discriminating via ErrorKit.isMissingFile behaves the same in tests.
-    guard fileExists(atPath: url.path) else {
+    // A directory exists when it holds any in-memory file.
+    let directoryPrefix = url.standardizedFileURL.path + "/"
+    guard
+      fileExists(atPath: url.path)
+        || inMemoryFiles().keys.contains(where: {
+          $0.standardizedFileURL.path.hasPrefix(directoryPrefix)
+        })
+    else {
       throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: url.path])
     }
     inMemoryFiles { files in
