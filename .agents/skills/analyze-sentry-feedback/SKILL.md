@@ -639,12 +639,15 @@ Keep the feedback unresolved in Sentry while this issue remains open.
   issue ID `<related numeric-id>`). When a merged commit fixes it, resolve it
   in that commit, so only builds that contain the fix can regress it:
   `sentry issue resolve <related numeric-id> --in @commit:jubishop/podhaven@<merge-commit-sha>`.
-  If Sentry rejects the commit, or no commit fixes it, use `--in @next`. When
+  Sentry silently ignores this for an issue that is already resolved, so run
+  `sentry issue unresolve <related numeric-id>` first in that case. If Sentry
+  rejects the commit, or no commit fixes it, use `--in @next`. When
   the error is accepted as expected behavior, archive it instead with
   `sentry issue archive <related numeric-id> --until auto`.
-- Read each back with `sentry issue view <numeric-id> --fresh --json --fields id,status`
+- Read each back with `sentry issue view <numeric-id> --fresh --json --fields id,status,statusDetails`
   and verify every matching ID has `status: resolved`, or `status: ignored`
-  after archiving, before reporting completion.
+  after archiving, before reporting completion. For a commit resolution, also
+  verify that `statusDetails.inCommit.id` is the merge commit.
 - For PR-backed work, `fix-issue` must carry this obligation, identifiers,
   links, and verification into the PR's `Do After Merging` section. The
   `after-merge` agent completes it as tracking closeout after confirming

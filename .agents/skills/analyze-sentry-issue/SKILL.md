@@ -332,15 +332,18 @@ This issue tracks [Sentry issue `<shortId>`](<permalink>) (numeric issue ID `<nu
   - When a merged commit fixes it, resolve it in that commit, so only builds
     that contain the fix can regress it:
     `sentry issue resolve <numeric-id> --in @commit:jubishop/podhaven@<merge-commit-sha>`.
-    If Sentry rejects the commit, use `--in @next`.
+    Sentry silently ignores this for an issue that is already resolved, so
+    run `sentry issue unresolve <numeric-id>` first in that case. If Sentry
+    rejects the commit, use `--in @next`.
   - When the issue closes without a fix commit, such as a stale-build
     recurrence, use `sentry issue resolve <numeric-id> --in @next`.
   - When the error is accepted as expected behavior, archive it instead with
     `sentry issue archive <numeric-id> --until auto`, so the daily intake
     ignores it unless it escalates.
-- Read it back with `sentry issue view <numeric-id> --fresh --json --fields id,status`
+- Read it back with `sentry issue view <numeric-id> --fresh --json --fields id,status,statusDetails`
   and verify `status: resolved`, or `status: ignored` after archiving, before
-  reporting completion.
+  reporting completion. For a commit resolution, also verify that
+  `statusDetails.inCommit.id` is the merge commit.
 - For PR-backed work, `fix-issue` must carry this obligation, identifiers,
   link, and verification into the PR's `Do After Merging` section. The
   `after-merge` agent completes it as tracking closeout after confirming
