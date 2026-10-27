@@ -72,6 +72,11 @@ elif name == 'fastlane':
         parts = version.split('.')
         parts[-1] = str(int(parts[-1]) + 1)
         pathlib.Path(output).write_text('.'.join(parts))
+elif name == 'sentry':
+    if args[:2] == ['auth', 'status'] and os.environ.get('FAIL_SENTRY') == 'auth': sys.exit(1)
+    if args[:2] == ['release', 'set-commits'] and os.environ.get('FAIL_SENTRY') == 'commits':
+        print('Sentry failure: commits', file=sys.stderr)
+        sys.exit(45)
 elif name in ('gh', 'rm'): pass
 else: raise SystemExit('Unexpected command: ' + name)
 '''
@@ -91,7 +96,7 @@ class DeployTests(unittest.TestCase):
         gate.chmod(0o755)
         self.commands = self.base / "commands"
         self.commands.mkdir()
-        for command in ("git", "xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "rm"):
+        for command in ("git", "xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "rm", "sentry"):
             path = self.commands / command
             path.write_text(f"#!{sys.executable}\n" + FAKE)
             path.chmod(0o755)
@@ -207,6 +212,44 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(len(uploads), 1)
         self.assertEqual(sum("--ensure" in event[1] for event in self.events("test-all")), 2)
 
+    def test_upload_associates_release_commits_before_distribution(self):
+        result = self.run_deploy("--notes", "Fixes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        release = "artisanal-software/com.artisanalsoftware.PodHaven@1.0.1+569"
+        self.assertEqual([event[1] for event in self.events("sentry")], [
+            ["auth", "status"],
+            ["release", "create", release, "--project", "podhaven"],
+            ["release", "set-commits", release, "--from", "v1.0b568"],
+        ])
+        order = [(event[0], event[1]) for line in (self.base / "events").read_text().splitlines()
+                 if (event := json.loads(line))[0] in ("xcodebuild", "sentry", "fastlane")]
+        upload = next(index for index, (name, args) in enumerate(order) if "-exportArchive" in args)
+        commits = order.index(("sentry", ["release", "set-commits", release, "--from", "v1.0b568"]))
+        distribution = max(index for index, (name, args) in enumerate(order)
+                           if name == "fastlane" and "preflight:true" not in args and "prepare:true" not in args)
+        self.assertLess(upload, commits)
+        self.assertLess(commits, distribution)
+
+    def test_sentry_auth_failure_stops_before_archive(self):
+        result = self.run_deploy(FAIL_SENTRY="auth")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("sentry auth login", result.stderr)
+        self.assertFalse(any("archive" in event[1] for event in self.events("xcodebuild")))
+
+    def test_failed_sentry_commits_retry_without_another_upload(self):
+        result = self.run_deploy("--notes", "Fixes", FAIL_SENTRY="commits")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Sentry release commits", result.stderr)
+        self.assertEqual(json.loads((self.base / "state").read_text())["tag"], "v1.0.1b569")
+        self.assertFalse([event for event in self.events("fastlane")
+                          if "preflight:true" not in event[1] and "prepare:true" not in event[1]])
+        result = self.run_deploy("--notes", "Fixes")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(sum("-exportArchive" in event[1] for event in self.events("xcodebuild")), 1)
+        commits = [event[1] for event in self.events("sentry") if event[1][:2] == ["release", "set-commits"]]
+        self.assertEqual(len(commits), 2)
+        self.assertEqual(commits[-1][2], "artisanal-software/com.artisanalsoftware.PodHaven@1.0.1+569")
+
     def test_notes_can_distribute_a_previously_completed_upload(self):
         self.assertEqual(self.run_deploy().returncode, 0)
         result = self.run_deploy("--notes", "Fixes")
@@ -245,7 +288,7 @@ class TaggedDeployTests(unittest.TestCase):
         gate.chmod(0o755)
         commands = self.base / "commands"
         commands.mkdir()
-        for name in ("xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "rm"):
+        for name in ("xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "rm", "sentry"):
             path = commands / name
             path.write_text(f"#!{sys.executable}\n" + FAKE)
             path.chmod(0o755)
@@ -316,6 +359,14 @@ class TaggedDeployTests(unittest.TestCase):
         self.assertIn("(v1.3.1b576..HEAD)", result.stdout)
         self.assertEqual(self.receipt.read_text().strip(), "v1.3.1b577")
         self.assertTrue(any("-exportArchive" in event[1] for event in self.events("xcodebuild")))
+        self.assertIn(["release", "set-commits", "artisanal-software/com.artisanalsoftware.PodHaven@1.3.1+577",
+                       "--from", "v1.3.1b576"], [event[1] for event in self.events("sentry")])
+
+    def test_reused_upload_associates_commits_since_the_previous_tag(self):
+        result = self.run_deploy("--notes", "Fixes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(["release", "set-commits", "artisanal-software/com.artisanalsoftware.PodHaven@1.3.1+576",
+                       "--from", "v1.3.1b575"], [event[1] for event in self.events("sentry")])
 
     def assert_review_conflict_advances_patch(self, phase):
         if phase != "preflight":

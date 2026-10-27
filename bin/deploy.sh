@@ -255,6 +255,16 @@ if ! command -v gh &>/dev/null; then
   exit 1
 fi
 
+# Require an authenticated sentry CLI for associating release commits
+if ! command -v sentry &>/dev/null; then
+  echo "error: sentry not found. Install it from https://cli.sentry.dev" >&2
+  exit 1
+fi
+if ! sentry auth status &>/dev/null; then
+  echo "error: Sentry auth required. Run: sentry auth login" >&2
+  exit 1
+fi
+
 "$SCRIPT_DIR/test-all" --preflight
 
 UPLOAD_SUCCEEDED=false
@@ -498,6 +508,18 @@ if [[ "$UPLOAD_SUCCEEDED" != true ]]; then
   UPLOAD_SUCCEEDED=true
   printf '%s\n' "$tag" > "${UPLOAD_RECEIPT}.tmp"
   mv "${UPLOAD_RECEIPT}.tmp" "$UPLOAD_RECEIPT"
+fi
+
+# Resolving Sentry issues in a commit needs releases that list their commits.
+CURRENT_PHASE="Sentry release commits"
+sentry_release="artisanal-software/com.artisanalsoftware.PodHaven@${version}+${build}"
+release_base=$(printf '%s\n' "$release_tags" | awk -v tag="$tag" 'NF && $0 != tag' | tail -1)
+echo "==> Associating commits with Sentry release ${sentry_release#*/}..."
+sentry release create "$sentry_release" --project podhaven >/dev/null
+if [[ -n "$release_base" ]]; then
+  sentry release set-commits "$sentry_release" --from "$release_base"
+else
+  sentry release set-commits "$sentry_release" --local
 fi
 
 if [[ -n "$TESTFLIGHT_NOTES" ]]; then

@@ -93,6 +93,14 @@ The upload then uses that version and a new build number. With `--notes`, it
 waits for processing and assigns the exact build to the external Everyone
 group. Without `--notes`, it only tests, archives, and uploads.
 
+Every upload, including App Store builds, also lists the commits since the
+previous release tag on its Sentry release,
+`com.artisanalsoftware.PodHaven@<version>+<build>`. Sentry then knows which
+builds contain a fix, so an issue resolved in that fix's commit regresses only
+in builds that contain it. The command needs an authenticated `sentry` CLI
+and checks it before archiving. If the Sentry step fails after upload, retry
+the same command; it reuses the upload.
+
 TestFlight processing is checked every 30 seconds for up to two hours. Set
 `PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS` to a positive whole number of seconds to
 change that wait. A timeout preserves the upload and stops before distribution.
