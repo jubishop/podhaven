@@ -150,9 +150,10 @@ as required issue content:
   with `sentry issue resolve <numeric-id>`.
 - Read it back with `sentry issue view <numeric-id> --fresh --json --fields id,status`
   and verify the matching ID has `status: resolved` before reporting completion.
-- For PR-backed work, `fix-issue` must carry this obligation, identifiers, and
-  verification into the PR's `Do After Merging` section. The `after-merge`
-  agent completes it as tracking closeout after confirming GitHub closure.
+- For PR-backed work, `fix-issue` must carry this obligation, identifiers,
+  permalink, and verification into the PR's `Do After Merging` section. The
+  `after-merge` agent completes it as tracking closeout after confirming
+  GitHub closure.
   It is agent work, not a manual reminder or a release/observation task.
 - For issue-only work, the closing agent performs the same resolution and
   readback after closing the GitHub issue. If access or resolution fails,

@@ -625,11 +625,16 @@ Keep the feedback unresolved in Sentry while this issue remains open.
 - After this GitHub issue is closed, resolve [Sentry feedback `<slug>`](<permalink>)
   (`<shortId>`, numeric issue ID `<numeric-id>`) with
   `sentry issue resolve <numeric-id>`.
-- Read it back with `sentry issue view <numeric-id> --fresh --json --fields id,status`
-  and verify the matching ID has `status: resolved` before reporting completion.
-- For PR-backed work, `fix-issue` must carry this obligation, identifiers, and
-  verification into the PR's `Do After Merging` section. The `after-merge`
-  agent completes it as tracking closeout after confirming GitHub closure.
+- <one bullet per related Sentry issue the fix also resolves, if any> Also
+  resolve [Sentry issue `<related shortId>`](<related permalink>) (numeric
+  issue ID `<related numeric-id>`) with
+  `sentry issue resolve <related numeric-id>`.
+- Read each back with `sentry issue view <numeric-id> --fresh --json --fields id,status`
+  and verify every matching ID has `status: resolved` before reporting completion.
+- For PR-backed work, `fix-issue` must carry this obligation, identifiers,
+  links, and verification into the PR's `Do After Merging` section. The
+  `after-merge` agent completes it as tracking closeout after confirming
+  GitHub closure.
   It is agent work, not a manual reminder or a release/observation task.
 - For issue-only work, the closing agent performs the same resolution and
   readback after closing the GitHub issue. If access or resolution fails,
@@ -653,10 +658,13 @@ complete. If the user explicitly directs immediate resolution because no work
 remains, honor that only after the issue records the disposition.
 
 Replace all placeholders with this feedback's actual identifiers before
-handing the body to `create-issue`. Read back any created or changed issue.
-Verify its title, sanitized body, feedback marker, complete findings block,
-Sentry closeout and merge-handoff instructions, state, `sentry-feedback` label,
-and any other required metadata.
+handing the body to `create-issue`. Link every Sentry item the closeout names
+beside its short and numeric IDs; an issue's permalink is
+`https://artisanal-software.sentry.io/issues/<numeric-id>/`. Omit the
+related-issue bullet when the fix resolves no other Sentry issue. Read back
+any created or changed issue. Verify its title, sanitized body, feedback
+marker, complete findings block, Sentry closeout and merge-handoff
+instructions, state, `sentry-feedback` label, and any other required metadata.
 The `create-issue` verification covers new issues; apply the same readback
 standard to enrichment and reopening.
 
