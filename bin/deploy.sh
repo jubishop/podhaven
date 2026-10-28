@@ -38,6 +38,7 @@ TestFlight uploads require a current app version with exactly two dots, such as 
 Release versions advance automatically: 2.1 becomes 2.1.1, and 2 becomes 2.0.1.
 The version change is committed, fully tested locally, and pushed before deployment.
 Fresh archives and uploads require valid full local test evidence for the clean commit.
+Fresh archives send their debug files to Sentry and stop before upload if any app binary lacks DWARF there.
 --notes TEXT: also wait for processing and submit to the external Everyone group.
               Repeating the command retries distribution of the same uploaded commit.
               Cancels one older waiting beta review before upload. If Apple has started
@@ -494,6 +495,28 @@ if [[ "$UPLOAD_SUCCEEDED" != true ]]; then
 
   CURRENT_PHASE="verify local validation before upload"
   "$SCRIPT_DIR/test-all" --verify --revision "$head_commit"
+
+  # Without each binary's DWARF dSYM, Sentry crash frames lack file, line, and local function names.
+  CURRENT_PHASE="Sentry debug symbols"
+  echo "==> Uploading debug symbols to Sentry..."
+  SENTRY_ORG=artisanal-software SENTRY_PROJECT=podhaven \
+    sentry debug-files upload "$ARCHIVE_PATH" --wait
+  app="$ARCHIVE_PATH/Products/Applications/PodHaven.app"
+  binaries=("$app/PodHaven")
+  for extension in "$app"/PlugIns/*.appex; do
+    binaries+=("$extension/$(basename "$extension" .appex)")
+  done
+  debug_ids=$(dwarfdump --uuid "${binaries[@]}" | awk '$1 == "UUID:" { print tolower($2) }')
+  for debug_id in $debug_ids; do
+    if ! sentry api "projects/artisanal-software/podhaven/files/dsyms/?query=${debug_id}" | python3 -c '
+import json, sys
+sys.exit(not any(file["debugId"] == sys.argv[1] and file["data"].get("type") == "dbg"
+                 and "debug" in file["data"].get("features", []) for file in json.load(sys.stdin)))
+' "$debug_id"; then
+      echo "error: Sentry lists no DWARF debug file for ${debug_id}." >&2
+      exit 1
+    fi
+  done
 
   # Export and upload
   echo "==> Uploading to App Store Connect..."
