@@ -18,7 +18,9 @@ on-device symbolication is impossible. This script:
 1. Locates MetricKit entries in the log.
 2. Walks the call-stack tree, gathering (UUID, offset) frames.
 3. Resolves each `binaryUUID` to a dSYM bundle via Sentry's Debug Files API
-   (cached locally by UUID under ~/Library/Caches/podhaven-symbolicate).
+   (cached locally by UUID under ~/Library/Caches/podhaven-symbolicate). It
+   prefers a DWARF debug file over a stripped executable; a cached executable
+   is rechecked against Sentry once per online run so a later dSYM replaces it.
 4. Runs `atos` to resolve frames to function/file/line.
 5. Prints a human-readable report (or JSON) alongside the diagnostic metadata.
 """
@@ -278,6 +280,7 @@ class DSYMResolver:
         self._ssl_context = build_ssl_context()
         self._opener = opener or self._default_opener
         self._misses: set[str] = set()
+        self._queried: set[str] = set()
         cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _default_opener(self, request: urllib.request.Request) -> Any:
@@ -286,7 +289,10 @@ class DSYMResolver:
     def resolve(self, uuid: str) -> Path | None:
         key = normalize_uuid(uuid)
         cached = self._lookup_cache(key)
-        if cached is not None:
+        # A cached stripped executable stands in only until Sentry holds DWARF.
+        if cached is not None and (
+            cached.parent.name == "DWARF" or key in self._queried or self.offline or not self.sentry_token
+        ):
             return cached
         if self.offline:
             self._misses.add(key)
@@ -295,12 +301,15 @@ class DSYMResolver:
             self._misses.add(key)
             self._log(f"no Sentry token configured; cannot fetch dSYM for {key}")
             return None
+        self._queried.add(key)
         try:
-            return self._download_and_cache(key)
+            resolved = self._download_and_cache(key, cached)
         except Exception as exc:
-            self._misses.add(key)
             self._log(f"dSYM fetch failed for {key}: {exc}")
-            return None
+            resolved = cached
+        if resolved is None:
+            self._misses.add(key)
+        return resolved
 
     @property
     def misses(self) -> list[str]:
@@ -359,20 +368,32 @@ class DSYMResolver:
                 return candidate
         return None
 
-    def _download_and_cache(self, key: str) -> Path | None:
+    @staticmethod
+    def _has_dwarf(record: dict[str, Any]) -> bool:
+        data = record.get("data")
+        if not isinstance(data, dict):
+            return False
+        features = data.get("features")
+        return data.get("type") == "dbg" or (isinstance(features, list) and "debug" in features)
+
+    def _download_and_cache(self, key: str, cached: Path | None) -> Path | None:
         files = self._list_debug_files(key)
-        if not files:
-            self._log(f"Sentry returned no debug files for {key}")
-            self._misses.add(key)
-            return None
+        # Sentry lists the newest file first, which may be a stripped executable.
+        records = [record for record in files if self._has_dwarf(record)]
+        if cached is None:
+            records += [record for record in files if not self._has_dwarf(record)]
+        if not records:
+            self._log(f"Sentry returned no {'DWARF ' if cached else ''}debug files for {key}")
+            return cached
         target_dir = self._entry_dir(key)
-        target_dir.mkdir(parents=True, exist_ok=True)
-        for record in files:
+        for record in records:
             file_id = record.get("id")
             if not isinstance(file_id, str):
                 continue
+            # _find_dwarf prefers files under a DWARF directory over the root.
+            destination = target_dir / "DWARF" if self._has_dwarf(record) else target_dir
             try:
-                self._download_file(file_id, target_dir)
+                self._download_file(file_id, destination)
             except Exception as exc:
                 self._log(f"download {file_id} failed: {exc}")
                 continue
@@ -380,7 +401,7 @@ class DSYMResolver:
             if dwarf is not None:
                 self._log(f"cached dSYM for {key} at {dwarf}")
                 return dwarf
-        return None
+        return cached
 
     def _list_debug_files(self, debug_id: str) -> list[dict[str, Any]]:
         path = f"projects/{self.sentry_org}/{self.sentry_project}/files/dsyms/"
@@ -394,6 +415,7 @@ class DSYMResolver:
         return data
 
     def _download_file(self, file_id: str, target_dir: Path) -> None:
+        target_dir.mkdir(parents=True, exist_ok=True)
         path = f"projects/{self.sentry_org}/{self.sentry_project}/files/dsyms/"
         query = urllib.parse.urlencode({"id": file_id})
         url = f"{SENTRY_API_BASE}/{path}?{query}"
@@ -668,7 +690,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--offline",
         action="store_true",
-        help="Do not contact Sentry; only use dSYMs already in the cache.",
+        help="Do not contact Sentry; only use dSYMs already in the cache, including a "
+        "stripped executable cached when Sentry had no DWARF debug file.",
     )
     parser.add_argument(
         "--json",

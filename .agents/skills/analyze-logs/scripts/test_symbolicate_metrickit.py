@@ -4,9 +4,12 @@
 
 from __future__ import annotations
 
+import io
 import json
 import sys
+import tempfile
 import unittest
+import urllib.parse
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -332,6 +335,91 @@ class TestEmptyWindowReporting(unittest.TestCase):
             [(e["timestamp_ms"], e["category"]) for e in payload["outside_window"]],
             [(100, "crash"), (200, "crash")],
         )
+
+
+DEBUG_ID = "89ed1475-650c-372c-88dc-12e70e9d9360"
+MACHO_MAGIC = b"\xcf\xfa\xed\xfe"
+EXE_RECORD = {"id": "exe-1", "data": {"type": "exe", "features": ["symtab", "unwind"]}}
+DBG_RECORD = {"id": "dbg-1", "data": {"type": "dbg", "features": ["debug", "symtab", "unwind"]}}
+
+
+class FakeSentry:
+    def __init__(self, records: list[dict]) -> None:
+        self.records = records
+        self.listings = 0
+        self.downloads: list[str] = []
+
+    def __call__(self, request) -> io.BytesIO:
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(request.full_url).query)
+        if "debug_id" in query:
+            self.listings += 1
+            return io.BytesIO(json.dumps(self.records).encode())
+        file_id = query["id"][0]
+        self.downloads.append(file_id)
+        return io.BytesIO(MACHO_MAGIC + file_id.encode())
+
+
+class TestDebugFileSelection(unittest.TestCase):
+    def setUp(self) -> None:
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.cache_dir = Path(temp.name)
+
+    def resolver(self, sentry: FakeSentry, token: str | None = "token", offline: bool = False) -> sm.DSYMResolver:
+        return sm.DSYMResolver(
+            cache_dir=self.cache_dir,
+            sentry_token=token,
+            sentry_org=sm.DEFAULT_SENTRY_ORG,
+            sentry_project=sm.DEFAULT_SENTRY_PROJECT,
+            offline=offline,
+            opener=sentry,
+        )
+
+    def resolve(self, sentry: FakeSentry, **options) -> bytes | None:
+        path = self.resolver(sentry, **options).resolve(DEBUG_ID.upper())
+        return None if path is None else path.read_bytes()
+
+    def test_dwarf_listed_after_an_executable_is_used(self) -> None:
+        sentry = FakeSentry([EXE_RECORD, DBG_RECORD])
+        self.assertEqual(self.resolve(sentry), MACHO_MAGIC + b"dbg-1")
+        self.assertEqual(sentry.downloads, ["dbg-1"])
+
+    def test_executable_is_the_fallback_without_dwarf(self) -> None:
+        sentry = FakeSentry([EXE_RECORD])
+        self.assertEqual(self.resolve(sentry), MACHO_MAGIC + b"exe-1")
+
+    def test_cached_executable_yields_to_dwarf_sentry_now_holds(self) -> None:
+        self.resolve(FakeSentry([EXE_RECORD]))
+        sentry = FakeSentry([EXE_RECORD, DBG_RECORD])
+        self.assertEqual(self.resolve(sentry), MACHO_MAGIC + b"dbg-1")
+        self.assertEqual(sentry.downloads, ["dbg-1"])
+
+    def test_cached_executable_is_kept_while_sentry_lacks_dwarf(self) -> None:
+        self.resolve(FakeSentry([EXE_RECORD]))
+        sentry = FakeSentry([EXE_RECORD])
+        self.assertEqual(self.resolve(sentry), MACHO_MAGIC + b"exe-1")
+        self.assertEqual((sentry.listings, sentry.downloads), (1, []))
+
+    def test_cached_executable_serves_offline_and_tokenless_runs(self) -> None:
+        self.resolve(FakeSentry([EXE_RECORD]))
+        sentry = FakeSentry([EXE_RECORD, DBG_RECORD])
+        self.assertEqual(self.resolve(sentry, offline=True), MACHO_MAGIC + b"exe-1")
+        self.assertEqual(self.resolve(sentry, token=None), MACHO_MAGIC + b"exe-1")
+        self.assertEqual(sentry.listings, 0)
+
+    def test_cached_dwarf_skips_sentry(self) -> None:
+        self.resolve(FakeSentry([EXE_RECORD, DBG_RECORD]))
+        sentry = FakeSentry([EXE_RECORD, DBG_RECORD])
+        self.assertEqual(self.resolve(sentry), MACHO_MAGIC + b"dbg-1")
+        self.assertEqual(sentry.listings, 0)
+
+    def test_sentry_is_rechecked_once_per_run(self) -> None:
+        self.resolve(FakeSentry([EXE_RECORD]))
+        sentry = FakeSentry([EXE_RECORD])
+        resolver = self.resolver(sentry)
+        first = resolver.resolve(DEBUG_ID)
+        self.assertEqual(resolver.resolve(DEBUG_ID), first)
+        self.assertEqual(sentry.listings, 1)
 
 
 class TestUUIDNormalization(unittest.TestCase):
