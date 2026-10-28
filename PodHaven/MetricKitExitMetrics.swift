@@ -28,20 +28,27 @@ struct ForegroundExitCounts {
     self.appWatchdog = appWatchdog
   }
 
-  var directive: MetricKitLogDirective {
-    let counts: [(String, Int)] = [
+  private var abnormalCounts: [(String, Int)] {
+    [
       ("memoryResourceLimit", memoryResourceLimit), ("badAccess", badAccess),
       ("abnormal", abnormal), ("illegalInstruction", illegalInstruction),
       ("appWatchdog", appWatchdog),
     ]
-    let abnormalReasons = counts.filter { $0.1 > 0 }.map(\.0)
+  }
+
+  var nonzeroAbnormalReasons: [String] {
+    abnormalCounts.filter { $0.1 > 0 }.map(\.0)
+  }
+
+  var directive: MetricKitLogDirective {
+    let abnormalReasons = nonzeroAbnormalReasons
     var metadata = Logging.Logger.Metadata(
       uniqueKeysWithValues:
-        counts.map { ($0.0, .string(String($0.1))) }
+        abnormalCounts.map { ($0.0, .string(String($0.1))) }
     )
     metadata["normalAppExit"] = .string(String(normalAppExit))
     return MetricKitLogDirective(
-      level: abnormalReasons.isEmpty ? .info : .critical,
+      level: abnormalReasons.isEmpty ? .info : .error,
       message: abnormalReasons.isEmpty
         ? "MetricKit foreground-exit metrics — routine"
         : "MetricKit foreground-exit metrics — abnormal: \(abnormalReasons.joined(separator: ", "))",

@@ -4,6 +4,13 @@ import FactoryKit
 import Foundation
 import Logging
 import MetricKit
+import Sentry
+
+extension Container {
+  var metricKitExitCapture: Factory<@Sendable (Sentry.Event) -> Void> {
+    Factory(self) { { event in SentrySDK.capture(event: event) } }
+  }
+}
 
 // Counts lifted out of MXBackgroundExitData so the forwarding decision can be
 // exercised in tests — MXMetricPayload and friends have no public initializer.
@@ -61,9 +68,9 @@ struct BackgroundExitCounts {
   // Names of the background-exit reasons that signal an app defect and have a
   // nonzero count in this payload, in a stable order. A graceful exit and an
   // iOS memory-pressure jettison of a suspended app are both routine reclaim,
-  // so neither contributes. Drives the .critical escalation and feeds the
-  // Sentry-grouping message — keeping the names off counts means recurrences
-  // of the same failure mode collapse into one Sentry issue.
+  // so neither contributes. Drives the escalation, the message, and the Sentry
+  // fingerprint, so recurrences of one failure mode share one Sentry issue
+  // whatever their counts.
   var nonzeroAbnormalReasons: [String] {
     var reasons: [String] = []
     if memoryResourceLimit > 0 { reasons.append("memoryResourceLimit") }
@@ -108,11 +115,17 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
 
   func receive(_ payload: any MetricKitMetricReporting) {
     if let counts = payload.foregroundExitCounts {
-      emitExitMetric(counts.directive, period: payload.reportingPeriod, scope: "foreground")
+      emitExitMetric(
+        counts.directive,
+        abnormalReasons: counts.nonzeroAbnormalReasons,
+        period: payload.reportingPeriod,
+        scope: "foreground"
+      )
     }
     if let counts = payload.backgroundExitCounts {
       emitExitMetric(
         Self.exitMetricDirective(for: counts),
+        abnormalReasons: counts.nonzeroAbnormalReasons,
         period: payload.reportingPeriod,
         scope: "background"
       )
@@ -191,23 +204,33 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
     Self.log.log(level: directive.level, "\(directive.message)", metadata: directive.metadata)
   }
 
+  // Sentry groups by in-app stack before message, and every exit summary shares
+  // this call site. Abnormal summaries therefore log below CrashReportHandler's
+  // threshold and send their own event, fingerprinted by scope and reasons.
   private func emitExitMetric(
     _ directive: MetricKitLogDirective,
+    abnormalReasons: [String],
     period: MetricKitReportingPeriod,
     scope: String
   ) {
     var metadata = directive.metadata.merging(period.metadata) { _, new in new }
     metadata["metricKit.scope"] = .string(scope)
     Self.log.log(level: directive.level, "\(directive.message)", metadata: metadata)
+    guard !abnormalReasons.isEmpty else { return }
+
+    let event = Sentry.Event(level: .error)
+    event.message = SentryMessage(formatted: directive.message)
+    event.fingerprint = ["metrickit-exit", scope] + abnormalReasons
+    event.tags = ["metrickit-exit": scope]
+    event.context = ["metrickit_exit": metadata.mapValues(\.description)]
+    Container.shared.metricKitExitCapture()(event)
   }
 
   // MARK: - Decision
 
-  // A background exit that signals an app defect escalates to .critical so
-  // CrashReportHandler files a Sentry issue; a routine payload — graceful exits
-  // and iOS memory-pressure jettisons — stays .info. Per-reason counts ride in
-  // metadata so the .critical message stays identical across recurrences and
-  // Sentry's message-based grouping collapses repeats of the same failure mode.
+  // A background exit that signals an app defect escalates to .error; a routine
+  // payload — graceful exits and iOS memory-pressure jettisons — stays .info.
+  // Per-reason counts ride in metadata, so the message names only the reasons.
   static func exitMetricDirective(for counts: BackgroundExitCounts) -> MetricKitLogDirective {
     let metadata: Logging.Logger.Metadata = [
       "normalAppExit": .string("\(counts.normalAppExit)"),
@@ -230,7 +253,7 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
       )
     }
     return MetricKitLogDirective(
-      level: .critical,
+      level: .error,
       message: """
         MetricKit background-exit metrics — abnormal: \
         \(abnormalReasons.joined(separator: ", "))
