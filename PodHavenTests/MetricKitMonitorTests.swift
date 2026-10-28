@@ -1,8 +1,10 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import FactoryTesting
 import Foundation
 import Logging
+import Sentry
 import Testing
 
 @testable import PodHaven
@@ -21,6 +23,35 @@ struct MetricKitMonitorTests {
     )
   }
 
+  private struct ExitEvent {
+    let level: SentryLevel
+    let message: String?
+    let fingerprint: [String]?
+    let tags: [String: String]?
+    let context: [String: String]?
+  }
+
+  private func sentryEvents(_ payloads: [Payload]) -> [ExitEvent] {
+    let captured = ThreadSafe<[ExitEvent]>([])
+    Container.shared.metricKitExitCapture.context(.test) {
+      { event in
+        let exitEvent = ExitEvent(
+          level: event.level,
+          message: event.message?.formatted,
+          fingerprint: event.fingerprint,
+          tags: event.tags,
+          context: event.context?["metrickit_exit"] as? [String: String]
+        )
+        captured { $0.append(exitEvent) }
+      }
+    }
+    let monitor = MetricKitMonitor()
+    for payload in payloads {
+      monitor.receive(payload)
+    }
+    return captured()
+  }
+
   @Test("foreground watchdog and memory-limit counts reach the diagnostic logger")
   func foregroundExitsReachDiagnosticLogger() {
     LogCapture.withSink { sink in
@@ -35,7 +66,7 @@ struct MetricKitMonitorTests {
       #expect(captured.count == 2)
       #expect(
         captured.contains {
-          $0.level == .critical && $0.message.contains("foreground-exit")
+          $0.level == .error && $0.message.contains("foreground-exit")
             && $0.message.contains("memoryResourceLimit") && $0.message.contains("appWatchdog")
         }
       )
@@ -66,7 +97,7 @@ struct MetricKitMonitorTests {
   func foregroundReasonsAreReported(counts: ForegroundExitCounts) {
     LogCapture.withSink { sink in
       MetricKitMonitor().receive(Payload(foregroundExitCounts: counts))
-      #expect(sink.captured().contains { $0.level == .critical })
+      #expect(sink.captured().contains { $0.level == .error })
     }
   }
 
@@ -99,7 +130,7 @@ struct MetricKitMonitorTests {
     #expect(period.metadata["metricKit.attribution"] == "reporting_period")
   }
   @Test(
-    "each abnormal background-exit reason escalates to .critical",
+    "each abnormal background-exit reason escalates to .error",
     arguments: [
       BackgroundExitCounts(memoryResourceLimit: 1),
       BackgroundExitCounts(cpuResourceLimit: 1),
@@ -111,8 +142,8 @@ struct MetricKitMonitorTests {
       BackgroundExitCounts(backgroundTaskAssertionTimeout: 1),
     ]
   )
-  func abnormalExitsEscalateToCritical(counts: BackgroundExitCounts) {
-    #expect(MetricKitMonitor.exitMetricDirective(for: counts).level == .critical)
+  func abnormalExitsEscalateToError(counts: BackgroundExitCounts) {
+    #expect(MetricKitMonitor.exitMetricDirective(for: counts).level == .error)
   }
 
   @Test(
@@ -127,21 +158,60 @@ struct MetricKitMonitorTests {
     #expect(MetricKitMonitor.exitMetricDirective(for: counts).level == .info)
   }
 
-  @Test("the .critical message is identical across payloads so Sentry groups recurrences")
-  func criticalMessageStableAcrossCounts() {
-    let first = MetricKitMonitor.exitMetricDirective(
-      for: BackgroundExitCounts(normalAppExit: 3, cpuResourceLimit: 1)
+  @Test("abnormal exit summaries reach Sentry grouped by scope and abnormal reasons")
+  func abnormalExitSummariesGroupByScopeAndReasons() throws {
+    let events = sentryEvents([
+      Payload(backgroundExitCounts: BackgroundExitCounts(memoryPressure: 7, badAccess: 1)),
+      Payload(backgroundExitCounts: BackgroundExitCounts(memoryPressure: 6, appWatchdog: 1)),
+      Payload(backgroundExitCounts: BackgroundExitCounts(normalAppExit: 9, appWatchdog: 4)),
+      Payload(foregroundExitCounts: ForegroundExitCounts(appWatchdog: 1)),
+      Payload(foregroundExitCounts: ForegroundExitCounts(badAccess: 1, appWatchdog: 2)),
+    ])
+
+    #expect(
+      events.map(\.fingerprint) == [
+        ["metrickit-exit", "background", "badAccess"],
+        ["metrickit-exit", "background", "appWatchdog"],
+        ["metrickit-exit", "background", "appWatchdog"],
+        ["metrickit-exit", "foreground", "appWatchdog"],
+        ["metrickit-exit", "foreground", "badAccess", "appWatchdog"],
+      ]
     )
-    let second = MetricKitMonitor.exitMetricDirective(
-      for: BackgroundExitCounts(normalAppExit: 11, cpuResourceLimit: 4)
-    )
-    #expect(first.level == .critical)
-    #expect(second.level == .critical)
-    #expect(first.message == second.message)
+    try #require(events.count == 5)
+    #expect(events.allSatisfy { $0.level == .error })
+    #expect(events[1].message == events[2].message)
+
+    let badAccess = try #require(events.first)
+    #expect(badAccess.message == "MetricKit background-exit metrics — abnormal: badAccess")
+    #expect(badAccess.tags == ["metrickit-exit": "background"])
+    let context = try #require(badAccess.context)
+    #expect(context["badAccess"] == "1")
+    #expect(context["memoryPressure"] == "7")
+    #expect(context["appWatchdog"] == "0")
+    #expect(context["metricKit.scope"] == "background")
+    #expect(context["metricKit.kind"] == "aggregate_exits")
+    #expect(context["metricKit.periodStart"] == "2023-11-14T22:13:20Z")
+    #expect(context["metricKit.periodEnd"] == "2023-11-15T22:13:20Z")
+    #expect(context["metricKit.payloadBuild"] == "573")
+    #expect(context["metricKit.multipleVersions"] == "true")
+    #expect(events[3].tags == ["metrickit-exit": "foreground"])
+    #expect(events[3].context?["metricKit.scope"] == "foreground")
   }
 
-  @Test("the .critical message names every nonzero abnormal reason and omits zero ones")
-  func criticalMessageNamesNonzeroAbnormalReasons() {
+  @Test("routine exit summaries send no Sentry event")
+  func routineExitSummariesSendNoSentryEvent() {
+    let events = sentryEvents([
+      Payload(
+        foregroundExitCounts: ForegroundExitCounts(normalAppExit: 3),
+        backgroundExitCounts: BackgroundExitCounts(normalAppExit: 4, memoryPressure: 2)
+      ),
+      Payload(),
+    ])
+    #expect(events.isEmpty)
+  }
+
+  @Test("the abnormal message names every nonzero abnormal reason and omits zero ones")
+  func abnormalMessageNamesNonzeroAbnormalReasons() {
     let directive = MetricKitMonitor.exitMetricDirective(
       for: BackgroundExitCounts(cpuResourceLimit: 1, appWatchdog: 2)
     )

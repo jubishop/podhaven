@@ -109,7 +109,7 @@ The embedded JSON is shaped like:
 
 Release-build binaries are stripped and the dSYM never ships to device, so the frames are **unsymbolicated**: each carries `binaryUUID` + `offsetIntoBinaryTextSegment` but no function/file/line. Use `scripts/symbolicate_metrickit.py` to resolve them against dSYMs from Sentry's Debug Files API. The script also accepts one downloaded raw diagnostic file, such as the `metrickit-crash-diagnostic.json` attachment on a forwarded MetricKit crash event or the SDK's `MXDiagnosticPayload.json`; that file has no log timestamp, so `--around` excludes it.
 
-The `MetricKit` background-exit metrics directive (separate, `.info` or `.critical`) uses a different shape: per-reason exit counts live as flat string keys in metadata (`normalAppExit`, `memoryResourceLimit`, …) and there is no `metricKitDiagnostic` field. The symbolication script ignores those.
+The `MetricKit` background-exit metrics directive (separate, `.info` or `.error`) uses a different shape: per-reason exit counts live as flat string keys in metadata (`normalAppExit`, `memoryResourceLimit`, …) and there is no `metricKitDiagnostic` field. The symbolication script ignores those.
 
 ## Analysis Notes
 

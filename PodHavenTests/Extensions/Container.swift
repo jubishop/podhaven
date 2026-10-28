@@ -14,6 +14,7 @@ extension Container: @retroactive AutoRegistering {
     appHangTracking.context(.test) { FakeAppHangTracking() }.scope(.cached)
     siriDiagnosticCapture.context(.test) { { _ in } }
     metricKitCrashCapture.context(.test) { { _, _ in } }
+    metricKitExitCapture.context(.test) { { _ in } }
     opmlDiagnosticCapture.context(.test) { { _, _ in } }
     siriAuthorized.context(.test) { { true } }
     siriCatalogFile.context(.test) {

@@ -59,10 +59,21 @@ For the recovered AppHang scope gap and temporary callback, see
 ## MetricKit exit summaries
 
 `MetricKitMonitor` receives foreground and background exit counts through
-Apple's supported payload properties. Abnormal foreground counts, including
-watchdog timeouts and memory-limit exits, produce a critical summary. Routine
-foreground exits remain informational. Existing background severity decisions
-and local diagnostic-payload capture are preserved.
+Apple's supported payload properties. Abnormal counts, such as watchdog
+timeouts, memory-limit exits, and bad-access crashes, produce an error summary.
+Routine exits, including background memory-pressure jettisons, remain
+informational. Local diagnostic-payload capture is preserved.
+
+Each abnormal summary is also sent to Sentry as its own error event. Sentry
+groups by in-app stack before message, and every summary is logged from the
+same call site, so a message alone would put every exit kind in one issue. The
+event's fingerprint is therefore `metrickit-exit`, the scope, and the nonzero
+abnormal reasons in a stable order. Each scope and set of reasons gets its own
+issue, and recurrences group whatever their counts. The `metrickit-exit` tag
+holds the scope. The `metrickit_exit` context holds the summary's log
+metadata: the `metricKit.*` fields below and the unprefixed per-reason counts.
+The summary logs below `.critical`, so `CrashReportHandler` does not send a
+second, stack-grouped event.
 
 The Sentry log transport forwards an explicit field list for these summaries:
 
