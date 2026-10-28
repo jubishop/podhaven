@@ -34,6 +34,7 @@ struct PhoneSceneView: View {
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.notificationService) private var notificationService
+  @DynamicInjected(\.processActivationDiagnostics) private var processActivationDiagnostics
   @DynamicInjected(\.shareService) private var shareService
   @DynamicInjected(\.userNotificationManager) private var userNotificationManager
   @DynamicInjected(\.userSettings) private var userSettings
@@ -60,8 +61,10 @@ struct PhoneSceneView: View {
 
       switch newPhase {
       case .active:
+        processActivationDiagnostics.record(.activated)
         Task {
           await appLauncher.prepareForForeground()
+          processActivationDiagnostics.record(.contentInserted)
           initialized = true
           // Skip the notify if the phase changed during the await: the
           // captured `.active` would be stale (the gate would re-enter

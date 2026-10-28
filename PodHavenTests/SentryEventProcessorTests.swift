@@ -75,6 +75,41 @@ struct SentryEventProcessorTests {
     #expect(metricKit.context?["podcast_detail_performance"] == nil)
   }
 
+  @Test("only recovered same-process App Hangs receive the process activation timeline")
+  func onlyRecoveredAppHangsReceiveActivationContext() throws {
+    let diagnostics = Container.shared.processActivationDiagnostics()
+    diagnostics.recordLaunch(applicationState: .background, prewarmed: false)
+    diagnostics.record(.activated)
+    diagnostics.record(.contentInserted)
+    let processor = Container.shared.sentryEventProcessor()
+
+    let recovered = try #require(
+      processor.process(Self.event(type: "App Hang Non Fully Blocked", mechanism: "AppHang"))
+    )
+    let context = try #require(recovered.context?["process_activation"] as? [String: Any])
+    #expect(context["launchApplicationState"] as? String == "background")
+    #expect(context["prewarmed"] as? Bool == false)
+    let milestones = try #require(context["milestones"] as? [[String: Any]])
+    #expect(
+      milestones.map { $0["milestone"] as? String } == ["launched", "activated", "contentInserted"]
+    )
+
+    let fatal = try #require(
+      processor.process(
+        Self.event(type: "Fatal App Hang Fully Blocked", mechanism: "AppHang")
+      )
+    )
+    #expect(fatal.context?["process_activation"] == nil)
+
+    let metricKit = try #require(
+      processor.process(Self.event(type: "MXHangDiagnostic", mechanism: "mx_hang_diagnostic"))
+    )
+    #expect(metricKit.context?["process_activation"] == nil)
+
+    let error = try #require(processor.process(Sentry.Event(level: .error)))
+    #expect(error.context?["process_activation"] == nil)
+  }
+
   @Test("MetricKit disk-write diagnostics remain filtered")
   func diskWriteDiagnosticsRemainFiltered() {
     let event = Self.event(

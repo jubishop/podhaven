@@ -5,6 +5,7 @@ import Foundation
 import Logging
 import Sentry
 import SwiftUI
+import UIKit
 
 private final class ProbeFileManager: FileManager, @unchecked Sendable {
   override func containerURL(forSecurityApplicationGroupIdentifier groupIdentifier: String) -> URL?
@@ -32,6 +33,12 @@ private struct PhoneScenePhaseReporter: ViewModifier {
 
   func body(content: Content) -> some View {
     content.onChange(of: scenePhase, initial: true) { _, phase in
+      let activation = Container.shared.processActivationDiagnostics()
+      activation.recordLaunch(
+        applicationState: UIApplication.shared.applicationState,
+        prewarmed: false
+      )
+      if phase == .active { activation.record(.activated) }
       Container.shared.appHangReportingGate().handleScenePhaseChange(to: phase)
     }
   }
@@ -110,6 +117,7 @@ struct HangProbe: App {
         .modifier(PhoneScenePhaseReporter())
         .onAppear {
           DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+            Container.shared.processActivationDiagnostics().record(.contentAppeared)
             Container.shared.navigation().currentTab = .settings
             Container.shared.podcastDetailPerformanceDiagnostics()
               .measure(.filterRefresh, episodeCount: 12) {}

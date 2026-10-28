@@ -80,6 +80,39 @@ together.
 Current-process context describes capture time and must not be relabeled as
 hang-time context.
 
+## First-activation timeline
+
+A process that iOS launches in the background builds its phone UI only at its
+first phone-scene activation. `PhoneSceneView` swaps in `ContentView` there,
+while the once-per-process foreground startup runs. Hangs at that moment need
+the process's own launch and activation timeline, which the recent-log tail
+can lose after hours of background work.
+
+Recovered App Hang events therefore carry a `process_activation` context. It
+gives the launch application state and the prewarm flag. It also gives the
+first `launched`, `activated`, `contentInserted`, and `contentAppeared`
+milestones, each with wall-clock time, uptime, seconds before capture,
+main-thread flag, available memory, and thermal pressure. Fatal App Hangs and
+MetricKit hangs omit it because a later process sends them. Each milestone is
+also logged once to the recent log. The foreground and playback startup steps
+record `startup.*` operation markers.
+
+Compare the hang start with these milestones and markers. Main-thread
+operation markers that cover the hang point to our own work. The startup steps
+run inside the once-per-process startup task, so a startup marker's main-thread
+flag shows where that task recorded it, not where the step's awaited work ran.
+Startup markers that overlap the hang point to contention or to main-actor work
+they await. Persisted-episode restoration has no startup marker. It runs after
+`startup.foreground` completes, with `PlayManager`'s own log lines, and it
+shares the gap before `contentInserted` with the return to the main actor.
+Time between `contentInserted` and `contentAppeared` with little attributed
+work points to first-use UI construction.
+
+Uptime counts only time the device is awake, so `secondsBeforeCapture`
+understates the age of a milestone recorded before the device slept, such as
+`launched` after a background launch. Use uptime within the hang's window and
+the timestamps for longer gaps. Available memory reads zero on the Simulator.
+
 ## Controlled iOS verification
 
 Run `bin/sentry-hang-smoke --device <available-iOS-Simulator-UDID>` with the
@@ -94,7 +127,8 @@ Deliberate delays exist only in this integration harness.
 The helper downloads attachments from that SDK-generated event and checks exact
 download sizes, valid NDJSON, individual/combined bounds, session/build fields,
 pre-hang navigation and detail work, the completed foreground write, and the
-pending background write. Evidence stays under ignored `.cache/sentry-hang-smoke/`.
+pending background write. It also checks that the event's `process_activation`
+milestones and the recent log's activation markers are present and ordered. Evidence stays under ignored `.cache/sentry-hang-smoke/`.
 The probe starts with hang reporting paused and resumes it through the
 [phone-scene gate](carplay-lifecycle.md#sentry-app-hang-reporting), so a passing
 run also covers the phone-foreground path.

@@ -5,6 +5,7 @@ import SwiftUI
 
 struct ContentView: View {
   @InjectedObservable(\.navigation) private var navigation
+  @DynamicInjected(\.processActivationDiagnostics) private var processActivationDiagnostics
   @DynamicInjected(\.userSettings) private var userSettings
 
   private static let log = Log.as("ContentView")
@@ -54,5 +55,6 @@ struct ContentView: View {
     .tabViewBottomAccessory {
       PlayBar(viewModel: playBarViewModel)
     }
+    .onAppear { processActivationDiagnostics.record(.contentAppeared) }
   }
 }
