@@ -93,6 +93,13 @@ The upload then uses that version and a new build number. With `--notes`, it
 waits for processing and assigns the exact build to the external Everyone
 group. Without `--notes`, it only tests, archives, and uploads.
 
+Before every upload, the command sends the archive's dSYMs and other debug
+files to Sentry. It then confirms that Sentry holds DWARF debug information for
+the app's and each extension's binary. Without it, Sentry can't add file and
+line numbers to crash frames, and it names local functions after the nearest
+exported symbol. A missing debug file stops the command before upload; a retry
+archives again.
+
 Every upload, including App Store builds, also lists the commits since the
 previous release tag on its Sentry release,
 `com.artisanalsoftware.PodHaven@<version>+<build>`. Sentry then knows which

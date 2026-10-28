@@ -14,6 +14,8 @@ from local_validation_fixture import FAKE as GATE_FAKE, install_gate
 
 
 ROOT = Path(__file__).resolve().parents[2]
+DEBUG_IDS = {"PodHaven": "3C5915DE-7C22-3FE4-A33B-1713DAB1B100",
+             "PodHavenWidget": "89ED1475-650C-372C-88DC-12E70E9D9360"}
 FAKE = r'''
 import json, os, pathlib, re, sys
 base = pathlib.Path(os.environ['APPSTORE_FIXTURE'])
@@ -36,10 +38,24 @@ elif name == 'xcodebuild':
     elif '-showBuildSettings' in args:
         source = (base / 'repo/PodHaven.xcodeproj/project.pbxproj').read_text()
         print('    MARKETING_VERSION = ' + re.search(r'MARKETING_VERSION = ([^;]+);', source)[1])
-    elif 'archive' in args and os.environ.get('CHANGE_DURING_ARCHIVE'):
-        (base / 'repo/PodHaven.xcodeproj/project.pbxproj').write_text('changed during archive')
+    elif 'archive' in args:
+        app = pathlib.Path(args[args.index('-archivePath') + 1]) / 'Products/Applications/PodHaven.app'
+        for binary_name, debug_id in json.loads(os.environ['APPSTORE_DEBUG_IDS']).items():
+            binary = (app / binary_name if binary_name == 'PodHaven'
+                      else app / 'PlugIns' / (binary_name + '.appex') / binary_name)
+            binary.parent.mkdir(parents=True, exist_ok=True)
+            binary.write_text(debug_id)
+        if os.environ.get('CHANGE_DURING_ARCHIVE'):
+            (base / 'repo/PodHaven.xcodeproj/project.pbxproj').write_text('changed during archive')
     elif '-exportArchive' in args and os.environ.get('FAIL_UPLOAD'):
         sys.exit(42)
+elif name == 'dwarfdump':
+    for path in args[1:]:
+        print('UUID: ' + pathlib.Path(path).read_text() + ' (arm64) ' + path)
+elif name == 'sentry':
+    if args[:1] == ['api']:
+        debug_id = args[1].split('?query=')[1]
+        print(json.dumps([{'debugId': debug_id, 'data': {'type': 'dbg', 'features': ['debug']}}]))
 elif name == 'llm':
     sys.stdin.read()
     print('Generated release notes')
@@ -74,7 +90,7 @@ class AppStoreCommandTests(unittest.TestCase):
         (self.repo / "bin/shipit").symlink_to("deploy.sh")
         commands = self.base / "commands"
         install_gate(self.repo, commands)
-        for name in ("fastlane", "xcodebuild", "llm", "xcbeautify", "mktemp", "gh", "rm"):
+        for name in ("fastlane", "xcodebuild", "llm", "xcbeautify", "mktemp", "gh", "rm", "sentry", "dwarfdump"):
             path = commands / name
             source = FAKE
             if name == "xcodebuild":
@@ -84,6 +100,7 @@ class AppStoreCommandTests(unittest.TestCase):
             path.chmod(0o755)
         self.env = {**os.environ, "PATH": str(commands) + os.pathsep + os.environ["PATH"],
                     "APPSTORE_FIXTURE": str(self.base), "TEST_ALL_FIXTURE": str(self.base), "GIT_CONFIG_NOSYSTEM": "1",
+                    "APPSTORE_DEBUG_IDS": json.dumps(DEBUG_IDS),
                     "GIT_CONFIG_GLOBAL": os.devnull}
         for key in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID", "PODHAVEN_APPSTORE_NOTES",
                     "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
@@ -229,6 +246,18 @@ class AppStoreCommandTests(unittest.TestCase):
         self.assertFalse(self.git("status", "--porcelain"))
         self.assertEqual(sum("-exportArchive" in event[1] for event in self.events("xcodebuild")), 1)
         self.assertEqual(self.git("rev-parse", "HEAD"), self.git("rev-parse", "origin/main"))
+
+    def test_release_upload_requires_archived_debug_symbols_in_sentry(self):
+        result = self.run_command("--release", "1.1", "--notes", "Public notes")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        events = [(event[0], event[1]) for event in self.events() if event[0] in ("xcodebuild", "sentry")]
+        symbols = events.index(("sentry", ["debug-files", "upload", str(self.base / "logs/PodHaven.xcarchive"), "--wait"]))
+        checks = [index for index, (name, args) in enumerate(events) if args[:1] == ["api"]]
+        upload = next(index for index, (name, args) in enumerate(events) if "-exportArchive" in args)
+        self.assertEqual(sorted(events[index][1][1].split("?query=")[1] for index in checks),
+                         sorted(debug_id.lower() for debug_id in DEBUG_IDS.values()))
+        self.assertLess(symbols, min(checks))
+        self.assertLess(max(checks), upload)
 
     def test_notes_alone_release_the_next_minor_version(self):
         result = self.run_command("--notes", "Public notes")

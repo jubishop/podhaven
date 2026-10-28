@@ -11,6 +11,8 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
+DEBUG_IDS = {"PodHaven": "4CDE6829-998C-3110-98FE-ED2AF6E992C4",
+             "PodHavenWidget": "139E429B-1E6B-3F4A-9C1D-2B7A3E5F6D80"}
 FAKE = r'''
 import json, os, pathlib, re, subprocess, sys, tempfile
 base = pathlib.Path(os.environ['DEPLOY_FIXTURE'])
@@ -45,6 +47,15 @@ elif name == 'xcodebuild':
     elif 'archive' in args and os.environ.get('UNAPPROVED_MACROS') and '-skipMacroValidation' not in args:
         print('error: Macro must be enabled before it can be used', file=sys.stderr)
         sys.exit(65)
+    elif 'archive' in args:
+        archive = pathlib.Path(args[args.index('-archivePath') + 1])
+        app = archive / 'Products/Applications/PodHaven.app'
+        for binary_name, debug_id in json.loads(os.environ['DEPLOY_DEBUG_IDS']).items():
+            binary = (app / binary_name if binary_name == 'PodHaven'
+                      else app / 'PlugIns' / (binary_name + '.appex') / binary_name)
+            binary.parent.mkdir(parents=True, exist_ok=True)
+            binary.write_text(debug_id)
+        (archive / 'dSYMs').mkdir()
     elif '-exportArchive' in args and os.environ.get('FAIL_UPLOAD'): sys.exit(42)
     elif '-exportArchive' in args and os.environ.get('PROBE_EXPORT_COPY'):
         sys.exit(subprocess.run(['cp', str(base / 'source'), str(base / 'exported')]).returncode)
@@ -72,11 +83,26 @@ elif name == 'fastlane':
         parts = version.split('.')
         parts[-1] = str(int(parts[-1]) + 1)
         pathlib.Path(output).write_text('.'.join(parts))
+elif name == 'dwarfdump':
+    for path in args[1:]: print('UUID: ' + pathlib.Path(path).read_text() + ' (arm64) ' + path)
 elif name == 'sentry':
     if args[:2] == ['auth', 'status'] and os.environ.get('FAIL_SENTRY') == 'auth': sys.exit(1)
     if args[:2] == ['release', 'set-commits'] and os.environ.get('FAIL_SENTRY') == 'commits':
         print('Sentry failure: commits', file=sys.stderr)
         sys.exit(45)
+    if args[:2] == ['debug-files', 'upload']:
+        if (os.environ.get('SENTRY_ORG'), os.environ.get('SENTRY_PROJECT')) != ('artisanal-software', 'podhaven'):
+            sys.exit('Sentry debug files need the PodHaven project')
+        if os.environ.get('FAIL_SENTRY') == 'debug-files':
+            print('Sentry failure: debug files', file=sys.stderr)
+            sys.exit(46)
+    if args[:1] == ['api']:
+        endpoint, debug_id = args[1].split('?query=')
+        if endpoint != 'projects/artisanal-software/podhaven/files/dsyms/': sys.exit('Unexpected endpoint')
+        dwarf = debug_id.upper() != os.environ.get('SENTRY_EXE_ONLY')
+        print(json.dumps([{'debugId': debug_id.lower(),
+                           'data': {'type': 'dbg' if dwarf else 'exe',
+                                    'features': ['symtab', 'unwind'] + (['debug'] if dwarf else [])}}]))
 elif name in ('gh', 'rm'): pass
 else: raise SystemExit('Unexpected command: ' + name)
 '''
@@ -96,14 +122,16 @@ class DeployTests(unittest.TestCase):
         gate.chmod(0o755)
         self.commands = self.base / "commands"
         self.commands.mkdir()
-        for command in ("git", "xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "rm", "sentry"):
+        for command in ("git", "xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "rm", "sentry",
+                        "dwarfdump"):
             path = self.commands / command
             path.write_text(f"#!{sys.executable}\n" + FAKE)
             path.chmod(0o755)
         (self.base / "state").write_text(json.dumps({"tag": "v1.0b568", "remote": False}))
         self.env = {**os.environ, "PATH": str(self.commands) + os.pathsep + os.environ["PATH"],
-                    "DEPLOY_FIXTURE": str(self.base)}
-        for key in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID", "PODHAVEN_TESTFLIGHT_NOTES"):
+                    "DEPLOY_FIXTURE": str(self.base), "DEPLOY_DEBUG_IDS": json.dumps(DEBUG_IDS)}
+        for key in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID", "PODHAVEN_TESTFLIGHT_NOTES",
+                    "SENTRY_ORG", "SENTRY_PROJECT"):
             self.env.pop(key, None)
 
     def run_deploy(self, *args, **env):
@@ -216,7 +244,7 @@ class DeployTests(unittest.TestCase):
         result = self.run_deploy("--notes", "Fixes")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         release = "artisanal-software/com.artisanalsoftware.PodHaven@1.0.1+569"
-        self.assertEqual([event[1] for event in self.events("sentry")], [
+        self.assertEqual([event[1] for event in self.events("sentry") if event[1][0] in ("auth", "release")], [
             ["auth", "status"],
             ["release", "create", release, "--project", "podhaven"],
             ["release", "set-commits", release, "--from", "v1.0b568"],
@@ -249,6 +277,41 @@ class DeployTests(unittest.TestCase):
         commits = [event[1] for event in self.events("sentry") if event[1][:2] == ["release", "set-commits"]]
         self.assertEqual(len(commits), 2)
         self.assertEqual(commits[-1][2], "artisanal-software/com.artisanalsoftware.PodHaven@1.0.1+569")
+
+    def test_archived_debug_symbols_reach_sentry_before_app_store_upload(self):
+        result = self.run_deploy()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        order = [(event[0], event[1]) for line in (self.base / "events").read_text().splitlines()
+                 if (event := json.loads(line))[0] in ("xcodebuild", "sentry")]
+        archive = next(index for index, (name, args) in enumerate(order) if name == "xcodebuild" and "archive" in args)
+        upload = next(index for index, (name, args) in enumerate(order) if "-exportArchive" in args)
+        symbols = next(index for index, (name, args) in enumerate(order) if args[:2] == ["debug-files", "upload"])
+        self.assertTrue(order[symbols][1][2].endswith("/PodHaven.xcarchive"))
+        self.assertIn("--wait", order[symbols][1])
+        checks = [index for index, (name, args) in enumerate(order) if args[:1] == ["api"]]
+        self.assertEqual(sorted(order[index][1][1].split("=")[1] for index in checks),
+                         sorted(debug_id.lower() for debug_id in DEBUG_IDS.values()))
+        self.assertLess(archive, symbols)
+        self.assertLess(symbols, min(checks))
+        self.assertLess(max(checks), upload)
+
+    def test_missing_dwarf_in_sentry_stops_before_app_store_upload(self):
+        for name, debug_id in DEBUG_IDS.items():
+            with self.subTest(binary=name):
+                (self.base / "events").unlink(missing_ok=True)
+                result = self.run_deploy("--notes", "Fixes", SENTRY_EXE_ONLY=debug_id)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(debug_id.lower(), result.stderr)
+                self.assertIn("Sentry debug symbols", result.stderr)
+                self.assertFalse(any("-exportArchive" in event[1] for event in self.events("xcodebuild")))
+                self.assertEqual(len(self.events("fastlane")), 2)
+                self.assertEqual(json.loads((self.base / "state").read_text())["tag"], "v1.0b568")
+
+    def test_failed_debug_symbol_upload_stops_before_app_store_upload(self):
+        result = self.run_deploy(FAIL_SENTRY="debug-files")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Sentry failure: debug files", result.stderr)
+        self.assertFalse(any("-exportArchive" in event[1] for event in self.events("xcodebuild")))
 
     def test_notes_can_distribute_a_previously_completed_upload(self):
         self.assertEqual(self.run_deploy().returncode, 0)
@@ -288,15 +351,16 @@ class TaggedDeployTests(unittest.TestCase):
         gate.chmod(0o755)
         commands = self.base / "commands"
         commands.mkdir()
-        for name in ("xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "rm", "sentry"):
+        for name in ("xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "rm", "sentry", "dwarfdump"):
             path = commands / name
             path.write_text(f"#!{sys.executable}\n" + FAKE)
             path.chmod(0o755)
         self.env = {**os.environ, "PATH": str(commands) + os.pathsep + os.environ["PATH"],
                     "DEPLOY_FIXTURE": str(self.base), "DEPLOY_VERSION": "1.3.1",
+                    "DEPLOY_DEBUG_IDS": json.dumps(DEBUG_IDS),
                     "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
         for key in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID", "PODHAVEN_TESTFLIGHT_NOTES",
-                    "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+                    "SENTRY_ORG", "SENTRY_PROJECT", "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
             self.env.pop(key, None)
         self.git("init", "-b", "main")
         self.git("config", "user.name", "Deploy Test")
