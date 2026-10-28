@@ -20,12 +20,10 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
       if sharedState.isOnDeck(episode) {
         switch sharedState.playbackStatus {
         case .playing, .waiting:
-          AppIcon.episodePlaying
-            .label(sharedState.playbackStatus.statusIconAccessibilityLabel)
+          AppIcon.episodePlaying.label
             .labelStyle(.iconOnly)
         case .paused, .loading, .stopped:
-          AppIcon.episodePaused
-            .label(sharedState.playbackStatus.statusIconAccessibilityLabel)
+          AppIcon.episodePaused.label
             .labelStyle(.iconOnly)
         }
       } else if episode.queueOrder == 0 {
@@ -35,7 +33,6 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
         AppIcon.episodeQueued.label
           .labelStyle(.iconOnly)
           .opacity(episode.queued ? 1 : 0)
-          .accessibilityHidden(!episode.queued)
       }
 
       if episode.cacheStatus == .caching,
@@ -51,11 +48,6 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
             innerRadiusRatio: 0.4
           )
           .frame(width: iconSize, height: iconSize)
-          .accessibilityElement(children: .ignore)
-          .accessibilityLabel(
-            episode.saveInCache ? Text("Save Progress") : Text("Download Progress")
-          )
-          .accessibilityValue(Text(progress, format: .percent.precision(.fractionLength(0))))
         } else {
           AppIcon.waiting
             .label("Waiting to Download")
@@ -68,7 +60,6 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
           .label
           .labelStyle(.iconOnly)
           .opacity(episode.cacheStatus == .cached ? 1 : 0)
-          .accessibilityHidden(episode.cacheStatus != .cached)
       }
 
       if episode.currentTime.safe.seconds > 0, episode.duration.safe.seconds > 0 {
@@ -78,28 +69,12 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
           innerRadiusRatio: 0.4
         )
         .frame(width: iconSize, height: iconSize)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Playback Progress")
-        .accessibilityValue(Text(progress, format: .percent.precision(.fractionLength(0))))
       } else {
         AppIcon.episodeFinished.label
           .labelStyle(.iconOnly)
           .opacity(episode.finished && !sharedState.isOnDeck(episode) ? 1 : 0)
-          .accessibilityHidden(!episode.finished || sharedState.isOnDeck(episode))
       }
     }
     .font(.system(size: iconSize))
-  }
-}
-
-extension PlaybackStatus {
-  var statusIconAccessibilityLabel: String {
-    switch self {
-    case .loading: "Loading"
-    case .paused: "Paused"
-    case .playing: "Playing"
-    case .stopped: "Stopped"
-    case .waiting: "Waiting to Play"
-    }
   }
 }

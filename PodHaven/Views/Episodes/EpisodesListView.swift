@@ -103,11 +103,6 @@ struct EpisodesListView: View {
           .padding(.vertical, 3)
       )
       .listRow()
-      .accessibilityCustomContent(
-        AccessibilityCustomContentKey("Status"),
-        highlight ? Text("New") : nil,
-        importance: .high
-      )
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
       .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode)
     }

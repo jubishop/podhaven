@@ -116,7 +116,6 @@ struct EpisodeDetailTranscriptView: View {
         } else {
           HStack(spacing: 8) {
             ProgressView()
-              .accessibilityHidden(true)
             Text("Transcribing…")
               .foregroundStyle(.secondary)
           }
@@ -143,14 +142,12 @@ struct EpisodeDetailTranscriptView: View {
     case .pausing:
       HStack(spacing: 8) {
         ProgressView()
-          .accessibilityHidden(true)
         Text("Pausing transcription…")
           .foregroundStyle(.secondary)
       }
     case .discarding:
       HStack(spacing: 8) {
         ProgressView()
-          .accessibilityHidden(true)
         Text("Discarding transcription progress…")
           .foregroundStyle(.secondary)
       }
@@ -205,7 +202,6 @@ struct EpisodeDetailTranscriptView: View {
     case .loading:
       HStack(spacing: 8) {
         ProgressView()
-          .accessibilityHidden(true)
         Text("Loading transcript…")
           .foregroundStyle(.secondary)
       }
@@ -263,10 +259,8 @@ struct EpisodeDetailTranscriptView: View {
       AppIcon.transcribeEpisode
         .labelButton("Replace Transcript", action: viewModel.transcribe)
         .fixedSize(horizontal: true, vertical: false)
-        .accessibilityLabel("Replace with On-Device Transcription")
       AppIcon.transcribeEpisode
         .imageButton(action: viewModel.transcribe)
-        .accessibilityLabel("Replace with On-Device Transcription")
     }
     .buttonStyle(.bordered)
   }

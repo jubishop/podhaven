@@ -15,8 +15,6 @@ struct PlaybackSpeedButton: View {
       Text("\(formatRate(rate))x")
         .fixedSize(horizontal: true, vertical: false)
     }
-    .accessibilityLabel("Playback Speed")
-    .accessibilityValue("\(formatRate(rate)) times")
     .popover(
       isPresented: $isShowingPopover,
       attachmentAnchor: .point(.trailing),

@@ -319,6 +319,44 @@ import Testing
     #expect(viewModel.transcriptDisplay == .text(transcript.segments))
   }
 
+  @Test("failed publisher replacement is not retryable without on-device support")
+  func failedPublisherReplacementWithoutOnDeviceSupport() async throws {
+    Container.shared.transcriptionAvailability().$state.new(.unavailable)
+    let podcastEpisode = try await Create.podcastEpisode()
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Publisher words")],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/unavailable-retry.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    #expect(
+      try await repo.storeTranscriptIfAbsent(
+        podcastEpisode.id,
+        transcript: transcript,
+        publisherSource: source
+      )
+    )
+    try await transcriptionQueue.enqueueReplacement(podcastEpisode.id)
+    #expect(
+      try await transcriptionQueue.fail(
+        podcastEpisode.id,
+        ifMode: .onDeviceReplacement
+      )
+    )
+
+    let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
+
+    #expect(viewModel.transcriptionStatus == .failed)
+    #expect(!viewModel.isTranscriptionAvailable)
+    #expect(viewModel.transcriptProvenance == .podcastFeed)
+    #expect(viewModel.transcriptDisplay == .text(transcript.segments))
+  }
+
   @Test("publisher replacement queue rejection preserves the canonical transcript")
   func publisherReplacementShowsCapacityAlertPreservingTranscript() async throws {
     await TranscriptionHelpers.prepareAvailability()

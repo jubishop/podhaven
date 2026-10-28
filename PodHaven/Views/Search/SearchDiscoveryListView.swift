@@ -76,7 +76,6 @@ struct SearchDiscoveryListView: View {
     VStack(spacing: 16) {
       AppIcon.search.image
         .font(.system(size: 48))
-        .accessibilityHidden(true)
       Text("No top picks left")
         .font(.headline)
       Text("You've worked through all the picks here.")

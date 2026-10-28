@@ -6,15 +6,9 @@ import NukeUI
 import SwiftUI
 
 struct EpisodeDetailView: View {
-  private enum ArtworkAccessibilityFocus: Hashable {
-    case trigger
-    case overlay
-  }
-
   @DynamicInjected(\.alert) private var alert
   @Environment(\.colorScheme) private var colorScheme
 
-  @AccessibilityFocusState private var artworkAccessibilityFocus: ArtworkAccessibilityFocus?
   @State private var showingImageOverlay = false
   @State private var viewModel: EpisodeDetailViewModel
 
@@ -66,14 +60,10 @@ struct EpisodeDetailView: View {
     .toolbarRole(.editor)
     .onAppear { viewModel.appear() }
     .onDisappear { viewModel.disappear() }
-    .accessibilityHidden(showingImageOverlay)
     .overlay {
       if showingImageOverlay {
         fullScreenImageOverlay
       }
-    }
-    .onChange(of: showingImageOverlay) { _, isShowing in
-      artworkAccessibilityFocus = isShowing ? .overlay : .trigger
     }
   }
 
@@ -156,7 +146,6 @@ struct EpisodeDetailView: View {
       } label: {
         (viewModel.isPlaying ? AppIcon.pauseButton : AppIcon.playButton).image
       }
-      .accessibilityLabel("Episode Actions")
       .tint(
         (viewModel.isPlaying ? AppIcon.pauseButton : AppIcon.playButton).color(for: colorScheme)
       )
@@ -182,12 +171,7 @@ struct EpisodeDetailView: View {
       } label: {
         AppIcon.rating(for: viewModel.episode.rating).image
       }
-      .accessibilityLabel("Rate Episode")
       .tint(AppIcon.rating(for: viewModel.episode.rating).color(for: colorScheme))
-      .accessibilityValue(
-        viewModel.episode.rating == nil
-          ? "Not Rated" : AppIcon.rating(for: viewModel.episode.rating).text
-      )
     }
   }
 
@@ -207,14 +191,6 @@ struct EpisodeDetailView: View {
           .onTapGesture {
             showingImageOverlay = true
           }
-          .accessibilityElement(children: .ignore)
-          .accessibilityLabel("Show Episode Artwork")
-          .accessibilityHint("Shows the artwork full screen")
-          .accessibilityAddTraits(.isButton)
-          .accessibilityAction {
-            showingImageOverlay = true
-          }
-          .accessibilityFocused($artworkAccessibilityFocus, equals: .trigger)
         }
         .aspectRatio(1, contentMode: .fit)
 
@@ -404,19 +380,11 @@ struct EpisodeDetailView: View {
             .aspectRatio(contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .padding(4)
-            .accessibilityLabel("Episode Artwork")
-            .accessibilityHint("Closes the full-screen artwork")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction {
-              showingImageOverlay = false
-            }
-            .accessibilityFocused($artworkAccessibilityFocus, equals: .overlay)
         } else {
           VStack(spacing: 16) {
             AppIcon.noImage.image
               .font(.largeTitle)
               .foregroundColor(.secondary)
-              .accessibilityHidden(true)
 
             Text("Image unavailable")
               .font(.title)
@@ -426,14 +394,6 @@ struct EpisodeDetailView: View {
               .font(.headline)
               .foregroundColor(.secondary)
           }
-          .accessibilityElement(children: .ignore)
-          .accessibilityLabel("Image unavailable")
-          .accessibilityHint("Closes the full-screen artwork")
-          .accessibilityAddTraits(.isButton)
-          .accessibilityAction {
-            showingImageOverlay = false
-          }
-          .accessibilityFocused($artworkAccessibilityFocus, equals: .overlay)
         }
       }
     }

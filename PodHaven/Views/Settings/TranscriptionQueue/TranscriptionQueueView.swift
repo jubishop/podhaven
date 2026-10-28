@@ -59,14 +59,10 @@ struct TranscriptionQueueView: View {
       ForEach(viewModel.waitingEntries) { entry in
         queueRow(entry)
           .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            queueActions(for: entry.id, swipeAction: true)
+            queueActions(for: entry.id)
           }
           .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            transcribeNowAction(for: entry.id, swipeAction: true)
-          }
-          .accessibilityActions {
-            transcribeNowAction(for: entry.id, swipeAction: false)
-            queueActions(for: entry.id, swipeAction: false)
+            transcribeNowAction(for: entry.id)
           }
       }
       .onMove(perform: viewModel.move)
@@ -87,31 +83,31 @@ struct TranscriptionQueueView: View {
   }
 
   @ViewBuilder
-  private func queueActions(for episodeID: Episode.ID, swipeAction: Bool) -> some View {
+  private func queueActions(for episodeID: Episode.ID) -> some View {
     removeAction(for: episodeID)
 
     if viewModel.canMoveToTop(episodeID) {
       AppIcon.moveToTop
         .labelButton {
-          viewModel.moveToTop(episodeID, swipeAction: swipeAction)
+          viewModel.moveToTop(episodeID)
         }
         .labelStyle(.iconOnly)
     }
     if viewModel.canMoveToBottom(episodeID) {
       AppIcon.moveToBottom
         .labelButton {
-          viewModel.moveToBottom(episodeID, swipeAction: swipeAction)
+          viewModel.moveToBottom(episodeID)
         }
         .labelStyle(.iconOnly)
     }
   }
 
   @ViewBuilder
-  private func transcribeNowAction(for episodeID: Episode.ID, swipeAction: Bool) -> some View {
+  private func transcribeNowAction(for episodeID: Episode.ID) -> some View {
     if viewModel.canTranscribeNow(episodeID) {
       AppIcon.transcribeNow
         .labelButton {
-          viewModel.transcribeNow(episodeID, swipeAction: swipeAction)
+          viewModel.transcribeNow(episodeID)
         }
         .labelStyle(.iconOnly)
     }
@@ -171,7 +167,6 @@ struct TranscriptionQueueView: View {
           } label: {
             AppIcon.moreActions.image
           }
-          .accessibilityLabel("More Actions")
         }
       }
 
@@ -194,7 +189,6 @@ struct TranscriptionQueueView: View {
           } label: {
             AppIcon.editFinished.image
           }
-          .accessibilityLabel("Selection Actions")
         } else {
           AppIcon.editItems.labelButton {
             viewModel.editMode = .active
@@ -226,7 +220,6 @@ private struct TranscriptionQueueRow: View {
     HStack(alignment: .center, spacing: 12) {
       SquareImage(image: entry.episode.image, size: imageSize)
         .selectable(isSelecting: isSelecting, isSelected: $isSelected)
-        .accessibilityHidden(!isSelecting)
 
       VStack(alignment: .leading, spacing: 5) {
         Text(entry.episode.title)
@@ -249,9 +242,6 @@ private struct TranscriptionQueueRow: View {
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .contentShape(Rectangle())
-    .accessibilityElement(children: isSelecting ? .contain : .ignore)
-    .accessibilityLabel("\(entry.episode.title), \(entry.episode.podcastTitle)")
-    .accessibilityValue(entry.accessibilityValue)
   }
 }
 

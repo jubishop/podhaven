@@ -32,7 +32,7 @@ validation. A passing focused suite alone does not complete acceptance.
 | Repeated taps; competing phone/remote requests; cached/streamed playback; failed/stalled loads; unavailable/deleted rows | `CarPlaySelectionTests`, `PlaybackIntentOwnershipTests`, `CarPlayPlaybackTests`; `CarPlayIntegrationTests.sharedSurfaces` also changes episode through `PlayEpisodeIntent` | Fake asset URLs distinguish file and remote playback. No network or physical media transport is required by these tests. |
 | No audio activation or autoplay during connection/browse; preserve another source until explicit play; interruption pause/resume; route changes; media-services reset; repeated reconnect | `CarPlaySceneTests.coldConnection` and `preservesPlayback`, `CarPlayPlaybackTests.queueProjection`, browser suites' activation assertions, `PlaybackControlsTests`, `RouteChangeRecoveryTests`, `MediaServicesResetTests`; `CarPlayIntegrationTests.mediaServicesRecovery` and `interruptionAndReconnect` | No activation call is the application-side evidence for leaving other audio alone. Actual FM, other apps, calls, spoken Siri, route loss, and wired/wireless audio remain unverified. Interruption notifications do not identify or simulate a caller or spoken Siri session. |
 | After-first-unlock readiness; database and SQLite sidecars; cached media; required settings; unavailable data | [Protected storage audit](carplay-lifecycle.md#protected-storage-audit); `CarPlaySceneTests` restoration cases; real database query failures and native Retry in podcast and Smart List recovery suites; selection load failures | Source/configuration audit only for protection classes. Inaccessible bootstrap databases are fatal before a scene is created. Before-first-unlock access is unsupported; tests do not establish installed-file attributes or relocked access. A query failure is not evidence that protected storage was unlocked. |
-| Text/fallbacks; selectable/loading/progress states; long multilingual text; content order | `CarPlayListTests.semantics`, browser empty/loading/error/restriction tests, `CarPlaySelectionTests` completion/deadline tests, `CarPlayIntegrationTests.sharedSurfaces`; isolated preview fixtures listed below | Full native row text, metadata, progress, and handlers are inspectable. VoiceOver reading/focus order, truncation, touch/rotary/touchpad, light/dark rendering, and screen shapes are unverified. Multilingual input is not an app-localization claim. |
+| Text/fallbacks; selectable/loading/progress states; long multilingual text; content order | `CarPlayListTests.semantics`, browser empty/loading/error/restriction tests, `CarPlaySelectionTests` completion/deadline tests, `CarPlayIntegrationTests.sharedSurfaces`; isolated preview fixtures listed below | Full native row text, metadata, progress, and handlers are inspectable. Truncation, touch/rotary/touchpad, light/dark rendering, and screen shapes are unverified. Multilingual input is not an app-localization claim. |
 | Shared episode, progress, queue, rate, and command availability across phone state, lock-screen/headphone commands, widgets, and CarPlay | `CarPlayIntegrationTests.sharedSurfaces`: Smart List selection, shared metadata, widget snapshots, widget pause, remote Play/rate/seek, Up Next progress, podcast detail/Back, and widget episode replacement; `NowPlayingInfoTests`, `WidgetSnapshotWriterTests`, shared command regressions | Tests exercise the same application command and snapshot pipelines. Physical phone, lock-screen, headphones, and widget interaction remain unverified. Widgets expose the fields their existing snapshot/control contracts provide; they do not acquire a CarPlay-specific rate field. |
 
 ## Recovery and ownership
@@ -59,7 +59,7 @@ files are `CarPlayRootTemplate.swift`, `CarPlayEpisodeList.swift`,
 `CarPlayPodcastPreviews.swift`, and `CarPlaySmartListPreviews.swift` under
 `PodHaven/CarPlay`. They use static content without network or persistent data.
 A Debug Simulator build compiles these fixtures. It does not render native
-CarPlay templates or establish visual accessibility acceptance.
+CarPlay templates or establish visual acceptance.
 
 For the final tree, retain a signed Debug Simulator build and a Release iOS
 archive exported locally with the App Store Connect method and
@@ -78,7 +78,7 @@ Run from this checkout using the supported Xcode and macOS versions:
 
 ```sh
 mkdir -p .cache/carplay-validation
-bin/with-test-accessibility xcodebuild test -hideShellScriptEnvironment \
+env -u SDKROOT xcodebuild test -hideShellScriptEnvironment \
   -project PodHaven.xcodeproj -scheme PodHaven -testPlan PodHaven \
   -destination 'platform=macOS,name=My Mac' -skipMacroValidation \
   -only-testing:PodHavenTests/CarPlayIntegrationTests \

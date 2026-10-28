@@ -16,7 +16,7 @@ def install_gate(repo, commands):
         shutil.copy2(ROOT / "bin" / name, repo / "bin" / name)
     commands.mkdir(exist_ok=True)
     for path in (commands / "xcodebuild", commands / "xcrun", commands / "sw_vers",
-                 repo / "bin/check", repo / "bin/lint-swift-format", repo / "bin/with-test-accessibility"):
+                 repo / "bin/check", repo / "bin/lint-swift-format"):
         path.write_text(f"#!{sys.executable}\n" + FAKE)
         path.chmod(0o755)
     (repo / ".gitignore").write_text(".cache/\n")

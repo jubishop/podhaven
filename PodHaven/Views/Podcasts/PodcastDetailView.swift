@@ -7,15 +7,9 @@ import SwiftUI
 import Tagged
 
 struct PodcastDetailView: View {
-  private enum ArtworkAccessibilityFocus: Hashable {
-    case trigger
-    case overlay
-  }
-
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.navigation) private var navigation
 
-  @AccessibilityFocusState private var artworkAccessibilityFocus: ArtworkAccessibilityFocus?
   @State private var showingImageOverlay = false
   @State private var viewModel: PodcastDetailViewModel
 
@@ -50,14 +44,10 @@ struct PodcastDetailView: View {
         Self.log.debug("PodcastDetailView disappear")
         viewModel.disappear()
       }
-      .accessibilityHidden(showingImageOverlay)
       .overlay {
         if showingImageOverlay {
           fullScreenImageOverlay
         }
-      }
-      .onChange(of: showingImageOverlay) { _, isShowing in
-        artworkAccessibilityFocus = isShowing ? .overlay : .trigger
       }
   }
 
@@ -114,7 +104,6 @@ struct PodcastDetailView: View {
             (viewModel.podcast.subscribed ? AppIcon.unsubscribe : AppIcon.subscribe).image
           }
         )
-        .accessibilityLabel("Podcast Actions")
       }
 
       if viewModel.saved {
@@ -136,7 +125,6 @@ struct PodcastDetailView: View {
             preview: viewModel.sharePreview,
             label: { AppIcon.sharePodcast.image }
           )
-          .accessibilityLabel("Share Podcast")
         }
       }
     }
@@ -159,14 +147,6 @@ struct PodcastDetailView: View {
       .onTapGesture {
         showingImageOverlay = true
       }
-      .accessibilityElement(children: .ignore)
-      .accessibilityLabel("Show Podcast Artwork")
-      .accessibilityHint("Shows the artwork full screen")
-      .accessibilityAddTraits(.isButton)
-      .accessibilityAction {
-        showingImageOverlay = true
-      }
-      .accessibilityFocused($artworkAccessibilityFocus, equals: .trigger)
 
       VStack(alignment: .leading) {
         Text(viewModel.podcast.title)
@@ -186,7 +166,6 @@ struct PodcastDetailView: View {
           label: {
             HStack(spacing: 6) {
               (viewModel.displayingAboutSection ? AppIcon.episodes : AppIcon.aboutInfo).image
-                .accessibilityHidden(true)
               Text(viewModel.displayingAboutSection ? "Show Episodes" : "Show Details")
             }
             .font(.subheadline)
@@ -303,7 +282,6 @@ struct PodcastDetailView: View {
               HStack(spacing: 16) {
                 AppIcon.website.label
                 AppIcon.externalLink.image
-                  .accessibilityHidden(true)
               }
             }
           }
@@ -363,19 +341,11 @@ struct PodcastDetailView: View {
             .aspectRatio(contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .padding(4)
-            .accessibilityLabel("Podcast Artwork")
-            .accessibilityHint("Closes the full-screen artwork")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction {
-              showingImageOverlay = false
-            }
-            .accessibilityFocused($artworkAccessibilityFocus, equals: .overlay)
         } else {
           VStack(spacing: 16) {
             AppIcon.noImage.image
               .font(.largeTitle)
               .foregroundColor(.secondary)
-              .accessibilityHidden(true)
 
             Text("Image unavailable")
               .font(.title)
@@ -385,14 +355,6 @@ struct PodcastDetailView: View {
               .font(.headline)
               .foregroundColor(.secondary)
           }
-          .accessibilityElement(children: .ignore)
-          .accessibilityLabel("Image unavailable")
-          .accessibilityHint("Closes the full-screen artwork")
-          .accessibilityAddTraits(.isButton)
-          .accessibilityAction {
-            showingImageOverlay = false
-          }
-          .accessibilityFocused($artworkAccessibilityFocus, equals: .overlay)
         }
       }
     }

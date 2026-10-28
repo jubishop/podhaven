@@ -29,13 +29,10 @@ struct SilenceModeMenu: View {
             Text(choice.title)
           }
         }
-        .accessibilityAddTraits(choice == mode ? .isSelected : [])
       }
     } label: {
       AppIcon.silence.image
     }
-    .accessibilityLabel("Shorten Silence")
-    .accessibilityValue(mode.title)
   }
 }
 

@@ -18,7 +18,6 @@ struct SmartListConditionRow: View {
           ForEach(EditableCondition.Kind.allCases, id: \.self) { kind in
             Text(kind.label)
               .tag(kind)
-              .accessibilityLabel(kind.accessibilityLabel)
           }
         }
         .labelsHidden()

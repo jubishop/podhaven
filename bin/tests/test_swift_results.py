@@ -24,7 +24,7 @@ class SwiftResultTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             bundle = Path(folder) / "missing.xcresult"
             log = Path(folder) / "xcodebuild.log"
-            log.write_text("error: Grant Accessibility access")
+            log.write_text("error: Unable to launch PodHaven")
             result = subprocess.run(
                 [sys.executable, str(ROOT / "bin/check-swift-results"), str(bundle), "--build-log", str(log)],
                 capture_output=True, text=True, check=False)

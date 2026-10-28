@@ -50,7 +50,6 @@ struct IconPickerView: View {
         LucideIconView(icon: entry.icon)
           .frame(width: iconSize, height: iconSize)
           .foregroundStyle(isSelected ? Color.accentColor : .primary)
-          .accessibilityHidden(true)
         Text(entry.label)
           .font(.caption2)
           .lineLimit(1)

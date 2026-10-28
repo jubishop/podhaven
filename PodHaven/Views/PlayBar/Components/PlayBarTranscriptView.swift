@@ -35,8 +35,6 @@ struct PlayBarTranscriptView: View {
       }
     }
     .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
-    .accessibilityElement(children: .contain)
-    .accessibilityLabel("Synchronized Transcript")
   }
 }
 
@@ -59,8 +57,6 @@ private struct PlayBarTranscriptSegmentView: View {
       .lineSpacing(5)
       .frame(maxWidth: .infinity, alignment: .leading)
       .contentTransition(.identity)
-      .accessibilityLabel(segment.text)
-      .accessibilityValue("Current text block", isEnabled: isActive)
   }
 }
 

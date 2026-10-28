@@ -14,13 +14,11 @@ struct PodcastSwipeViewModifier<ViewModel: ManagingPodcasts>: ViewModifier {
           .imageButton {
             viewModel.queueLatestEpisodeToTop(podcast)
           }
-          .accessibilityLabel("Queue Latest Episode at Top")
 
         AppIcon.queueAtBottom
           .imageButton {
             viewModel.queueLatestEpisodeToBottom(podcast)
           }
-          .accessibilityLabel("Queue Latest Episode at Bottom")
       }
       .swipeActions(edge: .trailing) {
         if podcast.isSaved {
@@ -28,7 +26,6 @@ struct PodcastSwipeViewModifier<ViewModel: ManagingPodcasts>: ViewModifier {
             .imageButton {
               viewModel.deletePodcast(podcast)
             }
-            .accessibilityLabel("Delete Podcast")
         }
 
         if podcast.subscribed {
