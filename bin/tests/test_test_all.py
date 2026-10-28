@@ -288,6 +288,28 @@ class TestAllTests(unittest.TestCase):
         latest.unlink()
         self.assertNotEqual(self.run_all("--verify").returncode, 0)
 
+    def test_new_runs_prune_older_evidence_beyond_the_retention_count(self):
+        cache = self.repo / ".cache/test-all"
+        seeded = [f"20260901-00000{index}-seeded{index}" for index in range(6)]
+        for index, name in enumerate([*seeded, "notes"]):
+            (cache / name / "TestResults.xcresult").mkdir(parents=True)
+            os.utime(cache / name, ns=((index + 1) * 10**9,) * 2)
+        (cache / "README").write_text("keep")
+        result = self.run_all("--ensure")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = self.run_all("--verify")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        passing = Path(result.stdout.split("evidence: ")[-1].strip()).name
+        self.assertEqual({path.name for path in cache.iterdir()},
+                         {*seeded[2:], passing, "notes", "README"})
+        result = self.run_all("--ensure", TEST_BUILD_FAILURE="1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotEqual(self.run_all(TEST_SKIPPED="1").returncode, 0)
+        runs = {path.name for path in cache.iterdir()} - {"notes", "README"}
+        failed = runs - {passing, *seeded}
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(runs, {*seeded[3:], passing, *failed})
+
     def test_content_digest_catches_changes_hidden_from_git_status(self):
         self.assertEqual(self.run_all().returncode, 0)
         self.git("update-index", "--assume-unchanged", "source.txt")

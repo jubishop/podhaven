@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,8 @@ import tempfile
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 DESTINATION = "platform=macOS,name=My Mac"
+RETAINED_RUNS = 5
+EVIDENCE_NAME = re.compile(r"\d{8}-\d{6}-\w+")
 TEST_ENVIRONMENT = {key: value for key, value in os.environ.items() if key != "SDKROOT"}
 
 
@@ -64,6 +67,15 @@ def run(command, output, name, *, check=True, require_unittest=False):
 def evidence_files(output):
     return {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest()
             for path in sorted(output.rglob("*")) if path.is_file() and path != output / "run.json"}
+
+
+def prune_evidence(cache, current):
+    earlier = sorted((path for path in cache.iterdir()
+                      if path != current and EVIDENCE_NAME.fullmatch(path.name)
+                      and not path.is_symlink() and path.is_dir()),
+                     key=lambda path: path.stat().st_mtime_ns, reverse=True)
+    for path in earlier[RETAINED_RUNS - 1:]:
+        shutil.rmtree(path)
 
 
 def reusable_evidence(report):
@@ -141,6 +153,7 @@ def main():
         cache.mkdir(parents=True, exist_ok=True)
         output = Path(tempfile.mkdtemp(prefix=datetime.now().strftime("%Y%m%d-%H%M%S-"), dir=cache))
         print(f"Test evidence: {output}", flush=True)
+        prune_evidence(cache, output)
 
         run([str(ROOT / "bin/check"), "--full", "--no-reuse"], output, "tooling", require_unittest=True)
         files = subprocess.check_output(

@@ -235,11 +235,14 @@ run's warnings.
 
 Each attempt retains logs, its `.xcresult` bundle, diagnostic reports, and
 `run.json` under `.cache/test-all/`. The report records the revision, local
-changes, toolchain, destination, and outcome. The command permits uncommitted
-development work but rejects a checkout that changes during the run. When
-full validation is required, retain a passing report for the final clean
-revision through the push, merge, or release. An earlier dirty-worktree run
-does not establish acceptance of that commit.
+changes, toolchain, destination, and outcome. A new attempt keeps only the
+newest evidence directories, up to `RETAINED_RUNS` in `bin/test-all` (five,
+counting itself), and removes older ones. That bound always keeps the newest
+earlier run, which reuse and comparison need, and leaves other entries alone.
+The command permits uncommitted development work but rejects a checkout that
+changes during the run. When full validation is required, retain a passing
+report for the final clean revision through the push, merge, or release. An
+earlier dirty-worktree run does not establish acceptance of that commit.
 
 The command runs automated tests with isolated service fixtures. Live Sentry
 smoke tests in `.agents/scripts/sentry-cli/test_sentry_skills.sh` and real QMD
