@@ -147,6 +147,67 @@ struct BroadcastTests {
     }
     #expect(received == [0, 1, 2])
   }
+
+  // Cancelling a consumer runs its stream's termination handler while the
+  // runtime holds that consumer's task lock, which delivering a value to the
+  // consumer also takes.
+  @Test("cancelling stream consumers during a write does not deadlock")
+  func cancellingConsumersDuringWriteFinishes() async throws {
+    let broadcast = Broadcast<Int>(0)
+    for round in 1...10 {
+      let received = ThreadSafe(0)
+      let consumers = (0..<100)
+        .map { _ in
+          Task {
+            for await _ in broadcast.stream() {
+              received { $0 += 1 }
+            }
+          }
+        }
+      try await Wait.until(
+        { received() == consumers.count },
+        { "Expected every consumer to receive the current value in round \(round)" }
+      )
+
+      let raced = ThreadSafe(false)
+      DispatchQueue.global()
+        .async {
+          DispatchQueue.concurrentPerform(iterations: 2) { lane in
+            if lane == 0 {
+              broadcast.new(round)
+            } else {
+              for consumer in consumers { consumer.cancel() }
+            }
+          }
+          raced(true)
+        }
+      try await Wait.until(
+        { raced() },
+        { "Writing while consumers were cancelled deadlocked in round \(round)" }
+      )
+      for consumer in consumers { await consumer.value }
+    }
+  }
+
+  @Test("concurrent writes reach a stream in the order they were applied")
+  func concurrentWritesArriveInOrder() async throws {
+    let broadcast = Broadcast<Int>(0)
+    let writes = 1000
+    let stream = broadcast.stream()
+
+    DispatchQueue.global()
+      .async {
+        DispatchQueue.concurrentPerform(iterations: writes) { _ in
+          broadcast.update { $0 += 1 }
+        }
+      }
+
+    var received: [Int] = []
+    for await value in stream.prefix(writes + 1) {
+      received.append(value)
+    }
+    #expect(received == Array(0...writes))
+  }
 }
 
 // Verifies the @Broadcasted property wrapper resolves to the
