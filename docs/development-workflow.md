@@ -372,8 +372,9 @@ every mode also verifies the generated active-memory index. Keep the existing
 Swift build and test requirements for application changes; documentation-only
 delivery does not require building the Swift app.
 
-`bin/test-all` includes `bin/check --full` and the separate application,
-macro, skill, and shell tests. `bin/check --full` alone is not a full test run.
+`bin/test-all` includes the separate application, macro, skill, and shell
+tests and `bin/check --full --no-reuse`, which reruns the tooling tests instead
+of reusing an earlier pass. `bin/check --full` alone is not a full test run.
 `bin/tests` covers the knowledge worker and cache ownership and artifact
 repair; Project Starter tests the shared memory audit. `bin/smoke-knowledge` checks real QMD retrieval and
 linked-worktree isolation in disposable repositories. It reuses

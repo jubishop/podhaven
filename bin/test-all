@@ -144,7 +144,7 @@ def main():
         print(f"Test evidence: {output}", flush=True)
 
         run([str(ROOT / "bin/with-test-accessibility"), "--check"], output, "accessibility-preflight")
-        run([str(ROOT / "bin/check"), "--full"], output, "tooling", require_unittest=True)
+        run([str(ROOT / "bin/check"), "--full", "--no-reuse"], output, "tooling", require_unittest=True)
         files = subprocess.check_output(
             ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--",
              ".agents", "bin/tests"], cwd=ROOT, env=TEST_ENVIRONMENT)

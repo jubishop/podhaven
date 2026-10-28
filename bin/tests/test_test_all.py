@@ -86,10 +86,13 @@ elif name == 'xcrun' and args[:2] == ['xcresulttool', 'export']:
     fault = os.environ.get('TEST_PERFORMANCE_FAULT') if performance else None
     (output / 'StandardOutputAndStandardError.txt').write_text(
         'Main Thread Checker: invalid access' if fault == 'runtime' else 'Tests completed')
+elif name == 'check' and '--no-reuse' not in args and (base / 'check-passed').exists():
+    print('Reused the application checks that passed earlier; bin/check --full --no-reuse runs them again.')
 elif name in ('check', 'lint-swift-format', 'test_skill.py', 'test_helper.py'):
     print('Ran ' + os.environ.get('TEST_PYTHON_COUNT', '1') + ' test in 0.001s')
     print('OK (skipped=1)' if os.environ.get('TEST_PYTHON_SKIPPED') else 'OK')
     if os.environ.get('TEST_FAIL_STAGE') == name: sys.exit(23)
+    if name == 'check': (base / 'check-passed').touch()
 else:
     raise SystemExit('Unexpected command: ' + repr([name, args]))
 '''
@@ -146,7 +149,7 @@ class TestAllTests(unittest.TestCase):
         result = self.run_all()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
-        self.assertIn(["check", ["--full"]], events)
+        self.assertIn(["check", ["--full", "--no-reuse"]], events)
         self.assertTrue(any(name == "with-test-accessibility" and args[0] == "xcodebuild"
                             for name, args in events))
         self.assertTrue(any(name == "test_skill.py" for name, _ in events))
@@ -261,6 +264,14 @@ class TestAllTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         result = self.run_all("--ensure", TEST_BUILD_FAILURE="1")
         self.assertNotEqual(result.returncode, 0)
+
+    def test_ensure_rerun_after_failure_runs_tooling_tests_again(self):
+        result = self.run_all("--ensure", TEST_BUILD_FAILURE="1")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        result = self.run_all("--ensure")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
+        self.assertEqual([args for name, args in events if name == "check"], [["--full", "--no-reuse"]] * 2)
 
     def test_verify_rejects_missing_failed_stale_or_dirty_evidence(self):
         self.assertNotEqual(self.run_all("--verify").returncode, 0)
