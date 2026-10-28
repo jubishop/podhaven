@@ -240,9 +240,11 @@ final class SiriResolutionOperation: Sendable {
 
   func decoded(_ catalog: SiriCatalog) {
     state.withLock { summary in
-      summary.entries = catalog.entries.count
-      summary.maxTitleBytes = catalog.entries.reduce(0) {
-        max($0, $1.title.utf8.count, $1.podcastTitle?.utf8.count ?? 0)
+      summary.entries = catalog.podcasts.reduce(0) { $0 + 1 + $1.episodes.count }
+      summary.maxTitleBytes = catalog.podcasts.reduce(0) { longest, podcast in
+        podcast.episodes.reduce(max(longest, podcast.title.utf8.count)) {
+          max($0, $1.title.utf8.count)
+        }
       }
     }
   }

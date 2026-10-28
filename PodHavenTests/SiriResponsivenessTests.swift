@@ -16,12 +16,8 @@ struct SiriResponsivenessTests {
   @MainActor func callbackBoundary(mode: String) async throws {
     let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: url) }
-    let catalog = SiriCatalog(entries: [
-      .init(
-        identity: .init(kind: .podcast, id: 1, feed: "https://synthetic.test"),
-        title: "Synthetic show",
-        podcastTitle: nil
-      )
+    let catalog = SiriCatalog(podcasts: [
+      .init(id: 1, feed: "https://synthetic.test", title: "Synthetic show", episodes: [])
     ])
     try SiriCatalogFile(url: url).write(catalog)
     let opened = ThreadSafe(false)
@@ -78,12 +74,8 @@ struct SiriResponsivenessTests {
       }
     )
     try file.write(
-      SiriCatalog(entries: [
-        .init(
-          identity: .init(kind: .podcast, id: 1, feed: "https://synthetic.test"),
-          title: "Synthetic show",
-          podcastTitle: nil
-        )
+      SiriCatalog(podcasts: [
+        .init(id: 1, feed: "https://synthetic.test", title: "Synthetic show", episodes: [])
       ])
     )
     let handler = SiriMediaIntentHandler(catalog: file.read, authorized: { true })

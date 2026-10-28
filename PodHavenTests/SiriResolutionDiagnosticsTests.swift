@@ -86,16 +86,12 @@ struct SiriResolutionDiagnosticsTests {
     let file = Container.shared.siriCatalogFile()
     defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     try file.write(
-      SiriCatalog(entries: [
+      SiriCatalog(podcasts: [
         .init(
-          identity: .init(
-            kind: .episode,
-            id: 735931,
-            feed: "https://private.invalid/feed",
-            guid: "private-guid"
-          ),
-          title: "Private title",
-          podcastTitle: "Private album"
+          id: 735930,
+          feed: "https://private.invalid/feed",
+          title: "Private album",
+          episodes: [.init(id: 735931, guid: "private-guid", title: "Private title")]
         )
       ])
     )
@@ -133,14 +129,14 @@ struct SiriResolutionDiagnosticsTests {
     #expect(record.summary.outcome == "noMatch")
     #expect(record.summary.callbackMainThread)
     #expect(!record.summary.workerMainThread)
-    #expect(record.summary.entries == 1)
+    #expect(record.summary.entries == 2)
     #expect(record.summary.bytes > 0)
     #expect(record.summary.maxTitleBytes == "Private album".utf8.count)
     #expect(record.summary.readMs > 0 && record.summary.decodeMs > 0 && record.summary.matchMs > 0)
     let json = String(decoding: eventData + data, as: UTF8.self)
     for privateValue in [
       "Private title", "Private album", "Private missing query", "private.invalid", "private-guid",
-      "735931",
+      "735930", "735931",
     ] {
       #expect(!json.contains(privateValue))
     }

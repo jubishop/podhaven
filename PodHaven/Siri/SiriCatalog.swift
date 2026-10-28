@@ -42,7 +42,7 @@ struct SiriMediaSelection: Sendable {
 }
 
 struct SiriCatalog: Codable, Sendable {
-  struct Entry: Codable, Equatable, Sendable {
+  struct Entry: Equatable, Sendable {
     let identity: SiriMediaIdentity
     let title: String
     let podcastTitle: String?
@@ -62,14 +62,67 @@ struct SiriCatalog: Codable, Sendable {
     }
   }
 
+  struct Podcast: Codable, Equatable, Sendable {
+    let id: Int64
+    let feed: String
+    let title: String
+    let episodes: [Episode]
+
+    var entry: Entry {
+      Entry(
+        identity: SiriMediaIdentity(kind: .podcast, id: id, feed: feed),
+        title: title,
+        podcastTitle: nil
+      )
+    }
+
+    var entries: [Entry] { [entry] + episodes.map(entry(for:)) }
+
+    func entry(for episode: Episode) -> Entry {
+      Entry(
+        identity: SiriMediaIdentity(kind: .episode, id: episode.id, feed: feed, guid: episode.guid),
+        title: episode.title,
+        podcastTitle: title
+      )
+    }
+  }
+
+  // Positional fields keep large libraries within the reader's byte limit.
+  struct Episode: Codable, Equatable, Sendable {
+    let id: Int64
+    let guid: String
+    let title: String
+
+    init(id: Int64, guid: String, title: String) {
+      self.id = id
+      self.guid = guid
+      self.title = title
+    }
+
+    init(from decoder: any Decoder) throws {
+      var container = try decoder.unkeyedContainer()
+      id = try container.decode(Int64.self)
+      guid = try container.decode(String.self)
+      title = try container.decode(String.self)
+    }
+
+    func encode(to encoder: any Encoder) throws {
+      var container = encoder.unkeyedContainer()
+      try container.encode(id)
+      try container.encode(guid)
+      try container.encode(title)
+    }
+  }
+
+  static let currentSchemaVersion = 2
   let schemaVersion: Int
   let generation: UUID
-  let entries: [Entry]
+  let podcasts: [Podcast]
 
-  init(entries: [Entry]) {
-    schemaVersion = 1
+  init(podcasts: [Podcast]) {
+    schemaVersion = Self.currentSchemaVersion
     generation = UUID()
-    self.entries = entries
+    self.podcasts = podcasts
   }
 
   static func normalize(_ name: String) -> String {
@@ -112,12 +165,13 @@ struct SiriCatalog: Codable, Sendable {
   }
 
   func matches(_ request: SiriMediaRequest) throws -> [Entry] {
-    guard schemaVersion == 1 else { throw SiriMediaFailure.unavailable }
+    guard schemaVersion == Self.currentSchemaVersion else { throw SiriMediaFailure.unavailable }
     if let identifier = request.identifier {
       let identity = try SiriMediaIdentity(identifier: identifier)
-      guard let entry = entries.first(where: { $0.identity == identity }) else {
-        throw SiriMediaFailure.noMatch
-      }
+      guard
+        let entry = podcasts.lazy.filter({ $0.feed == identity.feed }).flatMap(\.entries)
+          .first(where: { $0.identity == identity })
+      else { throw SiriMediaFailure.noMatch }
       if let title = request.selectedTitle, title != entry.displayTitle {
         throw SiriMediaFailure.noMatch
       }
@@ -130,26 +184,26 @@ struct SiriCatalog: Codable, Sendable {
       throw SiriMediaFailure.unsupported
     }
     let podcastName = Self.normalize(request.album)
-    var albums: [String: String] = [:]
-    let ranked = entries.compactMap { entry -> (Entry, Int)? in
-      if mediaType == .podcastShow && entry.identity.kind != .podcast { return nil }
-      if mediaType == .podcastEpisode && entry.identity.kind != .episode { return nil }
-      if !podcastName.isEmpty {
-        let title = entry.podcastTitle ?? ""
-        let normalized: String
-        if let cached = albums[title] {
-          normalized = cached
-        } else {
-          normalized = Self.normalize(title)
-          if albums.count < 1024 { albums[title] = normalized }
-        }
-        guard normalized == podcastName else { return nil }
-      }
-      let name = Self.normalize(entry.title)
-      if name == query { return (entry, 0) }
-      if name.hasPrefix(query + " ") { return (entry, 1) }
-      if (" " + name + " ").contains(" " + query + " ") { return (entry, 2) }
+    let prefix = query + " "
+    let phrase = " " + query + " "
+    func rank(_ title: String) -> Int? {
+      let name = Self.normalize(title)
+      if name == query { return 0 }
+      if name.hasPrefix(prefix) { return 1 }
+      if (" " + name + " ").contains(phrase) { return 2 }
       return nil
+    }
+    var ranked: [(Entry, Int)] = []
+    for podcast in podcasts {
+      if !podcastName.isEmpty {
+        guard Self.normalize(podcast.title) == podcastName else { continue }
+      } else if mediaType != .podcastEpisode, let rank = rank(podcast.title) {
+        ranked.append((podcast.entry, rank))
+      }
+      guard mediaType != .podcastShow else { continue }
+      for episode in podcast.episodes {
+        if let rank = rank(episode.title) { ranked.append((podcast.entry(for: episode), rank)) }
+      }
     }
     guard let rank = ranked.map(\.1).min() else { throw SiriMediaFailure.noMatch }
     return ranked.filter { $0.1 == rank }.map(\.0)
@@ -246,13 +300,17 @@ struct SiriCatalogFile: Sendable {
     guard let data, data.count <= Self.maximumBytes else { throw SiriMediaFailure.unavailable }
     operation?.begin(.decode)
     let catalog = try JSONDecoder().decode(SiriCatalog.self, from: data)
-    guard catalog.schemaVersion == 1 else { throw SiriMediaFailure.unavailable }
+    guard catalog.schemaVersion == SiriCatalog.currentSchemaVersion else {
+      throw SiriMediaFailure.unavailable
+    }
     operation?.decoded(catalog)
     return catalog
   }
 
   @discardableResult func write(_ catalog: SiriCatalog) throws -> Int {
-    let data = try JSONEncoder().encode(catalog)
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .withoutEscapingSlashes
+    let data = try encoder.encode(catalog)
     try replace(with: data)
     return data.count
   }

@@ -17,6 +17,13 @@ and source identities. Source identities prevent a reused database ID from
 selecting different media. It contains no transcript, description, artwork,
 playback history, or downloaded audio.
 
+Schema version 2 stores each podcast's ID, feed URL, and title once. Each
+podcast nests its episodes as positional ID, GUID, and title arrays, and the
+writer leaves slashes unescaped. An episode's source identity combines its own
+ID and GUID with its podcast's feed URL. The reader accepts only its own schema
+version, so a file from another version fails truthfully until the app
+republishes. See [catalog size](#catalog-size).
+
 Launch database initialization never builds the catalog on the calling thread.
 It invalidates the previous file, then queues the first publication on the
 database writer ahead of any library write. That job registers the commit
@@ -44,11 +51,10 @@ catalog selections. Playback also reads its final generation check off the main
 actor and rechecks cancellation, ownership, and authorization after that await.
 
 Name matching uses a single-pass ASCII path or Foundation Unicode folding with
-scalar separation. Each request caches up to 1,024 normalized album names.
-The cache does not survive the request and cannot return stale catalog entries.
-Publication does no additional normalization or indexing. Matching normalizes
-case, diacritics, punctuation, and whitespace. Exact names rank
-above prefixes and contained phrases. Equally ranked results use Siri's native
+scalar separation. An album filter normalizes each podcast title once per
+request and skips other podcasts' episodes. Publication does no additional
+normalization or indexing. Matching normalizes case, diacritics, punctuation,
+and whitespace. Exact names rank above prefixes and contained phrases. Equally ranked results use Siri's native
 disambiguation. Unnamed recommendations, unsupported options, absent catalog
 data, and missing authorization fail without opening the phone.
 
@@ -144,11 +150,11 @@ out of the timing measurement while retaining the same budgets. The
 `SiriPerformance.xcresult` bundle and `siri-performance.log` are retained beside
 the other full-run evidence and receive the same diagnostic checks.
 
-An optimized local diagnostic benchmark used a 16,564,058-byte catalog. Before
-the change, read/decode took about 2/420 ms and broad matching took 429–665 ms;
-album matching took 214 ms. Afterward, read/decode took about 2/248 ms, broad
-matching took 113–139 ms, and album matching took 15 ms. Decode code is unchanged,
-so its timing difference is run-to-run variation. This experiment does not
+An optimized local diagnostic benchmark used a 16,564,058-byte schema 1
+catalog. Before the change, read/decode took about 2/420 ms and broad matching
+took 429–665 ms; album matching took 214 ms. Afterward, read/decode took about
+2/248 ms, broad matching took 113–139 ms, and album matching took 15 ms. Decode
+code is unchanged, so its timing difference is run-to-run variation. This experiment does not
 reproduce or fully explain the reported 98-second hang.
 
 Run `bin/sentry-siri-smoke --device <iOS-Simulator-UDID>` with Sentry CLI access.
@@ -159,6 +165,27 @@ recovered hang. The helper lists both remote events, downloads the retained
 summaries, and verifies bounds, phase data, matching operation/session/build
 attribution, and absence of the private sentinel metadata. Evidence stays in
 ignored `.cache/sentry-siri-smoke/`. It never installs on a physical device.
+
+## Catalog size
+
+`SiriCatalogFile.maximumBytes` bounds what the extension reads and decodes.
+Schema 1 repeated each podcast's feed URL and title in every episode entry. On
+October 25, 2026, TestFlight 1.5 (589) published 189 podcasts and 110,822
+episodes as 31,123,436 bytes, 92.8% of the limit, or about 280 bytes per entry.
+Once a catalog passes the limit, every Siri request fails.
+
+`SiriCatalogFileTests` writes a synthetic library twice that size, 378 podcasts
+and 221,644 episodes, with field lengths that match the measured bytes per
+entry. Schema 1 encoded it as 62,867,963 bytes; schema 2 encodes it as
+29,520,544 bytes, 88% of the unchanged limit. The real reader then resolves its
+podcasts and episodes. In the Debug test host, schema 2 cut
+`SiriLargeCatalogTests` decode time from about 200 ms to 30 ms and album
+matching from about 20 ms to 2 ms. Broad matching stayed near 200 ms.
+
+The limit itself is unchanged; raising it would need memory measurements from
+the Intents extension. A library somewhat more than twice the measured size
+can still produce an oversized catalog. Publication diagnostics then report
+`oversized=true`, and readers fail truthfully.
 
 ## Publication diagnostics
 
@@ -189,7 +216,7 @@ its latency includes the remaining publication time. Extension requests in that
 window fail truthfully.
 
 A local diagnostic benchmark seeded 110 podcasts and 110,000 episodes, giving a
-27,709,630-byte catalog. In a Debug test host on My Mac, the previous synchronous
+27,709,630-byte schema 1 catalog. In a Debug test host on My Mac, the previous synchronous
 launch path held the main thread for 546–587 ms. After the change, launch
 initialization returned in 4.9–7.4 ms, and publication finished on the writer
 about 0.8–0.9 seconds after initialization began. Phone hardware is slower; the
