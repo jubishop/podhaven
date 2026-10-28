@@ -62,6 +62,10 @@ extension BroadcastDuplicatePolicy where T: Equatable {
 final class Broadcast<T: Sendable>: Sendable, Observable {
   private let registrar = ObservationRegistrar()
   private let state: ThreadSafe<State>
+  // Orders yields across writers. Never yield under `state`: a stream's
+  // termination handler takes it while holding the cancelled consumer's task
+  // lock, which resuming that consumer also needs.
+  private let delivery = ThreadSafe(())
   private let onChange: (@Sendable (T) -> Void)?
   private let duplicatePolicy: BroadcastDuplicatePolicy<T>
 
@@ -115,23 +119,27 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
   }
 
   // The duplicate check runs inside the state lock so the compare and the
-  // mutation+yield stay atomic — an outside check would race a concurrent
-  // writer. `previous` is snapshotted only when the policy needs it, so a
+  // mutation stay atomic — an outside check would race a concurrent writer.
+  // `previous` is snapshotted only when the policy needs it, so a
   // `.notifyAlways` broadcast keeps mutating in place without an extra copy.
   private func write(_ transform: (inout T) -> Void) {
     let isDuplicate = duplicatePolicy.isDuplicate
-    let broadcastValue: T? = state { state in
-      if let isDuplicate {
-        let previous = state.current
-        transform(&state.current)
-        guard !isDuplicate(previous, state.current) else { return nil }
-      } else {
-        transform(&state.current)
+    let broadcastValue: T? = delivery { _ in
+      let written: (value: T, continuations: [AsyncStream<T>.Continuation])? = state { state in
+        if let isDuplicate {
+          let previous = state.current
+          transform(&state.current)
+          guard !isDuplicate(previous, state.current) else { return nil }
+        } else {
+          transform(&state.current)
+        }
+        return (state.current, Array(state.continuations.values))
       }
-      for continuation in state.continuations.values {
-        continuation.yield(state.current)
+      guard let written else { return nil }
+      for continuation in written.continuations {
+        continuation.yield(written.value)
       }
-      return state.current
+      return written.value
     }
     guard let broadcastValue else { return }
     notifyObservers(broadcastValue)
@@ -165,9 +173,12 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
     let id = UUID()
 
     return AsyncStream { continuation in
-      state { state in
-        continuation.yield(state.current)
-        state.continuations[id] = continuation
+      delivery { _ in
+        let current = state { state in
+          state.continuations[id] = continuation
+          return state.current
+        }
+        continuation.yield(current)
       }
 
       continuation.onTermination = { [weak self] _ in

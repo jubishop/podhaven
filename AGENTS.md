@@ -122,6 +122,7 @@ take precedence over this block and the foundation pages wherever they differ.
 
 ### Production Only
 - Choose captures based on the required lifetime. Use weak captures when stored callbacks must not retain their owner. Finite tasks may retain their owner until completion. Long-lived tasks need an explicit cancellation owner and stopping point; weak capture alone does not establish either.
+- Never resume a continuation, yield to an `AsyncStream`, or cancel a task while holding a lock that a cancellation or `onTermination` handler also takes. The runtime runs those handlers under the cancelled task's lock, which resuming that task also needs, so the two deadlock.
 - Avoid `try?`; use `do`/`catch`. Exceptions: `Task.checkCancellation()` and `sleeper.sleep()` when silent failure is intentional.
 - No force unwraps (`!`); use `Assert` or guarded error handling.
 - Never use `map`/`flatMap` to unwrap optionals; use `if let`/`guard let`. Reserve `map`/`flatMap` for collections.
