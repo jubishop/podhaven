@@ -65,9 +65,9 @@ take precedence over this block and the foundation pages wherever they differ.
 - Labels/images use `AppIcon`, e.g. `AppIcon.play`, not `Image(systemName: "play.fill")`.
 
 ## Accessibility
-- Treat accessibility as required for every UI change: support VoiceOver with accurate labels, values, traits, actions, focus, and reading order; hide decorative elements.
-- Prefer native semantic controls and support Dynamic Type. Selection, progress, disabled state, and overlays must remain understandable without visual context.
-- Add focused accessibility regression tests for custom semantics and manually verify representative VoiceOver flows when automated inspection cannot cover them.
+- PodHaven does not support VoiceOver. Add no accessibility labels, values, traits, hints, custom actions or content, focus handling, element grouping or hiding, or VoiceOver tests.
+- Every UI change must support Dynamic Type and Reduce Motion.
+- Keep native control titles, such as `Label`, `Button`, and `AppIcon` titles, even on icon-only controls; menus, toolbar overflow, and layout use them.
 
 ## Shared Utilities & Helpers
 - Use existing helpers: `Assert` for invariants/fatal logging; `ThreadSafe`/`Broadcast` for safe storage, streams, and observability; injected `Sleepable`/`sleeper` for production timing.
