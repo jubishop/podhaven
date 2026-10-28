@@ -102,7 +102,6 @@ struct PodcastSettingsView: View {
                   temp.defaultPlaybackRate = nil
                   viewModel.updateSettings(temp)
                 }
-                .accessibilityLabel("Clear Default Playback Speed")
                 .disabled(temp.defaultPlaybackRate == nil)
             }
           }

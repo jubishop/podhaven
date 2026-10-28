@@ -9,15 +9,13 @@ struct FeedbackPhotosView: View {
     if !photos.isEmpty {
       ScrollView(.horizontal) {
         HStack(spacing: 12) {
-          ForEach(Array(photos.enumerated()), id: \.offset) { index, data in
+          ForEach(Array(photos.enumerated()), id: \.offset) { _, data in
             if let uiImage = UIImage(data: data) {
               Image(uiImage: uiImage)
                 .resizable()
                 .scaledToFit()
                 .frame(height: 200)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
-                .accessibilityLabel("Attached photo \(index + 1)")
-                .accessibilityValue("\(index + 1) of \(photos.count)")
             }
           }
         }

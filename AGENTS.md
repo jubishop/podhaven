@@ -87,7 +87,7 @@ take precedence over this block and the foundation pages wherever they differ.
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
-- Before Swift validation, read the [current-revision workflow](docs/development-workflow.md#current-revision-swift-validation) for commands, targets, accessibility setup, and evidence checks.
+- Before Swift validation, read the [current-revision workflow](docs/development-workflow.md#current-revision-swift-validation) for commands, targets, and evidence checks.
 - Before pushing, merging, or releasing functionally material changes, require [full local validation](docs/foundation/engineering-policy.md#checks) with `bin/test-all --ensure --revision <sha>` on the final clean revision. Require zero skipped tests and the warning requirements above. Documentation needs no checks; comments and formatting-only changes use relevant focused checks.
 - Never substitute a historical revision or copy selected current files onto old source for acceptance. Label historical reproductions as diagnostic experiments.
 - Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`).

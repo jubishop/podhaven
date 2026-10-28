@@ -39,7 +39,6 @@ struct TagsSettingsView: View {
               .imageButton {
                 viewModel.deleteTag(tag.id)
               }
-              .accessibilityLabel("Delete Tag")
           }
         }
       }
@@ -62,7 +61,6 @@ struct TagsSettingsView: View {
       LucideIconView(icon: tag.icon)
         .frame(width: iconSize, height: iconSize)
         .foregroundStyle(.primary)
-        .accessibilityHidden(true)
       VStack(alignment: .leading) {
         Text(tag.name)
         Text(

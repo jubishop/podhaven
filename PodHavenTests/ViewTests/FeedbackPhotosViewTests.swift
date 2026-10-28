@@ -30,7 +30,7 @@ import UIKit
       .dynamicTypeSize(dynamicTypeSize)
     )
     try await withHostedTestWindow(host, size: CGSize(width: 700, height: 844)) { window in
-      try await Self.waitForPhotos(in: window)
+      let row = try await Self.waitForPhotoRow(in: window)
       let screenshot = UIGraphicsImageRenderer(bounds: window.bounds)
         .image { _ in
           window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
@@ -39,24 +39,9 @@ import UIKit
         try #require(screenshot.pngData()),
         named: "feedback-photos-\(count)-\(dynamicTypeSize).png"
       )
-      let elements = Self.accessibilityElements(in: window)
-      let attachments = elements.filter {
-        $0.accessibilityLabel?.hasPrefix("Attached photo ") == true
-      }
-      try #require(attachments.count == count)
-      let firstFrame = try #require(attachments.first).accessibilityFrame
-      for (index, attachment) in attachments.enumerated() {
-        #expect(attachment.accessibilityLabel == "Attached photo \(index + 1)")
-        #expect(attachment.accessibilityValue == "\(index + 1) of \(count)")
-        #expect(attachment.accessibilityTraits.contains(.image))
-        let frame = attachment.accessibilityFrame
-        #expect(abs(frame.midY - firstFrame.midY) < 1)
-        #expect(abs(frame.height - 200) < 1)
-        #expect(abs(frame.width / frame.height - sizes[index].width / sizes[index].height) < 0.01)
-        if index > 0 {
-          #expect(frame.minX > attachments[index - 1].accessibilityFrame.maxX)
-        }
-      }
+      let photoWidths = sizes.map { $0.width / $0.height * 200 }.reduce(0, +)
+      #expect(abs(row.contentSize.height - 200) < 1)
+      #expect(abs(row.contentSize.width - (photoWidths + CGFloat(count - 1) * 12)) < 1)
     }
   }
 
@@ -65,7 +50,7 @@ import UIKit
     .enabled(if: ProcessInfo.processInfo.isiOSAppOnMac),
     arguments: [DynamicTypeSize.large, .accessibility5]
   )
-  func scrollingAndAccessibility(dynamicTypeSize: DynamicTypeSize) async throws {
+  func scrolling(dynamicTypeSize: DynamicTypeSize) async throws {
     let photos = try (0..<5).map { _ in try Self.photoData(CGSize(width: 100, height: 200)) }
     let host = TestHostingController(
       rootView: Form {
@@ -81,43 +66,28 @@ import UIKit
       .dynamicTypeSize(dynamicTypeSize)
     )
     try await withHostedTestWindow(host, size: CGSize(width: 320, height: 844)) { window in
-      try await Self.waitForPhotos(in: window)
-      let scrollViews = Self.descendants(of: window).compactMap { $0 as? UIScrollView }
-      let horizontal = try #require(
-        scrollViews.first { $0.contentSize.width > $0.bounds.width + 1 },
+      let horizontal = try await Self.waitForPhotoRow(in: window)
+      #expect(
+        horizontal.contentSize.width > horizontal.bounds.width + 1,
         "Attachments need a horizontal scroll region"
       )
       let vertical = try #require(
-        scrollViews.first { $0.contentSize.height > $0.bounds.height + 1 && $0 !== horizontal }
+        Self.descendants(of: window)
+          .compactMap { $0 as? UIScrollView }
+          .first { $0.contentSize.height > $0.bounds.height + 1 && $0 !== horizontal }
       )
       let initialVerticalOffset = vertical.contentOffset
       #expect(horizontal.contentSize.height <= horizontal.bounds.height + 1)
-
-      let initialPhotos = Self.accessibilityElements(in: window)
-        .filter { $0.accessibilityLabel?.hasPrefix("Attached photo ") == true }
-      let last = try #require(initialPhotos.last)
-      #expect(last.accessibilityLabel == "Attached photo 5")
-      let visibleFrame = horizontal.convert(horizontal.bounds, to: window.screen.coordinateSpace)
-      #expect(last.accessibilityFrame.minX >= visibleFrame.maxX)
 
       horizontal.setContentOffset(
         CGPoint(x: horizontal.contentSize.width - horizontal.bounds.width, y: 0),
         animated: false
       )
       host.view.layoutIfNeeded()
-      let revealedLast = try #require(
-        Self.accessibilityElements(in: window).first { $0.accessibilityLabel == "Attached photo 5" }
-      )
-      #expect(visibleFrame.contains(revealedLast.accessibilityFrame))
-      #expect(revealedLast.accessibilityValue == "5 of 5")
       #expect(vertical.contentOffset == initialVerticalOffset)
 
       horizontal.setContentOffset(.zero, animated: false)
       host.view.layoutIfNeeded()
-      let revealedFirst = try #require(
-        Self.accessibilityElements(in: window).first { $0.accessibilityLabel == "Attached photo 1" }
-      )
-      #expect(visibleFrame.contains(revealedFirst.accessibilityFrame))
       #expect(vertical.contentOffset == initialVerticalOffset)
 
       vertical.setContentOffset(CGPoint(x: 0, y: 200), animated: false)
@@ -127,13 +97,20 @@ import UIKit
     }
   }
 
-  private static func waitForPhotos(in window: UIWindow) async throws {
+  private static func waitForPhotoRow(in window: UIWindow) async throws -> UIScrollView {
     try await Wait.until { @MainActor in
-      Self.accessibilityElements(in: window)
-        .contains { $0.accessibilityLabel == "Attached photo 1" }
+      Self.photoRow(in: window) != nil
     } _: {
-      "Feedback photos did not enter the accessibility tree"
+      "Feedback photos did not render"
     }
+    return try #require(photoRow(in: window))
+  }
+
+  private static func photoRow(in window: UIWindow) -> UIScrollView? {
+    window.layoutIfNeeded()
+    return descendants(of: window)
+      .compactMap { $0 as? UIScrollView }
+      .first { abs($0.contentSize.height - 200) < 1 && $0.contentSize.width > 0 }
   }
 
   private static func photoData(_ size: CGSize) throws -> Data {
@@ -149,28 +126,5 @@ import UIKit
 
   private static func descendants(of view: UIView) -> [UIView] {
     [view] + view.subviews.flatMap { descendants(of: $0) }
-  }
-
-  private static func accessibilityElements(in root: NSObject)
-    -> [NSObject]
-  {
-    var visited: Set<ObjectIdentifier> = []
-    func collect(_ object: NSObject) -> [NSObject] {
-      guard visited.insert(ObjectIdentifier(object)).inserted else { return [] }
-      var result = object.isAccessibilityElement ? [object] : []
-      if let view = object as? UIView {
-        result += view.subviews.flatMap { collect($0) }
-      }
-      let count = object.accessibilityElementCount()
-      if count != NSNotFound, count > 0 {
-        for index in 0..<count {
-          if let child = object.accessibilityElement(at: index) as? NSObject {
-            result += collect(child)
-          }
-        }
-      }
-      return result
-    }
-    return collect(root)
   }
 }

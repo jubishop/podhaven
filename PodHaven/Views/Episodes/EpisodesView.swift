@@ -76,14 +76,12 @@ struct EpisodesView: View {
                 )
               }
             }
-            .accessibilityLabel("Edit Smart List")
         }
         .swipeActions(edge: .trailing) {
           AppIcon.delete
             .imageButton {
               viewModel.deleteSmartList(smartList)
             }
-            .accessibilityLabel("Delete Smart List")
         }
       }
       .onMove(perform: viewModel.moveSmartList)

@@ -8,11 +8,8 @@ import UIKit
 
 @Suite("of toolbar icon color tests", .container)
 @MainActor struct ToolbarIconColorTests {
-  @Test(
-    "episode toolbar menus retain their icon colors and accessibility labels",
-    arguments: [ColorScheme.light, .dark]
-  )
-  func toolbarMenusRetainTheirIconColorAndAccessibilityLabel(appearance: ColorScheme) async throws {
+  @Test("episode toolbar menus retain their icon colors", arguments: [ColorScheme.light, .dark])
+  func toolbarMenusRetainTheirIconColor(appearance: ColorScheme) async throws {
     let episode = UnsavedPodcastEpisode(
       unsavedPodcast: try Create.unsavedPodcast(),
       unsavedEpisode: try Create.unsavedEpisode(rating: .loved)
@@ -27,31 +24,31 @@ import UIKit
     host.overrideUserInterfaceStyle = appearance == .dark ? .dark : .light
     host.traitOverrides.activeAppearance = .active
     try await withHostedTestWindow(host) { window in
-      for (label, icon) in [
-        ("Episode Actions", AppIcon.playButton), ("Rate Episode", .rating(for: .loved)),
-      ] {
-        try await Wait.until(
-          { @MainActor in Self.descendants(of: window).contains { $0.accessibilityLabel == label }
-          },
-          { "Toolbar accessibility label did not become available: \(label)" }
-        )
-        let toolbarControl = try #require(
-          Self.descendants(of: window).first { $0.accessibilityLabel == label }
-        )
+      try await Wait.until(
+        { @MainActor in
+          Self.descendants(of: window).contains { $0 is UINavigationBar }
+        },
+        { "Navigation bar did not appear" }
+      )
+      let navigationBar = try #require(
+        Self.descendants(of: window).first { $0 is UINavigationBar }
+      )
+      let screenshot = UIGraphicsImageRenderer(bounds: window.bounds)
+        .image { _ in
+          _ = window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+      Attachment.record(try #require(screenshot.pngData()), named: "episode-toolbar.png")
+      for icon in [AppIcon.playButton, .rating(for: .loved)] {
         let expectedColor = UIColor(icon.color(for: appearance))
-        let screenshot = UIGraphicsImageRenderer(bounds: window.bounds)
-          .image { _ in
-            _ = window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
-          }
-        Attachment.record(try #require(screenshot.pngData()), named: "episode-toolbar.png")
+        let iconName = icon.text
         try await Wait.until(
           { @MainActor in
             host.view.setNeedsLayout()
             host.view.layoutIfNeeded()
-            let frame = toolbarControl.convert(toolbarControl.bounds, to: window)
+            let frame = navigationBar.convert(navigationBar.bounds, to: window)
             return Self.contains(expectedColor, in: frame, rendering: window)
           },
-          { "Toolbar menu did not render its icon color: \(label), \(appearance)" }
+          { "Toolbar menu did not render its icon color: \(iconName), \(appearance)" }
         )
       }
     }

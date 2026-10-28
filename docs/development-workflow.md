@@ -177,7 +177,7 @@ verify real worker priority and completion without waiting for audio I/O.
 
 Hosted view tests use `withHostedTestWindow` to perform their first layout
 inside the test's dependency context and await UIKit appearance and teardown.
-Keep views installed and preserve their rendered and accessibility assertions.
+Keep views installed and preserve their rendered assertions.
 
 ### Current-revision Swift validation
 
@@ -209,7 +209,7 @@ Its five-second budgets therefore exclude contention from unrelated tests.
 Both phases must pass with zero skipped tests and validated diagnostics;
 their logs and result bundles are retained in the same evidence directory.
 
-My Mac also runs hosted UI and accessibility tests that the iOS Simulator skips. Use additional
+My Mac also runs hosted UI tests that the iOS Simulator skips. Use additional
 simulator checks when a change needs environment-specific coverage. Development
 checks use local targets; physical-device testing belongs to separate release
 workflows and must respect the [device restriction](../AGENTS.md#repo-guardrails).
@@ -220,25 +220,12 @@ For focused application tests, use My Mac by default with
 `-only-testing:PodHavenTests/SomeSuite`; method filters can report success while
 running zero tests.
 
-On macOS 27, hosted SwiftUI tests need a native accessibility client to expose
-controls. `bin/test-all` starts it through `bin/with-test-accessibility`. Use
-`bin/with-test-accessibility xcodebuild test ...` for focused runs too. Grant
-Accessibility access to the terminal or app running tests in System Settings →
-Privacy & Security → Device Control and Data Access (the macOS 27 name for
-Accessibility permissions). The wrapper connects only to the PodHaven test
-host through a temporary, token-protected loopback endpoint to initialize
-inspection. Hosted control tests dispatch UIKit primary actions or activate
-SwiftUI accessibility elements inside the test's dependency context. Direct
-`Cmd+U` runs do not start this client. The wrapper also clears inherited
-`SDKROOT` so Xcode selects the SDK for the requested destination.
+Run focused tests with `env -u SDKROOT xcodebuild test ...` so Xcode selects
+the SDK for the requested destination; `bin/test-all` clears inherited
+`SDKROOT` itself.
 
-Run `bin/test-all --preflight` from the terminal or app that will launch the
-tests to check the toolchain and Accessibility access without running tests.
-The full suite also checks access before any test suite starts. When access
-is missing, the wrapper requests the macOS permission prompt and stops.
-Enable the app named by macOS, then rerun the preflight from that same app.
-If access is already enabled but the check fails, quit and reopen that app
-and check again. Release commands run this preflight too.
+Run `bin/test-all --preflight` to check the Xcode, Swift, and macOS versions
+without running tests. Release commands run this preflight too.
 
 My Mac code coverage also needs access to the PodHaven app's data. In System
 Settings → Privacy & Security → Files & Folders, expand the terminal or app

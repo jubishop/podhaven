@@ -14,12 +14,12 @@ private struct CarPlaySmartListPreview: View {
         Label {
           Text("Recent Episodes · 12 unread")
         } icon: {
-          LucideIcon.listMusic.image.accessibilityHidden(true)
+          LucideIcon.listMusic.image
         }
         Label {
           Text("Saved")
         } icon: {
-          LucideIcon.heart.image.accessibilityHidden(true)
+          LucideIcon.heart.image
         }
         Button("Next page") {}
       case .episodes, .fallback:
@@ -27,9 +27,8 @@ private struct CarPlaySmartListPreview: View {
           VStack(alignment: .leading) {
             Text("A saved episode")
             Text("Example podcast · 24m remaining · Current episode · Downloaded").font(.caption)
-            ProgressView(value: 0.4).accessibilityLabel("Episode progress")
+            ProgressView(value: 0.4)
           }
-          .accessibilityElement(children: .combine)
           Text("Another episode")
         }
         Button("Next page") {}

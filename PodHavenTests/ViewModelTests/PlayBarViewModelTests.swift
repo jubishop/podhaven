@@ -233,6 +233,26 @@ import Testing
     #expect(try await repo.transcriptionCheckpoint(episode.id) == checkpoint)
   }
 
+  @Test("play bar actions use the container that created the play bar")
+  func actionsUseOriginatingContainer() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let episode = try await episodeOnDeck()
+    let foreignContainer = Container()
+    let foreignQueue = Container.$shared.withValue(foreignContainer) {
+      let queue = foreignContainer.transcriptionQueue()
+      viewModel.transcribe()
+      return queue
+    }
+
+    let queuedEpisodeIDs = await TranscriptionHelpers.waitForQueuedEpisode(
+      episode.id,
+      in: transcriptionQueue
+    )
+    #expect(queuedEpisodeIDs.contains(episode.id))
+    await foreignQueue.waitUntilLoaded()
+    #expect(foreignQueue.status(for: episode.id, hasTranscript: false) == .none)
+  }
+
   // MARK: - undoSeekDirection
 
   private func scrub(from start: Double, to end: Double) async throws {

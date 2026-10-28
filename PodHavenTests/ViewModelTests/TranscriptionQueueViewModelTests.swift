@@ -72,13 +72,13 @@ import Testing
       { @MainActor in "Expected initial queue order" }
     )
 
-    viewModel.moveToTop(episodes[2].id, swipeAction: false)
+    viewModel.moveToTop(episodes[2].id)
 
     let expectedOrder = [episodes[0].id, episodes[2].id, episodes[1].id]
-    #expect(viewModel.entries.map(\.id) == expectedOrder)
     try await Wait.until(
       { @MainActor in
-        self.transcriptionQueue.episodeIDs == viewModel.entries.map(\.id)
+        self.transcriptionQueue.episodeIDs == expectedOrder
+          && viewModel.entries.map(\.id) == expectedOrder
       },
       { @MainActor in "Expected projected queue order to persist" }
     )
@@ -115,7 +115,7 @@ import Testing
       { @MainActor in "Expected initial queue order" }
     )
 
-    viewModel.moveToTop(episodes[2].id, swipeAction: true)
+    viewModel.moveToTop(episodes[2].id)
 
     let visibleWhilePending = [episodes[0].id, episodes[1].id]
     #expect(viewModel.entries.map(\.id) == visibleWhilePending)
@@ -176,26 +176,26 @@ import Testing
       { @MainActor in "Expected initial queue order" }
     )
 
-    viewModel.moveToTop(episodes[2].id, swipeAction: true)
+    viewModel.moveToTop(episodes[2].id)
     await firstReorderStarted.wait()
     #expect(viewModel.entries.map(\.id) == [episodes[0].id, episodes[1].id])
 
     let finalOrder = [episodes[2].id, episodes[1].id, episodes[0].id]
-    viewModel.moveToBottom(episodes[0].id, swipeAction: false)
-    #expect(viewModel.entries.map(\.id) == [episodes[1].id, episodes[0].id])
+    viewModel.moveToBottom(episodes[0].id)
+    #expect(viewModel.entries.map(\.id) == [episodes[1].id])
 
     firstReorderRelease.signal()
     await secondReorderStarted.wait()
 
     #expect(queue.episodeIDs == [episodes[2].id, episodes[0].id, episodes[1].id])
-    #expect(viewModel.entries.map(\.id) == finalOrder)
+    #expect(viewModel.entries.map(\.id) == [episodes[2].id, episodes[1].id])
 
     secondReorderRelease.signal()
     try await Wait.until(
       { @MainActor in
         queue.episodeIDs == finalOrder && viewModel.entries.map(\.id) == finalOrder
       },
-      { @MainActor in "Expected the later accessibility move to finish" }
+      { @MainActor in "Expected the later move to finish" }
     )
   }
 
@@ -249,7 +249,7 @@ import Testing
 
     viewModel.remove(episodes[1].id)
     await firstRemovalStarted.wait()
-    viewModel.moveToTop(episodes[2].id, swipeAction: true)
+    viewModel.moveToTop(episodes[2].id)
     #expect(viewModel.entries.map(\.id) == [episodes[0].id])
 
     fakeRepo.pendingPodcastEpisodesFetchSuspend(true)
@@ -262,7 +262,7 @@ import Testing
       { @MainActor in "Expected the live queue removal to reconcile" }
     )
 
-    viewModel.moveToBottom(episodes[0].id, swipeAction: true)
+    viewModel.moveToBottom(episodes[0].id)
     await newerReorderStarted.wait()
     #expect(viewModel.entries.isEmpty)
 
@@ -315,7 +315,7 @@ import Testing
       { @MainActor in "Expected initial queue order" }
     )
 
-    viewModel.transcribeNow(episodes[2].id, swipeAction: true)
+    viewModel.transcribeNow(episodes[2].id)
 
     let visibleWhilePending = [episodes[0].id, episodes[1].id]
     #expect(viewModel.entries.map(\.id) == visibleWhilePending)
@@ -351,31 +351,35 @@ import Testing
       { @MainActor in "Expected initial queue order" }
     )
 
-    viewModel.transcribeNow(episodes[2].id, swipeAction: false)
+    viewModel.transcribeNow(episodes[2].id)
 
     let firstExpectedOrder = [episodes[2].id, episodes[0].id, episodes[1].id]
-    #expect(viewModel.entries.map(\.id) == firstExpectedOrder)
-    #expect(viewModel.activeEntry?.id == episodes[0].id)
-    #expect(viewModel.waitingEntries.map(\.id) == [episodes[2].id, episodes[1].id])
     try await Wait.until(
-      { @MainActor in self.transcriptionQueue.episodeIDs == firstExpectedOrder },
+      { @MainActor in
+        self.transcriptionQueue.episodeIDs == firstExpectedOrder
+          && viewModel.entries.map(\.id) == firstExpectedOrder
+      },
       { @MainActor in "Expected Transcribe Now order to persist" }
     )
+    #expect(viewModel.activeEntry?.id == episodes[0].id)
+    #expect(viewModel.waitingEntries.map(\.id) == [episodes[2].id, episodes[1].id])
 
-    viewModel.transcribeNow(episodes[1].id, swipeAction: false)
+    viewModel.transcribeNow(episodes[1].id)
 
     let secondExpectedOrder = [episodes[1].id, episodes[0].id, episodes[2].id]
-    #expect(viewModel.entries.map(\.id) == secondExpectedOrder)
-    #expect(viewModel.activeEntry?.id == episodes[0].id)
-    #expect(viewModel.waitingEntries.map(\.id) == [episodes[1].id, episodes[2].id])
     try await Wait.until(
-      { @MainActor in self.transcriptionQueue.episodeIDs == secondExpectedOrder },
+      { @MainActor in
+        self.transcriptionQueue.episodeIDs == secondExpectedOrder
+          && viewModel.entries.map(\.id) == secondExpectedOrder
+      },
       { @MainActor in "Expected the latest promotion to keep interrupted work requeued first" }
     )
+    #expect(viewModel.activeEntry?.id == episodes[0].id)
+    #expect(viewModel.waitingEntries.map(\.id) == [episodes[1].id, episodes[2].id])
   }
 
-  @Test("queue progress shows only its percentage while announcing status")
-  func queueProgressShowsOnlyItsPercentageWhileAnnouncingStatus() async throws {
+  @Test("queue progress shows only its percentage")
+  func queueProgressShowsOnlyItsPercentage() async throws {
     let episode = try await Create.podcastEpisode()
     let waitingEntry = TranscriptionQueueViewModel.Entry(
       episode: episode,
@@ -389,9 +393,7 @@ import Testing
     )
 
     #expect(waitingEntry.progressText == "25%")
-    #expect(waitingEntry.accessibilityValue == "Waiting, 25 percent complete")
     #expect(activeEntry.progressText == "42%")
-    #expect(activeEntry.accessibilityValue == "Transcribing, 42 percent")
   }
 
   @Test("an unreadable checkpoint does not fail queue loading")

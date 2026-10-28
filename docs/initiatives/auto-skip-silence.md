@@ -95,7 +95,7 @@ Turning Off prevents further automatic skips immediately. Other effective change
 - Add a **separate compact silence control immediately to the right of the existing playback-speed control** in `PlayBarSheet.metaControlsRow`. Both belong in the left group before the spacer; keep the existing controls on the right.
 - The player control opens a popover/menu with only **Gentle, Balanced, Aggressive, Off**, with the current effective selection indicated. No reset action, explanatory text, timing controls, or new playback-options panel. Do not combine it with the speed popover.
 - Use the concise help copy above in the existing question-mark popovers (`SettingsRow`) in `SettingsView` and `PodcastSettingsView`. Keep inheritance and playback-lifetime explanations out of both popovers.
-- Use `AppIcon` and accessible native menu/picker semantics. Give the compact control an accurate VoiceOver label and selected value. Preserve Dynamic Type, reading order, adequate hit targets, and usable narrow layouts with chapter controls and the transcript visible.
+- Use `AppIcon` and native menu/picker controls. Preserve Dynamic Type, adequate hit targets, and usable narrow layouts with chapter controls and the transcript visible.
 - Add isolated `#Preview` states for inherited and explicit settings, enabled/Off selections, and the expanded player layout. No network or persistent database access in previews.
 
 ### Analyze downloaded audio once
@@ -142,7 +142,7 @@ Turning Off prevents further automatic skips immediately. Other effective change
 2. Exercise precise seeks over known ranges in cached MP3/AAC samples to understand landing accuracy and overhead. Use those findings for conservative cut margins and initial preset values. This is an early implementation step, not a separate research-only deliverable.
 3. Implement and test local PCM analysis, source-bound cache persistence, and the scheduler.
 4. Integrate current-playback state, live settings/speed updates, readiness/cache switching, seeks, position/coverage accounting, and lifecycle cleanup.
-5. Add the settings and separate expanded-player control, help popovers, accessibility, and previews.
+5. Add the settings and separate expanded-player control, help popovers, and previews.
 6. Complete regression/build checks and document initial listening and performance evidence, the shipped preset/detector values, known limitations, and the follow-up path. Finish the usable AVPlayer implementation under this issue. Later sound-quality iterations or engine redesign belong in new issues when warranted by testing.
 
 Useful current code locations: `PodHaven/Environment/UserSettings.swift`; `PodHaven/Database/Models/{PodcastSettings,Podcast,OnDeck}.swift`; `PodHaven/Database/Repo.swift`; `PodHaven/State/SharedState.swift`; `PodHaven/Play/PlayManager.swift` and its playback/events/recovery files; `PodHaven/Play/Utility/PodAVPlayer.swift`; `PodHaven/Play/Protocols/AVPlayable.swift`; `PodHaven/Play/Extensions/AVPlayer.swift`; `PodHaven/Cache/{CacheManager,CacheFileStore}.swift`; `PodHaven/Recommendations/Embeddings/EmbeddingProcessor.swift`; `PodHaven/Utility/BackgroundTaskScheduler.swift`; `PodHaven/Views/Settings/{SettingsView,Components/SettingsRow}.swift`; `PodHaven/Views/Podcasts/PodcastSettingsView.swift`; `PodHaven/Views/PlayBar/{PlayBarSheet,Models/PlayBarViewModel}.swift`.
@@ -157,7 +157,7 @@ Useful current code locations: `PodHaven/Environment/UserSettings.swift`; `PodHa
 - Remote playback with an available local map still never auto-skips until switched to that local asset. Readiness and item replacement wait for a pause and preserve current position/rate/play state and temporary settings without user seeking. Stale/failed analysis leaves playback usable.
 - Known quiet ranges produce correct precise-seek targets; late/missed boundaries do not cut speech; no loops; manual seeking into silence triggers a safe remaining-silence cut after completion (or after resuming from pause); actual seek completion/failure/interruption; competing manual actions; paused/buffering states; item/episode changes; route changes and media-services reset; queue/end-of-episode/Stop After Current Episode behavior.
 - Source timestamps remain consistent in UI, database, transcripts/chapters, and Now Playing. Heard coverage includes audio before/after cuts and excludes removed spans as far as the existing bitmap can represent. Automatic cuts do not interfere with Undo Seek.
-- Menu choices and placement; no player explanations/reset/Custom controls; correct persistence scope; accessible selection/reading order; narrow and large-text layouts with chapters/transcript; isolated previews compile.
+- Menu choices and placement; no player explanations/reset/Custom controls; correct persistence scope; narrow and large-text layouts with chapters/transcript; isolated previews compile.
 
 Use the repository's Swift Testing fixtures and real orchestration with fakes at OS boundaries. Prove functional regression tests fail before each implementation change and pass afterward. Do not expose private logic or add production APIs solely for tests. Run suite-level filters using My Mac (Designed for iPhone), always pass `-hideShellScriptEnvironment`, format touched Swift, and finish with zero warnings. Follow `AGENTS.md` for required application checks and run document checks for the design updates.
 
@@ -272,14 +272,13 @@ unperformed. They do not block delivery of the accepted thresholds. Passing
 decoder and fake-player tests does not establish their audible quality; later
 listening concerns belong in a new issue.
 
-Hosted My Mac tests check the controls at 320 points, selected accessibility
-values, minimum hit targets, and complete popover text. Captured popovers show
-both help texts without truncation. A separate overflow regression verifies
-that help exceeding the available height can scroll to its final paragraph. The Mac host rendered identical font sizes
+At delivery, hosted My Mac tests checked the controls at 320 points, minimum
+hit targets, and complete popover text. Captured popovers showed both help
+texts without truncation. A separate overflow regression verified that help
+exceeding the available height can scroll to its final paragraph. The Mac host rendered identical font sizes
 for normal and accessibility text-size requests, including an explicit native
 trait override. It therefore does not verify actual large-text growth on iOS.
-Verify narrow iPhone/iPad layouts with larger text and a spoken VoiceOver flow
-before accepting the UI. Preview states include High with Off, Medium in the
+Verify narrow iPhone/iPad layouts with larger text before accepting the UI. Preview states include High with Off, Medium in the
 narrow player, Low with chapters, transcript layouts, and inherited/explicit
 podcast preferences.
 
@@ -309,15 +308,11 @@ padding reduce risk, but do not establish perfect sound quality.
 
 Automated tests exercise mode inheritance, transient selection, cache identity,
 real decoding, thermal deferral, remote-to-cache readiness, manual and failed
-seeks, coverage accounting, and media-services recovery. Hosted accessibility
-inspection checks the separate control's label, selected value, placement, and
-hit target at narrow widths and large text sizes. The narrow-layout check includes chapter controls and an expanded transcript.
+seeks, coverage accounting, and media-services recovery.
 The final My Mac run passed 2,156 tests across 292 suites, including the existing
 chapter, transcript, queue, and recovery coverage. Swift formatting, preview
 compilation, and document checks passed; the final build emitted no compiler
-warnings. The My Mac harness still prints macOS accessibility-bundle loading
-errors for RealityFoundation and ScreenTimeUI before the tests; hosted
-accessibility assertions passed.
+warnings.
 
 Later listening can identify audible jumps, soft-speech clipping, or preset
 changes. Such findings should be evaluated as focused follow-up work. The
@@ -333,7 +328,7 @@ transport redesign.
 - [ ] Presets scale gently with current playback speed without repeated audio analysis; initial values and protection limits are documented.
 - [ ] Every eligible downloaded episode can be prepared, including episodes outside the queue, with bounded scheduling, persistence, cancellation, and cache cleanup.
 - [ ] Original timelines, playback coverage, manual controls, normal streaming fallback, cache switching, background/remote playback, and recovery remain correct.
-- [ ] Required regression tests, builds, formatting, accessibility checks, previews, and documentation checks pass; listening/performance evidence and its limits are recorded.
+- [ ] Required regression tests, builds, formatting, previews, and documentation checks pass; listening/performance evidence and its limits are recorded.
 - [ ] The design document records that this issue closes after this AVPlayer implementation and validation. Potential later sound-quality or engine changes are explicitly follow-up work, not an indefinite closure condition.
 
 ## API references

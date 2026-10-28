@@ -117,10 +117,6 @@ struct SettingsView: View {
                   }
                 }
               )
-              .accessibilityLabel("Maximum Transcription Queue Length")
-              .accessibilityValue(
-                "\(Int(tempMaxTranscriptionQueueLength)) episodes"
-              )
             }
           }
         }
@@ -607,7 +603,6 @@ struct SettingsView: View {
           } label: {
             AppIcon.moreActions.image
           }
-          .accessibilityLabel("More Actions")
         }
       }
     }

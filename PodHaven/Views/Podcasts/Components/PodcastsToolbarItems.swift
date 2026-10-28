@@ -45,7 +45,6 @@ func selectablePodcastsToolbarItems<ViewModel: SelectablePodcastList>(viewModel:
           AppIcon.moreActions.image
         }
       )
-      .accessibilityLabel("More Actions")
     }
   }
 
@@ -67,8 +66,6 @@ func sortablePodcastsToolbarItems<ViewModel: SortablePodcastList>(viewModel: Vie
         viewModel.currentSortMethod.appIcon.image
       }
     )
-    .accessibilityLabel("Sort")
-    .accessibilityValue(viewModel.currentSortMethod.appIcon.text)
   }
 }
 

@@ -31,7 +31,6 @@ import SwiftUI
           AppIcon.editFinished.image
         }
       )
-      .accessibilityLabel("Selection Actions")
     } else {
       AppIcon.editItems.labelButton {
         list.setSelecting(true)
