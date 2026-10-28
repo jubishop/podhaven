@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 
 import service_guard
@@ -14,7 +15,7 @@ import service_guard
 
 ROOT = Path(__file__).resolve().parents[2]
 FAKE = r'''
-import json, os, pathlib, subprocess, sys
+import fcntl, json, os, pathlib, subprocess, sys
 name = pathlib.Path(sys.argv[0]).name
 args = sys.argv[1:]
 base = pathlib.Path(os.environ['TEST_ALL_FIXTURE'])
@@ -30,6 +31,14 @@ elif name == 'xcrun' and args[:2] == ['swift', 'test']:
     print('Executed 1 test, with 0 failures')
     if os.environ.get('TEST_MACRO_WARNING'): print('warning: unused result')
 elif name == 'xcodebuild':
+    lock_path = pathlib.Path.home() / '.cache/podhaven/my-mac-tests.lock'
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            sys.exit('xcodebuild test ran without the My Mac test lock')
+        except BlockingIOError:
+            pass
     assert not os.environ.get('SDKROOT'), 'Xcode must choose the SDK for its destination'
     assert '-hideShellScriptEnvironment' in args
     assert args[args.index('-destination') + 1] == 'platform=macOS,name=My Mac'
@@ -40,6 +49,8 @@ elif name == 'xcodebuild':
     selection = '-only-testing' if performance else '-skip-testing'
     assert [arg for arg in args if arg.startswith(('-only-testing', '-skip-testing'))] == [
         selection + ':PodHavenTests/SiriLargeCatalogTests']
+    if os.environ.get('TEST_HOLD_FIFO') and not performance:
+        pathlib.Path(os.environ['TEST_HOLD_FIFO']).read_text()
     if not os.environ.get('TEST_MISSING_BUNDLE') and fault != 'missing-bundle':
         bundle.mkdir()
     print('Tests completed')
@@ -100,7 +111,7 @@ class TestAllTests(unittest.TestCase):
         self.base = Path(temporary.name)
         self.repo = self.base / "repo"
         (self.repo / "bin").mkdir(parents=True)
-        for name in ("test-all", "check-swift-results"):
+        for name in ("test-all", "check-swift-results", "_my_mac_lock.py"):
             shutil.copy2(ROOT / "bin" / name, self.repo / "bin" / name)
         self.commands = self.base / "commands"
         self.commands.mkdir()
@@ -116,8 +127,9 @@ class TestAllTests(unittest.TestCase):
             '#!/bin/bash\nprintf shell > "$TEST_ALL_FIXTURE/shell-ran"\n')
         (self.repo / ".gitignore").write_text('.cache/\n')
         (self.repo / "source.txt").write_text("original")
+        (self.base / "home").mkdir()
         self.env = {**os.environ, "PATH": str(self.commands) + os.pathsep + os.environ["PATH"],
-                    "TEST_ALL_FIXTURE": str(self.base)}
+                    "TEST_ALL_FIXTURE": str(self.base), "HOME": str(self.base / "home")}
         for key in tuple(self.env):
             if key.startswith("GIT_") or key.startswith("TEST_") and key != "TEST_ALL_FIXTURE":
                 self.env.pop(key)
@@ -181,6 +193,64 @@ class TestAllTests(unittest.TestCase):
                 result = self.run_all(TEST_PERFORMANCE_FAULT=fault)
                 self.assertNotEqual(result.returncode, 0, result.stdout)
                 self.assertEqual(self.report()["result"], "failed")
+
+    def test_concurrent_runs_from_different_checkouts_take_turns_on_my_mac(self):
+        other = self.base / "other"
+        shutil.copytree(self.repo, other, symlinks=True)
+        gate = self.base / "gate"
+        os.mkfifo(gate)
+        reader = os.open(gate, os.O_RDONLY | os.O_NONBLOCK)
+        writer = os.open(gate, os.O_WRONLY)
+        os.close(reader)
+        released = False
+        processes = []
+
+        def start(repo, **env):
+            process = subprocess.Popen([sys.executable, "-B", str(repo / "bin/test-all")], cwd=self.base,
+                                       env={**self.env, **env}, text=True,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            processes.append(process)
+            return process
+
+        def stop():
+            if not released:
+                os.close(writer)
+            for process in processes:
+                if process.poll() is None:
+                    process.kill()
+                process.communicate()
+
+        self.addCleanup(stop)
+        watchdog = threading.Timer(60, lambda: [process.kill() for process in processes])
+        watchdog.start()
+        self.addCleanup(watchdog.cancel)
+        first = start(self.repo, TEST_HOLD_FIFO=str(gate))
+        for line in first.stdout:
+            if line.startswith("Running xcodebuild;"):
+                break
+        else:
+            self.fail("The first run never started its My Mac tests:\n" + first.stderr.read())
+        second = start(other)
+        waiting = second.stderr.readline()
+        self.assertIn("Waiting for the My Mac test lock", waiting)
+        self.assertIn(f"bin/test-all in {self.repo.resolve()}", waiting)
+        os.close(writer)
+        released = True
+        first_output, first_errors = first.communicate(timeout=30)
+        self.assertEqual(first.returncode, 0, first_output + first_errors)
+        second_output, second_errors = second.communicate(timeout=30)
+        self.assertEqual(second.returncode, 0, second_output + second_errors)
+        events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
+        owners = [Path(args[args.index("-resultBundlePath") + 1]).parents[3]
+                  for name, args in events if name == "xcodebuild" and "test" in args]
+        self.assertEqual(owners, [self.repo.resolve()] * 2 + [other.resolve()] * 2)
+
+    def test_run_under_the_lock_command_reuses_its_lock(self):
+        result = subprocess.run([sys.executable, "-B", str(ROOT / "bin/with-my-mac-lock"),
+                                 sys.executable, "-B", str(self.repo / "bin/test-all")],
+                                cwd=self.base, env=self.env, text=True, capture_output=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("Waiting", result.stderr)
 
     def test_failures_never_leave_a_passing_report(self):
         for setting in ("TEST_BUILD_FAILURE", "TEST_MISSING_BUNDLE", "TEST_SKIPPED",

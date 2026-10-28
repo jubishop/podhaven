@@ -90,7 +90,7 @@ class AppStoreCommandTests(unittest.TestCase):
             shutil.copy2(ROOT / "bin" / name, self.repo / "bin" / name)
         (self.repo / "bin/shipit").symlink_to("deploy.sh")
         commands = self.base / "commands"
-        install_gate(self.repo, commands)
+        home = install_gate(self.repo, commands)
         for name in ("fastlane", "xcodebuild", "llm", "xcbeautify", "mktemp", "gh", "rm", "sentry", "dwarfdump"):
             path = commands / name
             source = FAKE
@@ -102,7 +102,7 @@ class AppStoreCommandTests(unittest.TestCase):
         self.env = {**os.environ, "PATH": str(commands) + os.pathsep + os.environ["PATH"],
                     "APPSTORE_FIXTURE": str(self.base), "TEST_ALL_FIXTURE": str(self.base), "GIT_CONFIG_NOSYSTEM": "1",
                     "APPSTORE_DEBUG_IDS": json.dumps(DEBUG_IDS),
-                    "GIT_CONFIG_GLOBAL": os.devnull}
+                    "GIT_CONFIG_GLOBAL": os.devnull, "HOME": str(home)}
         for key in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID", "PODHAVEN_APPSTORE_NOTES",
                     "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
             self.env.pop(key, None)

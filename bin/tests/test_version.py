@@ -34,9 +34,9 @@ class VersionTests(unittest.TestCase):
         for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
             self.env.pop(key, None)
         commands = Path(self.temp.name) / "commands"
-        install_gate(self.repo, commands)
+        home = install_gate(self.repo, commands)
         self.env.update(PATH=str(commands) + os.pathsep + self.env["PATH"],
-                        TEST_ALL_FIXTURE=self.temp.name)
+                        TEST_ALL_FIXTURE=self.temp.name, HOME=str(home))
         self.git("init", "-b", "main")
         self.git("config", "user.name", "Version Test")
         self.git("config", "user.email", "version@example.invalid")

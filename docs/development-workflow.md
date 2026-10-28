@@ -220,9 +220,10 @@ For focused application tests, use My Mac by default with
 `-only-testing:PodHavenTests/SomeSuite`; method filters can report success while
 running zero tests.
 
-Run focused tests with `env -u SDKROOT xcodebuild test ...` so Xcode selects
-the SDK for the requested destination; `bin/test-all` clears inherited
-`SDKROOT` itself.
+Run focused tests with `bin/with-my-mac-lock env -u SDKROOT xcodebuild test ...`
+so they take the [My Mac test lock](#my-mac-test-lock) and Xcode selects the
+SDK for the requested destination; `bin/test-all` takes the lock and clears
+inherited `SDKROOT` itself.
 
 Run `bin/test-all --preflight` to check the Xcode, Swift, and macOS versions
 without running tests. Release commands run this preflight too.
@@ -265,6 +266,27 @@ The sole approved exception is the exact transitional Sentry callback warning
 described in [recovered-hang diagnostics](sentry-recovered-hang-diagnostics.md).
 Intentional application warning/error logs from error-path tests remain
 available and are distinct from compiler and framework diagnostics.
+
+#### My Mac test lock
+
+Only one My Mac test run can use the PodHaven test host at a time on this Mac:
+a second `xcodebuild test` that installs the app kills the host of a run in
+progress, from any checkout or session. See
+[concurrent My Mac test runs](../memory/concurrent-my-mac-test-runs.md).
+`bin/test-all` therefore holds a machine-wide lock,
+`~/.cache/podhaven/my-mac-tests.lock`, across both of its `xcodebuild test`
+phases, and `bin/with-my-mac-lock COMMAND [ARG...]` runs a focused command
+under the same lock. A run that finds the lock busy prints the holder's
+process ID, start time, command, and checkout, then waits for it.
+
+The lock is an advisory file lock, so the system releases it when every
+process holding it exits or is killed; no stale lock outlives a run. The
+`xcodebuild` processes started under the lock keep it too, so one that
+outlives its `bin/test-all` still blocks the next run. A nested
+`bin/with-my-mac-lock` or `bin/test-all` reuses the lock it inherits instead
+of waiting on itself. If a holder hangs, stop its run, including its
+`xcodebuild`, to release the lock. Xcode's own test action does not take the
+lock.
 
 ## Sentry triage commands
 

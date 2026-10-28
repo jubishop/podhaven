@@ -78,7 +78,7 @@ Run from this checkout using the supported Xcode and macOS versions:
 
 ```sh
 mkdir -p .cache/carplay-validation
-env -u SDKROOT xcodebuild test -hideShellScriptEnvironment \
+bin/with-my-mac-lock env -u SDKROOT xcodebuild test -hideShellScriptEnvironment \
   -project PodHaven.xcodeproj -scheme PodHaven -testPlan PodHaven \
   -destination 'platform=macOS,name=My Mac' -skipMacroValidation \
   -only-testing:PodHavenTests/CarPlayIntegrationTests \

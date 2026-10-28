@@ -88,10 +88,11 @@ Logs, the Xcode result bundle, and the tested checkout are recorded under
 Swift Testing filters must stay at suite level; method-level filters can report success while
 running zero tests.
 ```sh
-env -u SDKROOT xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=macOS,name=My Mac' -only-testing:PodHavenTests/SomeSuite -resultBundlePath .cache/FocusedTests.xcresult LM_FORCE_LINK_GENERATION=YES > .cache/focused-tests.log 2>&1
+bin/with-my-mac-lock env -u SDKROOT xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=macOS,name=My Mac' -skipMacroValidation -only-testing:PodHavenTests/SomeSuite -resultBundlePath .cache/FocusedTests.xcresult LM_FORCE_LINK_GENERATION=YES > .cache/focused-tests.log 2>&1
 bin/check-swift-results .cache/FocusedTests.xcresult --build-log .cache/focused-tests.log
 ```
-Use a new result-bundle path for each run.
+Use a new result-bundle path for each run. `bin/with-my-mac-lock` waits for any
+other My Mac test run on this Mac to finish first.
 </details>
 
 ## App Version and TestFlight

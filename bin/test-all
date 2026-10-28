@@ -14,6 +14,8 @@ import sys
 import tempfile
 
 sys.dont_write_bytecode = True
+from _my_mac_lock import my_mac_lock
+
 ROOT = Path(__file__).resolve().parents[1]
 DESTINATION = "platform=macOS,name=My Mac"
 RETAINED_RUNS = 5
@@ -46,12 +48,12 @@ def checkout_state():
             "status": capture("git", "status", "--porcelain=v1", "--untracked-files=all")}
 
 
-def run(command, output, name, *, check=True, require_unittest=False):
+def run(command, output, name, *, check=True, require_unittest=False, pass_fds=()):
     log = output / f"{name}.log"
     print(f"Running {name}; log: {log}", flush=True)
     with log.open("w") as stream:
         result = subprocess.run(command, cwd=ROOT, env=TEST_ENVIRONMENT,
-                                stdout=stream, stderr=subprocess.STDOUT)
+                                stdout=stream, stderr=subprocess.STDOUT, pass_fds=pass_fds)
     if result.returncode:
         print("\n".join(log.read_text(errors="replace").splitlines()[-35:]), file=sys.stderr)
         if check:
@@ -175,28 +177,29 @@ def main():
         if re.search(r"\b[1-9]\d* (?:tests? )?skipped\b", macro_log, re.I):
             raise RuntimeError(f"Macro tests were skipped; see {output / 'macros.log'}")
 
-        for bundle_name, log_name, validation_name, selection, validation_options in (
-            ("TestResults", "xcodebuild", "swift-validation",
-             "-skip-testing:PodHavenTests/SiriLargeCatalogTests", ["--full"]),
-            ("SiriPerformance", "siri-performance", "siri-performance-validation",
-             "-only-testing:PodHavenTests/SiriLargeCatalogTests", []),
-        ):
-            bundle = output / f"{bundle_name}.xcresult"
-            test_status = run([
-                "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
-                "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
-                "-skipMacroValidation", "-resultBundlePath", str(bundle), selection,
-                "LM_FORCE_LINK_GENERATION=YES",
-            ], output, log_name, check=False)
-            if not bundle.is_dir():
-                raise RuntimeError(f"Swift tests did not produce a result bundle (exit code {test_status}); "
-                                   f"see {output / (log_name + '.log')} for the launch or build failure")
-            validation_status = run([
-                str(ROOT / "bin/check-swift-results"), str(bundle),
-                "--build-log", str(output / f"{log_name}.log"), *validation_options,
-            ], output, validation_name, check=False)
-            if test_status or validation_status:
-                raise RuntimeError(f"Swift tests or evidence validation failed ({log_name})")
+        with my_mac_lock(f"bin/test-all in {ROOT}") as lock:
+            for bundle_name, log_name, validation_name, selection, validation_options in (
+                ("TestResults", "xcodebuild", "swift-validation",
+                 "-skip-testing:PodHavenTests/SiriLargeCatalogTests", ["--full"]),
+                ("SiriPerformance", "siri-performance", "siri-performance-validation",
+                 "-only-testing:PodHavenTests/SiriLargeCatalogTests", []),
+            ):
+                bundle = output / f"{bundle_name}.xcresult"
+                test_status = run([
+                    "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
+                    "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
+                    "-skipMacroValidation", "-resultBundlePath", str(bundle), selection,
+                    "LM_FORCE_LINK_GENERATION=YES",
+                ], output, log_name, check=False, pass_fds=(lock,))
+                if not bundle.is_dir():
+                    raise RuntimeError(f"Swift tests did not produce a result bundle (exit code {test_status}); "
+                                       f"see {output / (log_name + '.log')} for the launch or build failure")
+                validation_status = run([
+                    str(ROOT / "bin/check-swift-results"), str(bundle),
+                    "--build-log", str(output / f"{log_name}.log"), *validation_options,
+                ], output, validation_name, check=False)
+                if test_status or validation_status:
+                    raise RuntimeError(f"Swift tests or evidence validation failed ({log_name})")
         report["checkout_after"] = checkout_state()
         if any(report["checkout_after"][key] != report["checkout"][key]
                for key in ("revision", "worktree_sha256")):
