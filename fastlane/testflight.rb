@@ -6,8 +6,9 @@ module PodHavenTestFlight
   UI = FastlaneCore::UI
 
   def self.run(options)
+    base = options[:base].to_s == "true"
     notes = ENV.fetch("PODHAVEN_TESTFLIGHT_NOTES", "")
-    UI.user_error!("TestFlight notes must not be blank.") if notes.strip.empty?
+    UI.user_error!("TestFlight notes must not be blank.") if notes.strip.empty? && !base
     UI.user_error!("TestFlight notes must be at most 4000 bytes.") if notes.bytesize > 4000
 
     timeout = ENV.fetch("PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS", "7200")
@@ -43,6 +44,10 @@ module PodHavenTestFlight
     groups = groups.select { |group| group.name == "Everyone" && group.is_internal_group == false }
     UI.user_error!("Expected exactly one external TestFlight group named Everyone.") unless groups.length == 1
     group = groups.first
+    if base
+      File.write(ENV.fetch("PODHAVEN_TESTFLIGHT_BASE_PATH"), latest_tested_build(group).version)
+      return
+    end
     version = options[:version].to_s
     number = options[:build].to_s
     unless version.match?(/\A(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\z/) && number.match?(/\A[0-9]+\z/)
@@ -70,8 +75,8 @@ module PodHavenTestFlight
       UI.user_error!(
         "Apple has not made #{version} (#{number}) ready for TestFlight after #{timeout} seconds. " \
         "The upload is preserved; no distribution was attempted. Check TestFlight's Build Uploads in " \
-        "App Store Connect for processing errors. If it is still processing, retry the same command " \
-        "with the same --notes. Set PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS to allow a longer wait."
+        "App Store Connect for processing errors. If it is still processing, rerun the same command; " \
+        "it reuses the upload. Set PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS to allow a longer wait."
       )
     end
     unless Gem::Version.new(build.app_version) == Gem::Version.new(version) && build.version == number &&
@@ -97,7 +102,7 @@ module PodHavenTestFlight
       raise unless error.message.include?("Another build is in review")
       UI.message("Apple rejected the beta review submission: #{error.message}")
       return if prepare_review(app, version, number, expire_waiting: false) == :new_version
-      UI.user_error!("Apple still reports another build in beta review. Retry the same testflight command with the same notes; the upload is preserved.")
+      UI.user_error!("Apple still reports another build in beta review. Retry the same testflight command; the upload is preserved.")
     end
 
     assigned = Spaceship::ConnectAPI.get_beta_groups(filter: { builds: build.id }).all_pages.flat_map(&:to_models)
@@ -111,6 +116,22 @@ module PodHavenTestFlight
       UI.user_error!("Assigned to Everyone, but external testing needs attention: #{state}.")
     end
     UI.success("Confirmed #{version} (#{number}) in Everyone: #{state.tr('_', ' ').downcase}.")
+  end
+
+  def self.latest_tested_build(group)
+    page = Spaceship::ConnectAPI.get_builds(filter: { betaGroups: group.id, expired: "false" },
+                                            includes: "buildBetaDetail,preReleaseVersion", sort: "-uploadedDate", limit: 50)
+    while page
+      build = page.to_models.find do |candidate|
+        candidate.pre_release_version&.platform == "IOS" && candidate.build_beta_detail&.external_build_state == "IN_BETA_TESTING"
+      end
+      if build
+        UI.message("Testers in Everyone have build #{build.version}; notes will cover changes since then.")
+        return build
+      end
+      page = page.next_page
+    end
+    UI.user_error!("No iOS build is in testing for Everyone, so there is no starting point for notes. Pass --notes.")
   end
 
   def self.prepare_review(app, version, number, expire_waiting:)
@@ -165,7 +186,7 @@ module PodHavenTestFlight
   def self.request_next_version(version, previous)
     path = ENV.fetch("PODHAVEN_TESTFLIGHT_NEXT_VERSION_PATH", "")
     if path.empty?
-      UI.user_error!("Apple is reviewing #{version} (#{previous.version}). Run testflight without --reuse and with the same --notes to build and upload the next patch version.")
+      UI.user_error!("Apple is reviewing #{version} (#{previous.version}). Run testflight without --reuse to build and upload the next patch version.")
     end
     parts = version.split(".").map(&:to_i)
     parts[-1] += 1

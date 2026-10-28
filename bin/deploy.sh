@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Archive and upload PodHaven, optionally distributing to Everyone in TestFlight.
+# Archive and upload PodHaven, then distribute it to Everyone in TestFlight.
 #
 # Usage:
 #   ./bin/deploy.sh                         # Uses Xcode-session Apple ID
@@ -9,7 +9,7 @@ set -euo pipefail
 #     --api-key-id <id> \
 #     --api-issuer-id <issuer>
 #   ASC_KEY_PATH=<path> ASC_KEY_ID=<id> ASC_ISSUER_ID=<issuer> ./bin/deploy.sh
-#   ./bin/shipit --notes "What changed"     # Also submit to Everyone
+#   ./bin/shipit --notes "What changed"     # Use these notes instead of generated ones
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -24,6 +24,8 @@ API_ISSUER_ID="${ASC_ISSUER_ID:-}"
 FORCE=false
 REUSE=false
 TESTFLIGHT_NOTES=""
+NOTES_GENERATED=false
+TESTFLIGHT_BASE_PATH=""
 APPSTORE_RELEASE=""
 ORIGINAL_ARGS=("$@")
 NEXT_TESTFLIGHT_VERSION_PATH=""
@@ -33,18 +35,22 @@ while [[ $# -gt 0 ]]; do
       cat <<'HELP'
 Usage: bin/testflight [--reuse] [--notes "What changed"] [-f] [API key options]
 
-No --notes: test, archive, and upload only.
+Tests, archives, uploads, and distributes the build to the external Everyone group.
 TestFlight uploads require a current app version with exactly two dots, such as 2.1.1.
 Release versions advance automatically: 2.1 becomes 2.1.1, and 2 becomes 2.0.1.
 The version change is committed, fully tested locally, and pushed before deployment.
 Fresh archives and uploads require valid full local test evidence for the clean commit.
 Fresh archives send their debug files to Sentry and stop before upload if any app binary lacks DWARF there.
---notes TEXT: also wait for processing and submit to the external Everyone group.
-              Repeating the command retries distribution of the same uploaded commit.
-              Cancels one older waiting beta review before upload. If Apple has started
-              review, advances the patch version, validates, and uploads with the same notes.
+Without --notes, llm summarizes the app changes since the newest build in testing for Everyone,
+before any version change. In a terminal, it asks to use them, edit them in $VISUAL or $EDITOR, or stop.
+If that build is already the one to distribute, the command stops with nothing to do.
+--notes TEXT: use these "What to Test" notes instead.
+Distribution waits for processing and submits for beta review when needed.
+Repeating the command retries distribution of the same uploaded commit.
+Cancels one older waiting beta review before upload. If Apple has started
+review, advances the patch version, validates, and uploads with the same notes.
 --reuse: distribute the highest-numbered local TestFlight build tag, even after new commits.
-         Requires --notes and a matching upload receipt or published tag.
+         Requires a matching upload receipt or published tag.
          Stops if the upload cannot be confirmed; never builds, uploads, or pushes.
 -f, --force: allow a branch other than main (a clean working tree is still required).
 --api-key PATH --api-key-id ID --api-issuer-id ID: use an App Store Connect API key.
@@ -56,10 +62,10 @@ Use FASTLANE_USER to select that Apple ID. Fastlane may request two-factor authe
 Processing is checked every 30 seconds for up to two hours. Apple beta review may take longer.
 PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS overrides this wait with a positive whole number of seconds.
 If processing times out, the upload is preserved. Check Build Uploads in App Store Connect,
-then retry with the same --notes; no new upload is needed.
+then rerun the command; no new upload is needed.
 Successful uploads publish a Git tag and GitHub release.
 bin/shipit and bin/deploy.sh accept the same options.
-App Store uploads use bin/appstore --release VERSION --notes TEXT instead.
+App Store uploads use bin/appstore instead.
 HELP
       exit 0
       ;;
@@ -118,11 +124,6 @@ if [[ "$REUSE" == true && -n "$APPSTORE_RELEASE" ]]; then
   exit 1
 fi
 
-if [[ "$REUSE" == true && -z "$TESTFLIGHT_NOTES" ]]; then
-  echo 'error: --reuse requires --notes, such as --reuse --notes "Fixed playback".' >&2
-  exit 1
-fi
-
 if [[ -n "$APPSTORE_RELEASE" && -n "$TESTFLIGHT_NOTES" ]]; then
   echo 'error: App Store uploads cannot distribute to TestFlight with --notes.' >&2
   exit 1
@@ -164,6 +165,7 @@ run_testflight() {
     ASC_KEY_PATH="$API_KEY_PATH" ASC_KEY_ID="$API_KEY_ID" ASC_ISSUER_ID="$API_ISSUER_ID" \
       PODHAVEN_TESTFLIGHT_NOTES="$TESTFLIGHT_NOTES" \
       PODHAVEN_TESTFLIGHT_NEXT_VERSION_PATH="$NEXT_TESTFLIGHT_VERSION_PATH" \
+      PODHAVEN_TESTFLIGHT_BASE_PATH="$TESTFLIGHT_BASE_PATH" \
       FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_HIDE_CHANGELOG=1 FASTLANE_OPT_OUT_USAGE=1 FASTLANE_SKIP_DOCS=1 \
       fastlane distribute_testflight "$@"
   )
@@ -190,7 +192,30 @@ restart_testflight_if_needed() {
   rm -f "$NEXT_TESTFLIGHT_VERSION_PATH"
   "$SCRIPT_DIR/version" "$next_version"
   export PODHAVEN_TESTFLIGHT_PATCH_RETRY=true
-  exec "$SCRIPT_DIR/deploy.sh" "${ORIGINAL_ARGS[@]}"
+  local args=("${ORIGINAL_ARGS[@]+"${ORIGINAL_ARGS[@]}"}")
+  if [[ "$NOTES_GENERATED" == true ]]; then
+    args+=(--notes "$TESTFLIGHT_NOTES")
+  fi
+  exec "$SCRIPT_DIR/deploy.sh" "${args[@]}"
+}
+
+# Summarize app changes since the newest build testers have, unless that build is the one to distribute.
+generate_testflight_notes() {
+  local current_build="$1" end="$2" base_build
+  TESTFLIGHT_BASE_PATH=$(mktemp "/tmp/podhaven-testflight-base.XXXXXX")
+  if ! run_testflight base:true; then
+    rm -f "$TESTFLIGHT_BASE_PATH"
+    exit 1
+  fi
+  base_build=$(cat "$TESTFLIGHT_BASE_PATH")
+  rm -f "$TESTFLIGHT_BASE_PATH"
+  TESTFLIGHT_BASE_PATH=""
+  if [[ "$base_build" == "$current_build" ]]; then
+    echo "==> Build ${current_build} is already in testing for Everyone. Nothing to do."
+    exit 0
+  fi
+  TESTFLIGHT_NOTES=$("$SCRIPT_DIR/release-notes" testflight --since-build "$base_build" --to "$end")
+  NOTES_GENERATED=true
 }
 
 # Preflight: block deploys from non-main branches
@@ -206,8 +231,14 @@ if [[ -n $(git -C "$PROJECT_DIR" status --porcelain) ]]; then
   exit 1
 fi
 
-if [[ -n "$TESTFLIGHT_NOTES" ]] && ! command -v fastlane &>/dev/null; then
-  echo 'error: --notes requires Fastlane. Install with: brew install fastlane' >&2
+if [[ -z "$APPSTORE_RELEASE" ]] && ! command -v fastlane &>/dev/null; then
+  echo 'error: TestFlight distribution requires Fastlane. Install with: brew install fastlane' >&2
+  exit 1
+fi
+
+# Require llm for AI-generated notes and tag summaries
+if ! command -v llm &>/dev/null; then
+  echo "error: llm not found. Install with: pipx install llm" >&2
   exit 1
 fi
 
@@ -233,6 +264,9 @@ if [[ "$REUSE" == true ]]; then
   build="${tag##*b}"
   version="${tag#v}"
   version="${version%b*}"
+  if [[ -z "$TESTFLIGHT_NOTES" ]]; then
+    generate_testflight_notes "$build" "$tag"
+  fi
   echo "==> Reusing ${tag} from ${commit} for Everyone..."
   run_testflight "version:$version" "build:$build"
   exit 0
@@ -241,12 +275,6 @@ fi
 # Require xcbeautify for formatted build output
 if ! command -v xcbeautify &>/dev/null; then
   echo "error: xcbeautify not found. Install with: brew install xcbeautify" >&2
-  exit 1
-fi
-
-# Require llm for AI-generated tag summaries
-if ! command -v llm &>/dev/null; then
-  echo "error: llm not found. Install with: pipx install llm" >&2
   exit 1
 fi
 
@@ -296,14 +324,25 @@ elif [[ "$version" =~ ^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?$ ]]; then
   else
     next_version="${version}.0.1"
   fi
-  echo "==> Starting TestFlight version ${next_version}..."
-  "$SCRIPT_DIR/version" "$next_version"
-  version="$next_version"
-  commit=$(git -C "$PROJECT_DIR" rev-parse --short HEAD)
 elif [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
   echo "error: shipit requires a TestFlight version with exactly two dots; current version is ${version}." >&2
   echo 'Set the next TestFlight version with bin/version (for example, 2.1.1), then retry.' >&2
   exit 1
+fi
+
+if [[ -z "$APPSTORE_RELEASE" && -z "$TESTFLIGHT_NOTES" ]]; then
+  uploaded_build=""
+  if [[ -n "$prev_tag" && "$(git -C "$PROJECT_DIR" rev-parse "${prev_tag}^{commit}")" == "$(git -C "$PROJECT_DIR" rev-parse HEAD)" ]]; then
+    uploaded_build="${prev_tag##*b}"
+  fi
+  generate_testflight_notes "$uploaded_build" HEAD
+fi
+
+if [[ -n "${next_version:-}" ]]; then
+  echo "==> Starting TestFlight version ${next_version}..."
+  "$SCRIPT_DIR/version" "$next_version"
+  version="$next_version"
+  commit=$(git -C "$PROJECT_DIR" rev-parse --short HEAD)
 fi
 
 pending_version_push=$(git -C "$PROJECT_DIR" rev-parse --path-format=absolute --git-path podhaven-version-push)
@@ -422,7 +461,7 @@ on_exit() {
         echo "==> All logs and artifacts: ${LOG_DIR}"
       fi
       if [[ "$UPLOAD_SUCCEEDED" == true ]]; then
-        echo "error: ${tag} was uploaded. Run bin/shipit again with the same --notes to retry distribution."
+        echo "error: ${tag} was uploaded. Run bin/shipit again to retry distribution."
       else
         echo "error: Rolling back local tag ${tag}..."
       fi

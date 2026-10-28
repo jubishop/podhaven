@@ -78,7 +78,7 @@ build. Submitting an explicit existing App Store build also skips local builds.
 `bin/testflight` and `bin/shipit` are aliases for the same release command.
 
 ```sh
-bin/shipit --notes "What testers should try"
+bin/shipit
 ```
 
 The command requires clean `main`; the existing `--force` option permits
@@ -89,9 +89,10 @@ another clean branch. If the current version is an App Store version,
 - `2` becomes `2.0.1`.
 - `2.1.2` remains `2.1.2`.
 
-The upload then uses that version and a new build number. With `--notes`, it
-waits for processing and assigns the exact build to the external Everyone
-group. Without `--notes`, it only tests, archives, and uploads.
+The upload then uses that version and a new build number. The command waits
+for processing and assigns the exact build to the external Everyone group with
+[generated notes](#generated-release-notes), or with `--notes "What testers
+should try"` when supplied.
 
 Before every upload, the command sends the archive's dSYMs and other debug
 files to Sentry. It then confirms that Sentry holds DWARF debug information for
@@ -112,12 +113,12 @@ TestFlight processing is checked every 30 seconds for up to two hours. Set
 `PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS` to a positive whole number of seconds to
 change that wait. A timeout preserves the upload and stops before distribution.
 Check the build's status under TestFlight's Build Uploads in App Store Connect.
-If processing is still pending, retry with the same `--notes`; the completed
-upload is reused. Apple can continue processing after the command stops. See
+If processing is still pending, rerun the command; the completed upload is
+reused. Apple can continue processing after the command stops. See
 [Apple's build upload statuses](https://developer.apple.com/help/app-store-connect/reference/app-uploads/build-upload-statuses)
 for processing failures and delays longer than 24 hours.
 
-With `--notes`, the command checks beta review before upload. After local
+The command checks beta review before upload. After local
 validation, it expires one older build of the same iOS version that is still
 waiting for beta review, verifies expiration, and continues the upload.
 Expiring the older build prevents testers from installing it. Approved builds,
@@ -126,7 +127,8 @@ other versions, and other platforms are preserved.
 If Apple has started reviewing the older build, the command preserves that
 review and increases the last version number: `1.3.1` becomes `1.3.2`.
 It uses `bin/version` to commit, fully validate, and push the new version,
-then builds, uploads, and submits with the original notes. The same fallback
+then builds, uploads, and submits with the original notes, including generated
+ones. The same fallback
 applies if Apple refuses expiration and a fresh read confirms active review.
 Other API failures and ambiguous or newer review submissions stop the command.
 
@@ -143,7 +145,7 @@ example, `bin/version 2.1.2` followed by `bin/shipit` uploads `2.1.2`.
 ### Distribute an existing TestFlight build
 
 ```sh
-bin/testflight --reuse --notes "What testers should try"
+bin/testflight --reuse
 ```
 
 Use `--reuse` to send an existing upload to Everyone after the current commit
@@ -157,18 +159,18 @@ missing. It does not fall back to an older build or create a new upload.
 Selection uses this checkout's tags; it does not fetch tags or discover
 uploads made outside these release commands.
 
-`--reuse` requires `--notes` and a clean `main` checkout; `--force` permits
-another clean branch. It skips version changes, local builds and tests,
+`--reuse` requires a clean `main` checkout; `--force` permits another clean
+branch. Generated notes end at the reused build's tag. It skips version changes, local builds and tests,
 uploads, Git pushes, and GitHub release publication. Fastlane waits for the
 exact build, submits it for beta review when needed, enables tester
 notifications, and verifies assignment to Everyone. Repeat the command to
 retry distribution while that tag remains the newest local TestFlight build.
 It can expire an older waiting review after validating the selected uploaded
 build. If the older build is actively under review, `--reuse` stops and asks
-for a normal `testflight --notes` run, which can build the next patch version.
+for a normal `testflight` run, which can build the next patch version.
 
-Without `--reuse`, retrying with `--notes` reuses a completed upload only when
-the highest-numbered release tag still points to the current commit.
+Without `--reuse`, a retry reuses a completed upload only when the
+highest-numbered release tag still points to the current commit.
 
 ## Release on the App Store
 
@@ -180,12 +182,11 @@ Plain `bin/appstore` starts a release. Use `bin/appstore --status` for read-only
 status. The default release number increments the minor number and removes the
 patch number: `2.1.2` or `2.1` becomes `2.2`, and `2` becomes `2.1`.
 
-The default public notes come from the most recently uploaded iOS TestFlight
-build whose version has two dots. The command uses the app's primary language,
-or `en-US` if that localization is absent. If that build has no usable notes,
-it stops before changing the project and asks for `--notes`. It does not use
-notes from an older build. Notes must contain 1 to 4000 characters and are
-copied unchanged to every existing App Store listing language.
+Without `--notes`, the public "What's New" text is
+[generated](#generated-release-notes) from the app changes since the live App
+Store build, before the command changes the project. It does not copy TestFlight
+notes, which cover only one build's changes. Notes must contain 1 to 4000
+characters and are copied unchanged to every existing App Store listing language.
 
 Use either override when needed:
 
@@ -234,6 +235,35 @@ failure leaves the old submission intact.
 Uploads retain the existing Git tag and GitHub release behavior. The App Store
 upload mode does not distribute to external TestFlight testers.
 
+## Generated release notes
+
+`bin/release-notes` writes plain-language notes with `llm` from the messages of
+commits that change app code, in `PodHaven`, `PodHavenShare`, `PodHavenWidget`,
+`PodHavenIntents`, or `PodHavenMacros`. Tooling, documentation, and test-only
+commits are left out. It starts at the release tag of a build that people
+already have:
+
+- TestFlight starts at the newest iOS build in the Everyone group that App Store
+  Connect reports as in testing. Builds that expired while waiting for beta
+  review never reached testers, so their changes stay in the next notes.
+- App Store starts at the build of the live App Store version. A version
+  replaced before release never reached listeners, so its changes stay too.
+
+TestFlight notes are one or two casual sentences; App Store notes are at most
+five bullets. Without app changes, the notes are a fixed line about stability
+improvements. The notes are printed before any version change, test run, or
+upload. When run in a terminal, the command asks whether to use them (`y` or
+Enter), edit them in `$VISUAL` or `$EDITOR` (`e`), or stop with nothing changed
+(`n`). Saving empty notes from the editor also stops. Non-interactive runs
+continue with the generated notes.
+
+The start tag must exist in the checkout and be an ancestor of the end
+revision. If it is missing, no build is in testing, or the App Store has no
+live version, the command stops before changes; fetch tags or supply `--notes`.
+A TestFlight retry generates notes again, except that an automatic patch
+version advance keeps the run's notes. An App Store retry reuses the notes in its
+release receipt.
+
 ## Retry a release
 
 Repeat the same command after a push, upload, processing, or submission failure.
@@ -264,7 +294,8 @@ bin/appstore --release 2.2 --build 600 --notes "Public release notes"
 
 This form requires clean `main`, then waits for and submits only that build.
 It does not change the local version or upload again. The build's version must
-match `--release`. Omitting `--notes` uses the same TestFlight notes default.
+match `--release`. Omitting `--notes` generates notes for the changes from the
+live App Store build through that build's tag.
 
 A failed Apple validation, unresolved export-compliance requirement, or
 conflicting review needs to be resolved before retrying. The command reports

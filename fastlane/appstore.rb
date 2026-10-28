@@ -12,7 +12,7 @@ module PodHavenAppStore
   def self.run(options)
     mode = options[:mode].to_s
     number = options[:version].to_s
-    UI.user_error!("Expected status, notes, preflight, or submit mode and an app version.") unless %w[status notes preflight submit].include?(mode) && !number.empty?
+    UI.user_error!("Expected status, base, preflight, or submit mode and an app version.") unless %w[status base preflight submit].include?(mode) && !number.empty?
     notes = ENV["PODHAVEN_APPSTORE_NOTES"]
     if %w[preflight submit].include?(mode) && (notes.nil? || notes.strip.empty? || notes.length > 4000)
       UI.user_error!("Public release notes must contain 1 to 4000 characters.")
@@ -36,19 +36,15 @@ module PodHavenAppStore
       app_identifier: "com.artisanalsoftware.PodHaven", app_platform: "ios", username: ENV["FASTLANE_USER"]
     }))
     app = manager.app
-    if mode == "notes"
-      builds = Spaceship::ConnectAPI::Build.all(app_id: app.id, platform: "IOS", sort: "-uploadedDate")
-      latest = builds.find { |candidate| candidate.app_version.match?(/\A[0-9]+\.[0-9]+\.[0-9]+\z/) }
-      UI.user_error!("No TestFlight build is available. Supply public release notes with --notes.") unless latest
-      localizations = latest.get_beta_build_localizations
-      localization = localizations.find { |candidate| candidate.locale == app.primary_locale }
-      localization ||= localizations.find { |candidate| candidate.locale == "en-US" }
-      notes = localization&.whats_new
-      if notes.nil? || notes.strip.empty? || notes.length > 4000
-        UI.user_error!("The latest TestFlight build #{latest.app_version} (#{latest.version}) has no usable public notes. Supply --notes.")
+    if mode == "base"
+      live = app.get_app_store_versions(filter: { platform: "IOS" }, includes: "build")
+                .select { |version| version.app_version_state == "READY_FOR_DISTRIBUTION" }
+                .max_by { |version| Gem::Version.new(version.version_string) }
+      unless live&.build
+        UI.user_error!("No live App Store version with a build to start the release notes from. Supply --notes.")
       end
-      File.write(ENV.fetch("PODHAVEN_APPSTORE_NOTES_PATH"), notes)
-      UI.message("Using #{localization.locale} notes from TestFlight #{latest.app_version} (#{latest.version}) as public release notes.")
+      File.write(ENV.fetch("PODHAVEN_APPSTORE_BASE_PATH"), live.build.version)
+      UI.message("Listeners have App Store #{live.version_string} (build #{live.build.version}); notes will cover changes since then.")
       return
     end
     if mode == "submit"

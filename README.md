@@ -112,36 +112,38 @@ bin/version 1.0.1
 This changes the app version (`MARKETING_VERSION`). The command rejects invalid
 or older versions. Use `bin/version --help` for usage.
 
-Commit your changes, then test, archive, and upload a build:
+Commit your changes, then test, archive, upload, and distribute a build to the
+external Everyone group:
 
 ```sh
 bin/shipit
 ```
 
-To also distribute that build to the external Everyone group, supply TestFlight
-"What to Test" notes:
+Before any version change or build, the command writes TestFlight "What to Test"
+notes with `llm`: one or two plain sentences about the app changes since the
+newest build testers already have. In a terminal it shows the notes and lets
+you use them, edit them in your editor, or stop. If that newest build is the one this run would distribute,
+the command stops with nothing to do. Supply your own notes instead with:
 
 ```sh
 bin/shipit --notes "Improved playback reliability."
 ```
 
-With `--notes`, the command checks the existing external Everyone group before
-building. After upload, it checks processing every 30 seconds for up to 30 minutes,
-adds the notes, submits for beta review when needed, and verifies the group
-assignment. Testers are notified when Apple makes the build available. Apple beta
-review can remain pending after the command finishes. Notes must be nonblank and
-at most 4000 bytes.
+The command checks the existing external Everyone group before building. After
+upload, it checks processing every 30 seconds for up to two hours, adds the notes,
+submits for beta review when needed, and verifies the group assignment. Testers
+are notified when Apple makes the build available. Apple beta review can remain
+pending after the command finishes. Notes must be nonblank and at most 4000 bytes.
 
 If processing times out or distribution fails after upload, rerun the same command
-from the same clean commit. It reuses the uploaded build. You can also use
-`--notes` after an upload-only run of that commit. A single local upload receipt
-in Git's metadata directory supports retries; each new upload replaces it.
+from the same clean commit. It reuses the uploaded build. A single local upload
+receipt in Git's metadata directory supports retries; each new upload replaces it.
 
 `bin/shipit` increments the build number automatically. If Apple closes a version
 for external beta review, use `bin/version` to set a higher app version, commit it,
 and upload a new build. Successful runs also publish the Git tag and GitHub
-release. The existing generated GitHub release summary remains separate from
-the supplied TestFlight notes.
+release. The generated GitHub release summary remains separate from the
+TestFlight notes.
 
 Other options:
 
@@ -156,13 +158,13 @@ The API key options can also be set with `ASC_KEY_PATH`, `ASC_KEY_ID`, and
 use Xcode's Apple ID login. Distribution uses Fastlane's own Apple ID login and
 may request two-factor authentication; `FASTLANE_USER` selects the Apple ID.
 An App Manager or Admin role is needed for external distribution. Fastlane is
-required only with `--notes`; install it with `brew install fastlane`.
+required; install it with `brew install fastlane`.
 
 `bin/shipit` and `bin/deploy.sh` are aliases and accept the same options.
 
 ## App Store Releases
 
-Release the next minor version with notes from the latest TestFlight build:
+Release the next minor version with generated "What's New" notes:
 
 ```sh
 bin/appstore
@@ -181,10 +183,10 @@ bin/appstore --release 3 --notes "A new major release."
 ```
 
 `--release` must be strictly greater than the current version and have zero or
-one dot. Without `--notes`, the command copies notes from the latest iOS build
-with a two-dot TestFlight version. It uses the app's primary language or `en-US`
-and stops if the latest build has no usable notes. Public notes must contain
-1 to 4000 characters and are used for every existing listing language.
+one dot. Without `--notes`, the command writes a few plain-language bullets with
+`llm` about the app changes since the live App Store build, before changing
+anything. In a terminal you can use, edit, or decline them. Public notes must
+contain 1 to 4000 characters and are used for every existing listing language.
 
 Show the live version, pending versions and reviews, and uploaded builds for the
 current local app version without releasing:

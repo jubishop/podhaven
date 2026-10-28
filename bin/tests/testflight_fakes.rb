@@ -46,6 +46,22 @@ module Spaceship
       OpenStruct.new(to_models: pages.first, all_pages: pages.map { |models| OpenStruct.new(to_models: models) })
     end
 
+    def self.get_builds(filter:, includes:, sort:, limit:)
+      $events << ["list_builds", { filter: filter, includes: includes, sort: sort, limit: limit }]
+      build = lambda do |number, state, platform = "IOS"|
+        OpenStruct.new(version: number, build_beta_detail: OpenStruct.new(external_build_state: state),
+                       pre_release_version: OpenStruct.new(platform: platform))
+      end
+      first = [build.call("590", "WAITING_FOR_BETA_REVIEW"), build.call("589", "IN_BETA_TESTING", "MAC_OS")]
+      second = [build.call("588", $scenario == "base_none" ? "BETA_REJECTED" : "IN_BETA_TESTING"),
+                build.call("587", $scenario == "base_none" ? "READY_FOR_BETA_SUBMISSION" : "IN_BETA_TESTING")]
+      last_page = OpenStruct.new(to_models: second)
+      last_page.define_singleton_method(:next_page) { $events << ["next_page"]; nil }
+      page = OpenStruct.new(to_models: first)
+      page.define_singleton_method(:next_page) { $events << ["next_page"]; last_page }
+      page
+    end
+
     class Token
       def self.create(**options)
         $events << ["token", options]
@@ -182,7 +198,8 @@ def desc(_text); end
 
 def lane(name)
   return unless name == :distribute_testflight
-  yield(preflight: ENV["TESTFLIGHT_PREFLIGHT"], prepare: ENV["TESTFLIGHT_PREPARE"], version: "1.0.1", build: "569")
+  yield(base: ENV["TESTFLIGHT_BASE"], preflight: ENV["TESTFLIGHT_PREFLIGHT"], prepare: ENV["TESTFLIGHT_PREPARE"],
+        version: "1.0.1", build: "569")
 end
 
 begin

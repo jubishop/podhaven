@@ -63,6 +63,9 @@ elif name == 'xcodebuild':
         sys.exit(subprocess.run(['cp', str(base / 'source'), str(base / 'exported')]).returncode)
 elif name == 'test-all':
     if os.environ.get('FAIL_LOCAL_TESTS') and '--preflight' not in args: sys.exit(44)
+elif name == 'release-notes':
+    if os.environ.get('FAIL_NOTES'): sys.exit('Stopped without the generated notes.')
+    print('Generated tester notes')
 elif name == 'llm':
     sys.stdin.read()
     print('Generated release notes')
@@ -74,10 +77,13 @@ elif name == 'mktemp':
         os.close(descriptor)
         print(path)
 elif name == 'fastlane':
-    phase = 'preflight' if 'preflight:true' in args else 'prepare' if 'prepare:true' in args else 'distribute'
+    phase = ('base' if 'base:true' in args else 'preflight' if 'preflight:true' in args
+             else 'prepare' if 'prepare:true' in args else 'distribute')
     if os.environ.get('FAIL_TESTFLIGHT') == phase:
         print('TestFlight failure: ' + phase, file=sys.stderr)
         sys.exit(43)
+    if phase == 'base':
+        pathlib.Path(os.environ['PODHAVEN_TESTFLIGHT_BASE_PATH']).write_text(os.environ.get('TESTFLIGHT_BASE_BUILD', '568'))
     version = next((value.split(':')[1] for value in args if value.startswith('version:')), '')
     if os.environ.get('REVIEW_CONFLICT') == phase and (version == '1.3.1' or os.environ.get('REVIEW_REPEAT')):
         output = os.environ.get('PODHAVEN_TESTFLIGHT_NEXT_VERSION_PATH')
@@ -119,9 +125,10 @@ class DeployTests(unittest.TestCase):
         (self.repo / "bin").mkdir(parents=True)
         shutil.copy2(ROOT / "bin/deploy.sh", self.repo / "bin/deploy.sh")
         (self.repo / "bin/shipit").symlink_to("deploy.sh")
-        gate = self.repo / "bin/test-all"
-        gate.write_text(f"#!{sys.executable}\n" + FAKE)
-        gate.chmod(0o755)
+        for name in ("test-all", "release-notes"):
+            gate = self.repo / "bin" / name
+            gate.write_text(f"#!{sys.executable}\n" + FAKE)
+            gate.chmod(0o755)
         self.commands = self.base / "commands"
         self.commands.mkdir()
         for command in ("git", "xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "rm", "sentry",
@@ -151,11 +158,32 @@ class DeployTests(unittest.TestCase):
         self.assertFalse(any("archive" in event[1] or "-exportArchive" in event[1]
                              for event in self.events("xcodebuild")))
 
-    def test_without_notes_only_uploads(self):
+    def test_without_notes_generates_them_first_and_distributes(self):
         result = self.run_deploy()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertFalse(self.events("fastlane"))
-        self.assertTrue(any('-exportArchive' in event[1] for event in self.events('xcodebuild')))
+        events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
+        calls = self.events("fastlane")
+        self.assertEqual(len(calls), 4)
+        self.assertIn("base:true", calls[0][1])
+        self.assertIn("version:1.0.1", calls[-1][1])
+        self.assertIn("build:569", calls[-1][1])
+        self.assertTrue(all(call[2] == "Generated tester notes" for call in calls[1:]))
+        notes = [index for index, event in enumerate(events) if event[0] == "release-notes"]
+        self.assertEqual([events[index][1] for index in notes], [["testflight", "--since-build", "568", "--to", "HEAD"]])
+        first_validation = next(index for index, event in enumerate(events)
+                                if event[0] == "test-all" and "--ensure" in event[1])
+        self.assertLess(notes[0], first_validation)
+
+    def test_declined_or_failed_notes_stop_before_validation_or_upload(self):
+        for env in ({"FAIL_NOTES": "1"}, {"FAIL_TESTFLIGHT": "base"}):
+            with self.subTest(failure=next(iter(env))):
+                self.setUp()
+                result = self.run_deploy(**env)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(any("--ensure" in event[1] for event in self.events("test-all")))
+                self.assertFalse(any("archive" in event[1] for event in self.events("xcodebuild")))
+                self.assertEqual(len(self.events("fastlane")), 1)
+                self.assertEqual(json.loads((self.base / "state").read_text())["tag"], "v1.0b568")
 
     def test_a_missing_fake_never_runs_the_live_command(self):
         for name in ("fastlane", "gh", "llm", "sentry", "xcodebuild"):
@@ -199,6 +227,7 @@ class DeployTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("two dots", result.stderr)
                 self.assertFalse(any('-exportArchive' in event[1] for event in self.events('xcodebuild')))
+                self.assertFalse(self.events("fastlane"))
 
     def test_release_upload_requires_matching_zero_or_one_dot_version(self):
         result = self.run_deploy("--appstore-release", "2.1", DEPLOY_VERSION="2.1")
@@ -323,12 +352,15 @@ class DeployTests(unittest.TestCase):
         self.assertIn("Sentry failure: debug files", result.stderr)
         self.assertFalse(any("-exportArchive" in event[1] for event in self.events("xcodebuild")))
 
-    def test_notes_can_distribute_a_previously_completed_upload(self):
-        self.assertEqual(self.run_deploy().returncode, 0)
-        result = self.run_deploy("--notes", "Fixes")
+    def test_generated_notes_retry_distribution_without_another_upload(self):
+        result = self.run_deploy(FAIL_TESTFLIGHT="distribute")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("again to retry distribution", result.stderr)
+        result = self.run_deploy()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(self.events('fastlane')), 2)
         self.assertEqual(sum('-exportArchive' in event[1] for event in self.events('xcodebuild')), 1)
+        self.assertEqual([event[1][2] for event in self.events("release-notes")], ["568", "568"])
+        self.assertEqual(self.events("fastlane")[-1][2], "Generated tester notes")
 
     def test_failed_upload_does_not_distribute(self):
         result = self.run_deploy("--notes", "Fixes", FAIL_UPLOAD="1")
@@ -353,6 +385,7 @@ class TaggedDeployTests(unittest.TestCase):
         (self.repo / "bin").mkdir(parents=True)
         shutil.copy2(ROOT / "bin/deploy.sh", self.repo / "bin/deploy.sh")
         shutil.copy2(ROOT / "bin/version", self.repo / "bin/version")
+        shutil.copy2(ROOT / "bin/release-notes", self.repo / "bin/release-notes")
         (self.repo / "PodHaven.xcodeproj").mkdir()
         (self.repo / "PodHaven.xcodeproj/project.pbxproj").write_text("\tMARKETING_VERSION = 1.3.1;\n")
         (self.repo / "bin/testflight").symlink_to("deploy.sh")
@@ -366,7 +399,7 @@ class TaggedDeployTests(unittest.TestCase):
             path.write_text(f"#!{sys.executable}\n" + FAKE)
             path.chmod(0o755)
         self.env = {**os.environ, "PATH": str(commands) + os.pathsep + os.environ["PATH"],
-                    "DEPLOY_FIXTURE": str(self.base), "DEPLOY_VERSION": "1.3.1",
+                    "DEPLOY_FIXTURE": str(self.base), "DEPLOY_VERSION": "1.3.1", "TESTFLIGHT_BASE_BUILD": "575",
                     "DEPLOY_DEBUG_IDS": json.dumps(DEBUG_IDS),
                     "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
         for key in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID", "PODHAVEN_TESTFLIGHT_NOTES",
@@ -401,12 +434,13 @@ class TaggedDeployTests(unittest.TestCase):
         events = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
         return [event for event in events if command is None or event[0] == command]
 
-    def assert_distribution(self, version="1.3.1", build="576"):
-        calls = [event for event in self.events("fastlane") if "preflight:true" not in event[1] and "prepare:true" not in event[1]]
+    def assert_distribution(self, version="1.3.1", build="576", notes="Fixes"):
+        calls = [event for event in self.events("fastlane")
+                 if not {"base:true", "preflight:true", "prepare:true"} & set(event[1])]
         self.assertEqual(len(calls), 1)
         self.assertIn("version:" + version, calls[0][1])
         self.assertIn("build:" + build, calls[0][1])
-        self.assertEqual(calls[0][2], "Fixes")
+        self.assertEqual(calls[0][2], notes)
         self.assertFalse(any("archive" in event[1] or "-exportArchive" in event[1]
                              for event in self.events("xcodebuild")))
 
@@ -416,13 +450,61 @@ class TaggedDeployTests(unittest.TestCase):
         self.assert_distribution()
         self.assertFalse(any("--ensure" in event[1] for event in self.events("test-all")))
 
-    def test_completed_upload_without_notes_is_a_noop(self):
+    def test_build_already_in_testing_needs_no_notes_or_distribution(self):
+        for args in ((), ("--reuse",)):
+            with self.subTest(args=args):
+                (self.base / "events").unlink(missing_ok=True)
+                result = self.run_deploy(*args, TESTFLIGHT_BASE_BUILD="576")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("576 is already in testing for Everyone", result.stdout)
+                self.assertEqual([event[1][1] for event in self.events("fastlane")], ["base:true"])
+                self.assertFalse(self.events("llm"))
+                self.assertFalse(any("archive" in event[1] or "-exportArchive" in event[1]
+                                     for event in self.events("xcodebuild")))
+
+    def test_without_notes_distributes_a_completed_upload_with_generated_notes(self):
         result = self.run_deploy()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("v1.3.1b576 is already fully deployed", result.stdout)
-        self.assertFalse(self.events("fastlane"))
-        self.assertFalse(any("archive" in event[1] or "-exportArchive" in event[1]
-                             for event in self.events("xcodebuild")))
+        self.assertIn("changes since v1.3.1b575", result.stderr)
+        self.assert_distribution(notes="Behind-the-scenes stability and performance improvements.")
+        self.assertFalse(any("--ensure" in event[1] for event in self.events("test-all")))
+
+    def test_reuse_without_notes_summarizes_through_the_reused_build(self):
+        (self.repo / "PodHaven").mkdir()
+        (self.repo / "PodHaven/Later.swift").write_text("New work")
+        self.git("add", ".")
+        self.git("commit", "-m", "Later app work")
+        result = self.run_deploy("--reuse")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assert_distribution(notes="Behind-the-scenes stability and performance improvements.")
+        self.assertFalse(self.events("llm"))
+
+    def test_unknown_tested_build_stops_before_version_changes(self):
+        self.project_version("1.4")
+        head = self.git("rev-parse", "HEAD")
+        result = self.run_deploy(DEPLOY_VERSION="1.4", TESTFLIGHT_BASE_BUILD="999")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--notes", result.stderr)
+        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+        self.assertFalse(any("archive" in event[1] for event in self.events("xcodebuild")))
+
+    def project_version(self, version):
+        (self.repo / "PodHaven.xcodeproj/project.pbxproj").write_text(f"\tMARKETING_VERSION = {version};\n")
+        self.git("commit", "-am", "Change version number to " + version)
+        self.git("push")
+
+    def test_patch_retry_keeps_the_generated_notes(self):
+        (self.repo / "PodHaven").mkdir()
+        (self.repo / "PodHaven/Player.swift").write_text("Fix CarPlay skipping")
+        self.git("add", ".")
+        self.git("commit", "-m", "Fix CarPlay skipping")
+        result = self.run_deploy(REVIEW_CONFLICT="preflight")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.receipt.read_text().strip(), "v1.3.2b577")
+        calls = self.events("fastlane")
+        self.assertEqual(sum("base:true" in call[1] for call in calls), 1)
+        self.assertTrue(all(call[2] == "Generated release notes" for call in calls[1:]))
+        self.assertIn("version:1.3.2", calls[-1][1])
 
     def test_new_commit_upload_uses_latest_build_for_number_and_summary(self):
         (self.repo / "change.txt").write_text("New work")
@@ -589,15 +671,11 @@ class TaggedDeployTests(unittest.TestCase):
         self.assertIn("No TestFlight build tag", result.stderr)
         self.assertFalse(self.events())
 
-    def test_reuse_requires_notes_and_rejects_appstore_upload_mode(self):
-        for args, message in ((["--reuse"], "--reuse requires --notes"),
-                              (["--reuse", "--appstore-release", "1.4"],
-                               "--reuse cannot be combined with --appstore-release")):
-            with self.subTest(args=args):
-                result = self.run_deploy(*args)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(message, result.stderr)
-                self.assertFalse(self.events())
+    def test_reuse_rejects_appstore_upload_mode(self):
+        result = self.run_deploy("--reuse", "--appstore-release", "1.4")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--reuse cannot be combined with --appstore-release", result.stderr)
+        self.assertFalse(self.events())
 
     def test_reuse_failure_keeps_tags_and_never_publishes(self):
         self.git("commit", "--allow-empty", "-m", "New work")

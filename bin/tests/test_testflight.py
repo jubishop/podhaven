@@ -59,7 +59,7 @@ class TestFlightTests(unittest.TestCase):
         self.assertIn("1.0.1 (569)", result.stderr)
         self.assertIn("1800 seconds", result.stderr)
         self.assertIn("upload is preserved", result.stderr)
-        self.assertIn("same --notes", result.stderr)
+        self.assertIn("rerun the same command", result.stderr)
         self.assertIn("Build Uploads", result.stderr)
         self.assertNotIn("BuildWatcher exceeded", result.stderr)
         self.assertFalse(any(event[0] in ("distribute", "expire", "success") for event in events))
@@ -93,6 +93,30 @@ class TestFlightTests(unittest.TestCase):
         result, events = self.run_lane(TESTFLIGHT_PREFLIGHT="true")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(any(event[0] in ("wait", "distribute") for event in events))
+
+    def test_base_finds_the_newest_ios_build_testers_received(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "base"
+            result, events = self.run_lane("base", TESTFLIGHT_BASE="true", PODHAVEN_TESTFLIGHT_NOTES="",
+                                           PODHAVEN_TESTFLIGHT_BASE_PATH=str(path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(path.read_text(), "588")
+        query = next(event[1] for event in events if event[0] == "list_builds")
+        self.assertEqual(query["filter"], {"betaGroups": "everyone-id", "expired": "false"})
+        self.assertEqual(query["sort"], "-uploadedDate")
+        self.assertIn("buildBetaDetail", query["includes"])
+        self.assertIn("preReleaseVersion", query["includes"])
+        self.assertEqual(sum(event[0] == "next_page" for event in events), 1)
+        self.assertFalse(any(event[0] in ("wait", "builds", "expire", "distribute") for event in events))
+
+    def test_base_without_a_build_in_testing_asks_for_notes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "base"
+            result, events = self.run_lane("base_none", TESTFLIGHT_BASE="true", PODHAVEN_TESTFLIGHT_NOTES="",
+                                           PODHAVEN_TESTFLIGHT_BASE_PATH=str(path))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("--notes", result.stderr)
+            self.assertFalse(path.exists())
 
     def test_waiting_review_is_expired_and_verified_before_distribution(self):
         result, events = self.run_lane("waiting_review")

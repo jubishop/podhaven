@@ -34,32 +34,28 @@ class AppStoreReleaseTests(unittest.TestCase):
         self.assertTrue(any("Live App Store version: 1.0" in str(event) for event in events))
         self.assertTrue(any("570: PROCESSING" in str(event) for event in events))
 
-    def test_notes_use_latest_ios_testflight_build_and_primary_locale(self):
+    def test_base_reports_the_build_of_the_newest_live_version(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "notes.txt"
-            result, events = self.run_release("notes_latest", APPSTORE_MODE="notes",
-                                             PODHAVEN_APPSTORE_NOTES="", PODHAVEN_APPSTORE_NOTES_PATH=str(path))
+            path = Path(directory) / "base"
+            result, events = self.run_release("base", APPSTORE_MODE="base", PODHAVEN_APPSTORE_NOTES="",
+                                             PODHAVEN_APPSTORE_BASE_PATH=str(path))
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(path.read_text(), "TestFlight notes\nExact text")
-        self.assertIn(["beta_notes", "build-598"], events)
+            self.assertEqual(path.read_text(), "581")
+        self.assertIn(["versions", {"filter": {"platform": "IOS"}, "includes": "build"}], events)
         self.assertFalse(self.writes(events))
-        self.assertFalse(any(event[0] in ("wait", "versions", "reviews") for event in events))
-        query = next(event[1] for event in events if event[0] == "builds")
-        self.assertEqual(query["sort"], "-uploadedDate")
-        self.assertNotIn("version", query)
+        self.assertFalse(any(event[0] in ("wait", "reviews", "builds") for event in events))
 
-    def test_missing_or_unusable_notes_do_not_fall_back_to_older_builds(self):
+    def test_base_without_one_live_build_asks_for_notes(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "notes.txt"
-            for scenario in ("notes_no_testflight", "notes_missing", "notes_blank", "notes_long",
-                             "notes_unknown_locale", "notes_api_failure"):
+            path = Path(directory) / "base"
+            for scenario in ("base_none", "base_no_build"):
                 with self.subTest(scenario=scenario):
-                    result, events = self.run_release(scenario, APPSTORE_MODE="notes",
-                                                     PODHAVEN_APPSTORE_NOTES_PATH=str(path))
+                    result, events = self.run_release(scenario, APPSTORE_MODE="base",
+                                                     PODHAVEN_APPSTORE_BASE_PATH=str(path))
                     self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("--notes", result.stderr)
                     self.assertFalse(path.exists())
                     self.assertFalse(self.writes(events))
-                    self.assertNotIn(["beta_notes", "build-597"], events)
 
     def test_exact_build_creates_version_and_submits_automatically(self):
         result, events = self.run_release()

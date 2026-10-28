@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""Write plain-language TestFlight or App Store notes for app changes since a build."""
+
+import argparse
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+
+
+APP_PATHS = ("PodHaven", "PodHavenShare", "PodHavenWidget", "PodHavenIntents", "PodHavenMacros")
+EXCLUSIONS = ("Leave out code names, file and type names, issue or pull request numbers, and purely internal work "
+              "such as logging, diagnostics, telemetry, tests, and refactors.")
+AUDIENCES = {
+    "testflight": ("TestFlight", (
+        'You write TestFlight "What to Test" notes for PodHaven, an iPhone podcast app. The input is the commit '
+        "messages for app code changed since the build testers already have. Write one or two short, casual "
+        "sentences in plain everyday words that tell testers what changed that they might notice. " + EXCLUSIONS +
+        " If nothing would be noticeable, say the build has behind-the-scenes stability improvements. "
+        "Reply with only the notes."),
+        "Behind-the-scenes stability and performance improvements."),
+    "appstore": ("App Store", (
+        'You write the App Store "What\'s New" text for PodHaven, an iPhone podcast app. The input is the commit '
+        "messages for app code changed since the version listeners already have. Write at most five short "
+        'bullets, each on its own line starting with "• ", in plain everyday words that tell listeners what is '
+        "new or fixed. Group related changes and lead with the most noticeable. " + EXCLUSIONS +
+        " If nothing would be noticeable, write one bullet about stability improvements. "
+        "Reply with only the bullets."),
+        "• Behind-the-scenes stability and performance improvements."),
+}
+MAX_BYTES = 4000
+
+
+def git(root, *args):
+    return subprocess.check_output(["git", "-C", str(root), *args], text=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("audience", choices=AUDIENCES)
+    parser.add_argument("--since-build", required=True, metavar="NUMBER",
+                        help="Build number whose release tag starts the summarized changes.")
+    parser.add_argument("--to", default="HEAD", metavar="REF", help="Revision that ends the summarized changes.")
+    args = parser.parse_args()
+    if not re.fullmatch(r"[0-9]+", args.since_build):
+        parser.error("--since-build requires a numeric build number, such as 581.")
+    root = Path(__file__).resolve().parents[1]
+    label, prompt, fallback = AUDIENCES[args.audience]
+
+    pattern = re.compile(r"v[0-9]+(?:\.[0-9]+){0,2}b" + args.since_build)
+    tags = [tag for tag in git(root, "tag", "-l", "v*b" + args.since_build).split() if pattern.fullmatch(tag)]
+    if len(tags) != 1:
+        sys.exit(f"error: Expected one local release tag for build {args.since_build}, found {len(tags)}. "
+                 "Fetch tags with git fetch --tags, or pass --notes.")
+    base = tags[0]
+    if subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", base, args.to]).returncode != 0:
+        sys.exit(f"error: {base} is not an ancestor of {args.to}. Pass --notes.")
+
+    log = git(root, "log", "--format=%B%x1e", f"{base}..{args.to}", "--", *APP_PATHS).strip()
+    if log:
+        result = subprocess.run(["llm", "-s", prompt], input=log, text=True, stdout=subprocess.PIPE)
+        if result.returncode != 0:
+            sys.exit(f"error: llm could not write {label} notes. Pass --notes.")
+        notes = result.stdout.strip()
+    else:
+        notes = fallback
+    if not notes or len(notes.encode()) > MAX_BYTES:
+        sys.exit(f"error: Generated {label} notes must contain 1 to {MAX_BYTES} bytes. Pass --notes.")
+
+    print(f"==> {label} notes for changes since {base}:\n\n{notes}\n", file=sys.stderr, flush=True)
+    while sys.stdin.isatty() and sys.stderr.isatty():
+        print("Use these notes? [Y/e/n] ", end="", file=sys.stderr, flush=True)
+        answer = sys.stdin.readline()
+        choice = answer.strip().lower()
+        if answer and choice in ("", "y", "yes"):
+            if len(notes.encode()) <= MAX_BYTES:
+                break
+            print(f"Notes must be at most {MAX_BYTES} bytes; edit them or stop.", file=sys.stderr)
+        elif answer and choice in ("e", "edit"):
+            with tempfile.TemporaryDirectory(prefix="podhaven-notes-") as directory:
+                path = Path(directory) / "notes.txt"
+                path.write_text(notes + "\n")
+                editor = shlex.split(os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vi")
+                if subprocess.run([*editor, str(path)], stdout=sys.stderr).returncode != 0:
+                    sys.exit("error: The editor failed. Run again, or pass --notes.")
+                notes = path.read_text().strip()
+            if not notes:
+                sys.exit("Stopped: the edited notes were empty. Run again, or pass --notes.")
+            print(f"==> Edited {label} notes:\n\n{notes}\n", file=sys.stderr, flush=True)
+        else:
+            sys.exit("Stopped without the generated notes. Run again to regenerate them, or pass --notes.")
+    print(notes)
+
+
+if __name__ == "__main__":
+    main()

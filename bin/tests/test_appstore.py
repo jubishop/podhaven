@@ -18,20 +18,22 @@ ROOT = Path(__file__).resolve().parents[2]
 DEBUG_IDS = {"PodHaven": "3C5915DE-7C22-3FE4-A33B-1713DAB1B100",
              "PodHavenWidget": "89ED1475-650C-372C-88DC-12E70E9D9360"}
 FAKE = r'''
-import json, os, pathlib, re, sys
+import json, os, pathlib, re, sys, tempfile
 base = pathlib.Path(os.environ['APPSTORE_FIXTURE'])
 name, args = pathlib.Path(sys.argv[0]).name, sys.argv[1:]
 with (base / 'events').open('a') as stream:
     stream.write(json.dumps([name, args, os.environ.get('PODHAVEN_APPSTORE_NOTES'),
                              os.environ.get('ASC_KEY_PATH')]) + '\n')
-if name == 'fastlane':
+if name == 'fastlane' and args[0] == 'distribute_testflight':
+    if 'base:true' in args:
+        pathlib.Path(os.environ['PODHAVEN_TESTFLIGHT_BASE_PATH']).write_text('569')
+elif name == 'fastlane':
     mode = next(arg.split(':', 1)[1] for arg in args if arg.startswith('mode:'))
     if os.environ.get('APPSTORE_FAIL_PHASE') == mode:
         print('Apple failure during ' + mode, file=sys.stderr)
         sys.exit(23)
-    if mode == 'notes':
-        pathlib.Path(os.environ['PODHAVEN_APPSTORE_NOTES_PATH']).write_text(
-            os.environ.get('LATEST_TESTFLIGHT_NOTES', 'Notes from TestFlight'))
+    if mode == 'base':
+        pathlib.Path(os.environ['PODHAVEN_APPSTORE_BASE_PATH']).write_text(os.environ.get('LIVE_BUILD', '569'))
     print('Confirmed ' + mode)
 elif name == 'xcodebuild':
     if '-showdestinations' in args:
@@ -58,10 +60,19 @@ elif name == 'sentry':
         debug_id = args[1].split('?query=')[1]
         print(json.dumps([{'debugId': debug_id, 'data': {'type': 'dbg', 'features': ['debug']}}]))
 elif name == 'llm':
-    sys.stdin.read()
-    print('Generated release notes')
+    log = sys.stdin.read()
+    if '-s' in args and 'App Store' in args[args.index('-s') + 1]:
+        with (base / 'notes-input').open('a') as stream:
+            stream.write(log)
+        print(os.environ.get('LLM_OUTPUT', 'Generated public notes'))
+    else:
+        print('Generated release notes')
 elif name == 'xcbeautify':
     print(sys.stdin.read(), end='')
+elif name == 'mktemp' and '-d' not in args:
+    descriptor, path = tempfile.mkstemp(dir=base)
+    os.close(descriptor)
+    print(path)
 elif name == 'mktemp':
     path = base / 'logs'
     path.mkdir(exist_ok=True)
@@ -86,7 +97,7 @@ class AppStoreCommandTests(unittest.TestCase):
         (self.repo / "PodHaven.xcodeproj").mkdir()
         self.project = self.repo / "PodHaven.xcodeproj/project.pbxproj"
         self.project.write_text("\tMARKETING_VERSION = 1.0.1;\n\tOTHER = keep;\n")
-        for name in ("appstore", "version", "deploy.sh"):
+        for name in ("appstore", "version", "deploy.sh", "release-notes"):
             shutil.copy2(ROOT / "bin" / name, self.repo / "bin" / name)
         (self.repo / "bin/shipit").symlink_to("deploy.sh")
         commands = self.base / "commands"
@@ -192,45 +203,67 @@ class AppStoreCommandTests(unittest.TestCase):
         self.assertFalse(self.git("status", "--porcelain"))
         self.assertFalse((self.base / "gate-events").exists())
 
-    def test_default_releases_with_latest_testflight_notes(self):
-        notes = 'Fixed playback.\nLiteral $HOME and `text`.'
-        result = self.run_command(LATEST_TESTFLIGHT_NOTES=notes)
+    def commit_app_change(self, message):
+        source = self.repo / "PodHaven/Player.swift"
+        source.parent.mkdir(exist_ok=True)
+        source.write_text((source.read_text() if source.exists() else "") + message + "\n")
+        self.git("add", ".")
+        self.git("commit", "-m", message)
+        self.git("push")
+
+    def test_default_release_generates_notes_since_the_live_build(self):
+        self.commit_app_change("Fix CarPlay skipping")
+        result = self.run_command()
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.events("fastlane")
-        self.assertIn("mode:notes", calls[0][1])
-        self.assertTrue(all(call[2] == notes for call in calls[1:]))
+        self.assertIn("mode:base", calls[0][1])
+        self.assertTrue(all(call[2] == "Generated public notes" for call in calls[1:]))
         self.assertIn("version:1.1", calls[-1][1])
+        self.assertIn("Fix CarPlay skipping", (self.base / "notes-input").read_text())
 
-    def test_release_override_can_use_testflight_notes(self):
+    def test_release_without_app_changes_uses_fixed_notes(self):
         result = self.run_command("--release", "2")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("version:2", self.events("fastlane")[-1][1])
-        self.assertEqual(self.events("fastlane")[-1][2], "Notes from TestFlight")
+        self.assertEqual(self.events("fastlane")[-1][2], "• Behind-the-scenes stability and performance improvements.")
+        self.assertFalse((self.base / "notes-input").exists())
 
-    def test_missing_or_invalid_testflight_notes_stop_before_changes(self):
-        for notes in ("", "  \n", "a" * 4001):
-            with self.subTest(notes=notes[:10]):
-                result = self.run_command(LATEST_TESTFLIGHT_NOTES=notes)
+    def test_unusable_generated_notes_stop_before_changes(self):
+        self.commit_app_change("Fix CarPlay skipping")
+        head = self.git("rev-parse", "HEAD")
+        for case, env in (("blank", {"LLM_OUTPUT": "  "}), ("long", {"LLM_OUTPUT": "a" * 4001}),
+                          ("untagged", {"LIVE_BUILD": "999"}), ("lookup", {"APPSTORE_FAIL_PHASE": "base"})):
+            with self.subTest(case=case):
+                result = self.run_command(**env)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn("--notes", result.stderr)
-                self.assertEqual(self.git("rev-parse", "HEAD"), self.initial)
+                if case != "lookup":
+                    self.assertIn("--notes", result.stderr)
+                self.assertEqual(self.git("rev-parse", "HEAD"), head)
                 self.assertFalse(self.events("xcodebuild"))
+                self.assertFalse(any("mode:preflight" in call[1] for call in self.events("fastlane")))
 
-    def test_notes_lookup_failure_stops_before_changes(self):
-        result = self.run_command(APPSTORE_FAIL_PHASE="notes")
+    def test_retry_keeps_saved_notes_even_when_new_notes_differ(self):
+        self.commit_app_change("Fix CarPlay skipping")
+        result = self.run_command(APPSTORE_FAIL_PHASE="submit", LLM_OUTPUT="First notes")
         self.assertEqual(result.returncode, 23, result.stderr)
-        self.assertEqual(self.git("rev-parse", "HEAD"), self.initial)
-        self.assertFalse(self.events("xcodebuild"))
-
-    def test_retry_keeps_saved_notes_even_when_testflight_changes(self):
-        result = self.run_command(APPSTORE_FAIL_PHASE="submit")
-        self.assertEqual(result.returncode, 23, result.stderr)
-        result = self.run_command(LATEST_TESTFLIGHT_NOTES="Newer notes")
+        result = self.run_command(LLM_OUTPUT="Newer notes")
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.events("fastlane")
-        self.assertEqual(sum("mode:notes" in call[1] for call in calls), 1)
-        self.assertEqual(calls[-1][2], "Notes from TestFlight")
+        self.assertEqual(sum("mode:base" in call[1] for call in calls), 1)
+        self.assertEqual(calls[-1][2], "First notes")
         self.assertIn("version:1.1", calls[-1][1])
+
+    def test_explicit_build_notes_end_at_that_build(self):
+        self.commit_app_change("Fix CarPlay skipping")
+        self.git("tag", "-a", "v1.1b570", "-m", "Uploaded release")
+        self.commit_app_change("Unreleased later work")
+        result = self.run_command("--release", "1.1", "--build", "570")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.events("fastlane")[-1][1:3],
+                         [["manage_appstore", "mode:submit", "version:1.1", "build:570"], "Generated public notes"])
+        log = (self.base / "notes-input").read_text()
+        self.assertIn("Fix CarPlay skipping", log)
+        self.assertNotIn("Unreleased later work", log)
 
     def test_release_bumps_commits_uploads_and_submits_exact_build(self):
         notes = 'Fixed "playback".\nLiteral $HOME and `text`.'
@@ -365,6 +398,9 @@ class AppStoreCommandTests(unittest.TestCase):
         self.assertEqual(self.git("log", "-1", "--format=%s"), "Change version number to 1.1.1")
         self.assertEqual(self.git("rev-parse", "HEAD"), self.git("rev-parse", "origin/main"))
         self.assertEqual(self.git("rev-parse", "v1.1.1b571^{commit}"), self.git("rev-parse", "HEAD"))
+        testflight = [event for event in self.events("fastlane") if event[1][0] == "distribute_testflight"]
+        self.assertIn("base:true", testflight[0][1])
+        self.assertIn("build:571", testflight[-1][1])
 
     def test_shipit_uses_zero_minor_for_a_major_only_release(self):
         result = self.run_command("--release", "2", "--notes", "Release notes")

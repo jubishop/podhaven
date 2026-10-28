@@ -270,28 +270,13 @@ if $scenario.start_with?("replace_")
   end
 end
 
-if $scenario.start_with?("notes_")
-  $builds = [make_build("600"), make_build("599"), make_build("598"), make_build("597")]
-  $builds[0].app_version = "3.0"
-  $builds[1].app_version = "2.5.2"
-  $builds[1].platform = "MAC_OS"
-  $builds[2].app_version = "2.1.2"
-  $builds[3].app_version = "2.1.1"
-  $builds.each do |build|
-    build.define_singleton_method(:get_beta_build_localizations) do
-      $events << ["beta_notes", id]
-      raise "Must not use an older build" unless version == "598"
-      case $scenario
-      when "notes_missing" then []
-      when "notes_blank" then [OpenStruct.new(locale: "en-US", whats_new: " \n")]
-      when "notes_long" then [OpenStruct.new(locale: "en-US", whats_new: "a" * 4001)]
-      when "notes_unknown_locale" then [OpenStruct.new(locale: "fr-FR", whats_new: "French")]
-      when "notes_api_failure" then raise "Notes request failed"
-      else [OpenStruct.new(locale: "fr-FR", whats_new: "French"), OpenStruct.new(locale: "en-US", whats_new: "TestFlight notes\nExact text")]
-      end
-    end
-  end
-  $builds = [$builds.first] if $scenario == "notes_no_testflight"
+if $scenario.start_with?("base")
+  $versions.first.build = make_build("581")
+  $versions.first.build = nil if $scenario == "base_no_build"
+  $versions.first.app_version_state = "REPLACED_WITH_NEW_VERSION" if $scenario == "base_none"
+  older = FakeVersion.new("older-live-id", "0.9", $scenario == "base_none" ? "REPLACED_WITH_NEW_VERSION" : "READY_FOR_DISTRIBUTION")
+  older.build = make_build("500")
+  $versions.unshift(older)
 end
 
 begin
