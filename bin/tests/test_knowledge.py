@@ -10,6 +10,8 @@ import tempfile
 import time
 import unittest
 
+import service_guard
+
 SOURCE = Path(__file__).resolve().parents[2]
 
 

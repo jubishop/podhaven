@@ -10,8 +10,10 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.append(str(SCRIPT_DIR.parents[3] / "bin/tests"))
 
 import log_summary as ls  # noqa: E402
+import service_guard  # noqa: E402
 
 
 class TestParseTimeArg(unittest.TestCase):

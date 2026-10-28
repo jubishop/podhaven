@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import service_guard
+
 ROOT = Path(__file__).resolve().parents[2]
 loader = importlib.machinery.SourceFileLoader("siri_smoke", str(ROOT / "bin/sentry-siri-smoke"))
 spec = importlib.util.spec_from_loader(loader.name, loader)

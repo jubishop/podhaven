@@ -6,12 +6,16 @@ import importlib.util
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[2]
+sys.path.append(str(REPO_ROOT / "bin/tests"))
+
+import service_guard  # noqa: E402
 
 
 class SentryHelperTests(unittest.TestCase):

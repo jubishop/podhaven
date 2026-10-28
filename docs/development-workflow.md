@@ -362,13 +362,25 @@ every mode also verifies the generated active-memory index. Keep the existing
 Swift build and test requirements for application changes; documentation-only
 delivery does not require building the Swift app.
 
-`bin/test-all` includes the separate application, macro, skill, and shell
-tests and `bin/check --full --no-reuse`, which reruns the tooling tests instead
-of reusing an earlier pass. `bin/check --full` alone is not a full test run.
+`bin/test-all` includes the separate application, macro, and skill tests and
+`bin/check --full --no-reuse`, which reruns the tooling tests, including the
+shell tests in `bin/tests`, instead of reusing an earlier pass.
+`bin/check --full` alone is not a full test run.
 `bin/tests` covers the knowledge worker and cache ownership and artifact
 repair; Project Starter tests the shared memory audit. `bin/smoke-knowledge` checks real QMD retrieval and
 linked-worktree isolation in disposable repositories. It reuses
 `~/.cache/qmd/models` and does not publish changes.
+
+Every tooling test suite, in `bin/tests` and `.agents`, imports
+`bin/tests/service_guard.py`. It puts failing stand-ins for commands that
+reach live services, such as `sentry`, `gh`, `fastlane`, `llm`, and
+`xcodebuild`, ahead of `PATH`. A test that runs one fails, even when the
+script under test ignores the failure, instead of acting on real accounts.
+Fake every such command a script under test runs. A test that runs one on
+purpose claims the blocked calls with `service_guard.take_blocked()`.
+Run one suite with `python3 -B -m unittest discover -s bin/tests -p 'test_deploy.py'`,
+which keeps the guard importable; a dotted `bin.tests` module name fails to
+import it instead of running unguarded.
 
 `.project-starter.json` records the installed Project Starter release, the
 hashes of its managed files, and the enabled `memory-audit` feature. Update

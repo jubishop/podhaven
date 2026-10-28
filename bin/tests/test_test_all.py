@@ -9,6 +9,8 @@ import sys
 import tempfile
 import unittest
 
+import service_guard
+
 
 ROOT = Path(__file__).resolve().parents[2]
 FAKE = r'''
@@ -145,7 +147,7 @@ class TestAllTests(unittest.TestCase):
         self.assertTrue(any(name == "xcodebuild" and args[:1] == ["test"] for name, args in events))
         self.assertTrue(any(name == "test_skill.py" for name, _ in events))
         self.assertTrue(any(name == "test_helper.py" for name, _ in events))
-        self.assertEqual((self.base / "shell-ran").read_text(), "shell")
+        self.assertFalse((self.base / "shell-ran").exists())
         self.assertEqual(self.report()["checkout"]["revision"], self.git("rev-parse", "HEAD"))
         self.assertEqual(self.report()["checkout"]["status"], "")
         self.assertEqual(self.report()["result"], "passed")

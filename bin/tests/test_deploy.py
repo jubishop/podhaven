@@ -9,6 +9,8 @@ import sys
 import tempfile
 import unittest
 
+import service_guard
+
 
 ROOT = Path(__file__).resolve().parents[2]
 DEBUG_IDS = {"PodHaven": "4CDE6829-998C-3110-98FE-ED2AF6E992C4",
@@ -154,6 +156,14 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(self.events("fastlane"))
         self.assertTrue(any('-exportArchive' in event[1] for event in self.events('xcodebuild')))
+
+    def test_a_missing_fake_never_runs_the_live_command(self):
+        for name in ("fastlane", "gh", "llm", "sentry", "xcodebuild"):
+            with self.subTest(command=name):
+                self.setUp()
+                (self.commands / name).unlink()
+                self.run_deploy("--notes", "Fixes")
+                self.assertIn(name, [call.split()[0] for call in service_guard.take_blocked()])
 
     def test_successful_upload_pushes_only_its_tag_to_origin(self):
         result = self.run_deploy()

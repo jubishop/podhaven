@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import unittest
 
+import service_guard
+
 ROOT = Path(__file__).resolve().parents[2]
 loader = importlib.machinery.SourceFileLoader("metrickit_smoke", str(ROOT / "bin/sentry-metrickit-smoke"))
 spec = importlib.util.spec_from_loader(loader.name, loader)

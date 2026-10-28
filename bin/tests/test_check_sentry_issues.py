@@ -7,6 +7,8 @@ import sys
 import tempfile
 import unittest
 
+import service_guard
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "bin/check-sentry-issues"

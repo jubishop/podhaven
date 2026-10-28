@@ -157,17 +157,13 @@ def main():
 
         run([str(ROOT / "bin/check"), "--full", "--no-reuse"], output, "tooling", require_unittest=True)
         files = subprocess.check_output(
-            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--",
-             ".agents", "bin/tests"], cwd=ROOT, env=TEST_ENVIRONMENT)
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ".agents"],
+            cwd=ROOT, env=TEST_ENVIRONMENT)
         tests = sorted({Path(os.fsdecode(name)) for name in files.split(b"\0") if name})
         for path in tests:
-            if not (ROOT / path).is_file():
-                continue
-            if path.parts[0] == ".agents" and path.match("test_*.py"):
+            if (ROOT / path).is_file() and path.match("test_*.py"):
                 run([sys.executable, "-B", str(path), "--verbose"], output,
                     str(path).replace("/", "_"), require_unittest=True)
-            elif path.parent == Path("bin/tests") and path.suffix == ".sh":
-                run(["bash", str(path)], output, path.stem)
 
         run([str(ROOT / "bin/lint-swift-format")], output, "swift-lint")
         run(["xcrun", "swift", "test", "--package-path", "PodHavenMacros"], output, "macros")

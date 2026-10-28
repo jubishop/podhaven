@@ -11,6 +11,7 @@ import tempfile
 import unittest
 
 from local_validation_fixture import FAKE as GATE_FAKE, install_gate
+import service_guard
 
 
 ROOT = Path(__file__).resolve().parents[2]

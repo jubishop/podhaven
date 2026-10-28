@@ -2,6 +2,8 @@ from pathlib import Path
 import subprocess
 import unittest
 
+import service_guard
+
 
 TESTS = Path(__file__).resolve().parent
 

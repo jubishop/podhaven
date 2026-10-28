@@ -8,6 +8,8 @@ import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import service_guard
+
 SCRIPT = (
     Path(__file__).resolve().parents[2]
     / ".agents/scripts/sentry-cli/fetch_sentry_logs.sh"

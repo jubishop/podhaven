@@ -7,6 +7,8 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+import service_guard
+
 ROOT = Path(__file__).resolve().parents[2]
 loader = SourceFileLoader("hang_smoke", str(ROOT / "bin/sentry-hang-smoke"))
 smoke = module_from_spec(spec_from_loader(loader.name, loader))

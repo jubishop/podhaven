@@ -6,6 +6,8 @@ import importlib.util
 from pathlib import Path
 import unittest
 
+import service_guard
+
 ROOT = Path(__file__).resolve().parents[2]
 loader = importlib.machinery.SourceFileLoader(
     "siri_publication_smoke", str(ROOT / "bin/sentry-siri-publication-smoke"))

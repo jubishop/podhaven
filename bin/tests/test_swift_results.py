@@ -8,6 +8,8 @@ import sys
 import tempfile
 import unittest
 
+import service_guard
+
 ROOT = Path(__file__).resolve().parents[2]
 loader = importlib.machinery.SourceFileLoader("swift_results", str(ROOT / "bin/check-swift-results"))
 spec = importlib.util.spec_from_loader(loader.name, loader)

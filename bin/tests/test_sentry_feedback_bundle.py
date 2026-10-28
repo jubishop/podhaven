@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import service_guard
+
 
 SCRIPT = (
     Path(__file__).resolve().parents[2]

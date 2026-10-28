@@ -13,8 +13,10 @@ from unittest.mock import patch
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.append(str(SCRIPT_DIR.parents[3] / "bin/tests"))
 
 import locate_logs  # noqa: E402
+import service_guard  # noqa: E402
 
 
 class TestSimulatorLookup(unittest.TestCase):
