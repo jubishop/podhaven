@@ -7,6 +7,7 @@ import Logging
 import MediaPlayer
 import Tagged
 
+@PlayActor
 enum NowPlayingInfo {
   private static let log = Log.as(LogSubsystem.Play.nowPlayingInfo)
 
@@ -65,7 +66,8 @@ enum NowPlayingInfo {
       Self.log.debug("setImage: \(image.size)")
       nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(
         boundsSize: image.size,
-        requestHandler: { size in image }
+        // MediaPlayer calls this off the PlayActor.
+        requestHandler: { @Sendable size in image }
       )
     } else {
       Self.log.debug("setImage: nil")
