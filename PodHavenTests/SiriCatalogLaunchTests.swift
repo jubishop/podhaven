@@ -32,12 +32,8 @@ import Testing
     let url = directory.appendingPathComponent("siri-media.json")
     try SiriCatalogFile(url: url)
       .write(
-        SiriCatalog(entries: [
-          .init(
-            identity: .init(kind: .podcast, id: 1, feed: "https://stale.test"),
-            title: "Stale show",
-            podcastTitle: nil
-          )
+        SiriCatalog(podcasts: [
+          .init(id: 1, feed: "https://stale.test", title: "Stale show", episodes: [])
         ])
       )
     let storage = FakeSiriCatalogStorage()
@@ -59,9 +55,10 @@ import Testing
     storage.release()
     try await appDB.siriCatalogPublished()
     #expect(
-      try await SiriCatalogFile(url: url).read().entries.map(\.displayTitle) == [
-        "Committed show", "Committed episode — Committed show",
-      ]
+      try await SiriCatalogFile(url: url).read().podcasts.flatMap(\.entries).map(\.displayTitle)
+        == [
+          "Committed show", "Committed episode — Committed show",
+        ]
     )
     #expect(storage.mainThreadCatalogWrites() == 0, "Publication must not write on the main thread")
   }

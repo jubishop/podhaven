@@ -97,15 +97,12 @@ struct SiriProbe: App {
             let file = Container.shared.siriCatalogFile()
             do {
               try file.write(
-                SiriCatalog(entries: [
+                SiriCatalog(podcasts: [
                   .init(
-                    identity: .init(
-                      kind: .podcast,
-                      id: 913759,
-                      feed: "https://private-sentinel.invalid"
-                    ),
+                    id: 913759,
+                    feed: "https://private-sentinel.invalid",
                     title: "Private Sentinel Title",
-                    podcastTitle: nil
+                    episodes: []
                   )
                 ])
               )

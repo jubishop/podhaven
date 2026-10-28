@@ -11,22 +11,22 @@ import Testing
 struct SiriLargeCatalogTests {
   @Test("large Unicode catalogs complete within budget with stable ranking and album filtering")
   @MainActor func largeCatalog() async throws {
-    let entries = (0..<100_100)
-      .map { i in
-        SiriCatalog.Entry(
-          identity: .init(
-            kind: .episode,
-            id: Int64(i),
-            feed: "https://synthetic.test/\(i / 1000)",
-            guid: "\(i)"
-          ),
-          title: i % 1000 == 0
-            ? "Café — Ｓcience " + String(repeating: "long ", count: 200)
-            : "Episode \(i) Science Today",
-          podcastTitle: "Café show \(i / 1000)"
+    let longTitle = "Café — Ｓcience " + String(repeating: "long ", count: 200)
+    let podcasts = (0..<100)
+      .map { podcast -> SiriCatalog.Podcast in
+        let episodes = (podcast * 1000..<(podcast + 1) * 1000)
+          .map { i -> SiriCatalog.Episode in
+            let title = i % 1000 == 0 ? longTitle : "Episode \(i) Science Today"
+            return SiriCatalog.Episode(id: Int64(i), guid: "\(i)", title: title)
+          }
+        return SiriCatalog.Podcast(
+          id: Int64(podcast),
+          feed: "https://synthetic.test/\(podcast)",
+          title: "Café show \(podcast)",
+          episodes: episodes
         )
       }
-    let catalog = SiriCatalog(entries: entries)
+    let catalog = SiriCatalog(podcasts: podcasts)
     let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: url) }
     let file = SiriCatalogFile(url: url)
@@ -37,7 +37,7 @@ struct SiriLargeCatalogTests {
       ("album", "Episode 501 Science Today", .podcastEpisode, "Cafe show 0", 1),
       ("wrong-album", "Episode 501 Science Today", .podcastEpisode, "Cafe show 99", 0),
       ("no-match", "Absent", .unknown, nil, 0),
-      ("unicode-ambiguous", "cafe science", .unknown, nil, 101),
+      ("unicode-ambiguous", "cafe science", .unknown, nil, 100),
     ] {
       let intent = SiriTestIntent.named(name, type: type, album: album)
       if count == 0 {

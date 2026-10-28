@@ -48,7 +48,7 @@ struct SiriCatalogFileTests {
 
   @Test("the size limit accepts complete JSON and rejects even one excess whitespace byte")
   func sizeBoundary() async throws {
-    let catalog = SiriCatalog(entries: [])
+    let catalog = SiriCatalog(podcasts: [])
     let encoded = try JSONEncoder().encode(catalog)
     try await withFile { file in
       var data = encoded
@@ -71,13 +71,75 @@ struct SiriCatalogFileTests {
     }
   }
 
+  @Test("a library twice the largest measured one stays within the limit and resolves")
+  func doubledLibrary() async throws {
+    // Twice the measured library, with fields matching its average bytes per entry.
+    let podcastCount = 2 * 189
+    let episodeCount = 2 * 110_822
+    func feed(_ podcast: Int) -> String {
+      "https://feeds.synthetic.test/podcasts/\(podcast)/feed.xml"
+    }
+    func show(_ podcast: Int) -> String { "Synthetic Show \(podcast)" }
+    func title(_ episode: Int) -> String {
+      "Episode \(episode): A longer conversation about science, culture, and the week’s news"
+    }
+    let catalog = SiriCatalog(
+      podcasts: (0..<podcastCount)
+        .map { podcast in
+          SiriCatalog.Podcast(
+            id: Int64(podcast),
+            feed: feed(podcast),
+            title: show(podcast),
+            episodes: stride(from: podcast, to: episodeCount, by: podcastCount)
+              .map { episode in
+                SiriCatalog.Episode(
+                  id: Int64(episode),
+                  guid: UUID().uuidString,
+                  title: title(episode)
+                )
+              }
+          )
+        }
+    )
+    try await withFile { file in
+      #expect(try file.write(catalog) <= limit)
+      let decoded = try await file.read()
+      #expect(decoded.generation == catalog.generation)
+      let lastPodcast = podcastCount - 1
+      #expect(
+        try decoded.matches(SiriTestIntent.named(show(lastPodcast), type: .podcastShow))
+          .map(\.identity) == [
+            SiriMediaIdentity(kind: .podcast, id: Int64(lastPodcast), feed: feed(lastPodcast))
+          ]
+      )
+      let lastEpisode = episodeCount - 1
+      let episodes = try decoded.matches(
+        SiriTestIntent.named(
+          title(lastEpisode),
+          type: .podcastEpisode,
+          album: show(lastEpisode % podcastCount)
+        )
+      )
+      #expect(episodes.map(\.identity.id) == [Int64(lastEpisode)])
+      #expect(episodes.map(\.identity.feed) == [feed(lastEpisode % podcastCount)])
+      let handler = SiriMediaIntentHandler(catalog: file.read, authorized: { true })
+      let responses = ThreadSafe<[Int]>([])
+      handler.handle(intent: try SiriTestIntent.resolved(try #require(episodes.first))) {
+        response in responses { $0.append(response.code.rawValue) }
+      }
+      try await Wait.until({ responses().count == 1 }, { "Missing handoff callback" })
+      #expect(responses() == [INPlayMediaIntentResponseCode.handleInApp.rawValue])
+    }
+  }
+
   @Test("successful reads close their descriptor and preserve the complete catalog")
   func roundTrip() async throws {
-    let catalog = SiriCatalog(entries: [
-      SiriCatalog.Entry(
-        identity: SiriMediaIdentity(kind: .podcast, id: 1, feed: "https://podcast.test/feed"),
+    let catalog = SiriCatalog(podcasts: [
+      SiriCatalog.Podcast(
+        id: 1,
+        feed: "https://podcast.test/feed",
         title: "A saved show",
-        podcastTitle: nil
+        episodes: [SiriCatalog.Episode(id: 2, guid: "https://podcast.test/2", title: "An episode")]
       )
     ])
     try await withFile { file in
@@ -85,7 +147,7 @@ struct SiriCatalogFileTests {
       let handle = FakeSiriCatalogReadHandle(handle: try FileHandle(forReadingFrom: file.url))
       let decoded = try await SiriCatalogFile(url: file.url, openForReading: { _ in handle }).read()
       #expect(decoded.generation == catalog.generation)
-      #expect(decoded.entries == catalog.entries)
+      #expect(decoded.podcasts == catalog.podcasts)
       #expect(decoded.schemaVersion == catalog.schemaVersion)
       #expect(handle.closeCount() == 1)
     }
@@ -95,7 +157,9 @@ struct SiriCatalogFileTests {
     "empty, invalid, and unsupported catalogs close their descriptors and cannot hand off",
     arguments: [
       "", "invalid JSON",
-      "{\"schemaVersion\":2,\"generation\":\"00000000-0000-0000-0000-000000000000\",\"entries\":[]}",
+      "{\"schemaVersion\":1,\"generation\":\"00000000-0000-0000-0000-000000000000\",\"entries\":[]}",
+      "{\"schemaVersion\":1,\"generation\":\"00000000-0000-0000-0000-000000000000\",\"podcasts\":[]}",
+      "{\"schemaVersion\":3,\"generation\":\"00000000-0000-0000-0000-000000000000\",\"podcasts\":[]}",
     ]
   )
   func invalidCatalog(contents: String) async throws {
@@ -131,7 +195,7 @@ struct SiriCatalogFileTests {
   @Test("a close failure prevents a successful catalog result")
   func closeFailure() async throws {
     try await withFile { file in
-      try file.write(SiriCatalog(entries: []))
+      try file.write(SiriCatalog(podcasts: []))
       let handle = FakeSiriCatalogReadHandle(
         handle: try FileHandle(forReadingFrom: file.url),
         closeError: .close
@@ -144,8 +208,8 @@ struct SiriCatalogFileTests {
 
   @Test("atomic replacement during open leaves the read on one complete catalog")
   func atomicReplacement() async throws {
-    let original = SiriCatalog(entries: [])
-    let replacement = SiriCatalog(entries: [])
+    let original = SiriCatalog(podcasts: [])
+    let replacement = SiriCatalog(podcasts: [])
     try await withFile { file in
       try file.write(original)
       let reading = SiriCatalogFile(

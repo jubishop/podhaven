@@ -77,39 +77,36 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
         try Podcast
         .select(Podcast.Columns.id, Podcast.Columns.feedURL, Podcast.Columns.title)
         .order(Podcast.Columns.id).asRequest(of: Row.self).fetchAll(db)
-      let podcast = TableAlias()
       let episodes =
         try Episode
-        .select(Episode.Columns.id, Episode.Columns.guid, Episode.Columns.title)
-        .joining(required: Episode.podcast.aliased(podcast))
-        .annotated(with: podcast[Podcast.Columns.feedURL])
-        .annotated(with: podcast[Podcast.Columns.title].forKey("podcastTitle"))
+        .select(
+          Episode.Columns.id,
+          Episode.Columns.podcastId,
+          Episode.Columns.guid,
+          Episode.Columns.title
+        )
         .order(Episode.Columns.id).asRequest(of: Row.self).fetchAll(db)
-      let entries =
-        podcasts.map {
-          SiriCatalog.Entry(
-            identity: SiriMediaIdentity(
-              kind: .podcast,
-              id: $0[Podcast.Columns.id],
-              feed: $0[Podcast.Columns.feedURL]
-            ),
-            title: $0[Podcast.Columns.title],
-            podcastTitle: nil
+      let episodesByPodcast = Dictionary(grouping: episodes) { row -> Int64 in
+        row[Episode.Columns.podcastId]
+      }
+      let catalog = SiriCatalog(
+        podcasts: podcasts.map { podcast in
+          let id: Int64 = podcast[Podcast.Columns.id]
+          return SiriCatalog.Podcast(
+            id: id,
+            feed: podcast[Podcast.Columns.feedURL],
+            title: podcast[Podcast.Columns.title],
+            episodes: (episodesByPodcast[id] ?? [])
+              .map {
+                SiriCatalog.Episode(
+                  id: $0[Episode.Columns.id],
+                  guid: $0[Episode.Columns.guid],
+                  title: $0[Episode.Columns.title]
+                )
+              }
           )
         }
-        + episodes.map {
-          SiriCatalog.Entry(
-            identity: SiriMediaIdentity(
-              kind: .episode,
-              id: $0[Episode.Columns.id],
-              feed: $0[Podcast.Columns.feedURL],
-              guid: $0[Episode.Columns.guid]
-            ),
-            title: $0[Episode.Columns.title],
-            podcastTitle: $0["podcastTitle"]
-          )
-        }
-      let catalog = SiriCatalog(entries: entries)
+      )
       let fetchedAt = continuousClockNow()
       let bytes = try file.write(catalog)
       lastPublished(catalog)
