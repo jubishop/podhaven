@@ -5,17 +5,11 @@ import Foundation
 import OrderedCollections
 import SwiftUI
 import Testing
-import UIKit
 
 @testable import PodHaven
 
-private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiOSAppOnMac
-
 @Suite("Circular progress ring", .container)
 @MainActor struct CircularProgressViewTests {
-  @DynamicInjected(\.repo) private var repo
-  @DynamicInjected(\.sharedState) private var sharedState
-
   // MARK: - Sectors
 
   @Test(
@@ -212,90 +206,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     }
   }
 
-  // MARK: - Accessibility
-
-  @Test(
-    "playback ring is one decorative element with its progress value",
-    .enabled(
-      if: supportsHostedAccessibilityInspection,
-      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
-    )
-  )
-  func playbackAccessibility() async throws {
-    let episode = UnsavedPodcastEpisode(
-      unsavedPodcast: try Create.unsavedPodcast(),
-      unsavedEpisode: try Create.unsavedEpisode(
-        duration: .seconds(100),
-        currentTime: .seconds(25)
-      )
-    )
-
-    try await Self.expectSingleElement(
-      StatusIconColumn(episode: episode, iconSpacing: 4, iconSize: 12),
-      label: "Playback Progress",
-      value: "25%"
-    )
-  }
-
-  @Test(
-    "download ring is one decorative element with its progress value",
-    .enabled(
-      if: supportsHostedAccessibilityInspection,
-      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
-    ),
-    arguments: [(false, "Download Progress"), (true, "Save Progress")]
-  )
-  func downloadAccessibility(saveInCache: Bool, label: String) async throws {
-    let saved = try await Create.podcastEpisode(
-      try Create.unsavedEpisode(saveInCache: saveInCache)
-    )
-    try await repo.updateDownloading(saved.id, downloading: true)
-    sharedState.updateDownloadProgress(for: saved.id, progress: 0.4)
-    let episode = try #require(try await repo.podcastEpisode(saved.id))
-
-    try await Self.expectSingleElement(
-      StatusIconColumn(episode: episode, iconSpacing: 10, iconSize: 28),
-      label: label,
-      value: "40%"
-    )
-  }
-
-  @Test(
-    "OPML import ring is one decorative element with its counts",
-    .enabled(
-      if: supportsHostedAccessibilityInspection,
-      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
-    )
-  )
-  func opmlAccessibility() async throws {
-    let file = OPMLFile(title: "Import")
-    file.finished = [
-      OPMLOutline(status: .finished, text: "One"), OPMLOutline(status: .finished, text: "Two"),
-    ]
-    file.downloading = [OPMLOutline(status: .downloading, text: "Three")]
-    file.waiting = [OPMLOutline(status: .waiting, text: "Four")]
-    file.failed = [OPMLOutline(status: .failed, text: "Five")]
-
-    try await Self.expectSingleElement(
-      VStack { OPMLImportSheet(viewModel: Container.shared.opmlViewModel(), opmlFile: file) },
-      label: "Import Progress",
-      value: "2 completed, 1 downloading, 1 waiting, 1 failed"
-    )
-  }
-
   // MARK: - Helpers
-
-  private static func expectSingleElement(
-    _ view: some View,
-    label: String,
-    value: String
-  ) async throws {
-    try await withHostedTestWindow(TestHostingController(rootView: view)) { window in
-      let matches = accessibilityElements(in: window).filter { $0.accessibilityLabel == label }
-      #expect(matches.count == 1)
-      #expect(matches.first?.accessibilityValue == value)
-    }
-  }
 
   private static func endpoints(of path: Path) -> [CGPoint] {
     var points: [CGPoint] = []
@@ -310,26 +221,5 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       }
     }
     return points
-  }
-
-  private static func accessibilityElements(in root: NSObject) -> [NSObject] {
-    var visited: Set<ObjectIdentifier> = []
-    func collect(_ object: NSObject) -> [NSObject] {
-      guard visited.insert(ObjectIdentifier(object)).inserted else { return [] }
-      var result = object.isAccessibilityElement ? [object] : []
-      if let view = object as? UIView {
-        result += view.subviews.flatMap(collect)
-      }
-      let count = object.accessibilityElementCount()
-      if count != NSNotFound, count > 0 {
-        for index in 0..<count {
-          if let child = object.accessibilityElement(at: index) as? NSObject {
-            result += collect(child)
-          }
-        }
-      }
-      return result
-    }
-    return collect(root)
   }
 }

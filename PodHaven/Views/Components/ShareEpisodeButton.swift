@@ -60,7 +60,6 @@ struct ShareEpisodeButton<E: EpisodeListable>: View {
       ShareLink(item: shareURL, preview: sharePreview) {
         AppIcon.shareEpisode.image
       }
-      .accessibilityLabel("Share Episode")
     }
   }
 
@@ -79,6 +78,5 @@ struct ShareEpisodeButton<E: EpisodeListable>: View {
     } label: {
       AppIcon.shareEpisode.image
     }
-    .accessibilityLabel("Share Episode")
   }
 }

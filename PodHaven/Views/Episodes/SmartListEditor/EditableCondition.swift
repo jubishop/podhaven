@@ -53,14 +53,6 @@ struct EditableCondition: Identifiable, Hashable {
       case .publishDate: return "Publish Date"
       }
     }
-
-    var accessibilityLabel: String {
-      switch self {
-      case .episodeTitleOrDescription: return "Episode Title or Description"
-      case .podcastTitleOrDescription: return "Podcast Title or Description"
-      default: return label
-      }
-    }
   }
 
   enum TagMembership: String, CaseIterable {

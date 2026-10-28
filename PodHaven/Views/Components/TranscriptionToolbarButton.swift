@@ -27,39 +27,12 @@ struct TranscriptionToolbarButton: View {
         AppIcon.transcribeEpisode.image
       }
     }
-    .accessibilityLabel(Text(LocalizedStringKey(status.toolbarAccessibilityLabel)))
-    .accessibilityValue(Text(LocalizedStringKey(status.toolbarAccessibilityValue)))
     .disabled(!status.canTranscribe && !status.canPause)
   }
 
   private var isTranscribing: Bool {
     guard case .transcribing = status else { return false }
     return true
-  }
-}
-
-extension TranscriptionStatus {
-  var toolbarAccessibilityLabel: String {
-    switch self {
-    case .none: "Transcribe"
-    case .paused: "Resume Transcription"
-    case .failed: "Retry Transcription"
-    case .queued, .transcribing: "Pause Transcription"
-    case .pausing, .discarding, .transcribed: "Transcription"
-    }
-  }
-
-  var toolbarAccessibilityValue: String {
-    switch self {
-    case .none: ""
-    case .queued: "Queued"
-    case .transcribing: "Transcribing"
-    case .paused: "Paused"
-    case .pausing: "Pausing"
-    case .discarding: "Discarding Progress"
-    case .transcribed: "Complete"
-    case .failed: "Failed"
-    }
   }
 }
 

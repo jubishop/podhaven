@@ -30,7 +30,7 @@ private struct CarPlayPodcastPreview: View {
             "An episode in progress",
             "Example podcast · 24m remaining · In progress · Downloaded"
           )
-          ProgressView(value: 0.4).accessibilityLabel("Episode progress")
+          ProgressView(value: 0.4)
           row("An unplayed episode", "Example podcast · 40m · Not started")
           if content == .finished { row("A finished episode", "Example podcast · Finished") }
         }
@@ -61,7 +61,6 @@ private struct CarPlayPodcastPreview: View {
       Text(title)
       Text(detail).font(.caption)
     }
-    .accessibilityElement(children: .combine)
   }
 }
 

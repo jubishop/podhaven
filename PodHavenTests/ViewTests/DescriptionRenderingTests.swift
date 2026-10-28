@@ -71,30 +71,6 @@ import UIKit
         host.view.layoutIfNeeded()
         try await assertVisibleText(in: window, name: "description-block-\(index).png")
       }
-      proxy.scrollTo(0, anchor: .top)
-      host.view.layoutIfNeeded()
-
-      if ProcessInfo.processInfo.isiOSAppOnMac {
-        try await Wait.until(
-          { @MainActor in
-            host.view.layoutIfNeeded()
-            return accessibilityElements(in: window)
-              .contains {
-                $0.accessibilityLabel?.contains("V") == true
-              }
-          },
-          { "Expected the first description block in the accessibility tree" }
-        )
-        let text = accessibilityElements(in: window)
-          .filter {
-            $0.accessibilityLabel?.contains("V") == true
-          }
-        try #require(!text.isEmpty)
-        #expect(
-          text.allSatisfy { $0.accessibilityFrame.height < 16_384 },
-          "Each rendered text surface must have a bounded height, found \(text.map { $0.accessibilityFrame.height })"
-        )
-      }
     }
   }
 
@@ -139,31 +115,8 @@ import UIKit
   private func descendants(of view: UIView) -> [UIView] {
     [view] + view.subviews.flatMap(descendants)
   }
-
 }
 
 @MainActor private final class DescriptionScrollTarget {
   var proxy: ScrollViewProxy?
-}
-
-@MainActor
-private func accessibilityElements(in root: NSObject) -> [NSObject] {
-  var visited: Set<ObjectIdentifier> = []
-  func collect(_ object: NSObject) -> [NSObject] {
-    guard visited.insert(ObjectIdentifier(object)).inserted else { return [] }
-    var result = object.isAccessibilityElement ? [object] : []
-    if let view = object as? UIView {
-      result.append(contentsOf: view.subviews.flatMap(collect))
-    }
-    let count = object.accessibilityElementCount()
-    if count != NSNotFound, count > 0 {
-      for index in 0..<count {
-        if let child = object.accessibilityElement(at: index) as? NSObject {
-          result.append(contentsOf: collect(child))
-        }
-      }
-    }
-    return result
-  }
-  return collect(root)
 }

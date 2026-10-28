@@ -7,7 +7,6 @@ struct StackedToggleStyle: ToggleStyle {
     VStack(alignment: .leading, spacing: 24) {
       configuration.label
         .fixedSize(horizontal: false, vertical: true)
-        .accessibilityHidden(true)
 
       Toggle(isOn: configuration.$isOn) {
         configuration.label

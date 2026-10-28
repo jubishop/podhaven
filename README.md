@@ -82,19 +82,16 @@ bin/test-all
 ```
 
 Logs, the Xcode result bundle, and the tested checkout are recorded under
-`.cache/test-all/`. Grant Accessibility access to the terminal or app running
-tests in System Settings → Privacy & Security → Accessibility. The local test
-wrapper uses a native accessibility client to expose SwiftUI controls on My Mac.
+`.cache/test-all/`.
 
 ### Run a Specific Test Suite
 Swift Testing filters must stay at suite level; method-level filters can report success while
 running zero tests.
 ```sh
-bin/with-test-accessibility xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=macOS,name=My Mac' -only-testing:PodHavenTests/SomeSuite -resultBundlePath .cache/FocusedTests.xcresult LM_FORCE_LINK_GENERATION=YES > .cache/focused-tests.log 2>&1
+env -u SDKROOT xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=macOS,name=My Mac' -only-testing:PodHavenTests/SomeSuite -resultBundlePath .cache/FocusedTests.xcresult LM_FORCE_LINK_GENERATION=YES > .cache/focused-tests.log 2>&1
 bin/check-swift-results .cache/FocusedTests.xcresult --build-log .cache/focused-tests.log
 ```
-Use a new result-bundle path for each run. Hosted UI tests need the wrapper;
-running them directly with `Cmd+U` does not start its accessibility client.
+Use a new result-bundle path for each run.
 </details>
 
 ## App Version and TestFlight

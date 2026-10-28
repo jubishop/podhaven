@@ -25,13 +25,10 @@ struct QuietAudioProtectionMenu: View {
             Text(choice.title)
           }
         }
-        .accessibilityAddTraits(choice == mode ? .isSelected : [])
       }
     } label: {
       AppIcon.quietAudioProtection.image
     }
-    .accessibilityLabel("Quiet Audio Protection")
-    .accessibilityValue(mode.title)
   }
 }
 

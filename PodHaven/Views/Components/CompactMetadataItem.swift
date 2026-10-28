@@ -14,8 +14,5 @@ struct CompactMetadataItem: View {
       Text(value)
         .foregroundStyle(.secondary)
     }
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(Text(appIcon.textKey))
-    .accessibilityValue(Text(value))
   }
 }

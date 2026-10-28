@@ -4,8 +4,7 @@ import SwiftUI
 
 // Title header pinned above a list via .safeAreaInset(edge: .top); gives the icon and
 // title the room the inline nav bar can't. The glass effect lets list rows scroll
-// translucently underneath, matching the now-playing header in Up Next. The title
-// carries the heading trait for VoiceOver while the icon is decorative.
+// translucently underneath, matching the now-playing header in Up Next.
 struct LucideListHeader: View {
   let icon: LucideIcon
   let title: String
@@ -17,10 +16,8 @@ struct LucideListHeader: View {
       LucideIconView(icon: icon)
         .frame(width: iconSize, height: iconSize)
         .foregroundStyle(.primary)
-        .accessibilityHidden(true)
       Text(title)
         .font(.title3.weight(.semibold))
-        .accessibilityAddTraits(.isHeader)
       Spacer(minLength: 0)
     }
     .padding(.horizontal)

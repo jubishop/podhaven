@@ -34,13 +34,6 @@ import Tagged
     var progressText: String {
       "\(percentage)%"
     }
-
-    var accessibilityValue: String {
-      if isActive {
-        return "Transcribing, \(percentage) percent"
-      }
-      return "Waiting, \(percentage) percent complete"
-    }
   }
 
   private enum QueueMutation {
@@ -178,16 +171,16 @@ import Tagged
     applyWaitingOrder(reordered)
   }
 
-  func moveToTop(_ episodeID: Episode.ID, swipeAction: Bool) {
+  func moveToTop(_ episodeID: Episode.ID) {
     let current = projectedWaitingEntries.map(\.id)
     guard let index = current.firstIndex(of: episodeID), index > current.startIndex else { return }
     var reordered = current
     let moved = reordered.remove(at: index)
     reordered.insert(moved, at: reordered.startIndex)
-    applyWaitingOrder(reordered, temporarilyHiding: swipeAction ? episodeID : nil)
+    applyWaitingOrder(reordered, temporarilyHiding: episodeID)
   }
 
-  func moveToBottom(_ episodeID: Episode.ID, swipeAction: Bool) {
+  func moveToBottom(_ episodeID: Episode.ID) {
     let current = projectedWaitingEntries.map(\.id)
     guard
       let index = current.firstIndex(of: episodeID),
@@ -198,10 +191,10 @@ import Tagged
     var reordered = current
     let moved = reordered.remove(at: index)
     reordered.append(moved)
-    applyWaitingOrder(reordered, temporarilyHiding: swipeAction ? episodeID : nil)
+    applyWaitingOrder(reordered, temporarilyHiding: episodeID)
   }
 
-  func transcribeNow(_ episodeID: Episode.ID, swipeAction: Bool) {
+  func transcribeNow(_ episodeID: Episode.ID) {
     var reordered = projectedWaitingEntries.map(\.id)
     guard let index = reordered.firstIndex(of: episodeID) else { return }
     let moved = reordered.remove(at: index)
@@ -209,7 +202,7 @@ import Tagged
     if let activeEntry {
       reordered.insert(activeEntry.id, at: reordered.index(after: reordered.startIndex))
     }
-    applyOrder(reordered, temporarilyHiding: swipeAction ? episodeID : nil)
+    applyOrder(reordered, temporarilyHiding: episodeID)
   }
 
   func moveSelectedToTop() {
