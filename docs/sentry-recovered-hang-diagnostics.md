@@ -80,6 +80,29 @@ together.
 Current-process context describes capture time and must not be relabeled as
 hang-time context.
 
+## First-activation timeline
+
+A process that iOS launches in the background builds its phone UI only at its
+first phone-scene activation. `PhoneSceneView` swaps in `ContentView` there,
+while the once-per-process foreground startup runs. Hangs at that moment need
+the process's own launch and activation timeline, which the recent-log tail
+can lose after hours of background work.
+
+Recovered App Hang events therefore carry a `process_activation` context. It
+gives the launch application state and the prewarm flag. It also gives the
+first `launched`, `activated`, `contentInserted`, and `contentAppeared`
+milestones, each with wall-clock time, uptime, seconds before capture,
+main-thread flag, available memory, and thermal pressure. Fatal App Hangs and
+MetricKit hangs omit it because a later process sends them. Each milestone is
+also logged once to the recent log. The foreground and playback startup steps
+record `startup.*` operation markers.
+
+Compare the hang start with these milestones and markers. Time inside
+main-thread startup markers points to our startup work. Time between
+`contentInserted` and `contentAppeared` with little attributed work points to
+first-use UI construction. Background startup markers that overlap the hang
+show contention. Available memory reads zero on the Simulator.
+
 ## Controlled iOS verification
 
 Run `bin/sentry-hang-smoke --device <available-iOS-Simulator-UDID>` with the
@@ -94,7 +117,8 @@ Deliberate delays exist only in this integration harness.
 The helper downloads attachments from that SDK-generated event and checks exact
 download sizes, valid NDJSON, individual/combined bounds, session/build fields,
 pre-hang navigation and detail work, the completed foreground write, and the
-pending background write. Evidence stays under ignored `.cache/sentry-hang-smoke/`.
+pending background write. It also checks that the event's `process_activation`
+milestones and the recent log's activation markers are present and ordered. Evidence stays under ignored `.cache/sentry-hang-smoke/`.
 The probe starts with hang reporting paused and resumes it through the
 [phone-scene gate](carplay-lifecycle.md#sentry-app-hang-reporting), so a passing
 run also covers the phone-foreground path.

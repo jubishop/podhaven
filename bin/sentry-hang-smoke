@@ -191,10 +191,20 @@ def main():
         assert tags["diagnostic-run"] == run and tags["log-session-id"] == session
         assert event["contexts"]["recent_log_files"]["app"]["status"] == "present"
         assert event["contexts"]["recent_log_files"]["widget"]["status"] == "present"
+        activation = event["contexts"]["process_activation"]
+        milestones = activation["milestones"]
+        assert [item["milestone"] for item in milestones] == ["launched", "activated", "contentAppeared"]
+        uptimes = [float(item["uptime"]) for item in milestones]
+        assert uptimes == sorted(uptimes) and all(float(item["secondsBeforeCapture"]) >= 0 for item in milestones)
+        assert activation["launchApplicationState"] in {"active", "inactive", "background"}
+        logged = [row["metadata"]["activationMilestone"] for row in records
+                  if "activationMilestone" in row.get("metadata", {})]
+        assert logged == ["launched", "activated", "contentAppeared"], "Missing activation milestones in recent log"
         assert float(pending[0][0]["uptime"]) <= float(foreground[0][0]["uptime"])
         assert sum(item["bytes"] for item in result.values()) <= 160 * 1024
         result["timeline"] = {"pendingBackgroundWrites": len(pending), "completedForegroundWrites": len(foreground),
-                              "completedDetailPhases": len(detail), "sessionMatchesEvent": True}
+                              "completedDetailPhases": len(detail), "sessionMatchesEvent": True,
+                              "activationMilestones": len(milestones)}
         assert source_state() == source, "Checkout changed during the probe"
         result.update(run=run, eventID=event_id, **source)
         (evidence / "verification.json").write_text(json.dumps(result, indent=2) + "\n")

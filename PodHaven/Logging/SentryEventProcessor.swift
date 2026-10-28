@@ -14,6 +14,7 @@ extension Container {
 struct SentryEventProcessor: Sendable {
   @DynamicInjected(\.podcastDetailPerformanceDiagnostics) private
     var podcastDetailPerformanceDiagnostics
+  @DynamicInjected(\.processActivationDiagnostics) private var processActivationDiagnostics
 
   private static let log = Log.as("SentryEventProcessor")
 
@@ -54,6 +55,7 @@ struct SentryEventProcessor: Sendable {
     }
     guard isRecoveredAppHang else { return event }
     context["podcast_detail_performance"] = podcastDetailPerformanceDiagnostics.sentryContext()
+    context["process_activation"] = processActivationDiagnostics.sentryContext()
     event.context = context
     return event
   }

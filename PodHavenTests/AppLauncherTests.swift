@@ -223,4 +223,26 @@ struct AppLauncherTests {
     )
   }
 
+  @Test("playback startup records a completed operation for each startup step")
+  func playbackStartupRecordsOperations() async {
+    let launcher = Container.shared.appLauncher()
+
+    let captured = await LogCapture.withSink { sink in
+      await launcher.prepareForPlayback()
+      return sink.captured()
+    }
+
+    let operations = Dictionary(
+      grouping: captured.filter { $0.metadata["operationKind"]?.hasPrefix("startup.") == true },
+      by: { $0.metadata["operationKind"] ?? "" }
+    )
+    .mapValues { records in records.map { $0.metadata["operationState"] ?? "" } }
+    #expect(
+      operations == [
+        "startup.stateManager": ["started", "completed"],
+        "startup.playManager": ["started", "completed"],
+        "startup.widgetSnapshotWriter": ["started", "completed"],
+      ]
+    )
+  }
 }

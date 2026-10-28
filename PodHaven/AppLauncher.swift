@@ -30,6 +30,7 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.publisherTranscriptProcessor) private var publisherTranscriptProcessor
   @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
   @DynamicInjected(\.playManager) private var playManager
+  @DynamicInjected(\.processActivationDiagnostics) private var processActivationDiagnostics
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.stateManager) private var stateManager
@@ -78,6 +79,10 @@ struct AppLauncher: Sendable {
       Initial environment is: \(AppInfo.environment), \
       state: \(UIApplication.shared.applicationState)
       """
+    )
+    processActivationDiagnostics.recordLaunch(
+      applicationState: UIApplication.shared.applicationState,
+      prewarmed: ProcessInfo.processInfo.environment["ActivePrewarm"] == "1"
     )
 
     // Background-only launches (Siri, AirPods intents) may never foreground,
@@ -133,9 +138,9 @@ struct AppLauncher: Sendable {
   func prepareForPlayback() async {
     await prepareForPlaybackOnce.run {
       Self.log.info("Preparing for background audio playback")
-      self.prepareForBrowsing()
-      await self.playManager.start()
-      self.widgetSnapshotWriter.start()
+      await self.measureStartup("stateManager") { self.prepareForBrowsing() }
+      await self.measureStartup("playManager") { await self.playManager.start() }
+      await self.measureStartup("widgetSnapshotWriter") { self.widgetSnapshotWriter.start() }
     }
   }
 
@@ -144,6 +149,7 @@ struct AppLauncher: Sendable {
   func prepareForForeground() async {
     await prepareForForegroundOnce.run {
       Self.log.info("Preparing for foreground")
+      let operation = Log.Operation(Self.log, kind: "startup.foreground")
 
       await AppInfo.finalizeEnvironment()
       await Self.applySentryEnvironment()
@@ -155,7 +161,9 @@ struct AppLauncher: Sendable {
         await transcriptionAvailability.prepare()
       }
 
-      await self.userNotificationManager.initialize()
+      await self.measureStartup("userNotificationManager") {
+        await self.userNotificationManager.initialize()
+      }
       if INPreferences.siriAuthorizationStatus() == .notDetermined {
         INPreferences.requestSiriAuthorization { status in
           Self.log.info("Siri authorization status: \(status.rawValue)")
@@ -173,15 +181,36 @@ struct AppLauncher: Sendable {
       await self.prepareForPlayback()
       guard !Task.isCancelled else { return }
 
-      self.cacheManager.start()
-      self.recommendationEngine.start()
-
-      await Container.shared.memoryWarningMonitor().start()
+      await self.measureStartup("cacheManager") { self.cacheManager.start() }
+      await self.measureStartup("recommendationEngine") { self.recommendationEngine.start() }
+      await self.measureStartup("memoryWarningMonitor") {
+        await Container.shared.memoryWarningMonitor().start()
+      }
+      operation.record(.completed)
     }
 
     guard AppInfo.environment != .testing else { return }
     guard !Task.isCancelled else { return }
     await playManager.restorePersistedEpisodeForForeground()
+  }
+
+  private func measureStartup<Result>(
+    _ step: String,
+    file: String = #fileID,
+    function: String = #function,
+    line: UInt = #line,
+    _ work: () async -> Result
+  ) async -> Result {
+    let operation = Log.Operation(
+      Self.log,
+      kind: "startup.\(step)",
+      file: file,
+      function: function,
+      line: line
+    )
+    let result = await work()
+    operation.record(.completed)
+    return result
   }
 
   // MARK: - Logging
