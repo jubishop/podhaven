@@ -255,7 +255,9 @@ two `sample` captures of it, `SAMPLE_GAP_SECONDS` apart, as
 and names them in the failure output. It takes at most one pair per phase and
 then keeps waiting for `xcodebuild`, so the samples add evidence without
 ending the run early or changing whether it passes. Comparing the two samples
-shows which threads stayed blocked.
+shows which threads stayed blocked. Only the app phase's log names its host
+while tests run. The Siri performance phase's log names its host only after
+the host exits, so a stall in that phase leaves no samples.
 
 The command runs automated tests with isolated service fixtures. Live Sentry
 smoke tests in `.agents/scripts/sentry-cli/test_sentry_skills.sh` and real QMD
