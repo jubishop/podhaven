@@ -598,16 +598,17 @@ def stand_in_api(probes):
         server.server_close()
 
 
-def check_boundary(run_dir, env):
+def check_boundary(run_dir, env, scratch):
     """Fail unless the installed Claude Code still keeps secrets, the environment, and outside files from the
     model's tools, and still lets them use jq on the context and qmd search on the clone's own index.
 
     Real Claude Code runs through run_model and prepare_search with the audit's flags and scrub mode, but a
     local stand-in API scripts its tool calls, so the check makes no model request. A bogus key and canary
-    variables stand in for secrets, and a scratch repository with one note stands in for the clone.
+    variables stand in for secrets, and a scratch repository with one note stands in for the clone. Like the
+    clone, the scratch folder keeps one path across runs; the run folder keeps the check's logs.
     """
     folder = run_dir / "boundary"
-    repo = folder / "repository"
+    repo = scratch / "repository"
     token = {name: secrets.token_hex(8) for name in ("secret", "plain", "context", "outside")}
     token["search"] = "canary" + secrets.token_hex(8)
     leaks = {token["secret"]: "the secret-named AUDIT_CANARY_API_KEY", BOUNDARY_KEY: "ANTHROPIC_API_KEY",
@@ -620,8 +621,11 @@ def check_boundary(run_dir, env):
         ("qmd search " + token["search"], "qmd://memory/boundary-check.md"),
         ("printenv", "denied"), ("env", "denied"), ("ps eww", "denied"), ("ps -E", "denied"),
         ("cat ../outside.txt", "denied"))]
-    probes.append(("Read ../outside.txt", "Read", {"file_path": str(folder / "outside.txt")}, "denied"))
+    probes.append(("Read ../outside.txt", "Read", {"file_path": str(scratch / "outside.txt")}, "denied"))
     try:
+        # An interrupted run can leave the scratch folder behind.
+        shutil.rmtree(scratch, ignore_errors=True)
+        folder.mkdir()
         for path in ("bin", ".config", "memory", "artifacts"):
             (repo / path).mkdir(parents=True)
         # Its own Git repository keeps the checkout's local settings, such as a home memory path, out of the index.
@@ -631,7 +635,7 @@ def check_boundary(run_dir, env):
             {"schema_version": 1, "collections": {"memory": {"path": "memory", "pattern": "**/*.md"}}}) + "\n")
         (repo / "memory/boundary-check.md").write_text("# Boundary check\n\n" + token["search"] + "\n")
         atomic_json(repo / "artifacts/memory-audit-context.json", {"probe": token["context"]})
-        (folder / "outside.txt").write_text(token["outside"] + "\n")
+        (scratch / "outside.txt").write_text(token["outside"] + "\n")
         canaries = {"AUDIT_CANARY": token["plain"], "AUDIT_CANARY_API_KEY": token["secret"]}
         check_env = prepare_search(repo, env) | canaries
         with stand_in_api(probes) as url:
@@ -641,7 +645,7 @@ def check_boundary(run_dir, env):
         raise RuntimeError("Could not check the memory audit's tool boundary, so the model did not run: "
                            + str(error)) from None
     finally:
-        shutil.rmtree(repo, ignore_errors=True)
+        shutil.rmtree(scratch, ignore_errors=True)
     version, results = "an unknown version", {}
     for line in (folder / "events.jsonl").read_text(errors="replace").splitlines():
         try:
@@ -727,7 +731,11 @@ def run(root=ROOT, force=False):
                 return meta
             key = api_key(root)
             require_login(root, env, key)
-            repo = run_dir / "repository"
+            # Claude Code can record the folder it works in as a project in ~/.claude.json, which nothing prunes,
+            # so every run clones to the same path. The project's lock keeps other runs out of it, and an interrupted
+            # run can leave it behind.
+            repo = state / "repository"
+            shutil.rmtree(repo, ignore_errors=True)
             command(["git", "-c", "core.hooksPath=/dev/null", "clone", "--quiet", "--shared", "--no-checkout",
                      str(root), str(repo)], root, env)
             command(["git", "-c", "core.hooksPath=/dev/null", "checkout", "--quiet", "--detach", base], repo, env)
@@ -758,7 +766,7 @@ def run(root=ROOT, force=False):
             atomic_json(artifacts / "memory-audit-context.json", context)
             atomic_json(run_dir / "memory-audit-context.json", context)
             # Claude Code can change what its tools reach in any release, so check before the model starts.
-            check_boundary(run_dir, env)
+            check_boundary(run_dir, env, state / "boundary")
             env = prepare_search(repo, env)
             meta["credential"] = "api-key" if key else "subscription"
             atomic_json(state / "latest.json", meta)
@@ -828,7 +836,7 @@ def run(root=ROOT, force=False):
             raise
         finally:
             # The run folder keeps the context, report, patch, and logs; the clone is only working space.
-            shutil.rmtree(run_dir / "repository", ignore_errors=True)
+            shutil.rmtree(state / "repository", ignore_errors=True)
             meta["finishedAt"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
             atomic_json(run_dir / "run-meta.json", meta)
             atomic_json(state / "latest.json", meta)

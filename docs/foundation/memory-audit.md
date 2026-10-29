@@ -82,8 +82,16 @@ denies automatically. Beyond Claude Code's built-in read-only commands, only
 credentials or other secret-named variables; see [API key](#api-key).
 
 Each run fetches `origin/main` and audits that exact revision in a disposable
-clone under `.cache/memory-audit/runs/`, so uncommitted work is neither
-audited nor touched. Before the model starts, the runner writes
+clone at `.cache/memory-audit/repository`, so uncommitted work is neither
+audited nor touched. Every run reuses that path, replacing any clone an
+interrupted run left. Claude Code can record the folder it works in as a
+project in `~/.claude.json`, as it does when the project tracks
+`.claude/settings.local.json`, and nothing prunes those entries. It also keeps
+large tool output under `~/.claude/projects/` until its `cleanupPeriodDays`
+sweep, 30 days by default, removes it. One path keeps both to one entry and
+one folder per project instead of one per run.
+
+Before the model starts, the runner writes
 `artifacts/memory-audit-context.json` in the clone: GitHub issues and PRs from
 two bounded lists of up to 1,000 entries each, and the commits since the last
 successful audit, or the last seven days on the first run. It also builds a
@@ -156,9 +164,10 @@ variables reach tools. So before every model run, the runner checks the
 installed Claude Code with its own model-run and search setup and the audit's
 flags. A local stand-in for the Anthropic API scripts the tool calls, so the
 check makes no model request, costs nothing, and takes a few seconds. It runs
-in a scratch repository with one note, a bogus `ANTHROPIC_API_KEY`, and two
-canary variables, `AUDIT_CANARY` and the secret-named `AUDIT_CANARY_API_KEY`,
-and requires that:
+in a scratch repository under `.cache/memory-audit/boundary/`, a path that
+every run reuses like the clone's, with one note, a bogus
+`ANTHROPIC_API_KEY`, and two canary variables, `AUDIT_CANARY` and the
+secret-named `AUDIT_CANARY_API_KEY`, and requires that:
 
 - `jq` reads `null` for `ANTHROPIC_API_KEY` and `AUDIT_CANARY_API_KEY`,
   through both `env` and `$ENV`.
@@ -230,9 +239,10 @@ the [credential](#api-key) and any fallback, and any `publishedCommit`. A failur
 run folder keeps `run-meta.json` and the context; the
 [tool boundary check](#tool-boundary-check) adds `boundary/`, model attempts add
 `events.jsonl`, `claude.log`, and the structured result, and successful runs
-add `memory-audit-report.md` and `memory-audit.patch`. The clone is deleted
-when the run ends. Run folders stay local and ignored by Git. Each run deletes
-run folders older than 60 days, except those the state files name.
+add `memory-audit-report.md` and `memory-audit.patch`. The clone and the
+boundary check's scratch repository are deleted when the run ends. Run
+folders stay local and ignored by Git. Each run deletes run folders older than
+60 days, except those the state files name.
 
 ## Stop
 
