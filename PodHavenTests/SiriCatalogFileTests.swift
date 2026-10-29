@@ -101,7 +101,9 @@ struct SiriCatalogFileTests {
         }
     )
     try await withFile { file in
-      #expect(try file.write(catalog) <= limit)
+      let data = try SiriCatalogFile.encode(catalog)
+      #expect(data.count <= limit)
+      try file.write(data)
       let decoded = try await file.read()
       #expect(decoded.generation == catalog.generation)
       let lastPodcast = podcastCount - 1

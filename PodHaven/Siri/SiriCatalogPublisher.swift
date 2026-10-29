@@ -89,7 +89,7 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
       let episodesByPodcast = Dictionary(grouping: episodes) { row -> Int64 in
         row[Episode.Columns.podcastId]
       }
-      let catalog = SiriCatalog(
+      var catalog = SiriCatalog(
         podcasts: podcasts.map { podcast in
           let id: Int64 = podcast[Podcast.Columns.id]
           return SiriCatalog.Podcast(
@@ -108,7 +108,37 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
         }
       )
       let fetchedAt = continuousClockNow()
-      let bytes = try file.write(catalog)
+      var data = try SiriCatalogFile.encode(catalog)
+      var omitted: Set<Int64> = []
+      if data.count > SiriCatalogFile.maximumBytes {
+        let episodesByID = Dictionary(
+          uniqueKeysWithValues: catalog.podcasts.flatMap(\.episodes).map { ($0.id, $0) }
+        )
+        var byPriority =
+          try Episode
+          .select(Episode.Columns.id, as: Int64.self)
+          .order(Episode.unfinished.desc, Episode.Columns.pubDate.desc, Episode.Columns.id.desc)
+          .fetchAll(db).compactMap { episodesByID[$0] }
+        while data.count > SiriCatalogFile.maximumBytes, !byPriority.isEmpty {
+          var excess = data.count - SiriCatalogFile.maximumBytes
+          while excess > 0, let episode = byPriority.popLast() {
+            omitted.insert(episode.id)
+            excess -= episode.estimatedEncodedBytes
+          }
+          catalog = SiriCatalog(
+            podcasts: catalog.podcasts.map { podcast in
+              SiriCatalog.Podcast(
+                id: podcast.id,
+                feed: podcast.feed,
+                title: podcast.title,
+                episodes: podcast.episodes.filter { !omitted.contains($0.id) }
+              )
+            }
+          )
+          data = try SiriCatalogFile.encode(catalog)
+        }
+      }
+      try file.write(data)
       lastPublished(catalog)
       diagnostics.record(
         SiriCatalogPublicationDiagnostics.Publication(
@@ -116,8 +146,9 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
           fetchDuration: fetchedAt - startedAt,
           writeDuration: continuousClockNow() - fetchedAt,
           podcasts: podcasts.count,
-          episodes: episodes.count,
-          bytes: bytes
+          episodes: episodes.count - omitted.count,
+          omittedEpisodes: omitted.count,
+          bytes: data.count
         )
       )
     } catch {

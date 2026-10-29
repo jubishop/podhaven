@@ -112,6 +112,11 @@ struct SiriCatalog: Codable, Sendable {
       try container.encode(guid)
       try container.encode(title)
     }
+
+    // Encoded size as one of several array elements, before any escapes.
+    var estimatedEncodedBytes: Int {
+      #"[,"",""],"#.utf8.count + String(id).utf8.count + guid.utf8.count + title.utf8.count
+    }
   }
 
   static let currentSchemaVersion = 2
@@ -307,19 +312,21 @@ struct SiriCatalogFile: Sendable {
     return catalog
   }
 
-  @discardableResult func write(_ catalog: SiriCatalog) throws -> Int {
+  static func encode(_ catalog: SiriCatalog) throws -> Data {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .withoutEscapingSlashes
-    let data = try encoder.encode(catalog)
-    try replace(with: data)
-    return data.count
+    return try encoder.encode(catalog)
+  }
+
+  func write(_ catalog: SiriCatalog) throws {
+    try write(Self.encode(catalog))
   }
 
   func invalidate() throws {
-    try replace(with: Data())
+    try write(Data())
   }
 
-  private func replace(with data: Data) throws {
+  func write(_ data: Data) throws {
     try FileManager.default.createDirectory(
       at: url.deletingLastPathComponent(),
       withIntermediateDirectories: true

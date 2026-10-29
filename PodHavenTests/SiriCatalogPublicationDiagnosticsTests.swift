@@ -14,16 +14,22 @@ struct SiriCatalogPublicationDiagnosticsTests {
     sink.captured().filter { $0.message.hasPrefix("siriCatalogPublication ") }
   }
 
-  @Test("launch summaries report open time, launch state, size limit, and slow thresholds")
-  func launchSummaries() {
+  @Test(
+    "launch summaries report open time, launch state, size limit, omission, and slow thresholds"
+  )
+  func launchSummaries() throws {
     let diagnostics = Container.shared.siriCatalogPublicationDiagnostics()
     diagnostics.launching(applicationState: .background)
-    LogCapture.withSink { sink in
-      for (open, fetch, bytes) in [
-        (Duration.milliseconds(120), Duration.milliseconds(300), SiriCatalogFile.maximumBytes + 1),
-        (.milliseconds(1_500), .milliseconds(1), 10),
-        (.milliseconds(1), .milliseconds(1_000), 10),
-        (.milliseconds(999), .milliseconds(799), SiriCatalogFile.maximumBytes),
+    try LogCapture.withSink { sink in
+      for (open, fetch, omitted, bytes) in [
+        (
+          Duration.milliseconds(120), Duration.milliseconds(300), 0,
+          SiriCatalogFile.maximumBytes + 1
+        ),
+        (.milliseconds(1_500), .milliseconds(1), 0, 10),
+        (.milliseconds(1), .milliseconds(1_000), 0, 10),
+        (.milliseconds(1), .milliseconds(1), 4, SiriCatalogFile.maximumBytes),
+        (.milliseconds(999), .milliseconds(799), 0, SiriCatalogFile.maximumBytes),
       ] {
         diagnostics.record(
           .init(
@@ -32,17 +38,25 @@ struct SiriCatalogPublicationDiagnosticsTests {
             writeDuration: .milliseconds(200),
             podcasts: 2,
             episodes: 3,
+            omittedEpisodes: omitted,
             bytes: bytes
           )
         )
       }
       let logs = publicationLogs(sink)
-      #expect(logs.map(\.level) == [.warning, .warning, .warning, .debug])
+      #expect(logs.map(\.level) == [.warning, .warning, .warning, .warning, .debug])
       #expect(
         logs.first?.message
           == "siriCatalogPublication trigger=launch publishMs=500 fetchMs=300 writeMs=200 "
-          + "podcasts=2 episodes=3 bytes=33554433 maxBytes=33554432 oversized=true "
+          + "podcasts=2 episodes=3 omitted=0 bytes=33554433 maxBytes=33554432 oversized=true "
           + "openMs=120 appState=background suppressed=0"
+      )
+      try #require(logs.count == 5)
+      #expect(
+        logs[3].message
+          .contains(
+            "episodes=3 omitted=4 bytes=33554432 maxBytes=33554432 oversized=false openMs=1 "
+          )
       )
       #expect(logs.last?.message.contains("oversized=false openMs=999") == true)
     }
@@ -92,7 +106,7 @@ struct SiriCatalogPublicationDiagnosticsTests {
     #expect(
       message.hasPrefix(
         "siriCatalogPublication trigger=commit publishMs=2000 fetchMs=0 writeMs=2000 "
-          + "podcasts=1 episodes=1 bytes="
+          + "podcasts=1 episodes=1 omitted=0 bytes="
       )
     )
     #expect(message.hasSuffix("oversized=false openMs=none appState=none suppressed=0"))
