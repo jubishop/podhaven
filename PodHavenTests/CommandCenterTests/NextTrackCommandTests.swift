@@ -22,9 +22,6 @@ import Testing
   private var mpRemoteCommandCenter: FakeMPRemoteCommandCenter {
     Container.shared.mpRemoteCommandCenter() as! FakeMPRemoteCommandCenter
   }
-  private var nowPlayingInfo: [String: Any?]? {
-    Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
-  }
 
   init() async throws {
     stateManager.start()
@@ -130,80 +127,45 @@ import Testing
     try await playManager.load(playingEpisode)
 
     // Wait for queue count to be 1 (current item only)
-    try await Wait.until(
-      { @MainActor in
-        self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount] as? Int == 1
-      },
-      { @MainActor in
-        """
-        Expected queue count to be 1, got \
-        \(String(describing: self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount]))
-        """
-      }
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackQueueCount,
+      value: 1
     )
 
     // Add first episode to queue
     try await queue.unshift(queuedEpisode1.id)
 
     // Wait for queue count to be 2 (current + 1 queued)
-    try await Wait.until(
-      { @MainActor in
-        self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount] as? Int == 2
-      },
-      { @MainActor in
-        """
-        Expected queue count to be 2, got \
-        \(String(describing: self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount]))
-        """
-      }
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackQueueCount,
+      value: 2
     )
 
     // Add second episode to queue
     try await queue.unshift(queuedEpisode2.id)
 
     // Wait for queue count to be 3 (current + 2 queued)
-    try await Wait.until(
-      { @MainActor in
-        self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount] as? Int == 3
-      },
-      { @MainActor in
-        """
-        Expected queue count to be 3, got \
-        \(String(describing: self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount]))
-        """
-      }
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackQueueCount,
+      value: 3
     )
 
     // Remove first episode from queue
     try await queue.dequeue(queuedEpisode1.id)
 
     // Wait for queue count to be 2 (current + 1 queued)
-    try await Wait.until(
-      { @MainActor in
-        self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount] as? Int == 2
-      },
-      { @MainActor in
-        """
-        Expected queue count to be 2 after removal, got \
-        \(String(describing: self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount]))
-        """
-      }
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackQueueCount,
+      value: 2
     )
 
     // Remove second episode from queue
     try await queue.dequeue(queuedEpisode2.id)
 
     // Wait for queue count to be 1 (current item only)
-    try await Wait.until(
-      { @MainActor in
-        self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount] as? Int == 1
-      },
-      { @MainActor in
-        """
-        Expected queue count to be 1 after all removed, got \
-        \(String(describing: self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount]))
-        """
-      }
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackQueueCount,
+      value: 1
     )
   }
 
@@ -220,16 +182,9 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
 
     // Ensure initial state reflects both current and queued episodes
-    try await Wait.until(
-      { @MainActor in
-        self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount] as? Int == 2
-      },
-      { @MainActor in
-        """
-        Expected queue count to be 2, got \
-        \(String(describing: self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount]))
-        """
-      }
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackQueueCount,
+      value: 2
     )
     try await Wait.until(
       { @MainActor in self.mpRemoteCommandCenter.nextTrack.isEnabled == true },
@@ -246,16 +201,9 @@ import Testing
       { @MainActor in self.mpRemoteCommandCenter.nextTrack.isEnabled == false },
       { "Expected nextTrackCommand to disable when queue becomes empty" }
     )
-    try await Wait.until(
-      { @MainActor in
-        self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount] as? Int == 1
-      },
-      { @MainActor in
-        """
-        Expected queue count to be 1 (current item only), got \
-        \(String(describing: self.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount]))
-        """
-      }
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackQueueCount,
+      value: 1
     )
 
     await playManager.finishEpisode(currentEpisode.id)
@@ -264,10 +212,7 @@ import Testing
       { @MainActor in self.mpRemoteCommandCenter.nextTrack.isEnabled == false },
       { "Expected nextTrackCommand to stay disabled after finishing with empty queue" }
     )
-    try await Wait.until(
-      { @MainActor in self.nowPlayingInfo == nil },
-      { @MainActor in "Expected nowPlayingInfo to clear after finishing episode" }
-    )
+    try await PlayHelpers.waitForNoNowPlayingInfo()
   }
 
   // MARK: - Next Episode Previous Track

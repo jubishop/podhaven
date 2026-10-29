@@ -3,6 +3,7 @@
 import Foundation
 import MediaPlayer
 
+@PlayActor
 protocol MPNowPlayingInfoCenterable {
   var nowPlayingInfo: [String: Any]? { get set }
   var playbackState: MPNowPlayingPlaybackState { get set }

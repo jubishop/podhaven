@@ -21,9 +21,6 @@ import Testing
   private var mpRemoteCommandCenter: FakeMPRemoteCommandCenter {
     Container.shared.mpRemoteCommandCenter() as! FakeMPRemoteCommandCenter
   }
-  private var nowPlayingInfo: [String: Any?]? {
-    Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
-  }
 
   init() async throws {
     stateManager.start()
@@ -63,12 +60,20 @@ import Testing
     try await playManager.load(playingEpisode)
 
     try await Wait.until(
-      { @MainActor in self.nowPlayingInfo != nil },
+      { await PlayHelpers.hasNowPlayingInfo },
       { "Expected nowPlayingInfo to be set" }
     )
 
-    #expect(nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueIndex] == nil)
-    #expect(nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount] == nil)
+    #expect(
+      await PlayHelpers.withNowPlayingInfo {
+        $0?[MPNowPlayingInfoPropertyPlaybackQueueIndex] == nil
+      }
+    )
+    #expect(
+      await PlayHelpers.withNowPlayingInfo {
+        $0?[MPNowPlayingInfoPropertyPlaybackQueueCount] == nil
+      }
+    )
   }
 
   @Test("nextChapter mode nextTrack navigates to next chapter")

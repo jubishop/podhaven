@@ -22,9 +22,6 @@ import Testing
   private var mpRemoteCommandCenter: FakeMPRemoteCommandCenter {
     Container.shared.mpRemoteCommandCenter() as! FakeMPRemoteCommandCenter
   }
-  private var nowPlayingInfo: [String: Any?]? {
-    Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
-  }
 
   init() async throws {
     stateManager.start()
@@ -46,13 +43,21 @@ import Testing
 
     // Wait for nowPlayingInfo to be set
     try await Wait.until(
-      { @MainActor in self.nowPlayingInfo != nil },
+      { await PlayHelpers.hasNowPlayingInfo },
       { "Expected nowPlayingInfo to be set" }
     )
 
     // Verify queue properties are NOT set
-    #expect(nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueIndex] == nil)
-    #expect(nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount] == nil)
+    #expect(
+      await PlayHelpers.withNowPlayingInfo {
+        $0?[MPNowPlayingInfoPropertyPlaybackQueueIndex] == nil
+      }
+    )
+    #expect(
+      await PlayHelpers.withNowPlayingInfo {
+        $0?[MPNowPlayingInfoPropertyPlaybackQueueCount] == nil
+      }
+    )
   }
 
   @Test("skipInterval mode enables next and previous track commands with OnDeck")
@@ -106,7 +111,7 @@ import Testing
     // Should seek forward 30 seconds
     let expectedTime = CMTime.seconds(90)
     try await PlayHelpers.waitFor(expectedTime)
-    #expect(PlayHelpers.nowPlayingCurrentTime == expectedTime)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == expectedTime)
 
     // Episode should still be playing, not finished
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
@@ -139,7 +144,7 @@ import Testing
     // Should seek backward 15 seconds
     let expectedTime = CMTime.seconds(45)
     try await PlayHelpers.waitFor(expectedTime)
-    #expect(PlayHelpers.nowPlayingCurrentTime == expectedTime)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == expectedTime)
 
     // Episode should still be playing
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
@@ -258,7 +263,7 @@ import Testing
     let expectedSkipTime = CMTime.seconds(75)
     try await PlayHelpers.waitFor(expectedSkipTime)
     try await PlayHelpers.waitForOnDeck(playingEpisode)
-    #expect(PlayHelpers.nowPlayingCurrentTime == expectedSkipTime)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == expectedSkipTime)
 
     // Switching back to next-episode should dequeue to the queued episode.
     userSettings.$nextTrackBehavior.new(.nextEpisode)

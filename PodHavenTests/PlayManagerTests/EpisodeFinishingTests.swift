@@ -23,9 +23,6 @@ import Testing
   private var avPlayer: FakeAVPlayer {
     Container.shared.avPlayer() as! FakeAVPlayer
   }
-  private var nowPlayingInfo: [String: Any?]? {
-    Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
-  }
 
   init() async throws {
     stateManager.start()
@@ -48,7 +45,7 @@ import Testing
     try await PlayHelpers.waitForQueue([])
     try await PlayHelpers.waitForNoCurrentItem()
     #expect(sharedState.onDeck == nil)
-    #expect(nowPlayingInfo == nil)
+    #expect(await !PlayHelpers.hasNowPlayingInfo)
   }
 
   @Test("finishing last episode will load next episode")

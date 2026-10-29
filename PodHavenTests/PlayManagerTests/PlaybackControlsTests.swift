@@ -137,7 +137,7 @@ import Testing
 
     #expect(sharedState.onDeck?.id == queuedEpisode.id)
     #expect(sharedState.onDeck?.currentTime == .zero)
-    #expect(PlayHelpers.nowPlayingCurrentTime == .zero)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == .zero)
   }
 
   @Test("scrub commands with current episode ID are ignored during suppression window")
@@ -168,7 +168,7 @@ import Testing
 
     #expect(sharedState.onDeck?.id == queuedEpisode.id)
     #expect(sharedState.onDeck?.currentTime == .zero)
-    #expect(PlayHelpers.nowPlayingCurrentTime == .zero)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == .zero)
   }
 
   @Test("scrub with current episode ID is ignored past the prior suppression window")
@@ -206,7 +206,7 @@ import Testing
 
     #expect(sharedState.onDeck?.id == queuedEpisode.id)
     #expect(sharedState.onDeck?.currentTime == .zero)
-    #expect(PlayHelpers.nowPlayingCurrentTime == .zero)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == .zero)
   }
 
   @Test("fresh seek commands still work after episode finish")
@@ -272,7 +272,7 @@ import Testing
 
     #expect(sharedState.onDeck?.id == queuedEpisode.id)
     #expect(sharedState.onDeck?.currentTime == .zero)
-    #expect(PlayHelpers.nowPlayingCurrentTime == .zero)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == .zero)
   }
 
   @Test("scrub to the end of a long-playing episode is still applied")
