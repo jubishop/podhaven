@@ -96,17 +96,36 @@ def release_app(root, environment, version, notes, build=None):
         if build is None and (release is None or release["build"] is None):
             subprocess.run([str(root / "bin/test-all"), "--preflight"], cwd=root, check=True)
 
-        if notes is None:
+        end = "HEAD" if build is None else f"v{version}b{build}"
+        if build is not None and not git(root, "tag", "-l", end):
+            raise ValueError(f"No local tag {end} for build {build}. Fetch tags with git fetch --tags, then retry.")
+        if release is None:
             if not shutil.which("llm"):
-                raise ValueError("llm is required to write release notes. Supply public notes with --notes.")
+                raise ValueError("llm is required to review the release and write its notes.")
+            print("==> Checking which app changes TestFlight testers have...", flush=True)
+            with tempfile.TemporaryDirectory(prefix="podhaven-testflight-base-") as directory:
+                tested_path = Path(directory) / "build.txt"
+                subprocess.run(["fastlane", "distribute_testflight", "base:true"], cwd=root, check=True,
+                               env={**environment, "PODHAVEN_TESTFLIGHT_BASE_PATH": str(tested_path)})
+                tested_build = tested_path.read_text().strip()
+            if not tested_build:
+                raise ValueError("No iOS build is in testing for Everyone, so testers have not tried this release. "
+                                 "Run testflight first.")
+            review = subprocess.run([str(root / "bin/release-notes"), "untested", "--since-build", tested_build, "--to", end],
+                                    cwd=root)
+            if review.returncode != 0:
+                sys.exit(review.returncode)
+        if notes is None:
             print("==> Finding the live App Store build to write release notes from...", flush=True)
             with tempfile.TemporaryDirectory(prefix="podhaven-appstore-base-") as directory:
                 base_path = Path(directory) / "build.txt"
                 run_lane(root, {**environment, "PODHAVEN_APPSTORE_BASE_PATH": str(base_path)}, "base", version)
                 live_build = base_path.read_text().strip()
-            end = "HEAD" if build is None else f"v{version}b{build}"
-            notes = subprocess.run([str(root / "bin/release-notes"), "appstore", "--since-build", live_build, "--to", end],
-                                   cwd=root, check=True, stdout=subprocess.PIPE, text=True).stdout.strip()
+            written = subprocess.run([str(root / "bin/release-notes"), "appstore", "--since-build", live_build, "--to", end],
+                                     cwd=root, stdout=subprocess.PIPE, text=True)
+            if written.returncode != 0:
+                sys.exit(written.returncode)
+            notes = written.stdout.strip()
         environment = {**environment, "PODHAVEN_APPSTORE_NOTES": notes}
         print(f"==> Checking App Store readiness for {version}...", flush=True)
         run_lane(root, environment, "preflight", version, release["build"] if release else build)
@@ -143,7 +162,9 @@ def release_app(root, environment, version, notes, build=None):
 def main():
     parser = argparse.ArgumentParser(
         description="Release the next minor version with generated notes, or show status with --status.",
-        epilog="A release requires clean main, commits and pushes the version change, tests, archives, uploads, waits for "
+        epilog="A release first reports app commits that the newest build in testing for Everyone lacks and asks whether "
+               "to release anyway; without a terminal it stops. "
+               "A release requires clean main, commits and pushes the version change, tests, archives, uploads, waits for "
                "processing, replaces an older pending App Store version, and submits for automatic release after approval. "
                "Replacement cancels the older review after the new build is ready. Uploads publish the existing Git tags "
                "and GitHub releases. Repeat the same command to resume the exact build. "

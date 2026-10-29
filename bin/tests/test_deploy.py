@@ -479,14 +479,16 @@ class TaggedDeployTests(unittest.TestCase):
         self.assert_distribution(notes="Behind-the-scenes stability and performance improvements.")
         self.assertFalse(self.events("llm"))
 
-    def test_unknown_tested_build_stops_before_version_changes(self):
+    def test_unknown_or_missing_tested_build_stops_before_version_changes(self):
         self.project_version("1.4")
         head = self.git("rev-parse", "HEAD")
-        result = self.run_deploy(DEPLOY_VERSION="1.4", TESTFLIGHT_BASE_BUILD="999")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("--notes", result.stderr)
-        self.assertEqual(self.git("rev-parse", "HEAD"), head)
-        self.assertFalse(any("archive" in event[1] for event in self.events("xcodebuild")))
+        for tested in ("999", ""):
+            with self.subTest(tested=tested):
+                result = self.run_deploy(DEPLOY_VERSION="1.4", TESTFLIGHT_BASE_BUILD=tested)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("--notes", result.stderr)
+                self.assertEqual(self.git("rev-parse", "HEAD"), head)
+                self.assertFalse(any("archive" in event[1] for event in self.events("xcodebuild")))
 
     def project_version(self, version):
         (self.repo / "PodHaven.xcodeproj/project.pbxproj").write_text(f"\tMARKETING_VERSION = {version};\n")

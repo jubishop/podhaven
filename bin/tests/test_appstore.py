@@ -26,7 +26,7 @@ with (base / 'events').open('a') as stream:
                              os.environ.get('ASC_KEY_PATH')]) + '\n')
 if name == 'fastlane' and args[0] == 'distribute_testflight':
     if 'base:true' in args:
-        pathlib.Path(os.environ['PODHAVEN_TESTFLIGHT_BASE_PATH']).write_text('569')
+        pathlib.Path(os.environ['PODHAVEN_TESTFLIGHT_BASE_PATH']).write_text(os.environ.get('TESTED_BUILD', '569'))
 elif name == 'fastlane':
     mode = next(arg.split(':', 1)[1] for arg in args if arg.startswith('mode:'))
     if os.environ.get('APPSTORE_FAIL_PHASE') == mode:
@@ -61,7 +61,9 @@ elif name == 'sentry':
         print(json.dumps([{'debugId': debug_id, 'data': {'type': 'dbg', 'features': ['debug']}}]))
 elif name == 'llm':
     log = sys.stdin.read()
-    if '-s' in args and 'App Store' in args[args.index('-s') + 1]:
+    if '-s' in args and 'developer' in args[args.index('-s') + 1]:
+        print('Untested work summary')
+    elif '-s' in args and 'App Store' in args[args.index('-s') + 1]:
         with (base / 'notes-input').open('a') as stream:
             stream.write(log)
         print(os.environ.get('LLM_OUTPUT', 'Generated public notes'))
@@ -203,19 +205,47 @@ class AppStoreCommandTests(unittest.TestCase):
         self.assertFalse(self.git("status", "--porcelain"))
         self.assertFalse((self.base / "gate-events").exists())
 
-    def commit_app_change(self, message):
+    def commit_app_change(self, message, tested=True):
         source = self.repo / "PodHaven/Player.swift"
         source.parent.mkdir(exist_ok=True)
         source.write_text((source.read_text() if source.exists() else "") + message + "\n")
         self.git("add", ".")
         self.git("commit", "-m", message)
         self.git("push")
+        if tested:
+            self.git("tag", "-f", "-a", "v1.0.2b100", "-m", "Build in testing")
+            self.env["TESTED_BUILD"] = "100"
+
+    def test_app_changes_testers_lack_stop_before_any_change(self):
+        self.commit_app_change("Fix CarPlay skipping", tested=False)
+        head = self.git("rev-parse", "HEAD")
+        for args in ((), ("--notes", "Public notes")):
+            with self.subTest(args=args):
+                result = self.run_command(*args)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Testers in Everyone don't have 1 app commit yet", result.stderr)
+                self.assertIn("Fix CarPlay skipping", result.stderr)
+                self.assertIn("Run testflight first", result.stderr)
+                self.assertNotIn("Retry the same command", result.stderr)
+                self.assertEqual(self.git("rev-parse", "HEAD"), head)
+                self.assertFalse(self.events("xcodebuild"))
+                self.assertFalse(any("mode:preflight" in call[1] for call in self.events("fastlane")))
+                self.assertFalse((self.base / "notes-input").exists())
+
+    def test_release_without_a_build_in_testing_stops(self):
+        result = self.run_command("--notes", "Public notes", TESTED_BUILD="")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Run testflight first", result.stderr)
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.initial)
+        self.assertFalse(self.events("xcodebuild"))
 
     def test_default_release_generates_notes_since_the_live_build(self):
         self.commit_app_change("Fix CarPlay skipping")
         result = self.run_command()
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.events("fastlane")
+        self.assertEqual(calls[0][1], ["distribute_testflight", "base:true"])
+        calls = [call for call in calls if call[1][0] == "manage_appstore"]
         self.assertIn("mode:base", calls[0][1])
         self.assertTrue(all(call[2] == "Generated public notes" for call in calls[1:]))
         self.assertIn("version:1.1", calls[-1][1])
@@ -250,13 +280,14 @@ class AppStoreCommandTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.events("fastlane")
         self.assertEqual(sum("mode:base" in call[1] for call in calls), 1)
+        self.assertEqual(sum("base:true" in call[1] for call in calls), 1)
         self.assertEqual(calls[-1][2], "First notes")
         self.assertIn("version:1.1", calls[-1][1])
 
     def test_explicit_build_notes_end_at_that_build(self):
         self.commit_app_change("Fix CarPlay skipping")
         self.git("tag", "-a", "v1.1b570", "-m", "Uploaded release")
-        self.commit_app_change("Unreleased later work")
+        self.commit_app_change("Unreleased later work", tested=False)
         result = self.run_command("--release", "1.1", "--build", "570")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.events("fastlane")[-1][1:3],
@@ -269,7 +300,7 @@ class AppStoreCommandTests(unittest.TestCase):
         notes = 'Fixed "playback".\nLiteral $HOME and `text`.'
         result = self.run_command("--release", "1.1", "--notes", notes)
         self.assertEqual(result.returncode, 0, result.stderr)
-        calls = self.events("fastlane")
+        calls = [call for call in self.events("fastlane") if call[1][0] == "manage_appstore"]
         self.assertEqual(calls[0][1], ["manage_appstore", "mode:preflight", "version:1.1"])
         self.assertEqual(calls[-1][1], ["manage_appstore", "mode:submit", "version:1.1", "build:570"])
         self.assertTrue(all(call[2] == notes for call in calls))
@@ -481,7 +512,14 @@ class AppStoreCommandTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(any("mode:submit" in event[1] for event in self.events("fastlane")))
 
+    def test_explicit_uploaded_build_needs_its_local_tag(self):
+        result = self.run_command("--release", "2.0", "--notes", "Fixes", "--build", "568")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("v2.0b568", result.stderr)
+        self.assertFalse(any(call[1][0] == "manage_appstore" for call in self.events("fastlane")))
+
     def test_explicit_uploaded_build_requires_release_and_skips_upload(self):
+        self.git("tag", "-a", "v2.0b568", "-m", "Uploaded release")
         result = self.run_command("--release", "2.0", "--notes", "Fixes", "--build", "568")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.events("fastlane")[-1][1],
