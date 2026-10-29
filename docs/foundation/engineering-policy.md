@@ -150,13 +150,16 @@ what its application may do, or to allow direct pushes of production code.
 | Command | Runs |
 | --- | --- |
 | `bin/check --documents-only` | Managed-file hashes, document metadata, index coverage, local links, and heading anchors. |
-| `bin/check` | The documents-only checks, plus Python syntax, ShellCheck, and Git whitespace checks. |
+| `bin/check` | The documents-only checks, plus Python syntax, ShellCheck, and Git whitespace checks. ShellCheck lints `.envrc` and each `bin/` script whose shebang names `sh`, `bash`, `dash`, or `ksh`, in that dialect. |
 | `bin/check --full` | The `bin/check` checks, then the project's executable `bin/check-application`, when present. |
 
 Put application typechecking, lint, tests, and builds in
 `bin/check-application`. Only `--full` runs it, after the foundation checks
 pass. Keep both routine modes free of application tools and package-manager
 startup; they should finish well under a second on a small repository.
+
+A project's `.shellcheckrc` configures ShellCheck, such as
+`external-sources=true` to follow the files its scripts source.
 
 Choose checks by the change and its stage:
 

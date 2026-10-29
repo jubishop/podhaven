@@ -21,6 +21,8 @@ from _knowledge import git, matches
 MARKERS = ("project-starter:begin", "project-starter:end")
 # A passing application run stands for its clean tree and environment this long.
 REUSE_WINDOW = timedelta(hours=12)
+# A shebang naming a ShellCheck dialect, directly or through env, with or without flags.
+SHELL_SHEBANG = re.compile(rb"#![ \t]*(?:\S*/)?(?:env[ \t]+(?:-\S*[ \t]+)*)?(sh|bash|dash|ksh)(?=\s|$)")
 
 
 def digest(data):
@@ -396,16 +398,17 @@ def main():
             return 0
         if not shutil.which("shellcheck"):
             raise RuntimeError("ShellCheck is required for bin/check. Install it with your package manager.")
-        shell_files = []
+        shell_files = {}
         for path in tracked_files(root):
+            shell = SHELL_SHEBANG.match(path.read_bytes()) if path.is_relative_to(root / "bin") else None
             if path == root / ".envrc":
-                subprocess.run(["shellcheck", "--shell=bash", str(path)], cwd=root, check=True)
-            elif path.is_relative_to(root / "bin") and path.read_bytes().startswith(b"#!/bin/sh"):
-                shell_files.append(path)
+                shell_files.setdefault("bash", []).append(path)
+            elif shell:
+                shell_files.setdefault(shell[1].decode(), []).append(path)
             elif (path.is_relative_to(root / "bin") or path.is_relative_to(root / "tests")) and (path.suffix == ".py" or path.read_bytes().startswith(b"#!/usr/bin/env python3")):
                 ast.parse(path.read_text(), filename=str(path))
-        if shell_files:
-            subprocess.run(["shellcheck", "--shell=sh", *map(str, shell_files)], cwd=root, check=True)
+        for shell, paths in sorted(shell_files.items()):
+            subprocess.run(["shellcheck", "--shell=" + shell, *map(str, paths)], cwd=root, check=True)
         subprocess.run(["git", "diff", "--check"], cwd=root, check=True)
         subprocess.run(["git", "diff", "--cached", "--check"], cwd=root, check=True)
         if sys.argv[1:2] != ["--full"]:
