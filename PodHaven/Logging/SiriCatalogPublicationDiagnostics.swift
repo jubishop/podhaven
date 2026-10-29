@@ -23,6 +23,7 @@ struct SiriCatalogPublicationDiagnostics: Sendable {
     let writeDuration: Duration
     let podcasts: Int
     let episodes: Int
+    let omittedEpisodes: Int
     let bytes: Int
   }
 
@@ -56,7 +57,7 @@ struct SiriCatalogPublicationDiagnostics: Sendable {
   func record(_ publication: Publication) {
     let duration = publication.fetchDuration + publication.writeDuration
     let oversized = publication.bytes > SiriCatalogFile.maximumBytes
-    var exceptional = oversized || duration >= Self.slowThreshold
+    var exceptional = oversized || publication.omittedEpisodes > 0 || duration >= Self.slowThreshold
     let trigger: String
     var openMs = "none"
     switch publication.trigger {
@@ -90,6 +91,7 @@ struct SiriCatalogPublicationDiagnostics: Sendable {
       fetchMs=\(Self.milliseconds(publication.fetchDuration)) \
       writeMs=\(Self.milliseconds(publication.writeDuration)) \
       podcasts=\(publication.podcasts) episodes=\(publication.episodes) \
+      omitted=\(publication.omittedEpisodes) \
       bytes=\(publication.bytes) maxBytes=\(SiriCatalogFile.maximumBytes) oversized=\(oversized) \
       openMs=\(openMs) appState=\(applicationState) suppressed=\(suppressed)
       """

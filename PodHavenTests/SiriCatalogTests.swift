@@ -191,6 +191,96 @@ struct SiriCatalogTests {
     #expect(entries[1].displayTitle == "Named episode — \(episode.podcastTitle)")
   }
 
+  @Test(
+    "a library past the read limit keeps its podcasts, unfinished, and newest finished episodes"
+  )
+  func boundedPublication() async throws {
+    let file = Container.shared.siriCatalogFile()
+    let database = Container.shared.appDB().unsafeTestDB
+    database.add(transactionObserver: SiriCatalogPublisher(file: file), extent: .databaseLifetime)
+    // About twice the limit; escaped quotes make encoded titles longer than their raw text.
+    let podcastCount = 3
+    let episodeCount = 16_800
+    let unfinishedCount = 4_200
+    let padding = "\"" + String(repeating: ".", count: 4_000) + "\""
+    @Sendable func feed(_ podcast: Int) -> String { "https://private-sentinel.invalid/\(podcast)" }
+    @Sendable func show(_ podcast: Int) -> String { "Private Sentinel Show \(podcast)" }
+    @Sendable func guid(_ episode: Int) -> String { "private-sentinel-guid-\(episode)" }
+    @Sendable func title(_ episode: Int) -> String {
+      "Private Sentinel Episode \(episode) \(padding)"
+    }
+    let logs = try await database.writeWithoutTransaction { db in
+      try LogCapture.withSink { sink in
+        try db.inTransaction {
+          let podcastIDs = try (0..<podcastCount)
+            .map { podcast in
+              try Create.unsavedPodcast(
+                feedURL: FeedURL(URL(string: feed(podcast))!),
+                title: show(podcast)
+              )
+              .insertAndFetch(db, as: Podcast.self).id
+            }
+          // Newer episodes get lower IDs, so only publication dates order them.
+          for episode in (0..<episodeCount).reversed() {
+            try Create.unsavedEpisode(
+              podcastId: podcastIDs[episode % podcastCount],
+              guid: GUID(guid(episode)),
+              title: title(episode),
+              pubDate: Date(timeIntervalSince1970: TimeInterval(episode * 60)),
+              finishDate: episode < unfinishedCount
+                ? nil : Date(timeIntervalSince1970: TimeInterval(episode * 60 + 30))
+            )
+            .insert(db)
+          }
+          return .commit
+        }
+        return sink.captured().filter { $0.message.hasPrefix("siriCatalogPublication ") }
+      }
+    }
+
+    let catalog = try await file.read()
+    #expect(catalog.podcasts.map(\.title) == (0..<podcastCount).map(show))
+    let published = Set(catalog.podcasts.flatMap(\.episodes).map(\.guid))
+    let kept = (0..<episodeCount).filter { published.contains(guid($0)) }
+    let keptFinished = kept.count - unfinishedCount
+    #expect(published.count == kept.count)
+    #expect(keptFinished > 0 && kept.count < episodeCount)
+    #expect(
+      kept == Array(0..<unfinishedCount) + Array((episodeCount - keptFinished)..<episodeCount)
+    )
+    for podcast in 0..<podcastCount {
+      #expect(
+        try catalog.matches(SiriTestIntent.named(show(podcast), type: .podcastShow))
+          .map(\.identity.feed) == [feed(podcast)]
+      )
+    }
+    func episodeIntent(_ episode: Int) -> INPlayMediaIntent {
+      SiriTestIntent.named(
+        title(episode),
+        type: .podcastEpisode,
+        album: show(episode % podcastCount)
+      )
+    }
+    for episode in [0, episodeCount - 1] {
+      #expect(try catalog.matches(episodeIntent(episode)).map(\.identity.guid) == [guid(episode)])
+    }
+    #expect(throws: SiriMediaFailure.noMatch) {
+      try catalog.matches(episodeIntent(unfinishedCount))
+    }
+
+    #expect(logs.map(\.level) == [.warning])
+    let message = try #require(logs.first?.message)
+    #expect(
+      message.contains(
+        "podcasts=\(podcastCount) episodes=\(kept.count) omitted=\(episodeCount - kept.count) "
+      )
+    )
+    #expect(message.contains("oversized=false"))
+    for value in ["Private Sentinel", "private-sentinel"] {
+      #expect(!message.contains(value), "Diagnostics must not include media metadata")
+    }
+  }
+
   @Test("unavailable or invalidated catalog data never produces a handoff")
   func unavailableCatalog() async throws {
     let file = Container.shared.siriCatalogFile()

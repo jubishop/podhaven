@@ -66,7 +66,8 @@ This uses UIKit's supported replacement for the older
 `application(_:handle:completionHandler:)` callback, deprecated since iOS 14.
 A podcast resumes its current unfinished episode, otherwise its newest saved
 unfinished episode, with episode ID breaking date ties. A named finished
-episode can be replayed. Explicit play resumes the current episode.
+episode can be replayed while the catalog includes it; see
+[catalog size](#catalog-size). Explicit play resumes the current episode.
 
 The main app owns request cancellation, deadlines, and callback completion.
 Newer Siri or shared-player requests supersede obsolete work. A response reports
@@ -184,10 +185,35 @@ podcasts and episodes. In the Debug test host, schema 2 cut
 `SiriLargeCatalogTests` decode time from about 200 ms to 30 ms and album
 matching from about 20 ms to 2 ms. Broad matching stayed near 200 ms.
 
-The limit itself is unchanged; raising it would need memory measurements from
-the Intents extension. A library somewhat more than twice the measured size
-can still produce an oversized catalog. Publication diagnostics then report
-`oversized=true`, and readers fail truthfully.
+A library about 2.3 times the measured one would exceed the limit even in
+schema 2. On October 29, 2026, the owner decided to bound what the publisher
+writes. The limit and the schema stay unchanged; raising the limit would need
+memory measurements from the Intents extension.
+
+A catalog within the limit is published unchanged, with no extra query or
+encoding. Otherwise the publisher keeps every podcast and omits episodes until
+the encoded catalog fits:
+
+1. Finished episodes go first, oldest publication date first, with episode ID
+   breaking ties.
+2. Unfinished episodes go only after every finished one, also oldest first.
+
+Each pass estimates sizes before JSON escapes and encodes the result again,
+until the catalog fits or no episodes remain. Omitted episodes cannot be
+resolved by name. Podcasts stay resolvable, and the app picks a podcast's
+episode from its own database. Publication dates and finished state already
+trigger republication, so an episode joins or leaves the catalog at the next
+relevant commit. Only when the podcasts alone exceed the limit do diagnostics
+report `oversized=true`, and readers then fail truthfully.
+
+`SiriCatalogTests` publishes a synthetic library through the database
+observer: 3 podcasts and 16,800 episodes, 4,200 of them unfinished, with long
+titles that contain escaped quotes. Unbounded, it encoded as 68,443,858 bytes,
+about twice the limit, and the reader rejected it. Bounded, the publisher kept
+every unfinished episode and the 4,031 newest finished ones, omitted 8,569,
+and wrote 33,534,182 bytes. The real reader then resolves every podcast and
+the kept episodes, and an omitted episode no longer matches. In the Debug test
+host on My Mac, publication took 169 ms unbounded and 286 ms bounded.
 
 ## Publication diagnostics
 
@@ -196,19 +222,21 @@ Each catalog publication logs one bounded summary with fixed fields:
 | Field | Meaning |
 | --- | --- |
 | `trigger` | `launch` for the first publication in a process, `commit` afterward |
-| `publishMs`, `fetchMs`, `writeMs` | Total, row fetch and entry build, and JSON encode plus atomic write |
+| `publishMs`, `fetchMs`, `writeMs` | Total, row fetch and entry build, and JSON encode, any omission, plus atomic write |
 | `podcasts`, `episodes` | Published entry counts |
+| `omitted` | Episodes left out so the catalog fits the reader limit |
 | `bytes`, `maxBytes`, `oversized` | Encoded size, the extension reader's limit, and whether readers will reject it |
 | `openMs` | Launch database open and migration time; `none` for commits |
 | `appState` | UIKit application state when launch initialization began; `none` for commits |
-| `suppressed` | Slow commit summaries kept local since the last commit warning |
+| `suppressed` | Commit warnings kept as local debug summaries since the last one sent |
 
 A summary becomes a warning when publication or launch open time reaches one
-second or the catalog exceeds the reader limit. `SentryLogHandler` forwards
-warnings to Sentry Logs with its existing version, build, commit, and log
-session attributes. Launch warnings occur at most once per process. Commit
-warnings are limited to one per 15 minutes per process; the rest stay as local
-debug summaries. Summaries contain no titles, feed URLs, GUIDs, or media IDs.
+second, the publisher omits episodes, or the catalog exceeds the reader limit.
+`SentryLogHandler` forwards warnings to Sentry Logs with its existing version,
+build, commit, and log session attributes. Launch warnings occur at most once
+per process. Commit warnings are limited to one per 15 minutes per process; the
+rest stay as local debug summaries. Summaries contain no titles, feed URLs,
+GUIDs, or media IDs.
 Like the existing launch log, `appState` reflects UIKit during launch: the
 foreground Simulator smoke launch reported `background`, so this field alone
 does not prove a background launch.

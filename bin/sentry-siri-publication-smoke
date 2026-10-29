@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = "com.artisanalsoftware.PodHaven.publicationsmoke"
 FIELDS = ["sentry.item_id", "message", "severity", "category", "subsystem", "version", "buildNumber",
           "gitCommitHash", "logSessionID", "sentry.environment", "diagnostic-run"]
-KEYS = ["trigger", "publishMs", "fetchMs", "writeMs", "podcasts", "episodes", "bytes", "maxBytes",
-        "oversized", "openMs", "appState", "suppressed"]
+KEYS = ["trigger", "publishMs", "fetchMs", "writeMs", "podcasts", "episodes", "omitted", "bytes",
+        "maxBytes", "oversized", "openMs", "appState", "suppressed"]
 PRIVATE = ["Private Sentinel", "private-sentinel"]
 
 
@@ -55,7 +55,7 @@ def verify(logs, source, run):
     publish, fetch, write = (int(fields[key]) for key in ("publishMs", "fetchMs", "writeMs"))
     assert fields["trigger"] == "launch" and write >= 1000 and publish >= write
     assert abs(publish - fetch - write) <= 1
-    assert fields["podcasts"] == "1" and fields["episodes"] == "1"
+    assert fields["podcasts"] == "1" and fields["episodes"] == "1" and fields["omitted"] == "0"
     assert int(fields["maxBytes"]) == 32 * 1024 * 1024 and 0 < int(fields["bytes"]) < 4096
     assert fields["oversized"] == "false" and int(fields["openMs"]) >= 0 and fields["suppressed"] == "0"
     assert fields["appState"] in {"active", "inactive", "background"}
