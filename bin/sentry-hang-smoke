@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import shutil
 import subprocess
 import time
@@ -16,6 +17,8 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = "com.artisanalsoftware.PodHaven.hangsmoke"
+RETAINED_RUNS = 3
+RUN_NAME = re.compile(r"[0-9a-f]{32}")
 
 
 def command(*args, **kwargs):
@@ -60,6 +63,20 @@ def prepare(output, *, bundle=BUNDLE, integration="sentry-hang"):
     return path
 
 
+def start_run(output):
+    output.mkdir(parents=True, exist_ok=True)
+    run = uuid.uuid4().hex
+    evidence = output / run
+    evidence.mkdir()
+    earlier = sorted((path for path in output.iterdir()
+                      if path != evidence and RUN_NAME.fullmatch(path.name)
+                      and not path.is_symlink() and path.is_dir()),
+                     key=lambda path: path.stat().st_mtime_ns, reverse=True)
+    for path in earlier[RETAINED_RUNS - 1:]:
+        shutil.rmtree(path)
+    return run, evidence
+
+
 def api(path):
     response = json.loads(command("sentry", "api", path, "--json"))
     if response["status"] != 200:
@@ -93,10 +110,7 @@ def main():
     if device is None:
         raise RuntimeError("The requested device is not an available iOS Simulator")
     output = ROOT / ".cache/sentry-hang-smoke"
-    output.mkdir(parents=True, exist_ok=True)
-    run = uuid.uuid4().hex
-    evidence = output / run
-    evidence.mkdir()
+    run, evidence = start_run(output)
     source = source_state()
     (evidence / "source.json").write_text(json.dumps(source, indent=2) + "\n")
     project = prepare(output)

@@ -9,7 +9,6 @@ import os
 from pathlib import Path
 import subprocess
 import time
-import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = "com.artisanalsoftware.PodHaven.sirismoke"
@@ -39,10 +38,7 @@ def main():
     if device is None:
         raise RuntimeError("Only an available iOS Simulator is permitted")
     output = ROOT / ".cache/sentry-siri-smoke"
-    output.mkdir(parents=True, exist_ok=True)
-    run = uuid.uuid4().hex
-    evidence = output / run
-    evidence.mkdir()
+    run, evidence = probe.start_run(output)
     source = probe.source_state()
     (evidence / "source.json").write_text(json.dumps(source, indent=2) + "\n")
     project = probe.prepare(output, bundle=BUNDLE, integration="sentry-siri")

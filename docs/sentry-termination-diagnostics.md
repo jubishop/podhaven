@@ -217,8 +217,9 @@ attachment back from Sentry. It checks symbolicated in-app frames in
 caller-to-callee order, an issue title naming the crashing in-app function,
 diagnostic attribution, the exact bounded attachment, the context fields, and
 the absence of user identity. It also symbolicates the downloaded attachment offline.
-Evidence stays under ignored `.cache/sentry-metrickit-smoke/`. It never
-installs on a physical device. Actual MetricKit delivery of a real watchdog
+Evidence stays under ignored `.cache/sentry-metrickit-smoke/`, within the
+[smoke evidence bound](sentry-recovered-hang-diagnostics.md#controlled-ios-verification).
+It never installs on a physical device. Actual MetricKit delivery of a real watchdog
 kill remains an observation limit.
 
 Regression coverage checks prior-history survival under new-launch log volume,

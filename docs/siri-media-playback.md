@@ -164,7 +164,9 @@ handler and production Sentry configuration. It then triggers a controlled
 recovered hang. The helper lists both remote events, downloads the retained
 summaries, and verifies bounds, phase data, matching operation/session/build
 attribution, and absence of the private sentinel metadata. Evidence stays in
-ignored `.cache/sentry-siri-smoke/`. It never installs on a physical device.
+ignored `.cache/sentry-siri-smoke/`, within the
+[smoke evidence bound](sentry-recovered-hang-diagnostics.md#controlled-ios-verification).
+It never installs on a physical device.
 
 ## Catalog size
 
@@ -228,4 +230,6 @@ private sentinel library. It then runs the production launch path with a delayed
 catalog write and the production Sentry log configuration. It reads the remote log
 back and verifies its fields, bounds, build and session attribution, and the
 absence of sentinel metadata. Evidence stays in ignored
-`.cache/sentry-siri-publication-smoke/`. It never installs on a physical device.
+`.cache/sentry-siri-publication-smoke/`, within the
+[smoke evidence bound](sentry-recovered-hang-diagnostics.md#controlled-ios-verification).
+It never installs on a physical device.

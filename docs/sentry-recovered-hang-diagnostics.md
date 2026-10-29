@@ -128,7 +128,12 @@ The helper downloads attachments from that SDK-generated event and checks exact
 download sizes, valid NDJSON, individual/combined bounds, session/build fields,
 pre-hang navigation and detail work, the completed foreground write, and the
 pending background write. It also checks that the event's `process_activation`
-milestones and the recent log's activation markers are present and ordered. Evidence stays under ignored `.cache/sentry-hang-smoke/`.
+milestones and the recent log's activation markers are present and ordered.
+Evidence stays under ignored `.cache/sentry-hang-smoke/`, one directory per run.
+A new run keeps only the newest run directories, up to `RETAINED_RUNS` in
+`bin/sentry-hang-smoke` (three, counting itself), and removes older ones. It
+leaves the reused `DerivedData` and generated probe project alone. The other
+Sentry smoke helpers share this bound.
 The probe starts with hang reporting paused and resumes it through the
 [phone-scene gate](carplay-lifecycle.md#sentry-app-hang-reporting), so a passing
 run also covers the phone-foreground path.
