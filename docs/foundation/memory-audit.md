@@ -77,7 +77,9 @@ files, so personal permissions, MCP servers, and hooks do not join the audit.
 Claude gets only Bash, Read, Glob, and Grep, and no session is saved. Writes,
 network commands, and reads outside the clone need approval, which the job
 denies automatically. Beyond Claude Code's built-in read-only commands, only
-`jq` and `qmd search` are allowed.
+`jq` and `qmd search` are allowed. Claude runs with
+`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, so its tools never receive Anthropic
+credentials or other secret-named variables; see [API key](#api-key).
 
 Each run fetches `origin/main` and audits that exact revision in a disposable
 clone under `.cache/memory-audit/runs/`, so uncommitted work is neither
@@ -115,6 +117,15 @@ other Anthropic clients from picking up the key. The runner passes it to
 Claude as `ANTHROPIC_API_KEY` for the API-key attempt only, after
 `claude auth status` confirms that Claude Code will bill it as a first-party
 key.
+
+The model never sees the key. Reading `.env` needs approval, which the job
+denies. Claude Code otherwise passes its environment to Bash, and the allowed
+`jq` could print it with its `env` builtin. So every model attempt runs in
+Claude Code's subprocess scrub mode, which bills the key but withholds
+`ANTHROPIC_API_KEY` and other secret-named variables from every tool process.
+Scrub mode keeps the job's manual permission mode. It also withholds
+`XDG_CACHE_HOME`, so the runner names the clone's search index with
+`INDEX_PATH`; otherwise `qmd search` would read the user's own index.
 
 When the API refuses the key, the runner reruns that model attempt on the
 subscription with no manual step, and the rest of the run stays there. The

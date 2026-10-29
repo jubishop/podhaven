@@ -463,6 +463,9 @@ def prune_runs(state, keep):
 def run_model(repo, run_dir, env, prompt, timeout=5400, key=None):
     # Restricted mode ignores user and project settings. Without edit tools or edit rules, any write,
     # network command, or read outside the clone needs approval, which --permission-prompts none denies.
+    # Tools inherit Claude's environment, and jq's env builtin reads it, so scrub mode withholds
+    # ANTHROPIC_API_KEY and other secret-named variables from them; it keeps the manual permission mode.
+    env = with_key(env, key) | {"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"}
     permissions = {"allow": ["Bash(jq *)", "Bash(qmd search *)"]}
     args = ["claude", "-p", "--restricted", "--no-session-persistence", "--strict-mcp-config",
             "--model", MODEL, "--effort", "high", "--tools", "Bash,Read,Glob,Grep",
@@ -470,7 +473,7 @@ def run_model(repo, run_dir, env, prompt, timeout=5400, key=None):
             "--settings", json.dumps({"permissions": permissions}),
             "--output-format", "stream-json", "--verbose", "--json-schema", json.dumps(output_schema())]
     with (run_dir / "events.jsonl").open("w") as events, (run_dir / "claude.log").open("w") as log:
-        process = subprocess.Popen(args, cwd=repo, env=with_key(env, key), text=True, stdin=subprocess.PIPE,
+        process = subprocess.Popen(args, cwd=repo, env=env, text=True, stdin=subprocess.PIPE,
                                    stdout=events, stderr=log, start_new_session=True)
         try:
             process.communicate(prompt, timeout=timeout)
@@ -502,12 +505,16 @@ def prepare_search(repo, env):
     qmd_dir = repo / ".cache/memory-audit-qmd"
     config_dir = qmd_dir / "config"
     config_dir.mkdir(parents=True)
+    index = qmd_dir / "cache/qmd/index.sqlite"
+    index.parent.mkdir(parents=True)
     config = json.loads(command([sys.executable, "-B", "-I", "-c", INDEX_CONFIG, str(repo / "bin")], repo, env))
     for name, collection in config["collections"].items():
         if not Path(collection["path"]).resolve().is_relative_to(repo.resolve()):
             raise ValueError("The audit's search index may hold only the clone's own collections: " + name)
     (config_dir / "index.yml").write_text(json.dumps(config, indent=2, sort_keys=True) + "\n")
-    env = env | {"QMD_CONFIG_DIR": str(config_dir), "XDG_CACHE_HOME": str(qmd_dir / "cache")}
+    # Claude's scrub mode withholds XDG_CACHE_HOME from the model's tools, so INDEX_PATH names the index too;
+    # without it, qmd search would read the user's own index.
+    env = env | {"QMD_CONFIG_DIR": str(config_dir), "XDG_CACHE_HOME": str(qmd_dir / "cache"), "INDEX_PATH": str(index)}
     command(["qmd", "update"], repo, env, timeout=300)
     return env
 
