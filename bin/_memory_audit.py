@@ -620,8 +620,14 @@ def check_boundary(run_dir, env, scratch):
         ("jq -r .probe artifacts/memory-audit-context.json", token["context"]),
         ("qmd search " + token["search"], "qmd://memory/boundary-check.md"),
         ("printenv", "denied"), ("env", "denied"), ("ps eww", "denied"), ("ps -E", "denied"),
-        ("cat ../outside.txt", "denied"))]
-    probes.append(("Read ../outside.txt", "Read", {"file_path": str(scratch / "outside.txt")}, "denied"))
+        ("cat ../outside.txt", "denied"),
+        # The allow rules must not reach outside the repository or cover a command chained after them.
+        ("jq -R . ../outside.txt", "denied"), ("jq --rawfile f ../outside.txt -n '$f'", "denied"),
+        ("jq -n 1; cat ../outside.txt", "denied"), (f"qmd search {token['search']} && printenv", "denied"))]
+    probes += [("Read ../outside.txt", "Read", {"file_path": str(scratch / "outside.txt")}, "denied"),
+               ("Grep ../outside.txt", "Grep", {"pattern": ".", "path": str(scratch / "outside.txt"),
+                                                "output_mode": "content"}, "denied"),
+               ("Glob ../*.txt", "Glob", {"pattern": "*.txt", "path": str(scratch)}, "denied")]
     try:
         # An interrupted run can leave the scratch folder behind.
         shutil.rmtree(scratch, ignore_errors=True)

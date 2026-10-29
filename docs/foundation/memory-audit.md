@@ -159,22 +159,27 @@ folder as `api-key-events.jsonl` and `api-key-claude.log`.
 ## Tool boundary check
 
 What the model's tools can reach depends on Claude Code behavior that can
-change in any release, such as scrub mode, the `jq` allow rule, and which
-variables reach tools. So before every model run, the runner checks the
-installed Claude Code with its own model-run and search setup and the audit's
-flags. A local stand-in for the Anthropic API scripts the tool calls, so the
-check makes no model request, costs nothing, and takes a few seconds. It runs
-in a scratch repository under `.cache/memory-audit/boundary/`, a path that
-every run reuses like the clone's, with one note, a bogus
-`ANTHROPIC_API_KEY`, and two canary variables, `AUDIT_CANARY` and the
-secret-named `AUDIT_CANARY_API_KEY`, and requires that:
+change in any release, such as scrub mode, what the `jq` and `qmd search`
+allow rules cover, and which variables reach tools. So before every model
+run, the runner checks the installed Claude Code with its own model-run and
+search setup and the audit's flags. A local stand-in for the Anthropic API
+scripts the tool calls, so the check makes no model request, costs nothing,
+and takes a few seconds. It runs in a scratch repository under
+`.cache/memory-audit/boundary/`, a path that every run reuses like the
+clone's, with one note, a bogus `ANTHROPIC_API_KEY`, and two canary
+variables, `AUDIT_CANARY` and the secret-named `AUDIT_CANARY_API_KEY`, and
+requires that:
 
 - `jq` reads `null` for `ANTHROPIC_API_KEY` and `AUDIT_CANARY_API_KEY`,
   through both `env` and `$ENV`.
 - `jq` reads `artifacts/memory-audit-context.json`.
 - `qmd search` finds the scratch note in its own index, not the user's.
-- `printenv`, `env`, `ps eww`, and `ps -E` are denied, and so are Read and
-  `cat` of a file outside the repository.
+- `printenv`, `env`, `ps eww`, and `ps -E` are denied, and so are Read, Grep,
+  and `cat` of a file outside the repository and Glob in a folder outside it.
+- The `jq` and `qmd search` allow rules cover neither a file outside the
+  repository, as in `jq -R . ../outside.txt` and
+  `jq --rawfile f ../outside.txt -n '$f'`, nor a command chained after them,
+  as in `jq -n 1; cat ../outside.txt` and `qmd search … && printenv`.
 - No tool output holds the key, either canary, or that outside file.
 
 A breach fails the run before the model starts, so the real key never reaches
