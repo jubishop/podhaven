@@ -29,7 +29,7 @@ function __snissue_pick
     end
 
     set -l issue_json (sentry issue list artisanal-software/podhaven \
-        --query 'is:unresolved !issue.category:feedback' \
+        --query 'is:unresolved !issue.category:feedback !has:diagnostic-run' \
         --period 365d \
         --limit 1000 \
         --sort new \

@@ -74,10 +74,13 @@ a reference:
 
 ```bash
 sentry issue list artisanal-software/podhaven \
-  --query 'is:unresolved !issue.category:feedback' \
+  --query 'is:unresolved !issue.category:feedback !has:diagnostic-run' \
   --period 365d --limit 1000 --sort new --fresh --json \
   --fields id,shortId,title,level,count,userCount
 ```
+
+Like the daily checker, this skips issues whose only events came from the
+controlled `bin/integration` probes, which tag each event `diagnostic-run`.
 
 Fetch GitHub issues in `jubishop/podhaven` once, including closed issues, and
 match each Sentry issue as `bin/snissue` does: the exact

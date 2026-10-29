@@ -148,7 +148,7 @@ else:
         self.assertIn("GitHub: #45 analyzed", rows[2])
         self.assertEqual(self.read("sentry.args"), [
             "issue", "list", "artisanal-software/podhaven",
-            "--query", "is:unresolved !issue.category:feedback",
+            "--query", "is:unresolved !issue.category:feedback !has:diagnostic-run",
             "--period", "365d", "--limit", "1000", "--sort", "new", "--fresh", "--json",
             "--fields", "id,shortId,title,level,count,userCount",
         ])

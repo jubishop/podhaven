@@ -325,6 +325,13 @@ item; the pickers show it as intake, analyzed, closed, or untracked. Error issue
 analyzed before the marker existed count as analyzed when their body has a
 `## Sentry closeout` section.
 
+The controlled `bin/integration` probes behind the `bin/sentry-*-smoke`
+commands report to the production Sentry project, so the smokes can verify
+delivery end to end. Each probe tags its events `diagnostic-run`.
+`bin/check-sentry-issues` and `bin/snissue` skip issues whose only events carry
+that tag; an issue with any untagged event still gets intake. A new probe that
+starts the Sentry SDK must set the tag, and a tooling test enforces it.
+
 Both skills require the GitHub issue to include a Sentry record and closeout
 instructions. Sentry drops events after its retention period and drops an
 issue once they all age out; a recurrence then gets a new short ID, so later

@@ -217,7 +217,7 @@ else:
         self.assertIn("Would create issue: Triage Sentry issue PODHAVEN-A7", result.stdout)
         self.assertIn("Would create issue: Triage recurrence of Sentry issue PODHAVEN-A8 (after #60)", result.stdout)
 
-    def test_lists_unresolved_non_feedback_issues(self):
+    def test_lists_unresolved_issues_except_feedback_and_probe_only_issues(self):
         self.write("sentry.json", {"data": [], "hasMore": False})
         self.write("issues.json", [[]])
 
@@ -226,8 +226,22 @@ else:
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         arguments = json.loads((self.directory / "sentry.args").read_text())
         self.assertEqual(arguments[:3], ["issue", "list", "artisanal-software/podhaven"])
-        self.assertEqual(arguments[arguments.index("--query") + 1], "is:unresolved !issue.category:feedback")
+        self.assertEqual(arguments[arguments.index("--query") + 1],
+                         "is:unresolved !issue.category:feedback !has:diagnostic-run")
         self.assertEqual(arguments[arguments.index("--fields") + 1], "id,shortId,permalink")
+
+    def test_every_sentry_probe_tags_its_diagnostic_run(self):
+        probes = [path for path in sorted((ROOT / "bin/integration").glob("*/*.swift"))
+                  if "SentrySDK.start" in path.read_text()]
+        self.assertTrue(probes)
+        for probe in probes:
+            with self.subTest(probe=probe.relative_to(ROOT)):
+                self.assertTrue('scope.setTag(value: run, key: "diagnostic-run")' in probe.read_text(),
+                                "Sentry intake skips probe events only by their diagnostic-run tag")
+
+    def test_skill_lists_the_same_issues_as_the_checker(self):
+        skill = (ROOT / ".agents/skills/analyze-sentry-issue/SKILL.md").read_text()
+        self.assertIn("--query 'is:unresolved !issue.category:feedback !has:diagnostic-run'", skill)
 
     def test_skill_trusts_the_checker_comment_author(self):
         skill = (ROOT / ".agents/skills/analyze-sentry-issue/SKILL.md").read_text()

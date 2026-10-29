@@ -36,7 +36,7 @@ ALL_ISSUES_JSON="$WORK_DIR/all-issues.json"
 ISSUES_JSON="$WORK_DIR/issues.json"
 
 sentry_cmd issue list "$SENTRY_TARGET" \
-  --query 'is:unresolved !issue.category:feedback' \
+  --query 'is:unresolved !issue.category:feedback !has:diagnostic-run' \
   --period 365d \
   --limit 1000 \
   --sort new \
