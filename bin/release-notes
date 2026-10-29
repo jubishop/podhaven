@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Write plain-language TestFlight or App Store notes for app changes since a build."""
+"""Write TestFlight or App Store notes for app changes since a build, or report changes testers lack."""
 
 import argparse
+from datetime import datetime
 import os
 from pathlib import Path
 import re
@@ -32,15 +33,84 @@ AUDIENCES = {
         "• Behind-the-scenes stability and performance improvements."),
 }
 MAX_BYTES = 4000
+SUMMARY_THRESHOLD = 3
+UNTESTED_PROMPT = (
+    "You brief PodHaven's developer on app changes that TestFlight testers have not received yet, before an App "
+    "Store release. The input is the full commit messages. Write at most six technical bullets, each one line "
+    'of at most 25 words starting with "- ", with no nested lists or Markdown emphasis. Group related commits, '
+    "name the affected subsystems, and put the riskiest changes first. Reply with only the bullets.")
+TRAILER = re.compile(r"[A-Za-z-]+-by: ", re.IGNORECASE)
 
 
 def git(root, *args):
     return subprocess.check_output(["git", "-C", str(root), *args], text=True)
 
 
+def ask_llm(prompt, text):
+    result = subprocess.run(["llm", "-s", prompt], input=text, text=True, capture_output=True)
+    if result.returncode != 0:
+        print(result.stderr, end="", file=sys.stderr)
+        return ""
+    return result.stdout.strip()
+
+
+def day(moment):
+    return f"{moment:%b} {moment.day}, {moment.year}"
+
+
+def count(number, noun):
+    return f"{number} {noun}{'' if number == 1 else 's'}"
+
+
+def moment(stamp):
+    return datetime.fromtimestamp(int(stamp)).astimezone()
+
+
+def report_untested(root, base, end):
+    commits = []
+    for entry in git(root, "log", "--reverse", "--format=%h%x1f%at%x1f%B%x1e", f"{base}..{end}", "--", *APP_PATHS).split("\x1e"):
+        if entry.strip():
+            short, stamp, message = entry.strip().split("\x1f", 2)
+            commits.append((short, moment(stamp), message.strip()))
+    if not commits:
+        return
+    landed = [moment(stamp) for stamp in git(root, "log", "--format=%at", f"{base}..{end}").split()]
+    shipped = moment(git(root, "for-each-ref", "--format=%(creatordate:unix)", f"refs/tags/{base}").strip())
+    age = (datetime.now().astimezone().date() - shipped.date()).days
+    ago = "today" if age == 0 else "yesterday" if age == 1 else f"{age} days ago"
+    first, last = min(landed), max(landed)
+    span = f"on {day(first)}" if first.date() == last.date() else f"between {day(first)} and {day(last)}"
+    lines = [f"==> Testers in Everyone don't have {count(len(commits), 'app commit')} yet.", "",
+             f"Their newest build, {base}, went out {day(shipped)} at {shipped.hour % 12 or 12}:{shipped:%M %p %Z} ({ago}).",
+             f"Since then, {count(len(landed), 'commit')} landed {span}, and {len(commits)} of them "
+             f"change{'s' if len(commits) == 1 else ''} the app.", ""]
+
+    summary = ""
+    if len(commits) > SUMMARY_THRESHOLD:
+        summary = ask_llm(UNTESTED_PROMPT, "\n\x1e".join(message for _, _, message in commits))
+    if summary:
+        lines += ["Summary:", summary, "", "Commits:"]
+        lines += [f"  {day(when)}  {short}  {message.splitlines()[0]}" for short, when, message in commits]
+        lines.append("")
+    else:
+        for short, when, message in commits:
+            subject, _, body = message.partition("\n")
+            lines.append(f"{day(when)}  {short}  {subject}")
+            lines += [f"    {line}".rstrip() for line in body.strip().splitlines() if not TRAILER.match(line)]
+            lines.append("")
+    print("\n".join(lines), file=sys.stderr, flush=True)
+
+    stop = "Stopped before releasing app changes testers don't have. Run testflight first"
+    if not (sys.stdin.isatty() and sys.stderr.isatty()):
+        sys.exit(stop + ", or run appstore in a terminal and answer y.")
+    print("Release to the App Store anyway? [y/N] ", end="", file=sys.stderr, flush=True)
+    if sys.stdin.readline().strip().lower() not in ("y", "yes"):
+        sys.exit(stop + ".")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("audience", choices=AUDIENCES)
+    parser.add_argument("audience", choices=(*AUDIENCES, "untested"))
     parser.add_argument("--since-build", required=True, metavar="NUMBER",
                         help="Build number whose release tag starts the summarized changes.")
     parser.add_argument("--to", default="HEAD", metavar="REF", help="Revision that ends the summarized changes.")
@@ -48,23 +118,27 @@ def main():
     if not re.fullmatch(r"[0-9]+", args.since_build):
         parser.error("--since-build requires a numeric build number, such as 581.")
     root = Path(__file__).resolve().parents[1]
-    label, prompt, fallback = AUDIENCES[args.audience]
+    remedy = " Pass --notes." if args.audience in AUDIENCES else ""
 
     pattern = re.compile(r"v[0-9]+(?:\.[0-9]+){0,2}b" + args.since_build)
     tags = [tag for tag in git(root, "tag", "-l", "v*b" + args.since_build).split() if pattern.fullmatch(tag)]
     if len(tags) != 1:
         sys.exit(f"error: Expected one local release tag for build {args.since_build}, found {len(tags)}. "
-                 "Fetch tags with git fetch --tags, or pass --notes.")
+                 f"Fetch tags with git fetch --tags.{remedy}")
     base = tags[0]
     if subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", base, args.to]).returncode != 0:
-        sys.exit(f"error: {base} is not an ancestor of {args.to}. Pass --notes.")
+        sys.exit(f"error: {base} is not an ancestor of {args.to}.{remedy}")
+    if args.audience == "untested":
+        report_untested(root, base, args.to)
+        return
+
+    label, prompt, fallback = AUDIENCES[args.audience]
 
     log = git(root, "log", "--format=%B%x1e", f"{base}..{args.to}", "--", *APP_PATHS).strip()
     if log:
-        result = subprocess.run(["llm", "-s", prompt], input=log, text=True, stdout=subprocess.PIPE)
-        if result.returncode != 0:
+        notes = ask_llm(prompt, log)
+        if not notes:
             sys.exit(f"error: llm could not write {label} notes. Pass --notes.")
-        notes = result.stdout.strip()
     else:
         notes = fallback
     if not notes or len(notes.encode()) > MAX_BYTES:

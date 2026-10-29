@@ -109,14 +109,14 @@ class TestFlightTests(unittest.TestCase):
         self.assertEqual(sum(event[0] == "next_page" for event in events), 1)
         self.assertFalse(any(event[0] in ("wait", "builds", "expire", "distribute") for event in events))
 
-    def test_base_without_a_build_in_testing_asks_for_notes(self):
+    def test_base_without_a_build_in_testing_reports_none(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "base"
             result, events = self.run_lane("base_none", TESTFLIGHT_BASE="true", PODHAVEN_TESTFLIGHT_NOTES="",
                                            PODHAVEN_TESTFLIGHT_BASE_PATH=str(path))
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("--notes", result.stderr)
-            self.assertFalse(path.exists())
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(path.read_text(), "")
+            self.assertIn("No iOS build is in testing for Everyone", str(events))
 
     def test_waiting_review_is_expired_and_verified_before_distribution(self):
         result, events = self.run_lane("waiting_review")

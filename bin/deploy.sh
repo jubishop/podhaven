@@ -210,6 +210,10 @@ generate_testflight_notes() {
   base_build=$(cat "$TESTFLIGHT_BASE_PATH")
   rm -f "$TESTFLIGHT_BASE_PATH"
   TESTFLIGHT_BASE_PATH=""
+  if [[ -z "$base_build" ]]; then
+    echo 'error: No iOS build is in testing for Everyone, so there is no starting point for notes. Pass --notes.' >&2
+    exit 1
+  fi
   if [[ "$base_build" == "$current_build" ]]; then
     echo "==> Build ${current_build} is already in testing for Everyone. Nothing to do."
     exit 0

@@ -188,6 +188,24 @@ Store build, before the command changes the project. It does not copy TestFlight
 notes, which cover only one build's changes. Notes must contain 1 to 4000
 characters and are copied unchanged to every existing App Store listing language.
 
+### Changes testers lack
+
+Before a new release changes anything, the command finds the newest iOS build in
+testing for Everyone, the same starting point `testflight` uses. If the release
+revision has app commits that build lacks, it reports:
+
+- when that build's tag was created and how long ago;
+- how many commits landed since, over which dates, and how many change the app;
+- the app commits: each with its date and full message when there are at most
+  three, or an `llm` technical summary followed by a dated list when there are
+  more.
+
+In a terminal it then asks whether to release anyway; the default is no.
+Without a terminal it stops. It also stops when no build is in testing. Either
+way, nothing has changed yet: run `testflight` first to give testers those
+changes. `--notes` does not skip the check, and retrying a started release does
+not repeat it. An explicit `--build` is checked through its local release tag.
+
 Use either override when needed:
 
 ```sh
@@ -203,7 +221,7 @@ its original version even after the local version has changed to it.
 
 The release command requires clean `main` and performs these steps:
 
-1. Choose the version and notes, then check App Store Connect for an older version to replace or conflicting review items.
+1. Check that testers have the app changes, choose the version and notes, then check App Store Connect for an older version to replace or conflicting review items.
 2. Set and commit the requested version, run the full local gate, and push with `bin/version`.
 3. Verify the same full evidence, archive, and upload using the App Store upload mode.
 4. Wait for that exact build to finish processing.

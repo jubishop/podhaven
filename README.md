@@ -188,6 +188,12 @@ one dot. Without `--notes`, the command writes a few plain-language bullets with
 anything. In a terminal you can use, edit, or decline them. Public notes must
 contain 1 to 4000 characters and are used for every existing listing language.
 
+First, the command checks for app commits that the newest build in testing for
+Everyone lacks. It shows when that build went out, when the newer commits
+landed, and what they change, then asks whether to release anyway. Without a
+terminal, it stops instead; run `bin/shipit` first to give testers those
+changes.
+
 Show the live version, pending versions and reviews, and uploaded builds for the
 current local app version without releasing:
 

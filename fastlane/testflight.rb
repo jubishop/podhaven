@@ -45,7 +45,8 @@ module PodHavenTestFlight
     UI.user_error!("Expected exactly one external TestFlight group named Everyone.") unless groups.length == 1
     group = groups.first
     if base
-      File.write(ENV.fetch("PODHAVEN_TESTFLIGHT_BASE_PATH"), latest_tested_build(group).version)
+      tested = latest_tested_build(group)
+      File.write(ENV.fetch("PODHAVEN_TESTFLIGHT_BASE_PATH"), tested ? tested.version : "")
       return
     end
     version = options[:version].to_s
@@ -126,12 +127,13 @@ module PodHavenTestFlight
         candidate.pre_release_version&.platform == "IOS" && candidate.build_beta_detail&.external_build_state == "IN_BETA_TESTING"
       end
       if build
-        UI.message("Testers in Everyone have build #{build.version}; notes will cover changes since then.")
+        UI.message("Testers in Everyone have build #{build.version}.")
         return build
       end
       page = page.next_page
     end
-    UI.user_error!("No iOS build is in testing for Everyone, so there is no starting point for notes. Pass --notes.")
+    UI.message("No iOS build is in testing for Everyone.")
+    nil
   end
 
   def self.prepare_review(app, version, number, expire_waiting:)
