@@ -330,7 +330,7 @@ This issue tracks [Sentry issue `<shortId>`](<permalink>) (numeric issue ID `<nu
 
 ## Sentry closeout
 
-- After this GitHub issue is closed, update [Sentry issue `<shortId>`](<permalink>)
+- When this issue's work is done, update [Sentry issue `<shortId>`](<permalink>)
   (numeric issue ID `<numeric-id>`):
   - When a merged commit fixes it, resolve it in that commit, so only builds
     that contain the fix can regress it:
@@ -352,9 +352,12 @@ This issue tracks [Sentry issue `<shortId>`](<permalink>) (numeric issue ID `<nu
   `after-merge` agent completes it as tracking closeout after confirming
   GitHub closure.
   It is agent work, not a manual reminder or a release/observation task.
-- For issue-only work, the closing agent performs the same update and
-  readback after closing the GitHub issue. If access or the update fails,
-  report the closeout as incomplete rather than claiming success.
+- For issue-only work, the agent that finishes the work performs the same
+  update and readback once everything else is verified, before it closes the
+  GitHub issue or hands closure to a caller that owns it. That caller may not
+  touch Sentry, and a closed issue whose Sentry error stays unresolved gets a
+  recurrence intake issue. If access or the update fails, report the closeout
+  as incomplete rather than claiming success.
 <!-- analyze-sentry-issue-findings:end -->
 ```
 

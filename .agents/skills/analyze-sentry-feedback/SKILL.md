@@ -631,7 +631,7 @@ Keep the feedback unresolved in Sentry while this issue remains open.
 
 ## Sentry closeout
 
-- After this GitHub issue is closed, resolve [Sentry feedback `<slug>`](<permalink>)
+- When this issue's work is done, resolve [Sentry feedback `<slug>`](<permalink>)
   (`<shortId>`, numeric issue ID `<numeric-id>`) with
   `sentry issue resolve <numeric-id>`.
 - <one bullet per related Sentry issue the fix also resolves, if any> Also
@@ -653,9 +653,11 @@ Keep the feedback unresolved in Sentry while this issue remains open.
   `after-merge` agent completes it as tracking closeout after confirming
   GitHub closure.
   It is agent work, not a manual reminder or a release/observation task.
-- For issue-only work, the closing agent performs the same resolution and
-  readback after closing the GitHub issue. If access or resolution fails,
-  report the closeout as incomplete rather than claiming success.
+- For issue-only work, the agent that finishes the work performs the same
+  resolution and readback once everything else is verified, before it closes
+  the GitHub issue or hands closure to a caller that owns it. That caller may
+  not touch Sentry. If access or resolution fails, report the closeout as
+  incomplete rather than claiming success.
 
 Reporter text and identity remain in Sentry and must not be copied into this
 public issue.

@@ -335,12 +335,14 @@ starts the Sentry SDK must set the tag, and a tooling test enforces it.
 Both skills require the GitHub issue to include a Sentry record and closeout
 instructions. Sentry drops events after its retention period and drops an
 issue once they all age out; a recurrence then gets a new short ID, so later
-triage finds the history by the record's signature. After GitHub closure, the
-closing agent resolves the linked Sentry item, in the fix's commit when there
-is one, or archives an error accepted as noise, and reads back its status.
-For PR-backed work, `fix-issue` carries that task into `Do After Merging` for
-the `after-merge` agent to execute and verify. Never delete a Sentry issue;
-its history goes with it.
+triage finds the history by the record's signature. Once the work is done, an
+agent resolves the linked Sentry item, in the fix's commit when there is one,
+or archives an error accepted as noise, and reads back its status. For
+PR-backed work, `fix-issue` carries that task into `Do After Merging` for the
+`after-merge` agent to execute and verify after GitHub closure. For issue-only
+work, the agent that finishes the work does it before closing the issue or
+handing closure to a caller that owns it, because that caller may not touch
+Sentry. Never delete a Sentry issue; its history goes with it.
 
 ## Checks and project extensions
 
