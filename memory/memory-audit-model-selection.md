@@ -34,4 +34,4 @@ GitHub evidence, justified keep/archive decisions, valid links, and useful
 consolidation. Generic coding benchmarks do not establish memory-curation
 quality. Revisit the model only when audit results show a concrete need.
 
-**Current runner:** Commit `e1407934` (Project Starter 3.2.0) moved the job onto Project Starter's shared memory-audit feature, and Project Starter 3.3.0 set `MODEL = "claude-sonnet-5-5"` in `bin/_memory_audit.py` with the API key and fallback. Issue #759 tracks that move and was still open on 2026-10-26. When the shared feature changes, keep Sonnet, the PodHaven-only key, and the subscription fallback above.
+**Current runner:** Commit `e1407934` (Project Starter 3.2.0) moved the job onto Project Starter's shared memory-audit feature, and Project Starter 3.3.0 set `MODEL = "claude-sonnet-5-5"` in `bin/_memory_audit.py` with the API key and fallback. Issue #759 tracked that move and closed as completed on 2026-10-25. When the shared feature changes, keep Sonnet, the PodHaven-only key, and the subscription fallback above.
