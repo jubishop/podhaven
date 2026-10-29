@@ -421,6 +421,24 @@ class TestDebugFileSelection(unittest.TestCase):
         self.assertEqual(resolver.resolve(DEBUG_ID), first)
         self.assertEqual(sentry.listings, 1)
 
+    def test_missing_debug_id_is_listed_once_per_run(self) -> None:
+        sentry = FakeSentry([])
+        resolver = self.resolver(sentry)
+        self.assertEqual([resolver.resolve(DEBUG_ID) for _ in range(3)], [None] * 3)
+        self.assertEqual(sentry.listings, 1)
+        self.assertEqual(resolver.misses, [DEBUG_ID])
+
+    def test_failed_listing_is_not_retried_in_a_run(self) -> None:
+        def unavailable(request):
+            nonlocal attempts
+            attempts += 1
+            raise OSError("Sentry unavailable")
+
+        attempts = 0
+        resolver = self.resolver(unavailable)
+        self.assertEqual([resolver.resolve(DEBUG_ID) for _ in range(3)], [None] * 3)
+        self.assertEqual(attempts, 1)
+
 
 class TestUUIDNormalization(unittest.TestCase):
     def test_normalize_uuid_lowercases(self) -> None:

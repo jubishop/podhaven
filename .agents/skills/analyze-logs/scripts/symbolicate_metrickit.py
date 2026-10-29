@@ -289,10 +289,10 @@ class DSYMResolver:
     def resolve(self, uuid: str) -> Path | None:
         key = normalize_uuid(uuid)
         cached = self._lookup_cache(key)
+        if key in self._queried:
+            return cached
         # A cached stripped executable stands in only until Sentry holds DWARF.
-        if cached is not None and (
-            cached.parent.name == "DWARF" or key in self._queried or self.offline or not self.sentry_token
-        ):
+        if cached is not None and (cached.parent.name == "DWARF" or self.offline or not self.sentry_token):
             return cached
         if self.offline:
             self._misses.add(key)
