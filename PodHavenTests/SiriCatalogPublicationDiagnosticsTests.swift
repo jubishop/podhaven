@@ -53,7 +53,6 @@ struct SiriCatalogPublicationDiagnosticsTests {
     let clock = Container.shared.fakeContinuousClock()
     clock.freeze()
     let url = Container.shared.siriCatalogFile().url
-    defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
     let file = SiriCatalogFile(
       url: url,
       replaceContents: { data, url in

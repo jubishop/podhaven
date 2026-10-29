@@ -10,10 +10,8 @@ import Testing
 struct AudioFileHasherTests {
   @Test("streams the complete file into a lowercase SHA-256 digest")
   func hashesCompleteFile() throws {
-    let fileURL = FileManager.default.temporaryDirectory
-      .appendingPathComponent(UUID().uuidString)
+    let fileURL = TestFiles.uniqueURL()
     try Data(repeating: 0x61, count: 1_048_577).write(to: fileURL)
-    defer { try? FileManager.default.removeItem(at: fileURL) }
 
     let digest = try Container.shared.makeAudioFileHasher().sha256(of: fileURL)
 

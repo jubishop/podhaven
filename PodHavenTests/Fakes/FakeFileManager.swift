@@ -25,7 +25,7 @@ final class FakeFileManager: FileManaging, Sendable {
 
   var temporaryDirectory: URL { URL(fileURLWithPath: "/tmp/fake") }
 
-  private let directories = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+  private let directories = TestFiles.uniqueURL()
 
   func urls(
     for directory: FileManager.SearchPathDirectory,

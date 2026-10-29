@@ -14,7 +14,6 @@ struct SiriResolutionDiagnosticsTests {
   @Test("slow successes and failures have independent bounded uploads", arguments: [false, true])
   func independentFailureCapture(deferred: Bool) async throws {
     let file = Container.shared.siriCatalogFile()
-    defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     let journal = SiriResolutionJournal(
       url: file.url.deletingLastPathComponent()
         .appendingPathComponent("siri-extension-resolutions.json"),
@@ -49,8 +48,7 @@ struct SiriResolutionDiagnosticsTests {
 
   @Test("journal time remains in total duration but outside catalog phase durations")
   func phaseTimingExcludesJournal() throws {
-    let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer { try? FileManager.default.removeItem(at: url) }
+    let url = TestFiles.uniqueURL()
     let journal = SiriResolutionJournal(
       url: url,
       sessionID: "test",
@@ -84,7 +82,6 @@ struct SiriResolutionDiagnosticsTests {
   @Test("failed real resolution sends bounded attributed summaries without private metadata")
   @MainActor func failureEnvelope() async throws {
     let file = Container.shared.siriCatalogFile()
-    defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     try file.write(
       SiriCatalog(podcasts: [
         .init(
@@ -147,8 +144,7 @@ struct SiriResolutionDiagnosticsTests {
     "journal retains bounded summaries across restart and corrupt or oversized files fail closed"
   )
   func boundedHistory() throws {
-    let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer { try? FileManager.default.removeItem(at: url) }
+    let url = TestFiles.uniqueURL()
     let make = {
       SiriResolutionJournal(
         url: url,
@@ -187,7 +183,6 @@ struct SiriResolutionDiagnosticsTests {
   )
   func hangEnvelope(type: String) async throws {
     let file = Container.shared.siriCatalogFile()
-    defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     let journal = SiriResolutionJournal(
       url: file.url.deletingLastPathComponent().appendingPathComponent("siri-app-resolutions.json"),
       sessionID: "previous-session",
@@ -225,7 +220,6 @@ struct SiriResolutionDiagnosticsTests {
   @Test("extension failures retain origin attribution and are not recaptured after app restart")
   func extensionFailure() async throws {
     let file = Container.shared.siriCatalogFile()
-    defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     let journal = SiriResolutionJournal(
       url: file.url.deletingLastPathComponent()
         .appendingPathComponent("siri-extension-resolutions.json"),

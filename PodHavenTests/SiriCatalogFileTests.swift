@@ -13,9 +13,8 @@ struct SiriCatalogFileTests {
   private let limit = 32 * 1024 * 1024
 
   private func withFile(_ body: (SiriCatalogFile) async throws -> Void) async throws {
-    let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let url = TestFiles.uniqueURL()
     try Data().write(to: url)
-    defer { try? FileManager.default.removeItem(at: url) }
     try await body(SiriCatalogFile(url: url))
   }
 

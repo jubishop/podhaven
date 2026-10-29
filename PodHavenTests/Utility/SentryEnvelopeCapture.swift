@@ -55,7 +55,7 @@ final class SentryEnvelopeCapture {
   let client: SentryClient
   private let host = UUID().uuidString.lowercased() + ".invalid"
   private let requests = ThreadSafe<[Data]>([])
-  private let cache = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+  private let cache = TestFiles.uniqueURL()
   private let session: URLSession
 
   init(options: Sentry.Options) throws {
@@ -75,7 +75,6 @@ final class SentryEnvelopeCapture {
     client.close()
     session.invalidateAndCancel()
     CaptureProtocol.requests[host] = nil
-    try? FileManager.default.removeItem(at: cache)
   }
 
   func items() async throws -> [Item] {

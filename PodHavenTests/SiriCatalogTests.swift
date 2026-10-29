@@ -117,7 +117,6 @@ struct SiriCatalogTests {
   func databaseFreshness() async throws {
     let db = Container.shared.appDB()
     let file = Container.shared.siriCatalogFile()
-    defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     db.startSiriCatalog(file)
     try await db.siriCatalogPublished()
     #expect(try await file.read().podcasts.isEmpty)
@@ -159,7 +158,6 @@ struct SiriCatalogTests {
       )
     let episode = PodcastEpisode(podcast: series.podcast, episode: series.episodes[0])
     let file = Container.shared.siriCatalogFile()
-    defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     try await Container.shared.appDB().writer
       .write { db in
         let queries = ThreadSafe<[String]>([])
@@ -196,7 +194,6 @@ struct SiriCatalogTests {
   @Test("unavailable or invalidated catalog data never produces a handoff")
   func unavailableCatalog() async throws {
     let file = Container.shared.siriCatalogFile()
-    defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     let handler = SiriMediaIntentHandler(catalog: file.read, authorized: { true })
     let responses = ThreadSafe<[Int]>([])
     handler.handle(intent: SiriTestIntent.named("One")) { code in

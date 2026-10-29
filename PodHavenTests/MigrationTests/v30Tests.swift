@@ -9,7 +9,7 @@ import Testing
 struct V30MigrationTests {
 
   private func makeTempDir() throws -> URL {
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let url = TestFiles.uniqueURL()
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
   }

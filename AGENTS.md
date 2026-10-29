@@ -103,6 +103,7 @@ take precedence over this block and the foundation pages wherever they differ.
 - Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete all test-only surfaces.
 - Put the test seam at the OS-integration boundary, not above our own logic. Wrap system-framework types in app-owned protocols that the real types conform to (via `extension`) and fake those, so our orchestration runs for real in tests.
 - To assert on swift-log output, use `LogCapture.withSink` (per-test isolation via `@TaskLocal`).
+- Put files that tests write under `TestFiles.uniqueURL()`, not `URL.temporaryDirectory`. The test process removes that root when it exits, so add no per-test cleanup for those files; `bin/test-all` fails when tests leave new entries in the test host's temporary directory.
 
 ## Previews
 - Every graphical change requires adequate Xcode `#Preview` coverage. Add or update preview blocks so the changed UI and its relevant states can be inspected without running the app, and verify that the previews build.

@@ -15,9 +15,8 @@ struct FileLogCostTests {
     Container.shared.fakeContinuousClock().freeze()
     for repetition in 0..<7 {
       for sync in repetition.isMultiple(of: 2) ? [true, false] : [false, true] {
-        let directory = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = TestFiles.uniqueURL()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
         let paths = [
           directory.appendingPathComponent("full.ndjson"),
           directory.appendingPathComponent("recent.ndjson"),

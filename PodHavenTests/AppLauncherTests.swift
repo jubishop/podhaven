@@ -78,7 +78,6 @@ struct AppLauncherTests {
       )
       try content.write(to: file)
     }
-    defer { for file in files { try? FileManager.default.removeItem(at: file) } }
     let options = Sentry.Options()
     AppLauncher.configureSentryOptions(options)
     let capture = try SentryEnvelopeCapture(options: options)
@@ -187,7 +186,6 @@ struct AppLauncherTests {
       )
       try content.write(to: file)
     }
-    defer { for file in files { try? FileManager.default.removeItem(at: file) } }
     let options = Options()
     AppLauncher.configureSentryOptions(options)
     let capture = try SentryEnvelopeCapture(options: options)
