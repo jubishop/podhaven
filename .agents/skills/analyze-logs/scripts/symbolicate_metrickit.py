@@ -21,6 +21,8 @@ on-device symbolication is impossible. This script:
    (cached locally by UUID under ~/Library/Caches/podhaven-symbolicate). It
    prefers a DWARF debug file over a stripped executable; a cached executable
    is rechecked against Sentry once per online run so a later dSYM replaces it.
+   Each run deletes cache entries that no run has used in CACHE_MAX_IDLE_DAYS
+   days.
 4. Runs `atos` to resolve frames to function/file/line.
 5. Prints a human-readable report (or JSON) alongside the diagnostic metadata.
 """
@@ -36,6 +38,7 @@ import ssl
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.parse
 import urllib.request
 import zipfile
@@ -44,6 +47,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Iterable
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from log_summary import parse_time_arg
@@ -53,6 +57,7 @@ PACIFIC = ZoneInfo("America/Los_Angeles")
 METRICKIT_METADATA_KEY = "metricKitDiagnostic"
 DEFAULT_CATEGORIES = ("crash", "hang", "cpuException", "diskWriteException", "appLaunch")
 DEFAULT_CACHE_DIR = Path("~/Library/Caches/podhaven-symbolicate").expanduser()
+CACHE_MAX_IDLE_DAYS = 30
 DEFAULT_SENTRY_ORG = "artisanal-software"
 DEFAULT_SENTRY_PROJECT = "podhaven"
 SENTRY_API_BASE = "https://sentry.io/api/0"
@@ -315,6 +320,18 @@ class DSYMResolver:
     def misses(self) -> list[str]:
         return sorted(self._misses)
 
+    def prune(self) -> None:
+        cutoff = time.time() - CACHE_MAX_IDLE_DAYS * 86400
+        for entry_dir in self.cache_dir.iterdir():
+            if not self._is_entry_dir(entry_dir) or entry_dir.stat().st_mtime >= cutoff:
+                continue
+            try:
+                shutil.rmtree(entry_dir)
+            except OSError as exc:
+                self._log(f"could not prune {entry_dir}: {exc}")
+                continue
+            self._log(f"pruned {entry_dir.name}, unused for over {CACHE_MAX_IDLE_DAYS} days")
+
     def _log(self, message: str) -> None:
         if self.verbose:
             print(f"[symbolicate] {message}", file=sys.stderr)
@@ -322,10 +339,20 @@ class DSYMResolver:
     def _entry_dir(self, key: str) -> Path:
         return self.cache_dir / key
 
+    @staticmethod
+    def _is_entry_dir(path: Path) -> bool:
+        # Prune only debug-ID entries, so a mistaken --cache-dir loses nothing else.
+        try:
+            return path.is_dir() and str(UUID(path.name)) == path.name
+        except ValueError:
+            return False
+
     def _lookup_cache(self, key: str) -> Path | None:
         entry_dir = self._entry_dir(key)
         if not entry_dir.is_dir():
             return None
+        # Marks the entry used; prune measures idleness from this mtime.
+        os.utime(entry_dir)
         dwarf = self._find_dwarf(entry_dir)
         return dwarf
 
@@ -398,9 +425,15 @@ class DSYMResolver:
                 self._log(f"download {file_id} failed: {exc}")
                 continue
             dwarf = self._find_dwarf(target_dir)
-            if dwarf is not None:
-                self._log(f"cached dSYM for {key} at {dwarf}")
-                return dwarf
+            if dwarf is None:
+                continue
+            if dwarf.is_relative_to(target_dir / "DWARF"):
+                # The DWARF file supersedes any executable cached at the entry root.
+                for child in target_dir.iterdir():
+                    if child.is_file():
+                        child.unlink()
+            self._log(f"cached dSYM for {key} at {dwarf}")
+            return dwarf
         return cached
 
     def _list_debug_files(self, debug_id: str) -> list[dict[str, Any]]:
@@ -669,7 +702,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cache-dir",
         default=str(DEFAULT_CACHE_DIR),
-        help=f"dSYM cache directory. Default: {DEFAULT_CACHE_DIR}.",
+        help=f"dSYM cache directory. Default: {DEFAULT_CACHE_DIR}. Each run deletes "
+        f"debug-ID entries that no run has used in {CACHE_MAX_IDLE_DAYS} days.",
     )
     parser.add_argument(
         "--sentry-org",
@@ -741,6 +775,8 @@ def main() -> int:
         offline=args.offline,
         verbose=args.verbose,
     )
+    symbolicated = [symbolicate_entry(entry, resolver) for entry in entries]
+    resolver.prune()
 
     if not entries:
         if args.json_output:
@@ -772,8 +808,6 @@ def main() -> int:
         else:
             print(f"No MetricKit entries found in {path}.")
         return 0
-
-    symbolicated = [symbolicate_entry(entry, resolver) for entry in entries]
 
     if args.json_output:
         payload = {

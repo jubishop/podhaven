@@ -4,10 +4,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
+import os
 import sys
 import tempfile
+import time
 import unittest
 import urllib.parse
 from pathlib import Path
@@ -394,6 +397,11 @@ class TestDebugFileSelection(unittest.TestCase):
         self.assertEqual(self.resolve(sentry), MACHO_MAGIC + b"dbg-1")
         self.assertEqual(sentry.downloads, ["dbg-1"])
 
+    def test_dwarf_download_removes_the_superseded_executable(self) -> None:
+        self.resolve(FakeSentry([EXE_RECORD]))
+        self.resolve(FakeSentry([EXE_RECORD, DBG_RECORD]))
+        self.assertEqual([path.name for path in (self.cache_dir / DEBUG_ID).iterdir()], ["DWARF"])
+
     def test_cached_executable_is_kept_while_sentry_lacks_dwarf(self) -> None:
         self.resolve(FakeSentry([EXE_RECORD]))
         sentry = FakeSentry([EXE_RECORD])
@@ -438,6 +446,38 @@ class TestDebugFileSelection(unittest.TestCase):
         resolver = self.resolver(unavailable)
         self.assertEqual([resolver.resolve(DEBUG_ID) for _ in range(3)], [None] * 3)
         self.assertEqual(attempts, 1)
+
+
+class TestCachePruning(unittest.TestCase):
+    def test_run_prunes_idle_entries_and_keeps_the_ones_it_resolves(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            log = write_log(tmp_path, metrickit_entry(100))
+            cache = tmp_path / "cache"
+            resolved = cache / "abcdef12-3456-7890-abcd-ef1234567890"
+            idle = cache / DEBUG_ID
+            recent = cache / "22222222-3333-4444-5555-666666666666"
+            foreign = cache / "not-a-debug-id"
+            for entry_dir in (resolved, idle, recent, foreign):
+                entry_dir.mkdir(parents=True)
+                (entry_dir / "exe-1.macho").write_bytes(MACHO_MAGIC)
+            stale = time.time() - (sm.CACHE_MAX_IDLE_DAYS + 1) * 86400
+            for entry_dir in (resolved, idle, foreign):
+                os.utime(entry_dir, (stale, stale))
+
+            atos = MagicMock(return_value=MagicMock(returncode=0, stdout=""))
+            argv = ["symbolicate_metrickit.py", str(log), "--offline", "--cache-dir", str(cache)]
+            with patch.object(sm.subprocess, "run", atos), patch.object(sys, "argv", argv):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(sm.main(), 0)
+
+            self.assertEqual(atos.call_args.args[0][2], str(resolved / "exe-1.macho"))
+            self.assertEqual(
+                sorted(path.name for path in cache.iterdir()),
+                sorted([resolved.name, recent.name, foreign.name]),
+            )
 
 
 class TestUUIDNormalization(unittest.TestCase):
