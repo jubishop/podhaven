@@ -228,14 +228,15 @@ Each catalog publication logs one bounded summary with fixed fields:
 | `bytes`, `maxBytes`, `oversized` | Encoded size, the extension reader's limit, and whether readers will reject it |
 | `openMs` | Launch database open and migration time; `none` for commits |
 | `appState` | UIKit application state when launch initialization began; `none` for commits |
-| `suppressed` | Slow commit summaries kept local since the last commit warning |
+| `suppressed` | Commit warnings kept as local debug summaries since the last one sent |
 
 A summary becomes a warning when publication or launch open time reaches one
-second, the publisher omits episodes, or the catalog exceeds the reader limit. `SentryLogHandler` forwards
-warnings to Sentry Logs with its existing version, build, commit, and log
-session attributes. Launch warnings occur at most once per process. Commit
-warnings are limited to one per 15 minutes per process; the rest stay as local
-debug summaries. Summaries contain no titles, feed URLs, GUIDs, or media IDs.
+second, the publisher omits episodes, or the catalog exceeds the reader limit.
+`SentryLogHandler` forwards warnings to Sentry Logs with its existing version,
+build, commit, and log session attributes. Launch warnings occur at most once
+per process. Commit warnings are limited to one per 15 minutes per process; the
+rest stay as local debug summaries. Summaries contain no titles, feed URLs,
+GUIDs, or media IDs.
 Like the existing launch log, `appState` reflects UIKit during launch: the
 foreground Simulator smoke launch reported `background`, so this field alone
 does not prove a background launch.
