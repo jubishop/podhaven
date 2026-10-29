@@ -623,6 +623,8 @@ def check_boundary(run_dir, env, scratch):
         ("cat ../outside.txt", "denied"),
         # The allow rules must not reach outside the repository or cover a command chained after them.
         ("jq -R . ../outside.txt", "denied"), ("jq --rawfile f ../outside.txt -n '$f'", "denied"),
+        # jq's module import takes its path from inside the program, where a check of file arguments misses it.
+        ("""jq -n 'import "outside" as $x {search: ".."}; $x'""", "denied"),
         ("jq -n 1; cat ../outside.txt", "denied"), (f"qmd search {token['search']} && printenv", "denied"))]
     probes += [("Read ../outside.txt", "Read", {"file_path": str(scratch / "outside.txt")}, "denied"),
                ("Grep ../outside.txt", "Grep", {"pattern": ".", "path": str(scratch / "outside.txt"),
@@ -642,6 +644,7 @@ def check_boundary(run_dir, env, scratch):
         (repo / "memory/boundary-check.md").write_text("# Boundary check\n\n" + token["search"] + "\n")
         atomic_json(repo / "artifacts/memory-audit-context.json", {"probe": token["context"]})
         (scratch / "outside.txt").write_text(token["outside"] + "\n")
+        (scratch / "outside.json").write_text(json.dumps(token["outside"]) + "\n")
         canaries = {"AUDIT_CANARY": token["plain"], "AUDIT_CANARY_API_KEY": token["secret"]}
         check_env = prepare_search(repo, env) | canaries
         with stand_in_api(probes) as url:

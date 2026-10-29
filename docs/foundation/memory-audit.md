@@ -180,7 +180,10 @@ requires that:
   repository, as in `jq -R . ../outside.txt` and
   `jq --rawfile f ../outside.txt -n '$f'`, nor a command chained after them,
   as in `jq -n 1; cat ../outside.txt` and `qmd search … && printenv`.
-- No tool output holds the key, either canary, or that outside file.
+- `jq` cannot import a JSON file outside the repository as a module, as in
+  `jq -n 'import "outside" as $x {search: ".."}; $x'`, which names
+  `../outside.json` inside the program instead of as a file argument.
+- No tool output holds the key, either canary, or an outside file.
 
 A breach fails the run before the model starts, so the real key never reaches
 a tool. The failure reports like any other, naming Claude Code's version and
