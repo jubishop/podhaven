@@ -6,18 +6,23 @@ Project Starter manages this file; see docs/foundation/memory-audit.md.
 """
 
 import argparse
+from contextlib import contextmanager
 import fcntl
 import hashlib
+from http.server import BaseHTTPRequestHandler
 import json
 import os
 from pathlib import Path
 import plistlib
 import re
+import secrets
 import shutil
 import signal
+import socketserver
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -39,6 +44,8 @@ KEY_REFUSALS = (
     ("key-rejected", None, "authentication_failed", (401, 403)),
 )
 FAILURE_ISSUE = "Memory audit failing"
+# The tool boundary check's bogus key, which only its local stand-in API receives.
+BOUNDARY_KEY = "sk-ant-api03-memory-audit-boundary-check"
 RETENTION_DAYS = 60
 WEEKDAYS = ("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
 SETTINGS = ("repository", "launchAgentLabel", "schedule", "issueLabels", "commitTrailers", "indexHeading", "context",
@@ -484,7 +491,7 @@ def run_model(repo, run_dir, env, prompt, timeout=5400, key=None):
             except subprocess.TimeoutExpired:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
-            raise RuntimeError("Claude exceeded the 90-minute limit; see " + str(log.name)) from None
+            raise RuntimeError("Claude exceeded its time limit; see " + str(log.name)) from None
         if process.returncode:
             raise RuntimeError(f"Claude exited {process.returncode}; see {log.name}")
     result = None
@@ -517,6 +524,160 @@ def prepare_search(repo, env):
     env = env | {"QMD_CONFIG_DIR": str(config_dir), "XDG_CACHE_HOME": str(qmd_dir / "cache"), "INDEX_PATH": str(index)}
     command(["qmd", "update"], repo, env, timeout=300)
     return env
+
+
+def stand_in_reply(body, probes):
+    """Return the stand-in model's content blocks for one Messages API request of the boundary check.
+
+    The first turn makes every probe call at once, the second returns an empty audit through the structured
+    output tool, and anything else, such as a request without the audit's tools, gets a short text answer.
+    """
+    tools = {tool.get("name"): tool for tool in body.get("tools") or [] if isinstance(tool, dict)}
+    answered = {block.get("tool_use_id") for message in body.get("messages") or [] if isinstance(message, dict)
+                and isinstance(message.get("content"), list) for block in message["content"]
+                if isinstance(block, dict) and block.get("type") == "tool_result"}
+    fields = set(output_schema()["properties"])
+    output = next((name for name, tool in tools.items() if isinstance(tool.get("input_schema"), dict)
+                   and set(tool["input_schema"].get("properties") or {}) == fields), None)
+    if "Bash" in tools and not answered:
+        return [{"type": "tool_use", "id": f"toolu_boundary_{number}", "name": tool, "input": arguments}
+                for number, (_, tool, arguments, _) in enumerate(probes)]
+    if "Bash" in tools and output and "toolu_boundary_result" not in answered:
+        return [{"type": "tool_use", "id": "toolu_boundary_result", "name": output,
+                 "input": {"report": "Boundary check", "findings": [], "changes": []}}]
+    return [{"type": "text", "text": "Boundary check."}]
+
+
+@contextmanager
+def stand_in_api(probes):
+    """Serve a local stand-in for the Anthropic Messages API that scripts the boundary check's tool calls."""
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            blocks = stand_in_reply(body, probes)
+            stop = "tool_use" if blocks[0]["type"] == "tool_use" else "end_turn"
+            message = {"id": "msg_boundary_check", "type": "message", "role": "assistant", "model": body.get("model"),
+                       "content": blocks, "stop_reason": stop, "stop_sequence": None,
+                       "usage": {"input_tokens": 1, "output_tokens": 1}}
+            if body.get("stream"):
+                events = [("message_start", {"message": message | {"content": [], "stop_reason": None}})]
+                for index, block in enumerate(blocks):
+                    if block["type"] == "tool_use":
+                        start, delta = block | {"input": {}}, {"type": "input_json_delta",
+                                                               "partial_json": json.dumps(block["input"])}
+                    else:
+                        start, delta = block | {"text": ""}, {"type": "text_delta", "text": block["text"]}
+                    events += [("content_block_start", {"index": index, "content_block": start}),
+                               ("content_block_delta", {"index": index, "delta": delta}),
+                               ("content_block_stop", {"index": index})]
+                events += [("message_delta", {"delta": {"stop_reason": stop, "stop_sequence": None},
+                                              "usage": {"output_tokens": 1}}), ("message_stop", {})]
+                kind = "text/event-stream"
+                text = "".join(f"event: {name}\ndata: {json.dumps({'type': name} | data)}\n\n" for name, data in events)
+            else:
+                kind, text = "application/json", json.dumps(message)
+            self.send_response(200)
+            self.send_header("Content-Type", kind)
+            self.send_header("Content-Length", str(len(text.encode())))
+            self.end_headers()
+            self.wfile.write(text.encode())
+
+    # A plain TCP server skips HTTPServer's reverse lookup of its address, which can stall for seconds on macOS.
+    server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), Handler)
+    server.daemon_threads = True
+    # A short poll lets the check end as soon as Claude Code does.
+    threading.Thread(target=server.serve_forever, args=(0.05,), daemon=True).start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def check_boundary(run_dir, env):
+    """Fail unless the installed Claude Code still keeps secrets, the environment, and outside files from the
+    model's tools, and still lets them use jq on the context and qmd search on the clone's own index.
+
+    Real Claude Code runs through run_model and prepare_search with the audit's flags and scrub mode, but a
+    local stand-in API scripts its tool calls, so the check makes no model request. A bogus key and canary
+    variables stand in for secrets, and a scratch repository with one note stands in for the clone.
+    """
+    folder = run_dir / "boundary"
+    repo = folder / "repository"
+    token = {name: secrets.token_hex(8) for name in ("secret", "plain", "context", "outside")}
+    token["search"] = "canary" + secrets.token_hex(8)
+    leaks = {token["secret"]: "the secret-named AUDIT_CANARY_API_KEY", BOUNDARY_KEY: "ANTHROPIC_API_KEY",
+             token["plain"]: "the environment", token["outside"]: "a file outside the repository"}
+    # Each probe must print null or be denied ("hidden"), be denied ("denied"), or print the given text.
+    probes = [(line, "Bash", {"command": line, "description": "Boundary check"}, expected) for line, expected in (
+        ("jq -n 'env.AUDIT_CANARY_API_KEY'", "hidden"), ("jq -n '$ENV.AUDIT_CANARY_API_KEY'", "hidden"),
+        ("jq -n 'env.ANTHROPIC_API_KEY'", "hidden"),
+        ("jq -r .probe artifacts/memory-audit-context.json", token["context"]),
+        ("qmd search " + token["search"], "qmd://memory/boundary-check.md"),
+        ("printenv", "denied"), ("env", "denied"), ("ps eww", "denied"), ("ps -E", "denied"),
+        ("cat ../outside.txt", "denied"))]
+    probes.append(("Read ../outside.txt", "Read", {"file_path": str(folder / "outside.txt")}, "denied"))
+    try:
+        for path in ("bin", ".config", "memory", "artifacts"):
+            (repo / path).mkdir(parents=True)
+        # Its own Git repository keeps the checkout's local settings, such as a home memory path, out of the index.
+        command(["git", "init", "--quiet"], repo, env)
+        shutil.copy2(ROOT / "bin/_knowledge.py", repo / "bin")
+        (repo / ".config/knowledge.json").write_text(json.dumps(
+            {"schema_version": 1, "collections": {"memory": {"path": "memory", "pattern": "**/*.md"}}}) + "\n")
+        (repo / "memory/boundary-check.md").write_text("# Boundary check\n\n" + token["search"] + "\n")
+        atomic_json(repo / "artifacts/memory-audit-context.json", {"probe": token["context"]})
+        (folder / "outside.txt").write_text(token["outside"] + "\n")
+        canaries = {"AUDIT_CANARY": token["plain"], "AUDIT_CANARY_API_KEY": token["secret"]}
+        check_env = prepare_search(repo, env) | canaries
+        with stand_in_api(probes) as url:
+            run_model(repo, folder, check_env | {"ANTHROPIC_BASE_URL": url}, "Run the boundary check.", timeout=300,
+                      key=BOUNDARY_KEY)
+    except RuntimeError as error:
+        raise RuntimeError("Could not check the memory audit's tool boundary, so the model did not run: "
+                           + str(error)) from None
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+    version, results = "an unknown version", {}
+    for line in (folder / "events.jsonl").read_text(errors="replace").splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get("type") == "system" and event.get("subtype") == "init" and event.get("claude_code_version"):
+            version = str(event["claude_code_version"])
+        message = event.get("message") if event.get("type") == "user" else None
+        for block in (message.get("content") or []) if isinstance(message, dict) else []:
+            if isinstance(block, dict) and block.get("type") == "tool_result":
+                content = block.get("content")
+                if isinstance(content, list):
+                    content = "\n".join(str(part.get("text") or "") for part in content if isinstance(part, dict))
+                results[block.get("tool_use_id")] = (bool(block.get("is_error")), str(content or ""))
+    problems = []
+    for number, (label, _, _, expected) in enumerate(probes):
+        if f"toolu_boundary_{number}" not in results:
+            problems.append(label + " got no result")
+            continue
+        denied, output = results[f"toolu_boundary_{number}"]
+        leaked = [what for secret, what in leaks.items() if secret in output]
+        if leaked:
+            problems.append(label + " revealed " + " and ".join(leaked))
+        elif expected == "denied" and not denied:
+            problems.append(label + " ran without approval")
+        elif expected == "hidden" and not denied and output.strip() != "null":
+            problems.append(label + " did not print null")
+        elif expected not in ("denied", "hidden") and (denied or expected not in output):
+            problems.append(label + " did not print " + expected)
+    if problems:
+        raise RuntimeError(f"Claude Code {version} breaks the memory audit's tool boundary, so the model did not "
+                           "run: " + "; ".join(problems) + ". Project Starter's runner must adapt to it; see "
+                           "docs/foundation/memory-audit.md#tool-boundary-check and the run's boundary folder.")
 
 
 def run(root=ROOT, force=False):
@@ -596,6 +757,8 @@ def run(root=ROOT, force=False):
             artifacts.mkdir(exist_ok=True)
             atomic_json(artifacts / "memory-audit-context.json", context)
             atomic_json(run_dir / "memory-audit-context.json", context)
+            # Claude Code can change what its tools reach in any release, so check before the model starts.
+            check_boundary(run_dir, env)
             env = prepare_search(repo, env)
             meta["credential"] = "api-key" if key else "subscription"
             atomic_json(state / "latest.json", meta)

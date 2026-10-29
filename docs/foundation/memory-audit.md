@@ -125,7 +125,9 @@ Claude Code's subprocess scrub mode, which bills the key but withholds
 `ANTHROPIC_API_KEY` and other secret-named variables from every tool process.
 Scrub mode keeps the job's manual permission mode. It also withholds
 `XDG_CACHE_HOME`, so the runner names the clone's search index with
-`INDEX_PATH`; otherwise `qmd search` would read the user's own index.
+`INDEX_PATH`; otherwise `qmd search` would read the user's own index. Each
+run first [checks](#tool-boundary-check) that the installed Claude Code still
+behaves this way.
 
 When the API refuses the key, the runner reruns that model attempt on the
 subscription with no manual step, and the rest of the run stays there. The
@@ -145,6 +147,32 @@ so does a fallback without a subscription login. `latest.json` and the run's
 `subscription`, and after a fallback a `fallback` object with its `trigger`,
 HTTP `status`, and API `message`. The refused attempt's logs stay in the run
 folder as `api-key-events.jsonl` and `api-key-claude.log`.
+
+## Tool boundary check
+
+What the model's tools can reach depends on Claude Code behavior that can
+change in any release, such as scrub mode, the `jq` allow rule, and which
+variables reach tools. So before every model run, the runner checks the
+installed Claude Code with its own model-run and search setup and the audit's
+flags. A local stand-in for the Anthropic API scripts the tool calls, so the
+check makes no model request, costs nothing, and takes a few seconds. It runs
+in a scratch repository with one note, a bogus `ANTHROPIC_API_KEY`, and two
+canary variables, `AUDIT_CANARY` and the secret-named `AUDIT_CANARY_API_KEY`,
+and requires that:
+
+- `jq` reads `null` for `ANTHROPIC_API_KEY` and `AUDIT_CANARY_API_KEY`,
+  through both `env` and `$ENV`.
+- `jq` reads `artifacts/memory-audit-context.json`.
+- `qmd search` finds the scratch note in its own index, not the user's.
+- `printenv`, `env`, `ps eww`, and `ps -E` are denied, and so are Read and
+  `cat` of a file outside the repository.
+- No tool output holds the key, either canary, or that outside file.
+
+A breach fails the run before the model starts, so the real key never reaches
+a tool. The failure reports like any other, naming Claude Code's version and
+each broken requirement, and the run folder keeps the check's logs in
+`boundary/`. Fix it in Project Starter's runner and sync the release; the
+next run checks again.
 
 ## Validation
 
@@ -199,7 +227,8 @@ launchctl print gui/$(id -u)/<launchAgentLabel>
 
 `latest.json` records the latest success, failure, or skip, its run folder,
 the [credential](#api-key) and any fallback, and any `publishedCommit`. A failure never updates `last-success.json`. Each
-run folder keeps `run-meta.json` and the context; model attempts add
+run folder keeps `run-meta.json` and the context; the
+[tool boundary check](#tool-boundary-check) adds `boundary/`, model attempts add
 `events.jsonl`, `claude.log`, and the structured result, and successful runs
 add `memory-audit-report.md` and `memory-audit.patch`. The clone is deleted
 when the run ends. Run folders stay local and ignored by Git. Each run deletes
