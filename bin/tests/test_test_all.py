@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -15,7 +16,7 @@ import service_guard
 
 ROOT = Path(__file__).resolve().parents[2]
 FAKE = r'''
-import fcntl, json, os, pathlib, subprocess, sys
+import fcntl, json, os, pathlib, signal, subprocess, sys, time
 name = pathlib.Path(sys.argv[0]).name
 args = sys.argv[1:]
 base = pathlib.Path(os.environ['TEST_ALL_FIXTURE'])
@@ -51,6 +52,31 @@ elif name == 'xcodebuild':
         selection + ':PodHavenTests/SiriLargeCatalogTests']
     if os.environ.get('TEST_HOLD_FIFO') and not performance:
         pathlib.Path(os.environ['TEST_HOLD_FIFO']).read_text()
+    stalled = os.environ.get('TEST_HOST_STALL') == bundle.stem
+    if stalled:
+        ended = subprocess.Popen([sys.executable, '-c', ''])
+        ended.wait()
+        print(f"Test suite 'Selected tests' started on 'My Mac - PodHaven ({ended.pid})'")
+        print('Restarting after unexpected exit, crash, or test timeout')
+        host = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+        (base / 'stalled-host').write_text(str(host.pid))
+        print(f"Test suite 'Selected tests' started on 'My Mac - PodHaven ({host.pid})'", flush=True)
+        try:
+            host.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            host.kill()
+            host.wait()
+        print(f"Test case 'StalledTests/waits()' failed on 'My Mac - PodHaven ({host.pid})' (600.000 seconds)")
+    if os.environ.get('TEST_HOST_BUSY') and not performance:
+        quiet = float(os.environ['TEST_HOST_BUSY'])
+        time.sleep(quiet * 1.5)
+        host = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+        for index in range(40):
+            print(f"Test case 'BusyTests/step{index}()' passed on 'My Mac - PodHaven ({host.pid})'", flush=True)
+            time.sleep(quiet / 20)
+        host.kill()
+        host.wait()
+        time.sleep(quiet * 1.5)
     if not os.environ.get('TEST_MISSING_BUNDLE') and fault != 'missing-bundle':
         bundle.mkdir()
     print('Tests completed')
@@ -60,7 +86,7 @@ elif name == 'xcodebuild':
         subprocess.run(['git', 'add', '.'], check=True)
     if os.environ.get('TEST_ASSUME_CHECKOUT'):
         subprocess.run(['git', 'update-index', '--assume-unchanged', 'source.txt'], check=True)
-    if os.environ.get('TEST_BUILD_FAILURE') or fault == 'build': sys.exit(65)
+    if os.environ.get('TEST_BUILD_FAILURE') or fault == 'build' or stalled: sys.exit(65)
 elif name == 'xcrun' and args[:2] == ['xcresulttool', 'get']:
     bundle = pathlib.Path(args[args.index('--path') + 1])
     if not bundle.is_dir(): sys.exit(1)
@@ -92,6 +118,11 @@ elif name == 'xcrun' and args[:2] == ['xcresulttool', 'export']:
     fault = os.environ.get('TEST_PERFORMANCE_FAULT') if performance else None
     (output / 'StandardOutputAndStandardError.txt').write_text(
         'Main Thread Checker: invalid access' if fault == 'runtime' else 'Tests completed')
+elif name == 'sample':
+    path = pathlib.Path(args[args.index('-file') + 1])
+    path.write_text('Analysis of sampling PodHaven (pid ' + args[0] + ')\n')
+    if path.name.endswith('-2.sample.txt'):
+        os.kill(int(args[0]), signal.SIGTERM)
 elif name == 'check' and '--no-reuse' not in args and (base / 'check-passed').exists():
     print('Reused the application checks that passed earlier; bin/check --full --no-reuse runs them again.')
 elif name in ('check', 'lint-swift-format', 'test_skill.py', 'test_helper.py'):
@@ -116,6 +147,7 @@ class TestAllTests(unittest.TestCase):
         self.commands = self.base / "commands"
         self.commands.mkdir()
         for path in (self.commands / "xcodebuild", self.commands / "xcrun", self.commands / "sw_vers",
+                     self.commands / "sample",
                      self.repo / "bin/check", self.repo / "bin/lint-swift-format",
                      self.repo / ".agents/skills/example/test_skill.py",
                      self.repo / ".agents/scripts/example/test_helper.py"):
@@ -150,6 +182,15 @@ class TestAllTests(unittest.TestCase):
 
     def report(self):
         return json.loads(next((self.repo / ".cache/test-all").glob("*/run.json")).read_text())
+
+    def shorten_host_watch(self, quiet):
+        script = self.repo / "bin/test-all"
+        text = script.read_text()
+        for name, value in (("QUIET_LOG_SECONDS", quiet), ("SAMPLE_GAP_SECONDS", quiet / 5),
+                            ("POLL_SECONDS", quiet / 20)):
+            text, count = re.subn(rf"^{name} = .+$", f"{name} = {value}", text, flags=re.M)
+            self.assertEqual(count, 1, name)
+        script.write_text(text)
 
     def test_complete_run_includes_separate_suites_and_records_revision(self):
         result = self.run_all()
@@ -244,6 +285,40 @@ class TestAllTests(unittest.TestCase):
         owners = [Path(args[args.index("-resultBundlePath") + 1]).parents[3]
                   for name, args in events if name == "xcodebuild" and "test" in args]
         self.assertEqual(owners, [self.repo.resolve()] * 2 + [other.resolve()] * 2)
+
+    def test_stalled_test_host_is_sampled_twice_without_ending_the_run(self):
+        self.shorten_host_watch(1)
+        for bundle, log in (("TestResults", "xcodebuild"), ("SiriPerformance", "siri-performance")):
+            with self.subTest(phase=log):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
+                (self.base / "events").unlink(missing_ok=True)
+                result = self.run_all(TEST_HOST_STALL=bundle)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                host = (self.base / "stalled-host").read_text()
+                output = next((self.repo / ".cache/test-all").iterdir()).resolve()
+                samples = [output / f"{log}-host-{host}-{index}.sample.txt" for index in (1, 2)]
+                self.assertEqual(sorted(output.glob("*.sample.txt")), samples, result.stderr)
+                events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
+                self.assertEqual([(args[0], args[args.index("-file") + 1]) for name, args in events
+                                  if name == "sample"], [(host, str(path)) for path in samples])
+                self.assertIn("(600.000 seconds)", (output / f"{log}.log").read_text())
+                self.assertTrue(any(name == "xcrun" and "xcresulttool" in args
+                                    and args[args.index("--path") + 1] == str(output / f"{bundle}.xcresult")
+                                    for name, args in events))
+                report = self.report()
+                self.assertEqual(report["result"], "failed")
+                for path in samples:
+                    self.assertIn(str(path), report["error"])
+                    self.assertIn(str(path), result.stderr.split("error: ")[-1])
+
+    def test_busy_host_and_quiet_logs_without_a_live_host_are_not_sampled(self):
+        self.shorten_host_watch(1)
+        result = self.run_all(TEST_HOST_BUSY="1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
+        self.assertFalse(any(name == "sample" for name, _ in events))
+        self.assertEqual(list((self.repo / ".cache").rglob("*.sample.txt")), [])
+        self.assertEqual(self.report()["result"], "passed")
 
     def test_run_under_the_lock_command_reuses_its_lock(self):
         result = subprocess.run([sys.executable, "-B", str(ROOT / "bin/with-my-mac-lock"),

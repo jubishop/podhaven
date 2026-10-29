@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 sys.dont_write_bytecode = True
 from _my_mac_lock import my_mac_lock
@@ -21,6 +22,12 @@ DESTINATION = "platform=macOS,name=My Mac"
 RETAINED_RUNS = 5
 EVIDENCE_NAME = re.compile(r"\d{8}-\d{6}-\w+")
 TEST_ENVIRONMENT = {key: value for key, value in os.environ.items() if key != "SDKROOT"}
+HOST_PID = re.compile(rb" - PodHaven \((\d+)\)'")
+QUIET_LOG_SECONDS = 120
+SAMPLE_GAP_SECONDS = 60
+SAMPLE_SECONDS = 10
+SAMPLE_TIMEOUT_SECONDS = 120
+POLL_SECONDS = 1
 
 
 def capture(*command):
@@ -48,22 +55,75 @@ def checkout_state():
             "status": capture("git", "status", "--porcelain=v1", "--untracked-files=all")}
 
 
-def run(command, output, name, *, check=True, require_unittest=False, pass_fds=()):
+def host_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def sample_stalled_host(process, log):
+    """Once the log stops growing while the test host it names is alive, sample that host twice."""
+    with log.open("rb") as reader:
+        recent, host, quiet_since = b"", None, time.monotonic()
+        while True:
+            try:
+                process.wait(timeout=POLL_SECONDS)
+                return
+            except subprocess.TimeoutExpired:
+                pass
+            if chunk := reader.read():
+                quiet_since = time.monotonic()
+                recent += chunk
+                hosts = HOST_PID.findall(recent)
+                host = int(hosts[-1]) if hosts else host
+                recent = recent[-64:]
+            elif host and time.monotonic() - quiet_since >= QUIET_LOG_SECONDS and host_alive(host):
+                break
+    print(f"{log} has not grown for {QUIET_LOG_SECONDS} seconds while test host {host} runs; sampling it",
+          file=sys.stderr, flush=True)
+    for index in (1, 2):
+        path = log.with_name(f"{log.stem}-host-{host}-{index}.sample.txt")
+        try:
+            result = subprocess.run(["sample", str(host), str(SAMPLE_SECONDS), "-mayDie", "-file", str(path)],
+                                    env=TEST_ENVIRONMENT, capture_output=True, text=True,
+                                    timeout=SAMPLE_TIMEOUT_SECONDS)
+            failure = (f"exit code {result.returncode}: {result.stdout}{result.stderr}".strip()
+                       if result.returncode else "")
+        except (OSError, subprocess.SubprocessError) as error:
+            failure = str(error)
+        if failure or not path.is_file():
+            print(f"Could not sample test host {host}: {failure or 'sample wrote no report'}",
+                  file=sys.stderr, flush=True)
+        else:
+            print(f"Sampled test host {host}: {path}", file=sys.stderr, flush=True)
+        if index == 1:
+            try:
+                process.wait(timeout=SAMPLE_GAP_SECONDS)
+                return
+            except subprocess.TimeoutExpired:
+                pass
+
+
+def run(command, output, name, *, check=True, require_unittest=False, pass_fds=(), watch_host=False):
     log = output / f"{name}.log"
     print(f"Running {name}; log: {log}", flush=True)
-    with log.open("w") as stream:
-        result = subprocess.run(command, cwd=ROOT, env=TEST_ENVIRONMENT,
-                                stdout=stream, stderr=subprocess.STDOUT, pass_fds=pass_fds)
-    if result.returncode:
+    with log.open("w") as stream, subprocess.Popen(command, cwd=ROOT, env=TEST_ENVIRONMENT, stdout=stream,
+                                                   stderr=subprocess.STDOUT, pass_fds=pass_fds) as process:
+        if watch_host:
+            sample_stalled_host(process, log)
+        returncode = process.wait()
+    if returncode:
         print("\n".join(log.read_text(errors="replace").splitlines()[-35:]), file=sys.stderr)
         if check:
-            raise RuntimeError(f"{name} failed with exit code {result.returncode}; see {log}")
+            raise RuntimeError(f"{name} failed with exit code {returncode}; see {log}")
     if require_unittest:
         contents = log.read_text(errors="replace")
         counts = re.findall(r"^Ran (\d+) tests? in ", contents, re.M)
         if not counts or int(counts[-1]) == 0 or re.search(r"\bskipped=[1-9]\d*", contents):
             raise RuntimeError(f"{name} has skipped or missing tests; see {log}")
-    return result.returncode
+    return returncode
 
 
 def evidence_files(output):
@@ -190,16 +250,18 @@ def main():
                     "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
                     "-skipMacroValidation", "-resultBundlePath", str(bundle), selection,
                     "LM_FORCE_LINK_GENERATION=YES",
-                ], output, log_name, check=False, pass_fds=(lock,))
+                ], output, log_name, check=False, pass_fds=(lock,), watch_host=True)
+                samples = "".join(f"\nTest host sample: {path}"
+                                  for path in sorted(output.glob(f"{log_name}-host-*.sample.txt")))
                 if not bundle.is_dir():
                     raise RuntimeError(f"Swift tests did not produce a result bundle (exit code {test_status}); "
-                                       f"see {output / (log_name + '.log')} for the launch or build failure")
+                                       f"see {output / (log_name + '.log')} for the launch or build failure{samples}")
                 validation_status = run([
                     str(ROOT / "bin/check-swift-results"), str(bundle),
                     "--build-log", str(output / f"{log_name}.log"), *validation_options,
                 ], output, validation_name, check=False)
                 if test_status or validation_status:
-                    raise RuntimeError(f"Swift tests or evidence validation failed ({log_name})")
+                    raise RuntimeError(f"Swift tests or evidence validation failed ({log_name}){samples}")
         report["checkout_after"] = checkout_state()
         if any(report["checkout_after"][key] != report["checkout"][key]
                for key in ("revision", "worktree_sha256")):

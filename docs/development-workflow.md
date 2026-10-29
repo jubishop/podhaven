@@ -245,6 +245,18 @@ changes during the run. When full validation is required, retain a passing
 report for the final clean revision through the push, merge, or release. An
 earlier dirty-worktree run does not establish acceptance of that commit.
 
+While each `xcodebuild test` phase runs, `bin/test-all` watches for a stalled
+test host. The host is the latest `PodHaven (<pid>)` the phase's log names, so
+a host that XCTest relaunches after a timeout is followed, and build output
+before any host exists never counts. When the log stops growing for
+`QUIET_LOG_SECONDS` (two minutes) while that host is alive, the command takes
+two `sample` captures of it, `SAMPLE_GAP_SECONDS` apart, as
+`<log>-host-<pid>-1.sample.txt` and `-2.sample.txt` in the evidence directory,
+and names them in the failure output. It takes at most one pair per phase and
+then keeps waiting for `xcodebuild`, so the samples add evidence without
+ending the run early or changing whether it passes. Comparing the two samples
+shows which threads stayed blocked.
+
 The command runs automated tests with isolated service fixtures. Live Sentry
 smoke tests in `.agents/scripts/sentry-cli/test_sentry_skills.sh` and real QMD
 smoke tests remain separate because they need external credentials, current
