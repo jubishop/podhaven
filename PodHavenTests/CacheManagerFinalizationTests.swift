@@ -70,7 +70,7 @@ import Testing
     defer { urlSession.invalidateAndCancel() }
     let downloadTask = urlSession.downloadTask(with: mediaURL.rawValue)
     downloadTask.taskDescription = String(podcastEpisode.id.rawValue)
-    let temporaryURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let temporaryURL = TestFiles.uniqueURL()
     try await fileManager.writeData(Data.random(), to: temporaryURL)
 
     let downloadDelegate: any URLSessionDownloadDelegate = cacheBackgroundDelegate
@@ -289,7 +289,7 @@ import Testing
       taskDescription: String(podcastEpisode.id.rawValue),
       originalRequest: URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
     )
-    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let tempFile = TestFiles.uniqueURL()
     try await fileManager.writeData(Data.random(), to: tempFile)
     let replacementClaimed = ThreadSafe(false)
     fileManager.runBeforeRemovingItem(at: tempFile) {
@@ -434,7 +434,7 @@ import Testing
       originalRequest: URLRequest(url: podcastEpisode2.episode.mediaURL.rawValue)
     )
 
-    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let tempFile = TestFiles.uniqueURL()
     try await fileManager.writeData(Data.random(), to: tempFile)
     await cacheBackgroundDelegate.urlSession(
       session,
@@ -461,7 +461,7 @@ import Testing
       originalRequest: URLRequest(url: URL(string: "https://wrong.example.com/other.mp3")!)
     )
 
-    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let tempFile = TestFiles.uniqueURL()
     try await fileManager.writeData(Data.random(), to: tempFile)
     await cacheBackgroundDelegate.urlSession(
       session,
@@ -488,7 +488,7 @@ import Testing
       taskDescription: String(podcastEpisode.id.rawValue),
       originalRequest: URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
     )
-    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let tempFile = TestFiles.uniqueURL()
     try await fileManager.writeData(Data.random(), to: tempFile)
 
     let fakeRepo = try #require(repo as? FakeRepo)

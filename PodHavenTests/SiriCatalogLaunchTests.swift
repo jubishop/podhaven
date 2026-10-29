@@ -25,9 +25,8 @@ import Testing
 
   @Test("launch initialization returns before publication and never exposes a stale catalog")
   func launchPublication() async throws {
-    let directory = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let directory = TestFiles.uniqueURL()
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: directory) }
     let path = try committedLibrary(in: directory)
     let url = directory.appendingPathComponent("siri-media.json")
     try SiriCatalogFile(url: url)

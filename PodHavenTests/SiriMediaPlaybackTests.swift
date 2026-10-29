@@ -25,12 +25,6 @@ import UIKit
     return series.episodes.map { PodcastEpisode(podcast: series.podcast, episode: $0) }
   }
 
-  private func removeCatalog() {
-    try? FileManager.default.removeItem(
-      at: Container.shared.siriCatalogFile().url.deletingLastPathComponent()
-    )
-  }
-
   private func perform(_ intent: INPlayMediaIntent) async throws -> Int {
     let delegate: any UIApplicationDelegate = AppDelegate()
     let handler = try #require(
@@ -47,7 +41,6 @@ import UIKit
   @Test("a named saved episode starts through shared cold playback without CarPlay")
   func coldPlayback() async throws {
     let episodes = try await seed([Create.unsavedEpisode(title: "A named episode")])
-    defer { removeCatalog() }
     let result = try await perform(SiriTestIntent.named("A named episode", type: .podcastEpisode))
     #expect(result == INPlayMediaIntentResponseCode.success.rawValue)
     #expect(Container.shared.sharedState().currentEpisodeID == episodes[0].id)
@@ -64,7 +57,6 @@ import UIKit
           unsavedEpisodes: [try Create.unsavedEpisode(title: "A launch episode")]
         )
       )
-    defer { removeCatalog() }
     let storage = FakeSiriCatalogStorage()
     defer { storage.release() }
     Container.shared.appDB()
@@ -105,7 +97,6 @@ import UIKit
     let episodes = try await seed([
       Create.unsavedEpisode(title: "A paused episode", currentTime: .seconds(24))
     ])
-    defer { removeCatalog() }
     await Container.shared.appLauncher().prepareForPlayback()
     try await Container.shared.playManager().load(episodes[0])
     try await PlayHelpers.waitFor(.paused)
@@ -128,7 +119,6 @@ import UIKit
       Create.unsavedEpisode(title: "Older", pubDate: Date(timeIntervalSince1970: 1)),
       Create.unsavedEpisode(title: "Newer", pubDate: Date(timeIntervalSince1970: 2)),
     ])
-    defer { removeCatalog() }
     await Container.shared.appLauncher().prepareForPlayback()
     try await Container.shared.playManager().load(episodes[0])
     #expect(
@@ -150,7 +140,6 @@ import UIKit
       Create.unsavedEpisode(title: "First tie", pubDate: date),
       Create.unsavedEpisode(title: "Second tie", pubDate: date),
     ])
-    defer { removeCatalog() }
     #expect(
       try await perform(SiriTestIntent.named("A saved show", type: .podcastShow))
         == INPlayMediaIntentResponseCode.success.rawValue
@@ -161,7 +150,6 @@ import UIKit
   @Test("an exhausted podcast fails accurately, while a named finished episode can replay")
   func finished() async throws {
     let episodes = try await seed([Create.unsavedEpisode(title: "Finished", finishDate: Date())])
-    defer { removeCatalog() }
     #expect(
       try await perform(SiriTestIntent.named("A saved show", type: .podcastShow))
         == INPlayMediaIntentResponseCode.failureNoUnplayedContent.rawValue
@@ -178,7 +166,6 @@ import UIKit
     let episodes = try await seed([
       Create.unsavedEpisode(title: "First"), Create.unsavedEpisode(title: "Second"),
     ])
-    defer { removeCatalog() }
     await Container.shared.appLauncher().prepareForPlayback()
     let repo = Container.shared.repo() as! FakeRepo
     repo.pendingPodcastEpisodeFetchSuspend(true)
@@ -204,7 +191,6 @@ import UIKit
   @Test("remote pause cancels Siri while its catalog file is still pending")
   func cancelPendingCatalog() async throws {
     let episodes = try await seed([Create.unsavedEpisode(title: "Pending catalog")])
-    defer { removeCatalog() }
     let original = Container.shared.siriCatalogFile()
     let opened = ThreadSafe(false)
     let release = AsyncStream<Void>.makeStream()
@@ -250,7 +236,6 @@ import UIKit
   @Test("remote pause cancels a pending Siri lookup")
   func remoteCancellation() async throws {
     let episodes = try await seed([Create.unsavedEpisode(title: "Pending")])
-    defer { removeCatalog() }
     await Container.shared.appLauncher().prepareForPlayback()
     let repo = Container.shared.repo() as! FakeRepo
     repo.pendingPodcastEpisodeFetchSuspend(true)
@@ -273,7 +258,6 @@ import UIKit
   @Test("a stalled lookup times out once and cannot play when its result arrives late")
   func timeout() async throws {
     let episodes = try await seed([Create.unsavedEpisode(title: "Slow")])
-    defer { removeCatalog() }
     await Container.shared.appLauncher().prepareForPlayback()
     let repo = Container.shared.repo() as! FakeRepo
     repo.pendingPodcastEpisodeFetchSuspend(true)
@@ -298,7 +282,6 @@ import UIKit
   @Test("unavailable media returns failure rather than scheduled success")
   func unavailableMedia() async throws {
     let episodes = try await seed([Create.unsavedEpisode(title: "Unavailable")])
-    defer { removeCatalog() }
     await Container.shared.fakeEpisodeAssetLoader()
       .respond(to: episodes[0].episode.mediaURL, error: URLError(.cannotLoadFromNetwork))
     #expect(
@@ -311,7 +294,6 @@ import UIKit
   @Test("deletion during a suspended lookup invalidates the result before playback")
   func staleDeletion() async throws {
     let episodes = try await seed([Create.unsavedEpisode(title: "Deleted while resolving")])
-    defer { removeCatalog() }
     await Container.shared.appLauncher().prepareForPlayback()
     let repo = Container.shared.repo() as! FakeRepo
     repo.pendingPodcastEpisodeFetchSuspend(true)

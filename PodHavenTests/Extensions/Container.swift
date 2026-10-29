@@ -18,10 +18,7 @@ extension Container: @retroactive AutoRegistering {
     opmlDiagnosticCapture.context(.test) { { _, _ in } }
     siriAuthorized.context(.test) { { true } }
     siriCatalogFile.context(.test) {
-      SiriCatalogFile(
-        url: URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-          .appendingPathComponent("siri-media.json")
-      )
+      SiriCatalogFile(url: TestFiles.uniqueURL().appendingPathComponent("siri-media.json"))
     }
     .scope(.cached)
     carPlayNowPlaying.context(.test) { MainActor.assumeIsolated { FakeCarPlayNowPlaying() } }

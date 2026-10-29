@@ -176,7 +176,7 @@ import Testing
     let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
     let downloadTasks = await session.downloadTasks()
     let task = try #require(downloadTasks[id: taskID])
-    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let tempFile = TestFiles.uniqueURL()
     try await fileManager.writeData(Data.random(), to: tempFile)
 
     let identifier = AppInfo.bundleIdentifier + ".cache.bg.test.\(UUID())"

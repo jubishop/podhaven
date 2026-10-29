@@ -22,9 +22,7 @@ struct AppDBExportTests {
       )
     )
 
-    let exportURL = FileManager.default.temporaryDirectory
-      .appendingPathComponent("export-\(UUID().uuidString).sqlite")
-    defer { try? FileManager.default.removeItem(at: exportURL) }
+    let exportURL = TestFiles.uniqueURL().appendingPathExtension("sqlite")
 
     try appDB.exportSnapshot(to: exportURL)
     #expect(!FileManager.default.fileExists(atPath: exportURL.path + "-wal"))

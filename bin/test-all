@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import plistlib
 import re
 import shutil
 import subprocess
@@ -28,6 +29,9 @@ SAMPLE_GAP_SECONDS = 60
 SAMPLE_SECONDS = 10
 SAMPLE_TIMEOUT_SECONDS = 120
 POLL_SECONDS = 1
+TEST_HOST = "com.artisanalsoftware.PodHaven.debug"
+# The system, not the tests, keeps these in the test host's temporary directory.
+TEST_HOST_SYSTEM_ENTRIES = {"TemporaryItems", f"{TEST_HOST}.savedState"}
 
 
 def capture(*command):
@@ -124,6 +128,22 @@ def run(command, output, name, *, check=True, require_unittest=False, pass_fds=(
         if not counts or int(counts[-1]) == 0 or re.search(r"\bskipped=[1-9]\d*", contents):
             raise RuntimeError(f"{name} has skipped or missing tests; see {log}")
     return returncode
+
+
+def test_host_temporary_directory():
+    for metadata in (Path.home() / "Library/Containers").glob("*/.com.apple.containermanagerd.metadata.plist"):
+        try:
+            with metadata.open("rb") as stream:
+                identity = plistlib.load(stream)
+        except (OSError, ValueError):
+            continue
+        if isinstance(identity, dict) and identity.get("MCMMetadataIdentifier") == TEST_HOST:
+            return metadata.parent / "Data/tmp"
+    return None
+
+
+def test_host_temporary_entries(directory):
+    return set(os.listdir(directory)) if directory and directory.is_dir() else set()
 
 
 def evidence_files(output):
@@ -238,6 +258,7 @@ def main():
             raise RuntimeError(f"Macro tests were skipped; see {output / 'macros.log'}")
 
         with my_mac_lock(f"bin/test-all in {ROOT}") as lock:
+            earlier_entries = test_host_temporary_entries(test_host_temporary_directory())
             for bundle_name, log_name, validation_name, selection, validation_options in (
                 ("TestResults", "xcodebuild", "swift-validation",
                  "-skip-testing:PodHavenTests/SiriLargeCatalogTests", ["--full"]),
@@ -262,6 +283,13 @@ def main():
                 ], output, validation_name, check=False)
                 if test_status or validation_status:
                     raise RuntimeError(f"Swift tests or evidence validation failed ({log_name}){samples}")
+            temporary = test_host_temporary_directory()
+            if temporary is None:
+                raise RuntimeError(f"Could not find the {TEST_HOST} container that ran the tests")
+            left = sorted(test_host_temporary_entries(temporary) - earlier_entries - TEST_HOST_SYSTEM_ENTRIES)
+            if left:
+                raise RuntimeError(f"Tests left {len(left)} new entries in {temporary}: {', '.join(left[:10])}"
+                                   "; put test files under TestFiles.uniqueURL()")
         report["checkout_after"] = checkout_state()
         if any(report["checkout_after"][key] != report["checkout"][key]
                for key in ("revision", "worktree_sha256")):

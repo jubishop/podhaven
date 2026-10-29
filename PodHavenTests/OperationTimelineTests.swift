@@ -91,8 +91,7 @@ struct OperationTimelineTests {
 
   @Test("busy detail activity does not suppress other operation sites in the file log")
   func independentOperationRateLimits() throws {
-    let file = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ndjson")
-    defer { try? FileManager.default.removeItem(at: file) }
+    let file = TestFiles.uniqueURL().appendingPathExtension("ndjson")
     let handler = FileLogHandler(
       label: "PodHaven/OperationTimelineTests",
       fileURL: file,

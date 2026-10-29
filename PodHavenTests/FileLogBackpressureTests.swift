@@ -13,8 +13,7 @@ struct FileLogBackpressureTests {
   @Test("throttled records skip metadata construction")
   func throttledRecordsSkipMetadata() throws {
     Container.shared.fakeContinuousClock().freeze()
-    let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer { try? FileManager.default.removeItem(at: url) }
+    let url = TestFiles.uniqueURL()
     let builds = ThreadSafe(0)
     var handler = FileLogHandler(
       label: "PodHaven/LazyTest",
@@ -83,9 +82,8 @@ struct FileLogBackpressureTests {
   func failedAppendsPreserveAdmission() throws {
     let clock = Container.shared.fakeContinuousClock()
     clock.freeze()
-    let directory = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let directory = TestFiles.uniqueURL()
     let url = directory.appendingPathComponent("log.ndjson")
-    defer { try? FileManager.default.removeItem(at: directory) }
     let handler = FileLogHandler(
       label: "PodHaven/FailureTest",
       fileURL: url,
@@ -122,8 +120,7 @@ struct FileLogBackpressureTests {
   @Test("concurrent producers account for every accepted and suppressed record")
   func concurrentProducersPreserveAccounting() async throws {
     Container.shared.fakeContinuousClock().freeze()
-    let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer { try? FileManager.default.removeItem(at: url) }
+    let url = TestFiles.uniqueURL()
     let handler = FileLogHandler(
       label: "PodHaven/ConcurrentTest",
       fileURL: url,
@@ -173,8 +170,7 @@ struct FileLogBackpressureTests {
   @Test("an occupied writer bounds routine records across competing call sites")
   func occupiedWriterBoundsRoutineRecords() throws {
     Container.shared.fakeContinuousClock().freeze()
-    let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer { try? FileManager.default.removeItem(at: url) }
+    let url = TestFiles.uniqueURL()
     let handler = FileLogHandler(
       label: "PodHaven/BackpressureTest",
       fileURL: url,

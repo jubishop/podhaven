@@ -234,6 +234,15 @@ running tests and enable PodHaven. If this access is denied, tests can pass
 while Xcode cannot collect coverage files; the diagnostic check rejects that
 run's warnings.
 
+After both phases, `bin/test-all` compares the test host's temporary
+directory, `Data/tmp` in the `com.artisanalsoftware.PodHaven.debug`
+container, with its contents before the run. It fails when tests left a new
+entry there; only the system's `TemporaryItems` and saved-state folders are
+exempt. Tests write files under `TestFiles.uniqueURL()`, which keeps one root
+per test process. The process removes its root when it exits, and the next
+test process removes any root that a crashed one left behind. Reading that
+directory needs the same access to PodHaven's data.
+
 Each attempt retains logs, its `.xcresult` bundle, diagnostic reports, and
 `run.json` under `.cache/test-all/`. The report records the revision, local
 changes, toolchain, destination, and outcome. A new attempt keeps only the

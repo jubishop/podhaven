@@ -27,8 +27,7 @@ struct SiriLargeCatalogTests {
         )
       }
     let catalog = SiriCatalog(podcasts: podcasts)
-    let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer { try? FileManager.default.removeItem(at: url) }
+    let url = TestFiles.uniqueURL()
     let file = SiriCatalogFile(url: url)
     try file.write(catalog)
     for (mode, name, type, album, count) in [

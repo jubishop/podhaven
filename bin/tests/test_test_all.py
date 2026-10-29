@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import plistlib
 import re
 import shutil
 import subprocess
@@ -79,6 +80,8 @@ elif name == 'xcodebuild':
         time.sleep(quiet * 1.5)
     if not os.environ.get('TEST_MISSING_BUNDLE') and fault != 'missing-bundle':
         bundle.mkdir()
+    for entry in filter(None, os.environ.get('TEST_HOST_TEMPORARY', '').split(os.pathsep)):
+        pathlib.Path(entry).mkdir(parents=True, exist_ok=True)
     print('Tests completed')
     if os.environ.get('TEST_CHANGE_CHECKOUT'):
         pathlib.Path('source.txt').write_text('changed during tests')
@@ -134,6 +137,17 @@ else:
     raise SystemExit('Unexpected command: ' + repr([name, args]))
 '''
 
+TEST_HOST = "com.artisanalsoftware.PodHaven.debug"
+
+
+def make_container(home, name, identifier=TEST_HOST):
+    """Create an app container in a disposable HOME and return its temporary directory."""
+    container = home / "Library/Containers" / name
+    (container / "Data/tmp").mkdir(parents=True, exist_ok=True)
+    with (container / ".com.apple.containermanagerd.metadata.plist").open("wb") as stream:
+        plistlib.dump({"MCMMetadataIdentifier": identifier}, stream)
+    return container / "Data/tmp"
+
 
 class TestAllTests(unittest.TestCase):
     def setUp(self):
@@ -160,6 +174,7 @@ class TestAllTests(unittest.TestCase):
         (self.repo / ".gitignore").write_text('.cache/\n')
         (self.repo / "source.txt").write_text("original")
         (self.base / "home").mkdir()
+        self.host_temporary = make_container(self.base / "home", "2D1F")
         self.env = {**os.environ, "PATH": str(self.commands) + os.pathsep + os.environ["PATH"],
                     "TEST_ALL_FIXTURE": str(self.base), "HOME": str(self.base / "home")}
         for key in tuple(self.env):
@@ -326,6 +341,30 @@ class TestAllTests(unittest.TestCase):
                                 cwd=self.base, env=self.env, text=True, capture_output=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotIn("Waiting", result.stderr)
+
+    def test_entries_tests_leave_in_the_test_host_temporary_directory_fail_the_run(self):
+        (self.host_temporary / "earlier").mkdir()
+        other_app = make_container(self.base / "home", "7C9A", "com.example.Other")
+        result = self.run_all(TEST_HOST_TEMPORARY=os.pathsep.join([
+            str(self.host_temporary / "TemporaryItems"),
+            str(self.host_temporary / "com.artisanalsoftware.PodHaven.debug.savedState"),
+            str(other_app / "other-app-file")]))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        shutil.rmtree(self.repo / ".cache")
+        result = self.run_all(TEST_HOST_TEMPORARY=os.pathsep.join([
+            str(self.host_temporary / "left-by-a-test"), str(self.host_temporary / "also-left")]))
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("also-left, left-by-a-test", result.stderr)
+        self.assertIn(str(self.host_temporary), result.stderr)
+        self.assertNotIn("earlier", result.stderr)
+        self.assertEqual(self.report()["result"], "failed")
+
+    def test_missing_test_host_container_fails_the_run(self):
+        shutil.rmtree(self.base / "home/Library")
+        result = self.run_all()
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("com.artisanalsoftware.PodHaven.debug", result.stderr)
+        self.assertEqual(self.report()["result"], "failed")
 
     def test_failures_never_leave_a_passing_report(self):
         for setting in ("TEST_BUILD_FAILURE", "TEST_MISSING_BUNDLE", "TEST_SKIPPED",

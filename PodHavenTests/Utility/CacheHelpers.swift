@@ -209,7 +209,7 @@ enum CacheHelpers {
     _ taskID: URLSessionDownloadTask.ID,
     data: Data = Data.random()
   ) async throws -> URL {
-    let fileURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let fileURL = TestFiles.uniqueURL()
     try await fileManager.writeData(data, to: fileURL)
 
     await session.finishDownload(

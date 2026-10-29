@@ -54,9 +54,8 @@ struct SilenceAudioTests {
 
   @Test("decode failures never publish an empty successful map")
   func invalidFile() async throws {
-    let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp3")
+    let url = TestFiles.uniqueURL().appendingPathExtension("mp3")
     try Data("not audio".utf8).write(to: url)
-    defer { try? FileManager.default.removeItem(at: url) }
     await #expect(throws: (any Error).self) {
       try await SilenceAnalyzer.analyze(url, progress: { _, _ in })
     }

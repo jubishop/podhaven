@@ -14,8 +14,7 @@ struct SiriResponsivenessTests {
     arguments: ["resolve", "confirm", "handle"]
   )
   @MainActor func callbackBoundary(mode: String) async throws {
-    let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer { try? FileManager.default.removeItem(at: url) }
+    let url = TestFiles.uniqueURL()
     let catalog = SiriCatalog(podcasts: [
       .init(id: 1, feed: "https://synthetic.test", title: "Synthetic show", episodes: [])
     ])
@@ -53,8 +52,7 @@ struct SiriResponsivenessTests {
   }
   @Test("a newer handle request supersedes catalog work and completes each callback once")
   @MainActor func supersededCatalog() async throws {
-    let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer { try? FileManager.default.removeItem(at: url) }
+    let url = TestFiles.uniqueURL()
     let count = ThreadSafe(0)
     let opened = ThreadSafe(false)
     let release = AsyncStream<Void>.makeStream()

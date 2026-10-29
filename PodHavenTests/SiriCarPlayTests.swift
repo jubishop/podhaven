@@ -31,7 +31,6 @@ import Testing
   @Test("a disconnected request cannot navigate after reconnection")
   func disconnect() async throws {
     let file = Container.shared.siriCatalogFile()
-    defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     Container.shared.appDB().startSiriCatalog(file)
     let episode = try await Create.podcastEpisode(Create.unsavedEpisode(title: "Pending Siri"))
     await Container.shared.appLauncher().prepareForPlayback()
@@ -63,7 +62,6 @@ import Testing
   @Test("successful Siri playback presents Now Playing through the connected coordinator")
   func connectedPlayback() async throws {
     let file = Container.shared.siriCatalogFile()
-    defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
     Container.shared.appDB().startSiriCatalog(file)
     _ = try await Create.podcastEpisode(Create.unsavedEpisode(title: "Connected Siri"))
     let coordinator = Container.shared.carPlayCoordinator()

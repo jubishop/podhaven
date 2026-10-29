@@ -40,13 +40,7 @@ struct FileLogHandlerTests {
   }
 
   private func tempFileURL() -> URL {
-    FileManager.default.temporaryDirectory
-      .appendingPathComponent(UUID().uuidString)
-      .appendingPathExtension("ndjson")
-  }
-
-  private func tearDownLogFile(_ fileURL: URL) {
-    try? FileManager.default.removeItem(at: fileURL)
+    TestFiles.uniqueURL().appendingPathExtension("ndjson")
   }
 
   // A unique `line` per entry gives each its own rate-limit bucket, so the
@@ -81,7 +75,6 @@ struct FileLogHandlerTests {
   @Test("writes each entry as its own newline-delimited JSON line")
   func writesEntriesAsNewlineDelimitedJSON() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -101,7 +94,6 @@ struct FileLogHandlerTests {
   @Test("retained records identify their process session and build after a relaunch")
   func retainedRecordsIdentifyTheirSessionAndBuild() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
     let priorSession = UUID().uuidString
     let prior: [String: Any] = [
       "message": "prior process", "line": 1, "timestamp": 1,
@@ -135,7 +127,6 @@ struct FileLogHandlerTests {
   @Test("recent tails retain prior-session history when the new launch fills the buffer")
   func priorSessionSurvivesNewLaunchLogVolume() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
     let priorSession = UUID().uuidString
     let prior: [String: Any] = [
       "message": "prior process", "line": 1, "timestamp": 1,
@@ -168,7 +159,6 @@ struct FileLogHandlerTests {
   @Test("prior history preparation discards a partial final write and stays bounded")
   func priorHistoryDiscardsPartialRecord() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
     var data = Data()
     for index in 0..<100 {
       data.append(
@@ -210,7 +200,6 @@ struct FileLogHandlerTests {
     targetFileSizeBytes: Int
   ) throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
     let priorHistoryCap = targetFileSizeBytes / 2
     var prior = Data()
     for index in 0..<(priorHistoryCap / 100) {
@@ -289,7 +278,6 @@ struct FileLogHandlerTests {
   @Test("full rolling logs keep records too large for the recent tails verbatim")
   func fullRollingLogKeepsOversizedRecordsVerbatim() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
     let handler = makeHandler(
       fileURL: fileURL,
       maxFileSizeBytes: AppInfo.logMaxFileSizeBytes,
@@ -317,7 +305,6 @@ struct FileLogHandlerTests {
   @Test("truncation keeps whole JSON lines and keeps appending to the live file")
   func truncationKeepsWholeLinesAndKeepsAppending() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     // targetFileSizeBytes is well above the 64 KB read window, so each
     // truncation streams its surviving tail across several windows.
@@ -367,16 +354,8 @@ struct FileLogHandlerTests {
         targetFileSizeBytes: WidgetInfo.recentLogTargetFileSizeBytes
       ),
     ]
-    var fileURLs: [URL] = []
-    defer {
-      for fileURL in fileURLs {
-        tearDownLogFile(fileURL)
-      }
-    }
-
     for configuration in configurations {
       let fileURL = tempFileURL()
-      fileURLs.append(fileURL)
       let handler = makeHandler(
         fileURL: fileURL,
         maxFileSizeBytes: configuration.maxFileSizeBytes,
@@ -413,7 +392,6 @@ struct FileLogHandlerTests {
   @Test("truncation finds the cut boundary when an entry exceeds the read window")
   func truncationFindsBoundaryWhenEntryExceedsReadWindow() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -437,7 +415,6 @@ struct FileLogHandlerTests {
   @Test("critical logs bypass rate limit at a throttled site")
   func criticalBypassesRateLimitAtThrottledSite() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     Container.shared.fakeContinuousClock().freeze()
 
@@ -475,7 +452,6 @@ struct FileLogHandlerTests {
   @Test("rate limit drops repeated entries at one site after the burst is spent")
   func rateLimitDropsRepeatedEntries() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     Container.shared.fakeContinuousClock().freeze()
 
@@ -498,7 +474,6 @@ struct FileLogHandlerTests {
   @Test("rate limit emits a suppression summary when a throttled site resumes")
   func rateLimitEmitsSuppressionSummaryAfterRefill() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     let fakeClock = Container.shared.fakeContinuousClock()
     fakeClock.freeze()
@@ -529,7 +504,6 @@ struct FileLogHandlerTests {
   @Test("flush emits pending suppression summaries for quiet throttled sites")
   func flushEmitsPendingSuppressionSummary() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     Container.shared.fakeContinuousClock().freeze()
 
@@ -559,7 +533,6 @@ struct FileLogHandlerTests {
   @Test("rate limit bounds total volume across many distinct log sites")
   func rateLimitBoundsManyDistinctSites() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     Container.shared.fakeContinuousClock().freeze()
 
@@ -588,7 +561,6 @@ struct FileLogHandlerTests {
   @Test("two handlers for the same file share one writer and rate limit bucket")
   func twoHandlersShareWriterPerFileURL() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     Container.shared.fakeContinuousClock().freeze()
 
@@ -622,7 +594,6 @@ struct FileLogHandlerTests {
   @Test("rate limit is keyed per (file, line) — different files do not interfere")
   func rateLimitIsKeyedPerFile() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     Container.shared.fakeContinuousClock().freeze()
 
@@ -643,7 +614,6 @@ struct FileLogHandlerTests {
   @Test("rate limit is keyed per (file, line) — different lines do not interfere")
   func rateLimitIsKeyedPerSite() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     Container.shared.fakeContinuousClock().freeze()
 
@@ -664,7 +634,6 @@ struct FileLogHandlerTests {
   @Test("truncation forces cut when no newline exists from cut point to EOF")
   func truncationForcesCutWithoutNewlineBoundary() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     let maxFileSizeBytes = 50_000
     let targetFileSizeBytes = 30_000
@@ -697,7 +666,6 @@ struct FileLogHandlerTests {
   @Test("async writes are timestamped at log-call time, not when the queue drains")
   func asyncWriteTimestampsAtCallTime() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     let fakeDate = Container.shared.fakeDate()
     fakeDate.freeze(at: Date(timeIntervalSince1970: 1_000))
@@ -724,7 +692,6 @@ struct FileLogHandlerTests {
   @Test("asynchronous writes reach the file once flushed")
   func asynchronousWritesReachFileOnceFlushed() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -749,7 +716,6 @@ struct FileLogHandlerTests {
   @Test("async truncation completes after scoped flush without blocking")
   func asyncTruncationCompletesAfterScopedFlush() throws {
     let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
 
     let maxFileSizeBytes = 200_000
     let handler = makeHandler(
