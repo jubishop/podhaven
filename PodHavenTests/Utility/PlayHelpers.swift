@@ -26,9 +26,6 @@ enum PlayHelpers {
   private static var avPlayer: FakeAVPlayer {
     Container.shared.avPlayer() as! FakeAVPlayer
   }
-  private static var nowPlayingInfo: [String: Any?]? {
-    Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
-  }
 
   // MARK: - Setup
 
@@ -106,12 +103,13 @@ enum PlayHelpers {
   static func waitForOnDeckArtwork() async throws {
     try await Wait.until(
       { @MainActor in
-        sharedState.onDeck?.artwork != nil && nowPlayingHasArtwork
+        let hasArtwork = await nowPlayingHasArtwork
+        return sharedState.onDeck?.artwork != nil && hasArtwork
       },
       { @MainActor in
         """
         sharedState.onDeck?.artwork: \(sharedState.onDeck?.artwork != nil), \
-        nowPlayingHasArtwork: \(nowPlayingHasArtwork)
+        nowPlayingHasArtwork: \(await nowPlayingHasArtwork)
         """
       }
     )
@@ -250,26 +248,24 @@ enum PlayHelpers {
 
   static func waitForNoNowPlayingInfo() async throws {
     try await Wait.until(
-      { @MainActor in nowPlayingInfo == nil },
+      { await !hasNowPlayingInfo },
       { "Expected nowPlayingInfo to be nil" }
     )
   }
 
-  static func waitForNowPlayingInfo(key: String, value: Any?) async throws {
+  static func waitForNowPlayingInfo(key: String, value: (any Sendable)?) async throws {
     try await Wait.until(
-      { @MainActor in
-        guard let info = nowPlayingInfo else { return false }
-        let actual = info[key] ?? nil
-        return valuesEqual(actual, value)
+      {
+        await withNowPlayingInfo { info in
+          guard let info else { return false }
+          return valuesEqual(info[key], value)
+        }
       },
       {
-        @MainActor in
-        let actualDescription: String = {
-          guard let info = nowPlayingInfo else {
-            return "<no nowPlayingInfo>"
-          }
-          return String(describing: info[key] ?? nil)
-        }()
+        let actualDescription = await withNowPlayingInfo { info in
+          guard let info else { return "<no nowPlayingInfo>" }
+          return String(describing: info[key])
+        }
         let expectedDescription = String(describing: value)
         return "Expected \(key) to be \(expectedDescription) but got \(actualDescription)"
       }
@@ -347,23 +343,47 @@ enum PlayHelpers {
     }
   }
 
-  // MARK: - Comparison Helpers
+  // MARK: - NowPlayingInfo Helpers
 
+  @PlayActor
+  static func withNowPlayingInfo<T: Sendable>(_ read: @Sendable ([String: Any]?) -> T) -> T {
+    read(Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo)
+  }
+
+  @PlayActor
+  static var hasNowPlayingInfo: Bool {
+    withNowPlayingInfo { $0 != nil }
+  }
+
+  @PlayActor
+  static var nowPlayingPlaybackState: MPNowPlayingPlaybackState {
+    Container.shared.mpNowPlayingInfoCenter().playbackState
+  }
+
+  @PlayActor
   static var nowPlayingCurrentTime: CMTime {
-    guard let info = nowPlayingInfo,
-      let elapsed = info[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double
-    else { return .invalid }
-    return CMTime.seconds(elapsed)
+    withNowPlayingInfo { info in
+      guard let info,
+        let elapsed = info[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double
+      else { return .invalid }
+      return CMTime.seconds(elapsed)
+    }
   }
 
+  @PlayActor
   static var nowPlayingHasArtwork: Bool {
-    guard let info = nowPlayingInfo else { return false }
-    return info[MPMediaItemPropertyArtwork] != nil
+    withNowPlayingInfo { info in
+      guard let info else { return false }
+      return info[MPMediaItemPropertyArtwork] != nil
+    }
   }
 
+  @PlayActor
   static var nowPlayingProgress: Double {
-    nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackProgress] as! Double
+    withNowPlayingInfo { $0![MPNowPlayingInfoPropertyPlaybackProgress] as! Double }
   }
+
+  // MARK: - Comparison Helpers
 
   static var currentAssetURL: URL? {
     guard let current = avPlayer.current as? FakeAVPlayerItem

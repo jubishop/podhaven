@@ -72,7 +72,7 @@ import Testing
 
     let expectedTime = CMTime.seconds(120)
     try await PlayHelpers.waitFor(expectedTime)
-    #expect(PlayHelpers.nowPlayingCurrentTime == expectedTime)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == expectedTime)
   }
 
   @Test("remote seek is dropped while scrubbing is disabled")

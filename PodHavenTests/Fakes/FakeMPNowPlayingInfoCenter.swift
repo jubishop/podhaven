@@ -8,4 +8,6 @@ import MediaPlayer
 class FakeMPNowPlayingInfoCenter: MPNowPlayingInfoCenterable {
   var nowPlayingInfo: [String: Any]?
   var playbackState: MPNowPlayingPlaybackState = .unknown
+
+  nonisolated init() {}
 }

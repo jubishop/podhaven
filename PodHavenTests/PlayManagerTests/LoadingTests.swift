@@ -29,9 +29,6 @@ import Testing
   private var avPlayer: FakeAVPlayer {
     Container.shared.avPlayer() as! FakeAVPlayer
   }
-  private var nowPlayingInfo: [String: Any?]? {
-    Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
-  }
 
   init() async throws {
     stateManager.start()
@@ -56,7 +53,7 @@ import Testing
     try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
     try await PlayHelpers.waitForOnDeckArtwork()
 
-    var expectedInfo: [String: Any] = [:]
+    var expectedInfo: [String: any Sendable] = [:]
     expectedInfo[MPMediaItemPropertyAlbumTitle] = onDeck.podcastTitle
     expectedInfo[MPMediaItemPropertyArtist] = onDeck.podcastTitle
     expectedInfo[MPMediaItemPropertyPodcastTitle] = onDeck.podcastTitle
@@ -76,11 +73,11 @@ import Testing
     expectedInfo[MPNowPlayingInfoPropertyPlaybackQueueCount] = 1
 
     #expect(
-      Set(nowPlayingInfo!.keys)
+      await PlayHelpers.withNowPlayingInfo { Set($0!.keys) }
         == Set(expectedInfo.keys).union([MPMediaItemPropertyArtwork])
     )
 
-    let isEqual: (Any?, Any) -> Bool = { lhs, rhs in
+    let isEqual: @Sendable (Any?, Any) -> Bool = { lhs, rhs in
       switch (lhs, rhs) {
       case (let lhs as String, let rhs as String): return lhs == rhs
       case (let lhs as Double, let rhs as Double): return lhs == rhs
@@ -94,20 +91,26 @@ import Testing
     }
 
     // Check each value (except artwork which needs special handling)
-    for (key, expectedValue) in expectedInfo {
-      let actualValue = nowPlayingInfo![key] ?? nil
-      #expect(
-        isEqual(actualValue, expectedValue),
-        """
-        Key \(key) - \
-        Expected: \(expectedValue), \
-        Actual: \(String(describing: actualValue))
-        """
-      )
+    await PlayHelpers.withNowPlayingInfo { [expectedInfo] info in
+      for (key, expectedValue) in expectedInfo {
+        let actualValue = info![key]
+        #expect(
+          isEqual(actualValue, expectedValue),
+          """
+          Key \(key) - \
+          Expected: \(expectedValue), \
+          Actual: \(String(describing: actualValue))
+          """
+        )
+      }
     }
 
-    // Check artwork separately
-    if let actualArtwork = nowPlayingInfo![MPMediaItemPropertyArtwork] as? MPMediaItemArtwork {
+    // Check artwork separately, requesting it off the PlayActor as MediaPlayer does
+    nonisolated(unsafe) var actualArtwork: MPMediaItemArtwork?
+    await PlayHelpers.withNowPlayingInfo { info in
+      actualArtwork = info![MPMediaItemPropertyArtwork] as? MPMediaItemArtwork
+    }
+    if let actualArtwork {
       let image = try await imagePipeline.image(for: podcastEpisode.image)
       let actualImage = actualArtwork.image(at: image.size)!
       #expect(actualImage.isVisuallyEqual(to: image))
@@ -232,7 +235,7 @@ import Testing
 
     try await playManager.load(podcastEpisode)
     try await PlayHelpers.waitFor(currentTime)
-    #expect(PlayHelpers.nowPlayingCurrentTime == currentTime)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == currentTime)
   }
 
   @Test("loading an episode updates its duration value")
@@ -288,7 +291,7 @@ import Testing
 
     try await PlayHelpers.waitFor(.stopped)
     #expect(sharedState.onDeck == nil)
-    #expect(nowPlayingInfo == nil)
+    #expect(await !PlayHelpers.hasNowPlayingInfo)
   }
 
   @Test("loading completes and sets onDeck even when image fetch is stuck")
@@ -339,7 +342,7 @@ import Testing
 
     try await PlayHelpers.waitFor(.stopped)
     #expect(sharedState.onDeck == nil)
-    #expect(nowPlayingInfo == nil)
+    #expect(await !PlayHelpers.hasNowPlayingInfo)
   }
 
   @Test("loading cancels any in-progress load")
@@ -567,7 +570,7 @@ import Testing
 
     try await PlayHelpers.waitFor(.stopped)
     #expect(sharedState.onDeck == nil)
-    #expect(nowPlayingInfo == nil)
+    #expect(await !PlayHelpers.hasNowPlayingInfo)
 
     try await Wait.until(
       { @MainActor in alert.config != nil },

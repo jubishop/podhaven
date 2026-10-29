@@ -45,22 +45,22 @@ import Testing
     let originalTime = CMTime.seconds(120)
     await playManager.seek(to: originalTime)
     try await PlayHelpers.waitFor(originalTime)
-    #expect(PlayHelpers.nowPlayingCurrentTime == originalTime)
-    #expect(PlayHelpers.nowPlayingProgress == originalTime.seconds / duration.seconds)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == originalTime)
+    #expect(await PlayHelpers.nowPlayingProgress == originalTime.seconds / duration.seconds)
 
     let skipAmount = Double(30)
     let skipTime = CMTimeAdd(originalTime, CMTime.seconds(skipAmount))
     await playManager.seekForward(skipAmount)
     try await PlayHelpers.waitFor(skipTime)
-    #expect(PlayHelpers.nowPlayingCurrentTime == skipTime)
-    #expect(PlayHelpers.nowPlayingProgress == skipTime.seconds / duration.seconds)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == skipTime)
+    #expect(await PlayHelpers.nowPlayingProgress == skipTime.seconds / duration.seconds)
 
     let rewindAmount = Double(15)
     let rewindTime = CMTimeSubtract(skipTime, CMTime.seconds(rewindAmount))
     await playManager.seekBackward(rewindAmount)
     try await PlayHelpers.waitFor(rewindTime)
-    #expect(PlayHelpers.nowPlayingCurrentTime == rewindTime)
-    #expect(PlayHelpers.nowPlayingProgress == rewindTime.seconds / duration.seconds)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == rewindTime)
+    #expect(await PlayHelpers.nowPlayingProgress == rewindTime.seconds / duration.seconds)
   }
 
   @Test("failed seeks restore observation and pending seeks suppress time updates")
