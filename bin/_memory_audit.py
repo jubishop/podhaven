@@ -25,7 +25,19 @@ from _checks import link_targets, local_target, validate
 from _knowledge import atomic_json
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL = "claude-haiku-5-5"
+MODEL = "claude-sonnet-5-5"
+# The project's own Anthropic API key. Only this line of the checkout's ignored .env is read.
+API_KEY = "MEMORY_AUDIT_ANTHROPIC_API_KEY"
+API_KEY_LINE = re.compile(r"\s*(?:export\s+)?" + API_KEY + r"\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s#]*))\s*(?:#.*)?")
+# Refusals of the key that the subscription reruns. Claude Code shortens the API's "Your credit balance is
+# too low to access the Anthropic API" to "Credit balance is too low"; a spend limit reads "You have reached
+# your specified API usage limits"; a rejected key is HTTP 401 or 403.
+# Each is (trigger, message pattern, Claude Code error category, HTTP statuses).
+KEY_REFUSALS = (
+    ("credit-balance", re.compile(r"credit balance (?:is )?too low", re.IGNORECASE), "billing_error", ()),
+    ("usage-limit", re.compile(r"usage limits", re.IGNORECASE), None, ()),
+    ("key-rejected", None, "authentication_failed", (401, 403)),
+)
 FAILURE_ISSUE = "Memory audit failing"
 RETENTION_DAYS = 60
 WEEKDAYS = ("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
@@ -48,6 +60,7 @@ def command(args, cwd, env, timeout=120, input=None):
 
 
 def environment():
+    # API keys stay out; only the API-key attempt adds the project's own key.
     return {key: os.environ[key] for key in
             ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "CLAUDE_CONFIG_DIR")
             if key in os.environ}
@@ -112,6 +125,71 @@ def settings(root, env):
         raise invalid("lockWaitMinutes must be a whole number of minutes, 0 or more")
     return {"repository": repository, "launchAgentLabel": label, "schedule": schedule, "issueLabels": labels,
             "commitTrailers": trailers, "indexHeading": heading, "context": context.strip(), "lockWaitMinutes": wait}
+
+
+def api_key(root):
+    """Return MEMORY_AUDIT_ANTHROPIC_API_KEY from the checkout's .env, or None when it is missing or empty."""
+    path = root / ".env"
+    if not path.is_file():
+        return None
+    key = None
+    for line in path.read_text().splitlines():
+        match = API_KEY_LINE.fullmatch(line)
+        if match:
+            key = next(value for value in match.groups() if value is not None)
+    return key or None
+
+
+def with_key(env, key):
+    return env | {"ANTHROPIC_API_KEY": key} if key else env
+
+
+def require_login(root, env, key):
+    """Fail unless Claude Code will bill the first-party Anthropic API key given, or else the subscription."""
+    login = subprocess.run(["claude", "auth", "status", "--json"], cwd=root, env=with_key(env, key),
+                           capture_output=True, text=True, timeout=30)
+    try:
+        status = json.loads(login.stdout) if not login.returncode else {}
+    except ValueError:
+        status = {}
+    if not (status.get("loggedIn") and status.get("apiProvider") == "firstParty"):
+        status = {}
+    if key and (status.get("authMethod"), status.get("apiKeySource")) != ("api_key", "ANTHROPIC_API_KEY"):
+        raise RuntimeError(f"Claude Code would not bill the Anthropic API with {API_KEY} from .env; check "
+                           "claude auth status --json with the key as ANTHROPIC_API_KEY")
+    if not key and status.get("authMethod") != "claude.ai":
+        raise RuntimeError("Memory audit requires a saved Claude subscription login; run claude auth login. Only "
+                           f"{API_KEY} in .env may bill an API key instead.")
+
+
+def key_refusal(run_dir):
+    """Return how the API refused the audit's key, from Claude's stream-json events, or None for other failures.
+
+    Only API failures count: the result event marked is_error and assistant events Claude Code synthesized
+    from an API error, never the model's own text.
+    """
+    path = run_dir / "events.jsonl"
+    failures = []
+    for line in path.read_text(errors="replace").splitlines() if path.exists() else []:
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get("type") == "result" and event.get("is_error"):
+            failures.insert(0, (event, str(event.get("result") or "")))
+        elif event.get("type") == "assistant" and (event.get("is_api_error_message") or event.get("error")):
+            message = event.get("message") if isinstance(event.get("message"), dict) else {}
+            blocks = message.get("content") if isinstance(message.get("content"), list) else []
+            failures.append((event, " ".join(str(block.get("text") or "") for block in blocks
+                                             if isinstance(block, dict))))
+    for event, text in failures:
+        status, category = event.get("api_error_status"), event.get("error")
+        for trigger, pattern, error, statuses in KEY_REFUSALS:
+            if (pattern and pattern.search(text)) or (error and category == error) or status in statuses:
+                return {"trigger": trigger, "status": status, "message": text.strip()[:500]}
+    return None
 
 
 def output_schema():
@@ -382,7 +460,7 @@ def prune_runs(state, keep):
             shutil.rmtree(directory)
 
 
-def run_model(repo, run_dir, env, prompt, timeout=5400):
+def run_model(repo, run_dir, env, prompt, timeout=5400, key=None):
     # Restricted mode ignores user and project settings. Without edit tools or edit rules, any write,
     # network command, or read outside the clone needs approval, which --permission-prompts none denies.
     permissions = {"allow": ["Bash(jq *)", "Bash(qmd search *)"]}
@@ -392,7 +470,7 @@ def run_model(repo, run_dir, env, prompt, timeout=5400):
             "--settings", json.dumps({"permissions": permissions}),
             "--output-format", "stream-json", "--verbose", "--json-schema", json.dumps(output_schema())]
     with (run_dir / "events.jsonl").open("w") as events, (run_dir / "claude.log").open("w") as log:
-        process = subprocess.Popen(args, cwd=repo, env=env, text=True, stdin=subprocess.PIPE,
+        process = subprocess.Popen(args, cwd=repo, env=with_key(env, key), text=True, stdin=subprocess.PIPE,
                                    stdout=events, stderr=log, start_new_session=True)
         try:
             process.communicate(prompt, timeout=timeout)
@@ -451,7 +529,7 @@ def run(root=ROOT, force=False):
         prune_runs(state, {item.get("directory") for item in (previous or {}, last)})
         prefix = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-")
         run_dir = Path(tempfile.mkdtemp(prefix=prefix, dir=runs))
-        meta = {"status": "running", "directory": str(run_dir), "model": MODEL, "provider": "claude.ai"}
+        meta = {"status": "running", "directory": str(run_dir), "model": MODEL}
         atomic_json(state / "latest.json", meta)
         env = environment()
         options = turn = None
@@ -479,16 +557,8 @@ def run(root=ROOT, force=False):
                 meta.update(status="skipped", reason="No repository, issue, PR, or audit instruction changes",
                             previousDirectory=previous["directory"])
                 return meta
-            login = subprocess.run(["claude", "auth", "status", "--json"], cwd=root, env=env,
-                                   capture_output=True, text=True, timeout=30)
-            try:
-                status = json.loads(login.stdout) if not login.returncode else {}
-            except ValueError:
-                status = {}
-            if not (status.get("loggedIn") and status.get("authMethod") == "claude.ai"
-                    and status.get("apiProvider") == "firstParty"):
-                raise RuntimeError("Memory audit requires a saved Claude subscription login; run claude auth login. "
-                                   "API billing is disabled.")
+            key = api_key(root)
+            require_login(root, env, key)
             repo = run_dir / "repository"
             command(["git", "-c", "core.hooksPath=/dev/null", "clone", "--quiet", "--shared", "--no-checkout",
                      str(root), str(repo)], root, env)
@@ -520,9 +590,29 @@ def run(root=ROOT, force=False):
             atomic_json(artifacts / "memory-audit-context.json", context)
             atomic_json(run_dir / "memory-audit-context.json", context)
             env = prepare_search(repo, env)
+            meta["credential"] = "api-key" if key else "subscription"
+            atomic_json(state / "latest.json", meta)
             deadline = time.monotonic() + 5400
             for attempt in range(2):
-                run_model(repo, run_dir, env, prompt, timeout=max(1, deadline - time.monotonic()))
+                try:
+                    run_model(repo, run_dir, env, prompt, timeout=max(1, deadline - time.monotonic()),
+                              key=key if meta["credential"] == "api-key" else None)
+                except RuntimeError:
+                    refusal = key_refusal(run_dir) if meta["credential"] == "api-key" else None
+                    if not refusal:
+                        raise
+                    # The subscription reruns this attempt; the key's logs stay, but not as session evidence.
+                    for name in ("events.jsonl", "claude.log"):
+                        (run_dir / name).rename(run_dir / ("api-key-" + name))
+                    meta.update(credential="subscription", fallback=refusal)
+                    atomic_json(state / "latest.json", meta)
+                    try:
+                        require_login(root, env, None)
+                    except RuntimeError as error:
+                        status = f", HTTP {refusal['status']}" if refusal["status"] else ""
+                        raise RuntimeError(f"The API refused {API_KEY} ({refusal['message']}{status}), and the "
+                                           f"subscription fallback failed: {error}") from None
+                    run_model(repo, run_dir, env, prompt, timeout=max(1, deadline - time.monotonic()))
                 if (command(["git", "rev-parse", "HEAD"], repo, env).strip() != base
                         or command(["git", "status", "--porcelain", "--untracked-files=all"], repo, env).strip()):
                     raise ValueError("The read-only audit changed its checkout")

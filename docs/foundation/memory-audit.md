@@ -68,9 +68,10 @@ lock.
 
 ## Model and evidence
 
-The job runs `claude -p` with `claude-haiku-5-5`, high effort, and the saved
-Claude subscription login. It refuses API-key and third-party provider logins
-and excludes API keys from its environment; subscription limits apply.
+The job runs `claude -p` with `claude-sonnet-5-5` and high effort. It bills
+the project's own [API key](#api-key) when one is set, and otherwise the saved
+Claude subscription login, whose limits apply. It refuses third-party provider
+logins and keeps every other API key out of Claude's environment.
 Restricted mode ignores user and project Claude settings and instruction
 files, so personal permissions, MCP servers, and hooks do not join the audit.
 Claude gets only Bash, Read, Glob, and Grep, and no session is saved. Writes,
@@ -93,6 +94,46 @@ Unchanged repository, GitHub, and audit inputs skip the model call, except
 right after a failed or interrupted run; `--force` always audits. A project
 without active notes skips the model too. Model attempts share a 90-minute
 limit.
+
+## API key
+
+Each project can bill its audits to its own Anthropic API key instead of the
+subscription. Put the key in `.env` at the root of the checkout the job runs
+from, the primary checkout:
+
+```sh
+MEMORY_AUDIT_ANTHROPIC_API_KEY=sk-ant-api03-...
+```
+
+Project Starter's `.gitignore` block ignores `.env`; make it private with
+`chmod 600 .env`. The runner reads only that line, quoted or not and with or
+without `export`, at the start of each run, so adding, changing, or removing
+the key needs no reinstall. No `.env`, no line, or an empty value uses the
+subscription. Nothing else sets the key: the variable in the shell or in
+`~/.env`, and any `ANTHROPIC_API_KEY`, are ignored. The distinct name keeps
+other Anthropic clients from picking up the key. The runner passes it to
+Claude as `ANTHROPIC_API_KEY` for the API-key attempt only, after
+`claude auth status` confirms that Claude Code will bill it as a first-party
+key.
+
+When the API refuses the key, the runner reruns that model attempt on the
+subscription with no manual step, and the rest of the run stays there. The
+rerun shares the attempt's 90-minute limit. These refusals fall back, each
+recorded as the fallback's `trigger`:
+
+| Trigger | API response |
+| --- | --- |
+| `credit-balance` | HTTP 400, "Your credit balance is too low to access the Anthropic API", which Claude Code shortens to "Credit balance is too low". |
+| `usage-limit` | HTTP 400, "You have reached your specified API usage limits": the organization's spend limit. |
+| `key-rejected` | HTTP 401 or 403: an invalid, revoked, or disabled key. |
+
+Only Claude Code's API error events count, never the model's own text. Any
+other failure, such as a rate limit or an outage, fails the run as before, and
+so does a fallback without a subscription login. `latest.json` and the run's
+`run-meta.json` record the `credential` that ran the model, `api-key` or
+`subscription`, and after a fallback a `fallback` object with its `trigger`,
+HTTP `status`, and API `message`. The refused attempt's logs stay in the run
+folder as `api-key-events.jsonl` and `api-key-claude.log`.
 
 ## Validation
 
@@ -146,7 +187,7 @@ launchctl print gui/$(id -u)/<launchAgentLabel>
 ```
 
 `latest.json` records the latest success, failure, or skip, its run folder,
-and any `publishedCommit`. A failure never updates `last-success.json`. Each
+the [credential](#api-key) and any fallback, and any `publishedCommit`. A failure never updates `last-success.json`. Each
 run folder keeps `run-meta.json` and the context; model attempts add
 `events.jsonl`, `claude.log`, and the structured result, and successful runs
 add `memory-audit-report.md` and `memory-audit.patch`. The clone is deleted

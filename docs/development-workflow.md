@@ -425,9 +425,17 @@ and failure handling. PodHaven's `memoryAudit` settings in
   `memory-audit-failure` label.
 - **Index:** archiving a note removes its entry from the README's
   "Active notes" list.
-- **Context:** the prompt records that this subscription-backed Claude Code
-  job replaced the paid OpenRouter audit and the later Codex job, and that the
-  Sentry Intake GitHub workflow, which uses no model, stays in use.
+- **Context:** the prompt records that this Claude Code job replaced the paid
+  OpenRouter audit and the later Codex job, that it bills PodHaven's own API
+  key with a subscription fallback, and that the Sentry Intake GitHub
+  workflow, which uses no model, stays in use.
+
+Audits bill PodHaven's own Anthropic API key, set as
+`MEMORY_AUDIT_ANTHROPIC_API_KEY` in the primary checkout's `.env` (mode 600),
+and fall back to the Claude subscription when the API refuses it, as the
+feature's [API key](foundation/memory-audit.md#api-key) section describes. The
+key is separate from Screenr's. The
+[model selection](../memory/memory-audit-model-selection.md) note records why.
 
 Run `bin/memory-audit install` in the primary checkout to register or update
 the LaunchAgent, and
