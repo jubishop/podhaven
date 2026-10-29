@@ -105,14 +105,14 @@ import Testing
       }
     }
 
-    // Check artwork separately
-    let image = try await imagePipeline.image(for: podcastEpisode.image)
-    let actualImage = await PlayHelpers.withNowPlayingInfo { info -> UIImage? in
-      guard let actualArtwork = info![MPMediaItemPropertyArtwork] as? MPMediaItemArtwork
-      else { return nil }
-      return actualArtwork.image(at: image.size)!
+    // Check artwork separately, requesting it off the PlayActor as MediaPlayer does
+    nonisolated(unsafe) var actualArtwork: MPMediaItemArtwork?
+    await PlayHelpers.withNowPlayingInfo { info in
+      actualArtwork = info![MPMediaItemPropertyArtwork] as? MPMediaItemArtwork
     }
-    if let actualImage {
+    if let actualArtwork {
+      let image = try await imagePipeline.image(for: podcastEpisode.image)
+      let actualImage = actualArtwork.image(at: image.size)!
       #expect(actualImage.isVisuallyEqual(to: image))
     } else {
       Issue.record("MPMediaItemPropertyArtwork is missing or wrong type")
