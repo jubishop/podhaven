@@ -243,6 +243,15 @@ per test process. The process removes its root when it exits, and the next
 test process removes any root that a crashed one left behind. Reading that
 directory needs the same access to PodHaven's data.
 
+Each `xcodebuild test` run also makes a directory in that container's `Data`
+for the test host's coverage profiles and leaves it there. Xcode names it with
+`ProcessInfo.globallyUniqueString`, `<UUID>-<pid>-<hex>`, where the pid is the
+process that made it. After both phases, even failed ones, `bin/test-all`
+removes each directory of exactly that shape, with any profile inside, unless
+its pid is still running and started before the directory was made. That keeps
+a live run's directory and clears those that focused runs and Xcode's own test
+action leave behind.
+
 Each attempt retains logs, its `.xcresult` bundle, diagnostic reports, and
 `run.json` under `.cache/test-all/`. The report records the revision, local
 changes, toolchain, destination, and outcome. A new attempt keeps only the
