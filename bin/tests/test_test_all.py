@@ -10,14 +10,16 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
+import uuid
 
 import service_guard
 
 
 ROOT = Path(__file__).resolve().parents[2]
 FAKE = r'''
-import fcntl, json, os, pathlib, signal, subprocess, sys, time
+import fcntl, json, os, pathlib, signal, subprocess, sys, time, uuid
 name = pathlib.Path(sys.argv[0]).name
 args = sys.argv[1:]
 base = pathlib.Path(os.environ['TEST_ALL_FIXTURE'])
@@ -82,6 +84,13 @@ elif name == 'xcodebuild':
         bundle.mkdir()
     for entry in filter(None, os.environ.get('TEST_HOST_TEMPORARY', '').split(os.pathsep)):
         pathlib.Path(entry).mkdir(parents=True, exist_ok=True)
+    if os.environ.get('TEST_HOST_COVERAGE'):
+        name = f'{str(uuid.uuid4()).upper()}-{os.getpid()}-{time.monotonic_ns():016X}'
+        coverage = pathlib.Path(os.environ['TEST_HOST_COVERAGE']) / name
+        coverage.mkdir()
+        (coverage / 'run.profraw').write_bytes(b'profile')
+        with (base / 'coverage').open('a') as stream:
+            stream.write(coverage.name + '\n')
     print('Tests completed')
     if os.environ.get('TEST_CHANGE_CHECKOUT'):
         pathlib.Path('source.txt').write_text('changed during tests')
@@ -358,6 +367,35 @@ class TestAllTests(unittest.TestCase):
         self.assertIn(str(self.host_temporary), result.stderr)
         self.assertNotIn("earlier", result.stderr)
         self.assertEqual(self.report()["result"], "failed")
+
+    def test_coverage_directories_are_removed_once_the_run_that_made_them_ends(self):
+        data = self.host_temporary.parent
+        ended = subprocess.Popen([sys.executable, "-c", ""])
+        ended.wait()
+        running = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        self.addCleanup(running.wait)
+        self.addCleanup(running.kill)
+
+        def coverage(pid):
+            return data / f"{str(uuid.uuid4()).upper()}-{pid}-00000C3544C8360D"
+
+        finished, live, reused, file = (coverage(ended.pid), coverage(running.pid), coverage(running.pid),
+                                        coverage(ended.pid))
+        for path in (finished, live, reused, data / "Library", data / finished.name[:-1]):
+            path.mkdir()
+        (finished / "run.profraw").write_bytes(b"profile")
+        file.write_text("not a directory")
+        before_running = time.time() - 3600
+        os.utime(reused, (before_running, before_running))
+        kept = {"tmp", "Library", finished.name[:-1], file.name, live.name}
+        for failure in ("", "1"):
+            with self.subTest(failure=bool(failure)):
+                (self.base / "coverage").unlink(missing_ok=True)
+                result = self.run_all(TEST_HOST_COVERAGE=str(data), TEST_BUILD_FAILURE=failure)
+                self.assertEqual(result.returncode != 0, bool(failure), result.stdout + result.stderr)
+                made = (self.base / "coverage").read_text().split()
+                self.assertEqual(len(made), 1 if failure else 2)
+                self.assertEqual({path.name for path in data.iterdir()}, kept)
 
     def test_missing_test_host_container_fails_the_run(self):
         shutil.rmtree(self.base / "home/Library")

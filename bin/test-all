@@ -2,6 +2,7 @@
 """Run all automated tests locally and retain evidence for the tested checkout."""
 
 import argparse
+import calendar
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -32,6 +33,9 @@ POLL_SECONDS = 1
 TEST_HOST = "com.artisanalsoftware.PodHaven.debug"
 # The system, not the tests, keeps these in the test host's temporary directory.
 TEST_HOST_SYSTEM_ENTRIES = {"TemporaryItems", f"{TEST_HOST}.savedState"}
+# Xcode names the directory where each run's test host writes coverage profiles with
+# ProcessInfo.globallyUniqueString, which holds the pid of the process that made it.
+COVERAGE_DIRECTORY = re.compile(r"[0-9A-F]{8}(?:-[0-9A-F]{4}){3}-[0-9A-F]{12}-(\d+)-[0-9A-F]{16}")
 
 
 def capture(*command):
@@ -130,7 +134,7 @@ def run(command, output, name, *, check=True, require_unittest=False, pass_fds=(
     return returncode
 
 
-def test_host_temporary_directory():
+def test_host_data():
     for metadata in (Path.home() / "Library/Containers").glob("*/.com.apple.containermanagerd.metadata.plist"):
         try:
             with metadata.open("rb") as stream:
@@ -138,12 +142,32 @@ def test_host_temporary_directory():
         except (OSError, ValueError):
             continue
         if isinstance(identity, dict) and identity.get("MCMMetadataIdentifier") == TEST_HOST:
-            return metadata.parent / "Data/tmp"
+            return metadata.parent / "Data"
     return None
 
 
-def test_host_temporary_entries(directory):
-    return set(os.listdir(directory)) if directory and directory.is_dir() else set()
+def test_host_temporary_entries(data):
+    return set(os.listdir(data / "tmp")) if data and (data / "tmp").is_dir() else set()
+
+
+def remove_finished_coverage_directories(data):
+    """Remove each coverage directory in the test host's container once the process that made it ends."""
+    if data is None or not data.is_dir():
+        return
+    directories = [(entry, int(match[1])) for entry in os.scandir(data)
+                   if (match := COVERAGE_DIRECTORY.fullmatch(entry.name)) and entry.is_dir(follow_symlinks=False)]
+    if not directories:
+        return
+    # List processes after the directories, so every maker that is still alive appears.
+    started = {}
+    for line in subprocess.check_output(["ps", "-A", "-o", "pid=,lstart="], text=True,
+                                        env={**TEST_ENVIRONMENT, "TZ": "UTC0", "LC_ALL": "C"}).splitlines():
+        pid, start = line.split(None, 1)
+        started[int(pid)] = calendar.timegm(time.strptime(" ".join(start.split()), "%a %b %d %H:%M:%S %Y"))
+    for entry, pid in directories:
+        # A process that started after the directory reuses the pid of the one that made it.
+        if pid not in started or started[pid] > entry.stat(follow_symlinks=False).st_birthtime:
+            shutil.rmtree(entry.path)
 
 
 def evidence_files(output):
@@ -258,37 +282,40 @@ def main():
             raise RuntimeError(f"Macro tests were skipped; see {output / 'macros.log'}")
 
         with my_mac_lock(f"bin/test-all in {ROOT}") as lock:
-            earlier_entries = test_host_temporary_entries(test_host_temporary_directory())
-            for bundle_name, log_name, validation_name, selection, validation_options in (
-                ("TestResults", "xcodebuild", "swift-validation",
-                 "-skip-testing:PodHavenTests/SiriLargeCatalogTests", ["--full"]),
-                ("SiriPerformance", "siri-performance", "siri-performance-validation",
-                 "-only-testing:PodHavenTests/SiriLargeCatalogTests", []),
-            ):
-                bundle = output / f"{bundle_name}.xcresult"
-                test_status = run([
-                    "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
-                    "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
-                    "-skipMacroValidation", "-resultBundlePath", str(bundle), selection,
-                    "LM_FORCE_LINK_GENERATION=YES",
-                ], output, log_name, check=False, pass_fds=(lock,), watch_host=True)
-                samples = "".join(f"\nTest host sample: {path}"
-                                  for path in sorted(output.glob(f"{log_name}-host-*.sample.txt")))
-                if not bundle.is_dir():
-                    raise RuntimeError(f"Swift tests did not produce a result bundle (exit code {test_status}); "
-                                       f"see {output / (log_name + '.log')} for the launch or build failure{samples}")
-                validation_status = run([
-                    str(ROOT / "bin/check-swift-results"), str(bundle),
-                    "--build-log", str(output / f"{log_name}.log"), *validation_options,
-                ], output, validation_name, check=False)
-                if test_status or validation_status:
-                    raise RuntimeError(f"Swift tests or evidence validation failed ({log_name}){samples}")
-            temporary = test_host_temporary_directory()
-            if temporary is None:
+            earlier_entries = test_host_temporary_entries(test_host_data())
+            try:
+                for bundle_name, log_name, validation_name, selection, validation_options in (
+                    ("TestResults", "xcodebuild", "swift-validation",
+                     "-skip-testing:PodHavenTests/SiriLargeCatalogTests", ["--full"]),
+                    ("SiriPerformance", "siri-performance", "siri-performance-validation",
+                     "-only-testing:PodHavenTests/SiriLargeCatalogTests", []),
+                ):
+                    bundle = output / f"{bundle_name}.xcresult"
+                    test_status = run([
+                        "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
+                        "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
+                        "-skipMacroValidation", "-resultBundlePath", str(bundle), selection,
+                        "LM_FORCE_LINK_GENERATION=YES",
+                    ], output, log_name, check=False, pass_fds=(lock,), watch_host=True)
+                    samples = "".join(f"\nTest host sample: {path}"
+                                      for path in sorted(output.glob(f"{log_name}-host-*.sample.txt")))
+                    if not bundle.is_dir():
+                        raise RuntimeError(f"Swift tests did not produce a result bundle (exit code {test_status}); "
+                                           f"see {output / (log_name + '.log')} for the launch or build failure{samples}")
+                    validation_status = run([
+                        str(ROOT / "bin/check-swift-results"), str(bundle),
+                        "--build-log", str(output / f"{log_name}.log"), *validation_options,
+                    ], output, validation_name, check=False)
+                    if test_status or validation_status:
+                        raise RuntimeError(f"Swift tests or evidence validation failed ({log_name}){samples}")
+            finally:
+                remove_finished_coverage_directories(test_host_data())
+            data = test_host_data()
+            if data is None:
                 raise RuntimeError(f"Could not find the {TEST_HOST} container that ran the tests")
-            left = sorted(test_host_temporary_entries(temporary) - earlier_entries - TEST_HOST_SYSTEM_ENTRIES)
+            left = sorted(test_host_temporary_entries(data) - earlier_entries - TEST_HOST_SYSTEM_ENTRIES)
             if left:
-                raise RuntimeError(f"Tests left {len(left)} new entries in {temporary}: {', '.join(left[:10])}"
+                raise RuntimeError(f"Tests left {len(left)} new entries in {data / 'tmp'}: {', '.join(left[:10])}"
                                    "; put test files under TestFiles.uniqueURL()")
         report["checkout_after"] = checkout_state()
         if any(report["checkout_after"][key] != report["checkout"][key]
