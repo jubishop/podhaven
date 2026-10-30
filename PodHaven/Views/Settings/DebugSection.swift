@@ -345,7 +345,10 @@ private struct DatabaseExportButton<Label: View>: View {
 
   private func startExport() {
     do {
-      exportDocument = DatabaseDocument(data: try DatabaseExportItem.snapshotData())
+      exportDocument = DatabaseDocument(
+        data: try Container.shared.appDB()
+          .exportSnapshotData(in: DatabaseExportItem.exportDirectory)
+      )
       isExporting = true
     } catch {
       Self.log.caughtError("Database export: failed to prepare snapshot", error)
@@ -400,30 +403,16 @@ private struct DatabaseDocument: FileDocument {
 private struct DatabaseExportItem: Transferable {
   static let exportFilename = "db.sqlite"
   static let contentType = UTType(filenameExtension: "sqlite") ?? .data
+  static let exportDirectory = FileManager.default.temporaryDirectory
+    .appendingPathComponent("DatabaseExport", isDirectory: true)
 
   private static let log = Log.as(LogSubsystem.Database.appDB)
-
-  static func exportSnapshotFile() throws -> URL {
-    let exportDirectory = FileManager.default.temporaryDirectory
-      .appendingPathComponent(UUID().uuidString, isDirectory: true)
-    try FileManager.default.createDirectory(
-      at: exportDirectory,
-      withIntermediateDirectories: true
-    )
-    let exportURL = exportDirectory.appendingPathComponent(exportFilename)
-    try Container.shared.appDB().exportSnapshot(to: exportURL)
-    return exportURL
-  }
-
-  static func snapshotData() throws -> Data {
-    try Data(contentsOf: exportSnapshotFile())
-  }
 
   static var transferRepresentation: some TransferRepresentation {
     FileRepresentation(exportedContentType: contentType) { _ in
       do {
         return SentTransferredFile(
-          try exportSnapshotFile(),
+          try Container.shared.appDB().exportSnapshot(named: exportFilename, in: exportDirectory),
           allowAccessingOriginalFile: true
         )
       } catch {
