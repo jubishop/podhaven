@@ -97,7 +97,6 @@ struct SilenceSchedulerTests {
     let queued = try await Create.podcastEpisode(Create.unsavedEpisode(queueOrder: 0))
     let current = try await Create.podcastEpisode()
     var urls: [URL] = []
-    defer { for url in urls { try? FileManager.default.removeItem(at: url) } }
     for episode in [other, queued, current] {
       urls.append(try await cache(episode, playable: true))
     }
@@ -162,7 +161,6 @@ struct SilenceSchedulerTests {
   func expiration() async throws {
     let episode = try await Create.podcastEpisode()
     let url = try await cache(episode, playable: true)
-    defer { try? FileManager.default.removeItem(at: url) }
     Container.shared.userSettings().$silenceMode.new(.balanced)
     let scheduler = Container.shared.bgTaskScheduler() as! FakeBGTaskScheduler
     Container.shared.silenceProcessor().register()

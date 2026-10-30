@@ -55,6 +55,19 @@ import Testing
     #expect(actualData == data)
   }
 
+  @Test("cached episodes live in the file manager's application support directory")
+  func cachedEpisodesLiveInFileManagerApplicationSupport() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    let applicationSupport = try #require(
+      fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+    )
+    #expect(cachedURL.rawValue.path.hasPrefix(applicationSupport.path + "/"))
+  }
+
   @Test("second episode added to queue gets cached")
   func secondEpisodeAddedToQueueGetsCached() async throws {
     let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()

@@ -27,11 +27,18 @@ final class FakeFileManager: FileManaging, Sendable {
 
   private let directories = TestFiles.uniqueURL()
 
+  // Episodes resolve their cached file paths on database queues, outside the
+  // test's container, so every fake shares one application support directory.
+  private static let applicationSupportDirectory = TestFiles.uniqueURL()
+
   func urls(
     for directory: FileManager.SearchPathDirectory,
     in domainMask: FileManager.SearchPathDomainMask
   ) -> [URL] {
-    [directories.appendingPathComponent(String(directory.rawValue))]
+    guard directory != .applicationSupportDirectory
+    else { return [Self.applicationSupportDirectory] }
+
+    return [directories.appendingPathComponent(String(directory.rawValue))]
   }
 
   // MARK: - Data Operations
@@ -72,9 +79,10 @@ final class FakeFileManager: FileManaging, Sendable {
     let directoryPrefix = url.standardizedFileURL.path + "/"
     guard
       fileExists(atPath: url.path)
-        || inMemoryFiles().keys.contains(where: {
-          $0.standardizedFileURL.path.hasPrefix(directoryPrefix)
-        })
+        || inMemoryFiles().keys
+          .contains(where: {
+            $0.standardizedFileURL.path.hasPrefix(directoryPrefix)
+          })
     else {
       throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: url.path])
     }
