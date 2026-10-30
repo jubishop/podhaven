@@ -253,6 +253,35 @@ struct AppDB {
     try db.backup(to: destination)
   }
 
+  // Keeps one snapshot in the directory; the atomic swap leaves a reader of the
+  // earlier snapshot its open file.
+  func exportSnapshot(named filename: String, in directory: URL) throws -> URL {
+    let fileManager = FileManager.default
+    let exportURL = directory.appendingPathComponent(filename)
+    try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+    for entry in try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+    where entry.lastPathComponent != filename {
+      try fileManager.removeItem(at: entry)
+    }
+    let stagingURL = directory.appendingPathComponent(UUID().uuidString)
+    try exportSnapshot(to: stagingURL)
+    _ = try fileManager.replaceItemAt(exportURL, withItemAt: stagingURL)
+    return exportURL
+  }
+
+  func exportSnapshotData(in directory: URL) throws -> Data {
+    defer {
+      do {
+        try FileManager.default.removeItem(at: directory)
+      } catch {
+        if !ErrorKit.isMissingFile(error) {
+          Self.log.caughtError("Failed to remove database snapshot at \(directory.path)", error)
+        }
+      }
+    }
+    return try Data(contentsOf: exportSnapshot(named: "db.sqlite", in: directory))
+  }
+
   struct FileStats: Sendable {
     let pageCount: Int
     let freelistCount: Int
