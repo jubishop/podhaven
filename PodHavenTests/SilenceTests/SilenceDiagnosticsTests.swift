@@ -40,8 +40,7 @@ struct SilenceDiagnosticsTests {
 
   @Test("fast background scans keep complete correlated summaries below warning")
   func fastCompletion() async throws {
-    let url = try await prepare()
-    defer { try? FileManager.default.removeItem(at: url) }
+    _ = try await prepare()
     Container.shared.fakeContinuousClock().freeze()
     let scheduler = Container.shared.bgTaskScheduler() as! FakeBGTaskScheduler
     let entries = try await LogCapture.withSink { sink in
@@ -69,8 +68,7 @@ struct SilenceDiagnosticsTests {
 
   @Test("a slow scan notes progress during decoding and once at completion without buffer spam")
   func slowScan() async throws {
-    let url = try await prepare()
-    defer { try? FileManager.default.removeItem(at: url) }
+    _ = try await prepare()
     let scheduler = Container.shared.bgTaskScheduler() as! FakeBGTaskScheduler
     let base = ContinuousClock.now
     let entries = try await LogCapture.withSink { sink in
@@ -114,7 +112,6 @@ struct SilenceDiagnosticsTests {
   )
   func interruptedScan(_ stopReason: String) async throws {
     let url = try await prepare()
-    defer { try? FileManager.default.removeItem(at: url) }
     let scheduler = Container.shared.bgTaskScheduler() as! FakeBGTaskScheduler
     let running = ThreadSafe<FakeBGTask?>(nil)
     let base = ContinuousClock.now

@@ -322,7 +322,12 @@ enum AppInfo {
   }
 
   static var applicationSupportDirectory: URL {
-    let baseURL = URL.applicationSupportDirectory
+    guard
+      let baseURL = Container.shared.fileManager()
+        .urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+    else {
+      Assert.fatal("Application support directory not found")
+    }
 
     // Production uses root Documents directory to preserve existing data
     guard let subdirectory = dataDirectoryName

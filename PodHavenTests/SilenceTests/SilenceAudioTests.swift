@@ -76,7 +76,6 @@ struct SilenceAudioTests {
       withIntermediateDirectories: true
     )
     try FileManager.default.copyItem(at: fixture, to: url.rawValue)
-    defer { try? FileManager.default.removeItem(at: url.rawValue) }
     let state = Container.shared.sharedState()
     state.setThermalPressure(.serious)
     try await Container.shared.appDB().writer
