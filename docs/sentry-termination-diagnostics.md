@@ -197,7 +197,7 @@ The milestones follow the launch path:
 | `audioConfigured` | After the synchronous audio session setup, or after scheduling its asynchronous retry when that setup fails |
 | `bootstrapReturned` | At the end of `AppLauncher.bootstrap` |
 | `firstScenePhase`, `firstScenePhaseHandled` | Around `PhoneSceneView`'s handling of its first scene phase |
-| `siriCatalogPublicationStarted`, `siriCatalogPublicationFinished` | Around the launch Siri catalog publication on the database writer |
+| `siriCatalogPublicationStarted`, `siriCatalogPublicationFinished` | Around the launch Siri catalog check, and any publication it needs, on the database writer |
 
 The `didFinishLaunching`, logging, and Sentry milestones are recorded only in
 deployed environments, where `configureLogging` runs that path. The

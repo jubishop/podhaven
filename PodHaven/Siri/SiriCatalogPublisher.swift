@@ -22,11 +22,19 @@ extension Container {
 final class SiriCatalogPublisher: TransactionObserver, Sendable {
   private enum State { case unchanged, changed, invalidated }
 
+  private struct Stamp: Decodable {
+    let schemaVersion: Int
+    let source: SiriCatalog.Source?
+  }
+
+  // Bump when the same library would publish a different catalog.
+  static let policyVersion = 1
+
   private let continuousClockNow = Container.shared.continuousClockNow()
   private let diagnostics = Container.shared.siriCatalogPublicationDiagnostics()
   private let file: SiriCatalogFile
   private let state = ThreadSafe(State.unchanged)
-  private let lastPublished = ThreadSafe<SiriCatalog?>(nil)
+  private let lastPublished = ThreadSafe<Data?>(nil)
   private static let log = Log.as("SiriCatalogPublisher")
 
   init(file: SiriCatalogFile) { self.file = file }
@@ -70,9 +78,35 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
     }
   }
 
+  func launch(_ db: Database, openDuration: Duration?) {
+    let startedAt = continuousClockNow()
+    let kept: Data?
+    do {
+      kept = try keptCatalog(db)
+    } catch {
+      Self.log.caughtError("Could not keep Siri catalog from an earlier launch", error)
+      kept = nil
+    }
+    let checkDuration = continuousClockNow() - startedAt
+    if let kept {
+      lastPublished(kept)
+      diagnostics.recordSkip(
+        openDuration: openDuration,
+        checkDuration: checkDuration,
+        bytes: kept.count
+      )
+      return
+    }
+    do { try file.removeAside() } catch {
+      Self.log.caughtError("Could not remove Siri catalog from an earlier launch", error)
+    }
+    publish(db, trigger: .launch(openDuration: openDuration, checkDuration: checkDuration))
+  }
+
   func publish(_ db: Database, trigger: SiriCatalogPublicationDiagnostics.Trigger) {
     let startedAt = continuousClockNow()
     do {
+      let source = try currentSource(db)
       let podcasts =
         try Podcast
         .select(Podcast.Columns.id, Podcast.Columns.feedURL, Podcast.Columns.title)
@@ -105,7 +139,8 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
                 )
               }
           )
-        }
+        },
+        source: source
       )
       let fetchedAt = continuousClockNow()
       var data = try SiriCatalogFile.encode(catalog)
@@ -133,13 +168,14 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
                 title: podcast.title,
                 episodes: podcast.episodes.filter { !omitted.contains($0.id) }
               )
-            }
+            },
+            source: source
           )
           data = try SiriCatalogFile.encode(catalog)
         }
       }
       try file.write(data)
-      lastPublished(catalog)
+      lastPublished(data)
       diagnostics.record(
         SiriCatalogPublicationDiagnostics.Publication(
           trigger: trigger,
@@ -157,5 +193,29 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
         Self.log.caughtError("Could not invalidate unavailable Siri catalog", error)
       }
     }
+  }
+
+  // Restores the catalog set aside at launch when it reflects the committed library.
+  private func keptCatalog(_ db: Database) throws -> Data? {
+    guard let data = try file.asideData(), !data.isEmpty, data.count <= SiriCatalogFile.maximumBytes
+    else { return nil }
+    let stamp = try JSONDecoder().decode(Stamp.self, from: data)
+    guard stamp.schemaVersion == SiriCatalog.currentSchemaVersion,
+      try stamp.source == currentSource(db)
+    else { return nil }
+    try file.restoreAside()
+    return data
+  }
+
+  private func currentSource(_ db: Database) throws -> SiriCatalog.Source {
+    guard
+      let revision = try Table("siriCatalogRevision")
+        .select(Column("revision"), as: Int64.self).fetchOne(db)
+    else { throw DatabaseError(message: "Missing Siri catalog revision") }
+    return SiriCatalog.Source(
+      revision: revision,
+      migrations: try DatabaseMigrator().appliedIdentifiers(db).count,
+      policy: Self.policyVersion
+    )
   }
 }

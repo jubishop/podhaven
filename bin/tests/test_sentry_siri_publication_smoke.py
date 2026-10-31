@@ -19,7 +19,7 @@ SOURCE = {"gitCommitHash": "abc1234"}
 RUN = "0123456789abcdef"
 ROW = {
     "sentry.item_id": "f" * 32,
-    "message": "siriCatalogPublication trigger=launch publishMs=1262 fetchMs=4 writeMs=1258 "
+    "message": "siriCatalogPublication trigger=launch skipped=false checkMs=3 publishMs=1262 fetchMs=4 writeMs=1258 "
                "podcasts=1 episodes=1 omitted=0 bytes=512 maxBytes=33554432 oversized=false "
                "openMs=37 appState=inactive suppressed=0",
     "severity": "warn",
@@ -56,6 +56,8 @@ class SiriPublicationSmokeTests(unittest.TestCase):
             [dict(ROW, message=ROW["message"].replace("writeMs=1258", "writeMs=12"))],
             [dict(ROW, message=ROW["message"] + " title=Show")],
             [dict(ROW, message=ROW["message"].replace("trigger=launch", "trigger=commit"))],
+            [dict(ROW, message=ROW["message"].replace("skipped=false", "skipped=true"))],
+            [dict(ROW, message=ROW["message"].replace("checkMs=3 ", ""))],
             [dict(ROW, message=ROW["message"].replace("omitted=0", "omitted=3"))],
             [dict(ROW, message=ROW["message"].replace("omitted=0 ", ""))],
         ]

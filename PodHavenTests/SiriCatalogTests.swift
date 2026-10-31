@@ -147,6 +147,44 @@ struct SiriCatalogTests {
     #expect(try await file.read().podcasts.isEmpty)
   }
 
+  @Test("the library revision changes exactly when a statement can change the catalog")
+  func libraryRevision() async throws {
+    let publisher = SiriCatalogPublisher(file: Container.shared.siriCatalogFile())
+    let series = try await Container.shared.repo()
+      .insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(),
+          unsavedEpisodes: [try Create.unsavedEpisode()]
+        )
+      )
+    try await Container.shared.appDB().unsafeTestDB
+      .write { db in
+        func changes(_ statement: () throws -> Void) throws -> Bool {
+          let revision = "SELECT revision FROM siriCatalogRevision"
+          let before = try Int64.fetchOne(db, sql: revision)
+          try statement()
+          return try Int64.fetchOne(db, sql: revision) != before
+        }
+        for table in ["podcast", "episode"] {
+          for column in try db.columns(in: table).map(\.name) {
+            #expect(
+              try changes { try db.execute(sql: "UPDATE \(table) SET \(column) = \(column)") }
+                == publisher.observes(
+                  eventsOfKind: .update(tableName: table, columnNames: [column])
+                ),
+              "\(table).\(column)"
+            )
+          }
+        }
+        #expect(try changes { try Create.unsavedPodcast().insert(db) })
+        #expect(
+          try changes { try Create.unsavedEpisode(podcastId: series.podcast.id).insert(db) }
+        )
+        #expect(try changes { try Episode.withID(series.episodes[0].id).deleteAll(db) })
+        #expect(try changes { try Podcast.withID(series.podcast.id).deleteAll(db) })
+      }
+  }
+
   @Test("catalog publication does not read transcript or description payloads")
   func narrowPublication() async throws {
     let series = try await Container.shared.repo()
