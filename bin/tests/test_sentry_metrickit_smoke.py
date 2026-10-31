@@ -4,7 +4,9 @@ import importlib.machinery
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import unittest
+from unittest.mock import patch
 
 import service_guard
 
@@ -79,6 +81,22 @@ class MetricKitSmokeTests(unittest.TestCase):
         event["contexts"]["launch_timeline"].update(retainedLaunches=7, unreadableLaunches=6)
         result = smoke.verify(event, sent, len(sent), sent, offline, UPLOADER, RUN, KILLED)
         self.assertEqual(result["launchTimeline"]["retainedLaunches"], 7)
+
+    def test_in_app_offsets_match_each_function_whatever_its_parameters(self):
+        demangled = "\n".join([
+            "0000000100c459cc T PodHaven.AppLauncher.bootstrap(didFinishLaunchingAt: Foundation.Date) -> ()",
+            "0000000100c47968 t closure #1 () async -> () in "
+            "PodHaven.AppLauncher.bootstrap(didFinishLaunchingAt: Foundation.Date) -> ()",
+            "0000000100c64d3c T PodHaven.MetricKitMonitor.receive(PodHaven.MetricKitMetricReporting) -> ()",
+            "0000000100c6679c T PodHaven.MetricKitMonitor.receive(PodHaven.MetricKitDiagnosticReporting) -> ()",
+            "0000000100c57708 T PodHaven.MetricKitCrashReport.init(_: PodHaven.MetricKitCrashReporting, "
+            "termination: PodHaven.MetricKitCrashTermination) throws -> PodHaven.MetricKitCrashReport",
+        ]) + "\n"
+        outputs = {"otool": "  segname __TEXT\n   vmaddr 0x0000000100000000\n", "nm": "symbols"}
+        with patch.object(smoke, "command", side_effect=lambda tool, *_: outputs[tool]), \
+                patch.object(smoke.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, demangled)):
+            offsets = smoke.in_app_offsets(Path("PodHaven"))
+        self.assertEqual(offsets, [0xC459D4, 0xC667A4, 0xC57710])
 
     def test_diagnostic_names_the_killed_launch(self):
         metadata = smoke.diagnostic(BINARY_UUID, OFFSETS, KILLED["pid"])["diagnosticMetaData"]

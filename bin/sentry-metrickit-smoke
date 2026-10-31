@@ -21,7 +21,7 @@ BUILD = "740"
 ATTACHMENT = "metrickit-crash-diagnostic.json"
 ATTACHMENT_LIMIT = 256 * 1024
 FUNCTIONS = (
-    ("AppLauncher.bootstrap", "PodHaven.AppLauncher.bootstrap() -> ()"),
+    ("AppLauncher.bootstrap", "PodHaven.AppLauncher.bootstrap("),
     ("MetricKitMonitor.receive", "PodHaven.MetricKitMonitor.receive(PodHaven.MetricKitDiagnosticReporting) -> ()"),
     ("MetricKitCrashReport.init", "PodHaven.MetricKitCrashReport.init("),
 )
