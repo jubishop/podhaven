@@ -158,6 +158,7 @@ struct MetricKitCrashForwardingTests {
   private struct WireLaunchTimeline: Decodable {
     let attribution: String
     let pid: Int32
+    let prewarmed: Bool?
     let sessionID: String?
     let lastMilestone: String?
     let millisecondsAfterOrigin: [String: Int]?
@@ -406,11 +407,13 @@ struct MetricKitCrashForwardingTests {
   @Test("a forwarded crash carries the retained timeline of the launch it killed")
   func crashCarriesKilledLaunchTimeline() throws {
     let start = Date(timeIntervalSince1970: 1_789_999_000)
-    Container.shared.launchProcess.register { LaunchProcess(pid: 4242, start: start) }
+    Container.shared.launchProcess.register {
+      LaunchProcess(pid: 4242, start: start, prewarmed: false)
+    }
     Container.shared.fakeDate().freeze(at: start.addingTimeInterval(8.5))
     Container.shared.launchTimeline().record(.sentryStarted)
     Container.shared.launchProcess.register {
-      LaunchProcess(pid: 5353, start: start.addingTimeInterval(7_200))
+      LaunchProcess(pid: 5353, start: start.addingTimeInterval(7_200), prewarmed: false)
     }
     Container.shared.launchTimeline.reset(.scope)
 
@@ -420,6 +423,7 @@ struct MetricKitCrashForwardingTests {
     let timeline = try #require(event.contexts.launchTimeline)
     #expect(timeline.attribution == "pid_match")
     #expect(timeline.pid == 4242)
+    #expect(timeline.prewarmed == false)
     #expect(timeline.sessionID == FileLogHandler.sessionID)
     #expect(timeline.lastMilestone == "sentryStarted")
     #expect(timeline.millisecondsAfterOrigin == ["sentryStarted": 8_500])

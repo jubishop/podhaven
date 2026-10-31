@@ -24,7 +24,8 @@ KILLED = {"pid": 4711, "sessionID": "8E5D0C7A-3B2F-4C1E-9A6D-1F2E3D4C5B6A", "bui
 
 def launch_timeline():
     milestones = {name: 250 + index for index, name in enumerate(smoke.LAUNCH_MILESTONES)}
-    return {"type": "default", "attribution": "pid_match", "pid": KILLED["pid"], "sessionID": KILLED["sessionID"],
+    return {"type": "default", "attribution": "pid_match", "pid": KILLED["pid"], "prewarmed": False,
+            "sessionID": KILLED["sessionID"],
             "appVersion": "1.4.1", "appBuild": KILLED["build"], "gitCommitHash": "0123abcd",
             "origin": "processStart", "originTimestamp": "2026-10-30T17:59:59.750Z", "retainedLaunches": 1,
             "unreadableLaunches": 0, "lastMilestone": smoke.LAUNCH_MILESTONES[-1], "millisecondsAfterOrigin": milestones}
@@ -102,11 +103,14 @@ class MetricKitSmokeTests(unittest.TestCase):
         def first_milestone_origin(timeline):
             timeline["origin"] = "firstMilestone"
 
+        def prewarmed(timeline):
+            timeline["prewarmed"] = True
+
         def extra_field(timeline):
             timeline["title"] = "episode title"
 
         for mutate in (unmatched, other_session, diagnostic_build, missing_milestone, unordered, stringified,
-                       fractional, first_milestone_origin, extra_field):
+                       fractional, first_milestone_origin, prewarmed, extra_field):
             with self.subTest(mutate.__name__):
                 event, sent, offline = fixture()
                 mutate(event["contexts"]["launch_timeline"])

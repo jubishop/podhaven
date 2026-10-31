@@ -176,13 +176,13 @@ record of each launch's phases instead.
 
 Each launch maps one fixed 4 KiB file under `launch-timelines/` in the app's
 documents directory. Its header holds the pid, the kernel's process start time,
-the log session ID, version, build, git commit, and the milestone names in slot
-order. Recording a milestone stores its wall-clock time in that slot, and only
-the first occurrence counts. The mapping is shared, so the kernel keeps the
-stores after a SIGKILL, and a milestone costs no write, encoding, or queue hop.
-Creating the file costs a directory listing, a pruning pass, and one mapping,
-once per launch. The directory keeps the newest `LaunchTimeline.capacity`
-launches, counting the current one.
+whether iOS prewarmed the process, the log session ID, version, build, git
+commit, and the milestone names in slot order. Recording a milestone stores its
+wall-clock time in that slot, and only the first occurrence counts. The mapping
+is shared, so the kernel keeps the stores after a SIGKILL, and a milestone costs
+no write, encoding, or queue hop. Creating the file costs a directory listing, a
+pruning pass, and one mapping, once per launch. The directory keeps the newest
+`LaunchTimeline.capacity` launches, counting the current one.
 
 The milestones follow the launch path:
 
@@ -217,8 +217,8 @@ a pid reused after a reboot or after the crash doesn't match. The event's
   been killed before its first milestone, failed to create its file, or been
   pruned.
 - `pid`, `retainedLaunches`, and `unreadableLaunches`.
-- For a match, the launch's `sessionID`, `appVersion`, `appBuild`,
-  `gitCommitHash`, and `lastMilestone`.
+- For a match, the launch's `prewarmed` flag, `sessionID`, `appVersion`,
+  `appBuild`, `gitCommitHash`, and `lastMilestone`.
 - For a match, `millisecondsAfterOrigin` maps each reached milestone to its
   whole milliseconds after `origin`. The origin is the process start, or the
   first milestone when the start time was unavailable, and `originTimestamp`
@@ -232,6 +232,10 @@ Read a matched timeline against the termination reason's allowance:
 
 - A late `didFinishLaunching` means time before PodHaven's launch code ran,
   such as pre-main loading and UIKit's launch work.
+- When `prewarmed` is true, iOS started the process ahead of its launch and
+  paused it before `UIApplicationMain`. A late `didFinishLaunching` then
+  includes that pause, which the allowance doesn't count, so read the gaps
+  after it.
 - A late `loggingStarted` after a prompt `didFinishLaunching` points at the
   start of `bootstrap`: environment detection, swift-log's bootstrap, or
   creating this launch's timeline file.

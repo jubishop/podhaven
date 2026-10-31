@@ -18,20 +18,23 @@ extension Container {
 struct LaunchProcess: Sendable {
   let pid: Int32
   let start: Date?
+  let prewarmed: Bool
 
   static func current() -> LaunchProcess {
     let pid = getpid()
+    let prewarmed = ProcessInfo.processInfo.environment["ActivePrewarm"] == "1"
     var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
     var info = unsafe kinfo_proc()
     var size = unsafe MemoryLayout<kinfo_proc>.stride
     guard unsafe sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0) == 0, size > 0
-    else { return LaunchProcess(pid: pid, start: nil) }
+    else { return LaunchProcess(pid: pid, start: nil, prewarmed: prewarmed) }
     let start = unsafe info.kp_proc.p_starttime
     return LaunchProcess(
       pid: pid,
       start: Date(
         timeIntervalSince1970: Double(start.tv_sec) + Double(start.tv_usec) / 1_000_000
-      )
+      ),
+      prewarmed: prewarmed
     )
   }
 }
@@ -66,6 +69,7 @@ struct LaunchTimeline: Sendable {
   private struct Header: Codable {
     let pid: Int32
     let processStart: Double?
+    let prewarmed: Bool
     let sessionID: String
     let version: String
     let buildNumber: String
@@ -107,6 +111,7 @@ struct LaunchTimeline: Sendable {
     let header = Header(
       pid: process.pid,
       processStart: process.start?.timeIntervalSince1970,
+      prewarmed: process.prewarmed,
       sessionID: FileLogHandler.sessionID,
       version: AppInfo.version,
       buildNumber: AppInfo.buildNumber,
@@ -179,6 +184,7 @@ struct LaunchTimeline: Sendable {
     var context: [String: Any] = [
       "attribution": "pid_match",
       "pid": pid,
+      "prewarmed": launch.header.prewarmed,
       "sessionID": Self.bounded(launch.header.sessionID),
       "appVersion": Self.bounded(launch.header.version),
       "appBuild": Self.bounded(launch.header.buildNumber),

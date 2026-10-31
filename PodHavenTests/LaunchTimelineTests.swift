@@ -13,6 +13,7 @@ struct LaunchTimelineTests {
   private struct WireLaunch: Decodable {
     let attribution: String
     let pid: Int32
+    let prewarmed: Bool?
     let sessionID: String?
     let appVersion: String?
     let appBuild: String?
@@ -28,9 +29,15 @@ struct LaunchTimelineTests {
   private static let processStart = Date(timeIntervalSince1970: 1_790_000_000)
 
   // A fresh timeline stands in for the next launch of the process.
-  private func launch(pid: Int32, startingAfter seconds: TimeInterval) -> LaunchTimeline {
+  private func launch(
+    pid: Int32,
+    startingAfter seconds: TimeInterval,
+    prewarmed: Bool = false
+  ) -> LaunchTimeline {
     let start = Self.processStart.addingTimeInterval(seconds)
-    Container.shared.launchProcess.register { LaunchProcess(pid: pid, start: start) }
+    Container.shared.launchProcess.register {
+      LaunchProcess(pid: pid, start: start, prewarmed: prewarmed)
+    }
     Container.shared.launchTimeline.reset(.scope)
     return Container.shared.launchTimeline()
   }
@@ -64,6 +71,7 @@ struct LaunchTimelineTests {
 
     #expect(context.attribution == "pid_match")
     #expect(context.pid == 4101)
+    #expect(context.prewarmed == false)
     #expect(context.sessionID == FileLogHandler.sessionID)
     #expect(context.appVersion == AppInfo.version)
     #expect(context.appBuild == AppInfo.buildNumber)
@@ -82,7 +90,9 @@ struct LaunchTimelineTests {
 
   @Test("without a process start time, milestones count from the first one")
   func unknownProcessStartCountsFromFirstMilestone() throws {
-    Container.shared.launchProcess.register { LaunchProcess(pid: 4301, start: nil) }
+    Container.shared.launchProcess.register {
+      LaunchProcess(pid: 4301, start: nil, prewarmed: false)
+    }
     Container.shared.launchTimeline.reset(.scope)
     let killed = Container.shared.launchTimeline()
     at(2)
@@ -113,6 +123,20 @@ struct LaunchTimelineTests {
       context.millisecondsAfterOrigin == ["didFinishLaunching": 750, "loggingStarted": 3_000]
     )
     #expect(context.lastMilestone == "loggingStarted")
+  }
+
+  @Test("a prewarmed launch's timeline says its process started before the launch")
+  func prewarmedLaunchIsReported() throws {
+    let killed = launch(pid: 4501, startingAfter: 0, prewarmed: true)
+    at(600)
+    killed.record(.didFinishLaunching)
+
+    let next = launch(pid: 4502, startingAfter: 3_600)
+    let context = try decode(next.crashContext(pid: 4501, endingBy: Self.processStart + 610))
+
+    #expect(context.attribution == "pid_match")
+    #expect(context.prewarmed == true)
+    #expect(context.millisecondsAfterOrigin == ["didFinishLaunching": 600_000])
   }
 
   @Test("a crash matches the latest launch with its pid that started by the crash")
@@ -146,6 +170,7 @@ struct LaunchTimelineTests {
       #expect(context.attribution == "not_retained")
       #expect(context.pid == pid)
       #expect(context.retainedLaunches == 1)
+      #expect(context.prewarmed == nil)
       #expect(context.millisecondsAfterOrigin == nil)
     }
   }
