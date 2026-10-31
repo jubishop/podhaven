@@ -211,8 +211,12 @@ a pid reused after a reboot or after the crash doesn't match. The event's
   directory can't be listed.
 - `pid`, `retainedLaunches`, and `unreadableLaunches`.
 - For a match, the launch's `sessionID`, `appVersion`, `appBuild`,
-  `gitCommitHash`, and `processStart`. It also holds each reached milestone's
-  timestamp and `secondsAfterProcessStart` in time order, and `lastMilestone`.
+  `gitCommitHash`, and `lastMilestone`.
+- For a match, `millisecondsAfterOrigin` maps each reached milestone to its
+  whole milliseconds after `origin`. The origin is the process start, or the
+  first milestone when the start time was unavailable, and `originTimestamp`
+  gives its time. Sentry returns fractional context numbers as strings, so the
+  offsets are integers.
 
 The `sessionID` matches the launch's NDJSON records. The context holds no
 titles, URLs, user or device identifiers, or log contents.

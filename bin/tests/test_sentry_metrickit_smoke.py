@@ -23,13 +23,11 @@ KILLED = {"pid": 4711, "sessionID": "8E5D0C7A-3B2F-4C1E-9A6D-1F2E3D4C5B6A", "bui
 
 
 def launch_timeline():
-    milestones = [{"milestone": name, "timestamp": f"2026-10-30T18:00:0{index}.000Z",
-                   "secondsAfterProcessStart": 0.25 + index}
-                  for index, name in enumerate(smoke.LAUNCH_MILESTONES)]
+    milestones = {name: 250 + index for index, name in enumerate(smoke.LAUNCH_MILESTONES)}
     return {"type": "default", "attribution": "pid_match", "pid": KILLED["pid"], "sessionID": KILLED["sessionID"],
             "appVersion": "1.4.1", "appBuild": KILLED["build"], "gitCommitHash": "0123abcd",
-            "processStart": "2026-10-30T17:59:59.750Z", "retainedLaunches": 1, "unreadableLaunches": 0,
-            "lastMilestone": smoke.LAUNCH_MILESTONES[-1], "milestones": milestones}
+            "origin": "processStart", "originTimestamp": "2026-10-30T17:59:59.750Z", "retainedLaunches": 1,
+            "unreadableLaunches": 0, "lastMilestone": smoke.LAUNCH_MILESTONES[-1], "millisecondsAfterOrigin": milestones}
 
 
 def fixture():
@@ -72,8 +70,8 @@ class MetricKitSmokeTests(unittest.TestCase):
         result = smoke.verify(event, sent, len(sent), sent, offline, UPLOADER, RUN, KILLED)
         self.assertEqual(result["release"], f"{smoke.BUNDLE}@{smoke.VERSION}+{smoke.BUILD}")
         self.assertEqual(result["inAppFunctions"], NAMES)
-        self.assertEqual(result["launchTimeline"]["milestones"],
-                         {name: 0.25 + index for index, name in enumerate(smoke.LAUNCH_MILESTONES)})
+        self.assertEqual(result["launchTimeline"]["millisecondsAfterOrigin"],
+                         {name: 250 + index for index, name in enumerate(smoke.LAUNCH_MILESTONES)})
 
     def test_diagnostic_names_the_killed_launch(self):
         metadata = smoke.diagnostic(BINARY_UUID, OFFSETS, KILLED["pid"])["diagnosticMetaData"]
@@ -90,15 +88,25 @@ class MetricKitSmokeTests(unittest.TestCase):
             timeline["appBuild"] = smoke.BUILD
 
         def missing_milestone(timeline):
-            timeline["milestones"].pop()
+            timeline["millisecondsAfterOrigin"].pop(smoke.LAUNCH_MILESTONES[-1])
 
         def unordered(timeline):
-            timeline["milestones"][0]["secondsAfterProcessStart"] = 9
+            timeline["millisecondsAfterOrigin"][smoke.LAUNCH_MILESTONES[0]] = 9_000
+
+        def stringified(timeline):
+            timeline["millisecondsAfterOrigin"][smoke.LAUNCH_MILESTONES[0]] = "250"
+
+        def fractional(timeline):
+            timeline["millisecondsAfterOrigin"][smoke.LAUNCH_MILESTONES[0]] = 250.5
+
+        def first_milestone_origin(timeline):
+            timeline["origin"] = "firstMilestone"
 
         def extra_field(timeline):
             timeline["title"] = "episode title"
 
-        for mutate in (unmatched, other_session, diagnostic_build, missing_milestone, unordered, extra_field):
+        for mutate in (unmatched, other_session, diagnostic_build, missing_milestone, unordered, stringified,
+                       fractional, first_milestone_origin, extra_field):
             with self.subTest(mutate.__name__):
                 event, sent, offline = fixture()
                 mutate(event["contexts"]["launch_timeline"])

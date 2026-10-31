@@ -10,12 +10,6 @@ import Testing
 
 @Suite("of LaunchTimeline tests", .container)
 struct LaunchTimelineTests {
-  private struct WireMilestone: Decodable, Equatable {
-    let milestone: String
-    let timestamp: String
-    let secondsAfterProcessStart: Double?
-  }
-
   private struct WireLaunch: Decodable {
     let attribution: String
     let pid: Int32
@@ -23,11 +17,12 @@ struct LaunchTimelineTests {
     let appVersion: String?
     let appBuild: String?
     let gitCommitHash: String?
-    let processStart: String?
+    let origin: String?
+    let originTimestamp: String?
     let retainedLaunches: Int?
     let unreadableLaunches: Int?
     let lastMilestone: String?
-    let milestones: [WireMilestone]?
+    let millisecondsAfterOrigin: [String: Int]?
   }
 
   private static let processStart = Date(timeIntervalSince1970: 1_790_000_000)
@@ -73,29 +68,35 @@ struct LaunchTimelineTests {
     #expect(context.appVersion == AppInfo.version)
     #expect(context.appBuild == AppInfo.buildNumber)
     #expect(context.gitCommitHash == AppInfo.gitCommitHash)
-    #expect(context.processStart == Self.timestamp(0))
+    #expect(context.origin == "processStart")
+    #expect(context.originTimestamp == Self.timestamp(0))
     #expect(context.retainedLaunches == 1)
     #expect(context.unreadableLaunches == 0)
     #expect(context.lastMilestone == "databaseOpened")
     #expect(
-      context.milestones == [
-        WireMilestone(
-          milestone: "loggingStarted",
-          timestamp: Self.timestamp(1.5),
-          secondsAfterProcessStart: 1.5
-        ),
-        WireMilestone(
-          milestone: "sentryStarted",
-          timestamp: Self.timestamp(7.25),
-          secondsAfterProcessStart: 7.25
-        ),
-        WireMilestone(
-          milestone: "databaseOpened",
-          timestamp: Self.timestamp(9),
-          secondsAfterProcessStart: 9
-        ),
+      context.millisecondsAfterOrigin == [
+        "loggingStarted": 1_500, "sentryStarted": 7_250, "databaseOpened": 9_000,
       ]
     )
+  }
+
+  @Test("without a process start time, milestones count from the first one")
+  func unknownProcessStartCountsFromFirstMilestone() throws {
+    Container.shared.launchProcess.register { LaunchProcess(pid: 4301, start: nil) }
+    Container.shared.launchTimeline.reset(.scope)
+    let killed = Container.shared.launchTimeline()
+    at(2)
+    killed.record(.loggingStarted)
+    at(4.5)
+    killed.record(.logsOpened)
+
+    let next = launch(pid: 4302, startingAfter: 3_600)
+    let context = try decode(next.crashContext(pid: 4301, endingBy: Self.processStart + 10))
+
+    #expect(context.attribution == "pid_match")
+    #expect(context.origin == "firstMilestone")
+    #expect(context.originTimestamp == Self.timestamp(2))
+    #expect(context.millisecondsAfterOrigin == ["loggingStarted": 0, "logsOpened": 2_500])
   }
 
   @Test("a crash matches the latest launch with its pid that started by the crash")
@@ -111,7 +112,7 @@ struct LaunchTimelineTests {
     let context = try decode(current.crashContext(pid: 77, endingBy: Self.processStart + 150))
 
     #expect(context.attribution == "pid_match")
-    #expect(context.processStart == Self.timestamp(100))
+    #expect(context.originTimestamp == Self.timestamp(100))
     #expect(context.lastMilestone == "databaseOpened")
     #expect(context.retainedLaunches == 3)
   }
@@ -129,7 +130,7 @@ struct LaunchTimelineTests {
       #expect(context.attribution == "not_retained")
       #expect(context.pid == pid)
       #expect(context.retainedLaunches == 1)
-      #expect(context.milestones == nil)
+      #expect(context.millisecondsAfterOrigin == nil)
     }
   }
 
@@ -161,11 +162,11 @@ struct LaunchTimelineTests {
     let next = launch(pid: 502, startingAfter: 60)
     let context = try decode(next.crashContext(pid: 501, endingBy: Self.processStart + 30))
 
+    let milestones = try #require(context.millisecondsAfterOrigin)
     #expect(
-      context.milestones?.map(\.milestone) == [
-        "siriCatalogPublicationStarted", "siriCatalogPublicationFinished",
-      ]
+      Set(milestones.keys) == ["siriCatalogPublicationStarted", "siriCatalogPublicationFinished"]
     )
+    #expect(context.lastMilestone == "siriCatalogPublicationFinished")
   }
 
   @Test("the phone scene marks its first phase and the end of handling it")
@@ -185,6 +186,8 @@ struct LaunchTimelineTests {
     let next = launch(pid: 602, startingAfter: 60)
     let context = try decode(next.crashContext(pid: 601, endingBy: Self.processStart + 30))
 
-    #expect(context.milestones?.map(\.milestone) == ["firstScenePhase", "firstScenePhaseHandled"])
+    let milestones = try #require(context.millisecondsAfterOrigin)
+    #expect(Set(milestones.keys) == ["firstScenePhase", "firstScenePhaseHandled"])
+    #expect(context.lastMilestone == "firstScenePhaseHandled")
   }
 }

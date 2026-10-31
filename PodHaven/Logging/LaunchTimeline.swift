@@ -171,7 +171,6 @@ struct LaunchTimeline: Sendable {
       ]
     }
 
-    let start = launch.header.processStart
     var context: [String: Any] = [
       "attribution": "pid_match",
       "pid": pid,
@@ -182,16 +181,17 @@ struct LaunchTimeline: Sendable {
       "retainedLaunches": launches.count,
       "unreadableLaunches": unreadable,
       "lastMilestone": launch.marks.last?.milestone ?? "none",
-      "milestones": launch.marks.map { mark in
-        var entry: [String: Any] = [
-          "milestone": mark.milestone,
-          "timestamp": Self.timestamp(mark.time),
-        ]
-        if let start { entry["secondsAfterProcessStart"] = mark.time - start }
-        return entry
-      },
     ]
-    if let start { context["processStart"] = Self.timestamp(start) }
+    // Sentry returns fractional context numbers as strings, so offsets are whole milliseconds.
+    if let origin = launch.header.processStart ?? launch.marks.first?.time {
+      context["origin"] = launch.header.processStart == nil ? "firstMilestone" : "processStart"
+      context["originTimestamp"] = Date(timeIntervalSince1970: origin)
+        .ISO8601Format(.init(includingFractionalSeconds: true))
+      context["millisecondsAfterOrigin"] = Dictionary(
+        launch.marks.map { ($0.milestone, Int((($0.time - origin) * 1_000).rounded())) },
+        uniquingKeysWith: { first, _ in first }
+      )
+    }
     return context
   }
 
@@ -249,10 +249,6 @@ struct LaunchTimeline: Sendable {
 
   private static func bounded(_ value: String) -> String {
     String(value.prefix(maximumFieldLength))
-  }
-
-  private static func timestamp(_ time: Double) -> String {
-    Date(timeIntervalSince1970: time).ISO8601Format(.init(includingFractionalSeconds: true))
   }
 
   // MARK: - Mapping

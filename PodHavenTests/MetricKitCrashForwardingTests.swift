@@ -155,17 +155,12 @@ struct MetricKitCrashForwardingTests {
     let rawPayloadAttachment: String
   }
 
-  private struct WireMilestone: Decodable {
-    let milestone: String
-    let secondsAfterProcessStart: Double?
-  }
-
   private struct WireLaunchTimeline: Decodable {
     let attribution: String
     let pid: Int32
     let sessionID: String?
     let lastMilestone: String?
-    let milestones: [WireMilestone]?
+    let millisecondsAfterOrigin: [String: Int]?
   }
 
   private struct WireContexts: Decodable {
@@ -427,8 +422,7 @@ struct MetricKitCrashForwardingTests {
     #expect(timeline.pid == 4242)
     #expect(timeline.sessionID == FileLogHandler.sessionID)
     #expect(timeline.lastMilestone == "sentryStarted")
-    #expect(timeline.milestones?.map(\.milestone) == ["sentryStarted"])
-    #expect(timeline.milestones?.map(\.secondsAfterProcessStart) == [8.5])
+    #expect(timeline.millisecondsAfterOrigin == ["sentryStarted": 8_500])
   }
 
   @Test("the grouping key ignores per-occurrence values and separates termination categories")

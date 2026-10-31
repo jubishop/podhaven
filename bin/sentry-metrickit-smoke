@@ -41,8 +41,8 @@ CONTEXT_KEYS = {
     "frames", "truncatedThreads", "rawPayloadBytes", "rawPayloadAttachment",
 }
 LAUNCH_KEYS = {
-    "attribution", "pid", "sessionID", "appVersion", "appBuild", "gitCommitHash", "processStart",
-    "retainedLaunches", "unreadableLaunches", "lastMilestone", "milestones",
+    "attribution", "pid", "sessionID", "appVersion", "appBuild", "gitCommitHash", "origin", "originTimestamp",
+    "retainedLaunches", "unreadableLaunches", "lastMilestone", "millisecondsAfterOrigin",
 }
 # The milestones the probe records before the helper kills its launch phase.
 LAUNCH_MILESTONES = ["loggingStarted", "logsOpened", "sentryStarted"]
@@ -112,12 +112,15 @@ def verify_launch(timeline, killed):
     assert timeline["sessionID"] == killed["sessionID"], "Timeline is not the killed launch's session"
     assert timeline["appBuild"] == killed["build"] != BUILD, "Timeline build is not the killed launch's own"
     assert timeline["unreadableLaunches"] == 0, "A retained launch timeline was unreadable"
-    milestones = timeline["milestones"]
-    assert [entry["milestone"] for entry in milestones] == LAUNCH_MILESTONES, "Unexpected launch milestones"
-    seconds = [entry["secondsAfterProcessStart"] for entry in milestones]
-    assert 0 <= seconds[0] and seconds == sorted(seconds), "Milestones are not ordered after process start"
+    assert timeline["origin"] == "processStart", "Milestones do not count from the killed launch's start"
+    milestones = timeline["millisecondsAfterOrigin"]
+    assert set(milestones) == set(LAUNCH_MILESTONES), "Unexpected launch milestones"
+    offsets = [milestones[name] for name in LAUNCH_MILESTONES]
+    assert all(type(value) is int for value in offsets), "Milestone offsets are not whole milliseconds"
+    assert 0 <= offsets[0] and offsets == sorted(offsets), "Milestones are not ordered after process start"
     assert timeline["lastMilestone"] == LAUNCH_MILESTONES[-1]
-    return {"milestones": dict(zip(LAUNCH_MILESTONES, seconds)), "retainedLaunches": timeline["retainedLaunches"]}
+    return {"millisecondsAfterOrigin": dict(zip(LAUNCH_MILESTONES, offsets)),
+            "retainedLaunches": timeline["retainedLaunches"]}
 
 
 def verify(event, data, remote_size, sent, offline, uploader_release, run, killed):
