@@ -137,20 +137,23 @@ struct AppDB {
   var reader: Reader { Reader(self) }
   var writer: Writer { Writer(self) }
 
-  // The catalog stays invalid until the first publication, which runs on the writer
-  // queue ahead of any library write so a stale snapshot is never readable.
+  // The catalog stays unreadable until the launch check keeps or republishes it on the
+  // writer queue, ahead of any library write, so a stale snapshot is never readable.
   func startSiriCatalog(_ file: SiriCatalogFile, openDuration: Duration? = nil) {
     let published = AsyncLatch<Void>()
     siriCatalogPublication(published)
-    do { try file.invalidate() } catch {
-      Self.log.caughtError("Could not invalidate Siri catalog before launch publication", error)
+    do { try file.setAside() } catch {
+      Self.log.caughtError("Could not set Siri catalog aside before launch check", error)
+      do { try file.invalidate() } catch {
+        Self.log.caughtError("Could not invalidate Siri catalog before launch publication", error)
+      }
     }
     let publisher = SiriCatalogPublisher(file: file)
     let launchTimeline = Container.shared.launchTimeline()
     db.asyncWriteWithoutTransaction { db in
       db.add(transactionObserver: publisher, extent: .databaseLifetime)
       launchTimeline.record(.siriCatalogPublicationStarted)
-      publisher.publish(db, trigger: .launch(openDuration: openDuration))
+      publisher.launch(db, openDuration: openDuration)
       launchTimeline.record(.siriCatalogPublicationFinished)
       published.open()
     }

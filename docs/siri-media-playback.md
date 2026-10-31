@@ -25,22 +25,60 @@ version, so a file from another version fails truthfully until the app
 republishes. See [catalog size](#catalog-size).
 
 Launch database initialization never builds the catalog on the calling thread.
-It invalidates the previous file, then queues the first publication on the
-database writer ahead of any library write. That job registers the commit
-observer and publishes the committed library. Until it finishes, the extension
-sees a truthful temporary failure rather than an earlier process's snapshot.
-The main app's Siri handler waits for that first publication before reading the
-catalog, so a cold handoff resolves against the published library.
+It moves the previous file aside, then queues the launch check on the database
+writer ahead of any library write. That job registers the commit observer. It
+restores the set-aside file when it is [verifiably current](#launch-freshness)
+and otherwise publishes the committed library. Until it finishes, the extension
+finds no catalog and fails truthfully rather than reading an unverified
+snapshot. The main app's Siri handler waits for that check or publication
+before reading the catalog, so a cold handoff resolves against the committed
+library.
 
 Afterward, the app republishes synchronously on the writer after relevant
 commits, including background refresh and deletion. Before a relevant commit,
 the previous catalog becomes unavailable. A crash or failed write therefore
 causes a truthful temporary failure instead of silently trusting an obsolete
-snapshot. Rollback republishes the unchanged library. The app database stays in
-its current location. Each publication has a new generation ID. The main app
-checks that generation after its asynchronous lookup and before playback.
+snapshot. Rollback restores the last published or kept catalog. The app
+database stays in its current location. Each publication has a new generation
+ID; a kept catalog keeps its generation. The main app checks that generation
+after its asynchronous lookup and before playback.
 Names, deletion, publication dates, and finished state invalidate pending
 selections; routine position writes do not.
+
+### Launch freshness
+
+Every launch used to rebuild the catalog, reading every episode row and
+rewriting the file, even when the library had not changed. Sentry logs held 240
+slow launch publications in the 14 days to October 30, 2026, nearly all in
+background launches, typically 1–30 seconds and up to 68 seconds. Launch now
+keeps a catalog it can prove current.
+
+Migration v84 adds a one-row `siriCatalogRevision` table. Triggers replace its
+random revision in the same transaction as every podcast or episode insert or
+delete and every update of a column the commit observer treats as relevant.
+`SiriCatalogTests` holds the triggers to the observer's column set, so a
+migration that rebuilds either table must recreate them. A random value rather
+than a counter keeps a restored or replaced database from matching a catalog
+published from a different history.
+
+Each publication records a `source`: that revision, the number of applied
+migrations, and `SiriCatalogPublisher.policyVersion`. Bump the policy version
+whenever the same library would publish a different catalog, such as a change
+to the [size-limit omission policy](#catalog-size). Launch keeps the set-aside
+file only when it is nonempty, within the reader limit, has the current schema
+version, and records the database's current source. Anything else republishes:
+
+- A relevant commit whose republication never finished. Commits invalidate the
+  file first, and the trigger changes the revision even if that invalidation
+  failed.
+- A launch migration. Its data changes fire the triggers, and any applied
+  migration changes the count, which covers table rebuilds that bypass them.
+- A catalog schema or publication policy change.
+- An invalid or unstamped file, including one an earlier app version wrote.
+
+The kept file's bytes become the publisher's rollback restore point. A
+publication or failed check removes the set-aside copy, and the next launch's
+move replaces any copy a crash left behind.
 
 The extension rereads the catalog for resolution, confirmation, and handling.
 The system callback copies request fields into a Sendable value. An explicit
@@ -221,17 +259,21 @@ Each catalog publication logs one bounded summary with fixed fields:
 
 | Field | Meaning |
 | --- | --- |
-| `trigger` | `launch` for the first publication in a process, `commit` afterward |
-| `publishMs`, `fetchMs`, `writeMs` | Total, row fetch and entry build, and JSON encode, any omission, plus atomic write |
-| `podcasts`, `episodes` | Published entry counts |
-| `omitted` | Episodes left out so the catalog fits the reader limit |
-| `bytes`, `maxBytes`, `oversized` | Encoded size, the extension reader's limit, and whether readers will reject it |
+| `trigger` | `launch` for the first check or publication in a process, `commit` afterward |
+| `skipped` | Whether launch kept a current catalog instead of publishing; `false` for commits |
+| `checkMs` | Launch [freshness](#launch-freshness) check time; `none` for commits |
+| `publishMs`, `fetchMs`, `writeMs` | Total, row fetch and entry build, and JSON encode, any omission, plus atomic write; `none` when skipped |
+| `podcasts`, `episodes` | Published entry counts; `none` when skipped |
+| `omitted` | Episodes left out so the catalog fits the reader limit; `none` when skipped |
+| `bytes`, `maxBytes`, `oversized` | Encoded or kept size, the extension reader's limit, and whether readers will reject it |
 | `openMs` | Launch database open and migration time; `none` for commits |
 | `appState` | UIKit application state when launch initialization began; `none` for commits |
 | `suppressed` | Commit warnings kept as local debug summaries since the last one sent |
 
-A summary becomes a warning when publication or launch open time reaches one
-second, the publisher omits episodes, or the catalog exceeds the reader limit.
+A summary becomes a warning when publication, the launch check, or launch open
+time reaches one second, the publisher omits episodes, or the catalog exceeds
+the reader limit. A kept catalog is never oversized, so a skipped launch warns
+only when it is slow.
 `SentryLogHandler` forwards warnings to Sentry Logs with its existing version,
 build, commit, and log session attributes. Launch warnings occur at most once
 per process. Commit warnings are limited to one per 15 minutes per process; the
@@ -241,8 +283,8 @@ Like the existing launch log, `appState` reflects UIKit during launch: the
 foreground Simulator smoke launch reported `background`, so this field alone
 does not prove a background launch.
 
-A cold Siri handoff that arrives during the first publication waits for it, so
-its latency includes the remaining publication time. Extension requests in that
+A cold Siri handoff that arrives during the launch check or publication waits
+for it, so its latency includes the remaining time. Extension requests in that
 window fail truthfully.
 
 A local diagnostic benchmark seeded 110 podcasts and 110,000 episodes, giving a
@@ -251,6 +293,14 @@ launch path held the main thread for 546–587 ms. After the change, launch
 initialization returned in 4.9–7.4 ms, and publication finished on the writer
 about 0.8–0.9 seconds after initialization began. Phone hardware is slower; the
 diagnostics report real devices.
+
+A later benchmark seeded 110 podcasts and 110,000 episodes, giving a
+17,722,120-byte schema 2 catalog. In a Debug test host on My Mac, a launch that
+republished it took 276–282 ms from opening the database to
+`siriCatalogPublished()`. A launch that kept it took 15–16 ms, including reading
+the file and decoding its source. With the revision triggers, inserting 20,000
+episodes, marking them all finished, and deleting them through their podcast
+each stayed within the same run-to-run variation as without them.
 
 Run `bin/sentry-siri-publication-smoke --device <iOS-Simulator-UDID>` with Sentry
 CLI access. The helper builds an isolated probe from current sources and seeds a

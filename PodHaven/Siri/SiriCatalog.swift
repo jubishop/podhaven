@@ -119,14 +119,23 @@ struct SiriCatalog: Codable, Sendable {
     }
   }
 
+  // The library revision, applied migrations, and publication policy a catalog reflects.
+  struct Source: Codable, Equatable, Sendable {
+    let revision: Int64
+    let migrations: Int
+    let policy: Int
+  }
+
   static let currentSchemaVersion = 2
   let schemaVersion: Int
   let generation: UUID
+  let source: Source?
   let podcasts: [Podcast]
 
-  init(podcasts: [Podcast]) {
+  init(podcasts: [Podcast], source: Source? = nil) {
     schemaVersion = Self.currentSchemaVersion
     generation = UUID()
+    self.source = source
     self.podcasts = podcasts
   }
 
@@ -333,4 +342,44 @@ struct SiriCatalogFile: Sendable {
     )
     try replaceContents(data, url)
   }
+
+  // Readers find no catalog until `restoreAside()` or a write replaces it.
+  func setAside() throws {
+    do {
+      _ = try FileManager.default.replaceItemAt(
+        asideURL,
+        withItemAt: url,
+        options: .usingNewMetadataOnly
+      )
+    } catch {
+      guard ErrorKit.isMissingFile(error) else { throw error }
+    }
+  }
+
+  func asideData() throws -> Data? {
+    do {
+      return try Data(contentsOf: asideURL)
+    } catch {
+      guard ErrorKit.isMissingFile(error) else { throw error }
+      return nil
+    }
+  }
+
+  func restoreAside() throws {
+    _ = try FileManager.default.replaceItemAt(
+      url,
+      withItemAt: asideURL,
+      options: .usingNewMetadataOnly
+    )
+  }
+
+  func removeAside() throws {
+    do {
+      try FileManager.default.removeItem(at: asideURL)
+    } catch {
+      guard ErrorKit.isMissingFile(error) else { throw error }
+    }
+  }
+
+  private var asideURL: URL { url.appendingPathExtension("launch") }
 }

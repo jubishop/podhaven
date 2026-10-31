@@ -13,7 +13,7 @@ extension Container {
 
 struct SiriCatalogPublicationDiagnostics: Sendable {
   enum Trigger: Sendable {
-    case launch(openDuration: Duration?)
+    case launch(openDuration: Duration?, checkDuration: Duration)
     case commit
   }
 
@@ -56,23 +56,58 @@ struct SiriCatalogPublicationDiagnostics: Sendable {
 
   func record(_ publication: Publication) {
     let duration = publication.fetchDuration + publication.writeDuration
-    let oversized = publication.bytes > SiriCatalogFile.maximumBytes
-    var exceptional = oversized || publication.omittedEpisodes > 0 || duration >= Self.slowThreshold
-    let trigger: String
+    report(
+      publication.trigger,
+      skipped: false,
+      work: """
+        publishMs=\(Self.milliseconds(duration)) \
+        fetchMs=\(Self.milliseconds(publication.fetchDuration)) \
+        writeMs=\(Self.milliseconds(publication.writeDuration)) \
+        podcasts=\(publication.podcasts) episodes=\(publication.episodes) \
+        omitted=\(publication.omittedEpisodes)
+        """,
+      bytes: publication.bytes,
+      exceptional: publication.omittedEpisodes > 0 || duration >= Self.slowThreshold
+    )
+  }
+
+  func recordSkip(openDuration: Duration?, checkDuration: Duration, bytes: Int) {
+    report(
+      .launch(openDuration: openDuration, checkDuration: checkDuration),
+      skipped: true,
+      work: "publishMs=none fetchMs=none writeMs=none podcasts=none episodes=none omitted=none",
+      bytes: bytes,
+      exceptional: false
+    )
+  }
+
+  private func report(
+    _ trigger: Trigger,
+    skipped: Bool,
+    work: String,
+    bytes: Int,
+    exceptional: Bool
+  ) {
+    let oversized = bytes > SiriCatalogFile.maximumBytes
+    var exceptional = exceptional || oversized
+    let name: String
+    var checkMs = "none"
     var openMs = "none"
-    switch publication.trigger {
-    case .launch(let openDuration):
-      trigger = "launch"
+    switch trigger {
+    case .launch(let openDuration, let checkDuration):
+      name = "launch"
+      checkMs = "\(Self.milliseconds(checkDuration))"
+      exceptional = exceptional || checkDuration >= Self.slowThreshold
       if let openDuration {
         openMs = "\(Self.milliseconds(openDuration))"
         exceptional = exceptional || openDuration >= Self.slowThreshold
       }
     case .commit:
-      trigger = "commit"
+      name = "commit"
     }
     let now = continuousClockNow()
     let (warn, suppressed, applicationState) = state { state -> (Bool, Int, String) in
-      guard case .commit = publication.trigger else {
+      guard case .commit = trigger else {
         return (exceptional, 0, state.applicationState)
       }
       guard exceptional else { return (false, state.suppressedCommitWarnings, "none") }
@@ -86,13 +121,8 @@ struct SiriCatalogPublicationDiagnostics: Sendable {
       return (true, suppressed, "none")
     }
     let message: Logger.Message = """
-      siriCatalogPublication trigger=\(trigger) \
-      publishMs=\(Self.milliseconds(duration)) \
-      fetchMs=\(Self.milliseconds(publication.fetchDuration)) \
-      writeMs=\(Self.milliseconds(publication.writeDuration)) \
-      podcasts=\(publication.podcasts) episodes=\(publication.episodes) \
-      omitted=\(publication.omittedEpisodes) \
-      bytes=\(publication.bytes) maxBytes=\(SiriCatalogFile.maximumBytes) oversized=\(oversized) \
+      siriCatalogPublication trigger=\(name) skipped=\(skipped) checkMs=\(checkMs) \(work) \
+      bytes=\(bytes) maxBytes=\(SiriCatalogFile.maximumBytes) oversized=\(oversized) \
       openMs=\(openMs) appState=\(applicationState) suppressed=\(suppressed)
       """
     if warn {
