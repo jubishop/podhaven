@@ -99,6 +99,22 @@ struct LaunchTimelineTests {
     #expect(context.millisecondsAfterOrigin == ["loggingStarted": 0, "logsOpened": 2_500])
   }
 
+  @Test("a milestone captured before its record is stored keeps the captured time")
+  func capturedMilestoneKeepsItsTime() throws {
+    let killed = launch(pid: 4401, startingAfter: 0)
+    at(3)
+    killed.record(.didFinishLaunching, at: Self.processStart.addingTimeInterval(0.75))
+    killed.record(.loggingStarted)
+
+    let next = launch(pid: 4402, startingAfter: 3_600)
+    let context = try decode(next.crashContext(pid: 4401, endingBy: Self.processStart + 10))
+
+    #expect(
+      context.millisecondsAfterOrigin == ["didFinishLaunching": 750, "loggingStarted": 3_000]
+    )
+    #expect(context.lastMilestone == "loggingStarted")
+  }
+
   @Test("a crash matches the latest launch with its pid that started by the crash")
   func reusedPIDMatchesLatestEarlierLaunch() throws {
     at(1)

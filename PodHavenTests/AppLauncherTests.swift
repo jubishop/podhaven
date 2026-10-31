@@ -165,8 +165,8 @@ struct AppLauncherTests {
       try fileManager.writeDataSynchronously(Data("evidence".utf8), to: file)
     }
 
-    Container.shared.appLauncher().bootstrap()
-    Container.shared.appLauncher().bootstrap()
+    Container.shared.appLauncher().bootstrap(didFinishLaunchingAt: .now)
+    Container.shared.appLauncher().bootstrap(didFinishLaunchingAt: .now)
 
     #expect(retired.allSatisfy { !fileManager.fileExists(at: $0) })
     #expect(fileManager.fileExists(at: AppInfo.recentLogFileURL))

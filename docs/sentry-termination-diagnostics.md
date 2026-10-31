@@ -188,6 +188,7 @@ The milestones follow the launch path:
 
 | Milestone | Recorded |
 | --- | --- |
+| `didFinishLaunching` | On entering `application(_:didFinishLaunchingWithOptions:)`, stored once swift-log is bootstrapped |
 | `loggingStarted` | After swift-log is bootstrapped, before the first record opens the log files |
 | `logsOpened`, `logsFlushed` | After that first record, then after the explicit pre-Sentry flush |
 | `sentryStarted` | After `SentrySDK.start` returns |
@@ -198,8 +199,11 @@ The milestones follow the launch path:
 | `firstScenePhase`, `firstScenePhaseHandled` | Around `PhoneSceneView`'s handling of its first scene phase |
 | `siriCatalogPublicationStarted`, `siriCatalogPublicationFinished` | Around the launch Siri catalog publication on the database writer |
 
-The logging and Sentry milestones are recorded only in deployed environments,
-where `configureLogging` runs that path.
+The `didFinishLaunching`, logging, and Sentry milestones are recorded only in
+deployed environments, where `configureLogging` runs that path. The
+`didFinishLaunching` time is captured when the delegate callback begins but
+stored after swift-log is bootstrapped, so the timeline's logger uses those
+handlers.
 
 When `MetricKitMonitor` forwards an eligible crash diagnostic, it matches the
 diagnostic's `pid` against the retained launches other than the current one. It
@@ -226,9 +230,12 @@ titles, URLs, user or device identifiers, or log contents.
 
 Read a matched timeline against the termination reason's allowance:
 
-- A late first milestone means time before PodHaven's code ran, such as pre-main
-  loading.
-- A late gap between milestones names the slow bootstrap step.
+- A late `didFinishLaunching` means time before PodHaven's launch code ran,
+  such as pre-main loading and UIKit's launch work.
+- A late `loggingStarted` after a prompt `didFinishLaunching` points at the
+  start of `bootstrap`: environment detection, swift-log's bootstrap, or
+  creating this launch's timeline file.
+- A late gap between later milestones names the slow bootstrap step.
 - A prompt `bootstrapReturned` with a late or missing `firstScenePhase` points
   at UIKit and SwiftUI scene setup.
 - The Siri publication milestones show whether that publication overlapped the

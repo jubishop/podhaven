@@ -57,11 +57,11 @@ struct AppLauncher: Sendable {
 
   // MARK: - Bootstrap
 
-  @MainActor func bootstrap() {
+  @MainActor func bootstrap(didFinishLaunchingAt: Date) {
     AppInfo.initializeEnvironment()
     guard AppInfo.environment != .preview else { return }
 
-    configureLogging()
+    configureLogging(didFinishLaunchingAt: didFinishLaunchingAt)
     Self.removeRetiredChartDiagnostics()
     guard AppInfo.environment != .testing else { return }
 
@@ -220,12 +220,14 @@ struct AppLauncher: Sendable {
 
   // MARK: - Logging
 
-  private func configureLogging() {
+  private func configureLogging(didFinishLaunchingAt: Date) {
     switch AppInfo.environment {
     case .deployed, .appStore, .testFlight:
       Self.bootstrapOSLogAndFileLog { label in
         [SentryLogHandler(label: label), CrashReportHandler(label: label)]
       }
+      // Stored after swift-log bootstraps, so the timeline's logger uses its handlers.
+      launchTimeline.record(.didFinishLaunching, at: didFinishLaunchingAt)
       launchTimeline.record(.loggingStarted)
       Self.log.debug("configureLogging: starting diagnostic session")
       launchTimeline.record(.logsOpened)

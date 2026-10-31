@@ -41,6 +41,7 @@ struct LaunchProcess: Sendable {
 // queue hop. A later launch matches them to a MetricKit crash by pid.
 struct LaunchTimeline: Sendable {
   enum Milestone: String, CaseIterable, Sendable {
+    case didFinishLaunching
     case loggingStarted
     case logsOpened
     case logsFlushed
@@ -124,14 +125,18 @@ struct LaunchTimeline: Sendable {
   }
 
   func record(_ milestone: Milestone) {
+    record(milestone, at: dateProvider.now)
+  }
+
+  func record(_ milestone: Milestone, at time: Date) {
     guard let index = Milestone.allCases.firstIndex(of: milestone) else { return }
     let offset = Self.headerLimit + index * MemoryLayout<Double>.stride
-    let now = dateProvider.now.timeIntervalSince1970
+    let seconds = time.timeIntervalSince1970
     mapping { mapping in
       guard let mapping,
         unsafe mapping.memory.load(fromByteOffset: offset, as: Double.self) == 0
       else { return }
-      unsafe mapping.memory.storeBytes(of: now, toByteOffset: offset, as: Double.self)
+      unsafe mapping.memory.storeBytes(of: seconds, toByteOffset: offset, as: Double.self)
     }
   }
 
