@@ -193,7 +193,7 @@ The milestones follow the launch path:
 | `sentryStarted` | After `SentrySDK.start` returns |
 | `databaseOpened` | After `initializeAppDB` opens and migrates the database |
 | `backgroundTasksRegistered` | After every background task is registered |
-| `audioConfigured` | After audio session setup, including the asynchronous-retry fallback |
+| `audioConfigured` | After the synchronous audio session setup, or after scheduling its asynchronous retry when that setup fails |
 | `bootstrapReturned` | At the end of `AppLauncher.bootstrap` |
 | `firstScenePhase`, `firstScenePhaseHandled` | Around `PhoneSceneView`'s handling of its first scene phase |
 | `siriCatalogPublicationStarted`, `siriCatalogPublicationFinished` | Around the launch Siri catalog publication on the database writer |
@@ -208,7 +208,10 @@ a pid reused after a reboot or after the crash doesn't match. The event's
 `launch_timeline` context then holds:
 
 - `attribution`: `pid_match`, `not_retained`, or `unavailable` when the
-  directory can't be listed.
+  directory can't be listed. `not_retained` means no retained earlier launch
+  has that pid. That launch may have run a build without launch timelines,
+  been killed before its first milestone, failed to create its file, or been
+  pruned.
 - `pid`, `retainedLaunches`, and `unreadableLaunches`.
 - For a match, the launch's `sessionID`, `appVersion`, `appBuild`,
   `gitCommitHash`, and `lastMilestone`.
