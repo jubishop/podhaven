@@ -1,10 +1,12 @@
-"""Check the MetricKit crash smoke fixture and its Sentry readback verification."""
+"""Check the MetricKit crash smoke fixture and its Sentry readback verification, including the killed launch's timeline."""
 
 import importlib.machinery
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import unittest
+from unittest.mock import patch
 
 import service_guard
 
@@ -19,17 +21,27 @@ OFFSETS = [0xC66508, 0xC82C58, 0xC75238]
 RUN = "controlled-run"
 UPLOADER = "com.artisanalsoftware.PodHaven.metrickitsmoke@1.4.1+1"
 NAMES = [name for name, _ in smoke.FUNCTIONS]
+KILLED = {"pid": 4711, "sessionID": "8E5D0C7A-3B2F-4C1E-9A6D-1F2E3D4C5B6A", "build": "1"}
+
+
+def launch_timeline():
+    milestones = {name: 250 + index for index, name in enumerate(smoke.LAUNCH_MILESTONES)}
+    return {"type": "default", "attribution": "pid_match", "pid": KILLED["pid"], "prewarmed": False,
+            "sessionID": KILLED["sessionID"],
+            "appVersion": "1.4.1", "appBuild": KILLED["build"], "gitCommitHash": "0123abcd",
+            "origin": "processStart", "originTimestamp": "2026-10-30T17:59:59.750Z", "retainedLaunches": 1,
+            "unreadableLaunches": 0, "lastMilestone": smoke.LAUNCH_MILESTONES[-1], "millisecondsAfterOrigin": milestones}
 
 
 def fixture():
-    sent = json.dumps(smoke.diagnostic(BINARY_UUID, OFFSETS), separators=(",", ":")).encode()
+    sent = json.dumps(smoke.diagnostic(BINARY_UUID, OFFSETS, KILLED["pid"]), separators=(",", ":")).encode()
     frames = [{"package": "PodHaven", "inApp": True, "symbolicatorStatus": "symbolicated", "function": name}
               for name in NAMES]
     frames.append({"package": "libsystem_kernel.dylib", "inApp": False, "symbolicatorStatus": "missing"})
     context = dict.fromkeys(smoke.CONTEXT_KEYS)
     context.update(type="default", attribution="diagnostic_metadata", termination="watchdog",
                    appVersion=smoke.VERSION, appBuild=smoke.BUILD, osVersion=smoke.METADATA["osVersion"],
-                   rawPayloadAttachment="included", rawPayloadBytes=len(sent))
+                   pid=KILLED["pid"], rawPayloadAttachment="included", rawPayloadBytes=len(sent))
     mechanism = {"type": "MXCrashDiagnostic", "handled": False, "synthetic": True,
                  "meta": {"signal": {"number": 9, "name": "SIGKILL"}}}
     tags = {"diagnostic-run": RUN, "metrickit-crash": "watchdog", "dist": smoke.BUILD,
@@ -38,7 +50,7 @@ def fixture():
         "entries": [{"type": "exception", "data": {"values": [
             {"mechanism": mechanism, "stacktrace": {"frames": frames}}]}}],
         "tags": [{"key": key, "value": value} for key, value in tags.items()],
-        "contexts": {"metrickit_crash": context},
+        "contexts": {"metrickit_crash": context, "launch_timeline": launch_timeline()},
         "user": {"id": "sdk-installation", "geo": {"city": "Seattle"}},
         "title": NAMES[-1],
     }
@@ -49,7 +61,7 @@ def fixture():
 
 class MetricKitSmokeTests(unittest.TestCase):
     def test_fixture_roots_the_call_tree_at_the_crashing_frame(self):
-        node = smoke.diagnostic(BINARY_UUID, OFFSETS)["callStackTree"]["callStacks"][0]["callStackRootFrames"][0]
+        node = smoke.diagnostic(BINARY_UUID, OFFSETS, KILLED["pid"])["callStackTree"]["callStacks"][0]["callStackRootFrames"][0]
         chain = []
         while node is not None:
             chain.append((node["binaryName"], node["offsetIntoBinaryTextSegment"]))
@@ -58,9 +70,76 @@ class MetricKitSmokeTests(unittest.TestCase):
 
     def test_verify_accepts_symbolicated_frames_with_diagnostic_attribution(self):
         event, sent, offline = fixture()
-        result = smoke.verify(event, sent, len(sent), sent, offline, UPLOADER, RUN)
+        result = smoke.verify(event, sent, len(sent), sent, offline, UPLOADER, RUN, KILLED)
         self.assertEqual(result["release"], f"{smoke.BUNDLE}@{smoke.VERSION}+{smoke.BUILD}")
         self.assertEqual(result["inAppFunctions"], NAMES)
+        self.assertEqual(result["launchTimeline"]["millisecondsAfterOrigin"],
+                         {name: 250 + index for index, name in enumerate(smoke.LAUNCH_MILESTONES)})
+
+    def test_verify_accepts_unreadable_launches_left_by_earlier_runs(self):
+        event, sent, offline = fixture()
+        event["contexts"]["launch_timeline"].update(retainedLaunches=7, unreadableLaunches=6)
+        result = smoke.verify(event, sent, len(sent), sent, offline, UPLOADER, RUN, KILLED)
+        self.assertEqual(result["launchTimeline"]["retainedLaunches"], 7)
+
+    def test_in_app_offsets_match_each_function_whatever_its_parameters(self):
+        demangled = "\n".join([
+            "0000000100c459cc T PodHaven.AppLauncher.bootstrap(didFinishLaunchingAt: Foundation.Date) -> ()",
+            "0000000100c47968 t closure #1 () async -> () in "
+            "PodHaven.AppLauncher.bootstrap(didFinishLaunchingAt: Foundation.Date) -> ()",
+            "0000000100c64d3c T PodHaven.MetricKitMonitor.receive(PodHaven.MetricKitMetricReporting) -> ()",
+            "0000000100c6679c T PodHaven.MetricKitMonitor.receive(PodHaven.MetricKitDiagnosticReporting) -> ()",
+            "0000000100c57708 T PodHaven.MetricKitCrashReport.init(_: PodHaven.MetricKitCrashReporting, "
+            "termination: PodHaven.MetricKitCrashTermination) throws -> PodHaven.MetricKitCrashReport",
+        ]) + "\n"
+        outputs = {"otool": "  segname __TEXT\n   vmaddr 0x0000000100000000\n", "nm": "symbols"}
+        with patch.object(smoke, "command", side_effect=lambda tool, *_: outputs[tool]), \
+                patch.object(smoke.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, demangled)):
+            offsets = smoke.in_app_offsets(Path("PodHaven"))
+        self.assertEqual(offsets, [0xC459D4, 0xC667A4, 0xC57710])
+
+    def test_diagnostic_names_the_killed_launch(self):
+        metadata = smoke.diagnostic(BINARY_UUID, OFFSETS, KILLED["pid"])["diagnosticMetaData"]
+        self.assertEqual(metadata, dict(smoke.METADATA, pid=KILLED["pid"]))
+
+    def test_verify_rejects_a_timeline_that_is_not_the_killed_launch(self):
+        def unmatched(timeline):
+            timeline["attribution"] = "not_retained"
+
+        def other_session(timeline):
+            timeline["sessionID"] = "0F1E2D3C-4B5A-4978-8695-A4B3C2D1E0F9"
+
+        def diagnostic_build(timeline):
+            timeline["appBuild"] = smoke.BUILD
+
+        def missing_milestone(timeline):
+            timeline["millisecondsAfterOrigin"].pop(smoke.LAUNCH_MILESTONES[-1])
+
+        def unordered(timeline):
+            timeline["millisecondsAfterOrigin"][smoke.LAUNCH_MILESTONES[0]] = 9_000
+
+        def stringified(timeline):
+            timeline["millisecondsAfterOrigin"][smoke.LAUNCH_MILESTONES[0]] = "250"
+
+        def fractional(timeline):
+            timeline["millisecondsAfterOrigin"][smoke.LAUNCH_MILESTONES[0]] = 250.5
+
+        def first_milestone_origin(timeline):
+            timeline["origin"] = "firstMilestone"
+
+        def prewarmed(timeline):
+            timeline["prewarmed"] = True
+
+        def extra_field(timeline):
+            timeline["title"] = "episode title"
+
+        for mutate in (unmatched, other_session, diagnostic_build, missing_milestone, unordered, stringified,
+                       fractional, first_milestone_origin, prewarmed, extra_field):
+            with self.subTest(mutate.__name__):
+                event, sent, offline = fixture()
+                mutate(event["contexts"]["launch_timeline"])
+                with self.assertRaises(AssertionError):
+                    smoke.verify(event, sent, len(sent), sent, offline, UPLOADER, RUN, KILLED)
 
     def test_verify_rejects_misattribution_unsymbolicated_frames_and_private_data(self):
         def uploader_release(event, sent, offline):
@@ -89,7 +168,7 @@ class MetricKitSmokeTests(unittest.TestCase):
             with self.subTest(mutate.__name__):
                 event, sent, offline, uploader = mutate(*fixture())
                 with self.assertRaises(AssertionError):
-                    smoke.verify(event, sent, len(sent), fixture()[1], offline, uploader, RUN)
+                    smoke.verify(event, sent, len(sent), fixture()[1], offline, uploader, RUN, KILLED)
 
 
 if __name__ == "__main__":

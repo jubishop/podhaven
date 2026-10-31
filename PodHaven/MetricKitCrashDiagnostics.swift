@@ -25,6 +25,7 @@ struct MetricKitCrashMetadata {
   let platformArchitecture: String
   let deviceType: String
   let bundleIdentifier: String
+  let pid: Int32
 }
 
 struct MetricKitObjectiveCException {
@@ -64,7 +65,8 @@ extension MXCrashDiagnostic: MetricKitCrashReporting {
       osVersion: metaData.osVersion,
       platformArchitecture: metaData.platformArchitecture,
       deviceType: metaData.deviceType,
-      bundleIdentifier: metaData.bundleIdentifier
+      bundleIdentifier: metaData.bundleIdentifier,
+      pid: metaData.pid
     )
   }
 
@@ -178,7 +180,8 @@ struct MetricKitCrashReport {
     _ crash: any MetricKitCrashReporting,
     termination: MetricKitCrashTermination,
     begin: Date,
-    end: Date
+    end: Date,
+    launchTimeline: [String: Any]
   ) throws {
     let tree = try JSONDecoder()
       .decode(CallStackTree.self, from: Self.pruningDeepCallers(crash.callStackTreeJSON))
@@ -294,6 +297,7 @@ struct MetricKitCrashReport {
       "platformArchitecture": String(metadata.platformArchitecture.prefix(64)),
       "deviceType": String(metadata.deviceType.prefix(64)),
       "bundleIdentifier": String(metadata.bundleIdentifier.prefix(64)),
+      "pid": metadata.pid,
       "periodStart": begin.ISO8601Format(),
       "periodEnd": end.ISO8601Format(),
       "threads": threads.count,
@@ -329,6 +333,7 @@ struct MetricKitCrashReport {
     event.context = [
       "app": ["app_version": version, "app_build": build],
       "metrickit_crash": context,
+      "launch_timeline": launchTimeline,
     ]
     self.event = event
     self.frameCount = frameCount

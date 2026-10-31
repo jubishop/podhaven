@@ -38,6 +38,7 @@ private struct ProbePayload: MetricKitDiagnosticReporting {
 struct MetricKitProbe: App {
   nonisolated private static let log = Log.as("ControlledMetricKitProbe")
   private let run = ProcessInfo.processInfo.environment["PODHAVEN_METRICKIT_RUN"] ?? "missing"
+  private let phase = ProcessInfo.processInfo.environment["PODHAVEN_METRICKIT_PHASE"] ?? "missing"
 
   init() {
     Container.shared.fileManager.register { ProbeFileManager() }
@@ -63,7 +64,10 @@ struct MetricKitProbe: App {
         writeSynchronously: { _ in false }
       )
     }
-    Self.log.debug("controlled session ready run=\(run)")
+    let timeline = Container.shared.launchTimeline()
+    timeline.record(.loggingStarted)
+    Self.log.debug("controlled session ready run=\(run) phase=\(phase)")
+    timeline.record(.logsOpened)
     let options = Sentry.Options()
     AppLauncher.configureSentryOptions(options)
     options.environment = "diagnostics-issue-740"
@@ -79,12 +83,18 @@ struct MetricKitProbe: App {
       return scope
     }
     SentrySDK.start(options: options)
+    timeline.record(.sentryStarted)
+    guard phase == "launch" else { return }
+    // The smoke helper waits for this flushed record, then kills this launch with SIGKILL.
+    Self.log.debug("controlled launch timeline recorded run=\(run) pid=\(getpid())")
+    FileLogHandler.flush()
   }
 
   var body: some Scene {
     WindowGroup {
       Text("Controlled MetricKit crash forwarding")
         .onAppear {
+          guard phase == "deliver" else { return }
           DispatchQueue.main.asyncAfter(deadline: .now() + 3) { Self.deliver() }
         }
     }
@@ -113,7 +123,8 @@ struct MetricKitProbe: App {
       let osVersion = meta["osVersion"] as? String,
       let architecture = meta["platformArchitecture"] as? String,
       let deviceType = meta["deviceType"] as? String,
-      let bundleIdentifier = meta["bundleIdentifier"] as? String
+      let bundleIdentifier = meta["bundleIdentifier"] as? String,
+      let pid = meta["pid"] as? NSNumber
     else { fatalError("Controlled MetricKit diagnostic has incomplete metadata") }
     let crash = ProbeCrash(
       applicationVersion: version,
@@ -122,7 +133,8 @@ struct MetricKitProbe: App {
         osVersion: osVersion,
         platformArchitecture: architecture,
         deviceType: deviceType,
-        bundleIdentifier: bundleIdentifier
+        bundleIdentifier: bundleIdentifier,
+        pid: pid.int32Value
       ),
       exceptionType: meta["exceptionType"] as? NSNumber,
       exceptionCode: meta["exceptionCode"] as? NSNumber,

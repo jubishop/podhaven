@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Forward a controlled MetricKit crash diagnostic from a Simulator probe and verify it in Sentry."""
+"""Kill a Simulator probe launch, forward a controlled MetricKit crash diagnostic naming it, and verify both in Sentry."""
 
 import argparse
 from importlib.machinery import SourceFileLoader
@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import plistlib
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -20,7 +21,7 @@ BUILD = "740"
 ATTACHMENT = "metrickit-crash-diagnostic.json"
 ATTACHMENT_LIMIT = 256 * 1024
 FUNCTIONS = (
-    ("AppLauncher.bootstrap", "PodHaven.AppLauncher.bootstrap() -> ()"),
+    ("AppLauncher.bootstrap", "PodHaven.AppLauncher.bootstrap("),
     ("MetricKitMonitor.receive", "PodHaven.MetricKitMonitor.receive(PodHaven.MetricKitDiagnosticReporting) -> ()"),
     ("MetricKitCrashReport.init", "PodHaven.MetricKitCrashReport.init("),
 )
@@ -35,10 +36,17 @@ METADATA = {
 
 CONTEXT_KEYS = {
     "termination", "attribution", "observation", "deliverySessionID", "appVersion", "appBuild",
-    "osVersion", "platformArchitecture", "deviceType", "bundleIdentifier", "periodStart", "periodEnd",
+    "osVersion", "platformArchitecture", "deviceType", "bundleIdentifier", "pid", "periodStart", "periodEnd",
     "exceptionType", "exceptionCode", "signal", "terminationReason", "threads", "omittedThreads",
     "frames", "truncatedThreads", "rawPayloadBytes", "rawPayloadAttachment",
 }
+LAUNCH_KEYS = {
+    "attribution", "pid", "prewarmed", "sessionID", "appVersion", "appBuild", "gitCommitHash", "origin",
+    "originTimestamp", "retainedLaunches", "unreadableLaunches", "lastMilestone", "millisecondsAfterOrigin",
+}
+# The milestones the probe records before the helper kills its launch phase.
+LAUNCH_MILESTONES = ["loggingStarted", "logsOpened", "sentryStarted"]
+LAUNCH_READY = "controlled launch timeline recorded run="
 
 
 def load(name, path):
@@ -78,7 +86,7 @@ def in_app_offsets(binary):
     return offsets
 
 
-def diagnostic(binary_uuid, offsets):
+def diagnostic(binary_uuid, offsets, pid):
     """Build MetricKit crash JSON whose call tree roots at the crashing frame and nests each caller."""
     frames = [("PodHaven", binary_uuid, offset) for offset in offsets]
     frames.append(("libsystem_kernel.dylib", SYSTEM_UUID, 0x1234))
@@ -93,15 +101,34 @@ def diagnostic(binary_uuid, offsets):
     return {"version": "1.0.0",
             "callStackTree": {"callStackPerThread": True,
                               "callStacks": [{"threadAttributed": True, "callStackRootFrames": [node]}]},
-            "diagnosticMetaData": dict(METADATA)}
+            "diagnosticMetaData": dict(METADATA, pid=pid)}
 
 
-def verify(event, data, remote_size, sent, offline, uploader_release, run):
+def verify_launch(timeline, killed):
+    """Check that the event carries the killed launch's own timeline, matched by its pid."""
+    fields = set(timeline) - {"type"}
+    assert fields == LAUNCH_KEYS, f"Unexpected launch timeline fields: {sorted(fields ^ LAUNCH_KEYS)}"
+    assert timeline["attribution"] == "pid_match" and timeline["pid"] == killed["pid"], "Killed launch not matched"
+    assert timeline["sessionID"] == killed["sessionID"], "Timeline is not the killed launch's session"
+    assert timeline["appBuild"] == killed["build"] != BUILD, "Timeline build is not the killed launch's own"
+    assert timeline["origin"] == "processStart", "Milestones do not count from the killed launch's start"
+    assert timeline["prewarmed"] is False, "A simctl launch is not prewarmed"
+    milestones = timeline["millisecondsAfterOrigin"]
+    assert set(milestones) == set(LAUNCH_MILESTONES), "Unexpected launch milestones"
+    offsets = [milestones[name] for name in LAUNCH_MILESTONES]
+    assert all(type(value) is int for value in offsets), "Milestone offsets are not whole milliseconds"
+    assert 0 <= offsets[0] and offsets == sorted(offsets), "Milestones are not ordered after process start"
+    assert timeline["lastMilestone"] == LAUNCH_MILESTONES[-1]
+    return {"millisecondsAfterOrigin": dict(zip(LAUNCH_MILESTONES, offsets)),
+            "retainedLaunches": timeline["retainedLaunches"]}
+
+
+def verify(event, data, remote_size, sent, offline, uploader_release, run, killed):
     assert 0 < len(data) <= ATTACHMENT_LIMIT and len(data) == remote_size, "Invalid attachment bounds"
     assert data == sent, "Attachment is not the forwarded raw diagnostic"
     payload = json.loads(data)
     assert set(payload) == {"version", "callStackTree", "diagnosticMetaData"}, "Unexpected payload sections"
-    assert payload["diagnosticMetaData"] == METADATA, "Unexpected diagnostic metadata"
+    assert payload["diagnosticMetaData"] == dict(METADATA, pid=killed["pid"]), "Unexpected diagnostic metadata"
     exceptions = [value for entry in event["entries"] if entry["type"] == "exception"
                   for value in entry["data"]["values"]]
     assert len(exceptions) == 1, "Expected one exception"
@@ -119,7 +146,7 @@ def verify(event, data, remote_size, sent, offline, uploader_release, run):
     assert fields == CONTEXT_KEYS, f"Unexpected crash context fields: {sorted(fields ^ CONTEXT_KEYS)}"
     assert context["attribution"] == "diagnostic_metadata" and context["termination"] == "watchdog"
     assert context["appVersion"] == VERSION and context["appBuild"] == BUILD
-    assert context["osVersion"] == METADATA["osVersion"]
+    assert context["osVersion"] == METADATA["osVersion"] and context["pid"] == killed["pid"]
     assert context["rawPayloadAttachment"] == "included" and context["rawPayloadBytes"] == len(sent)
     frames = exception["stacktrace"]["frames"]
     in_app = [frame for frame in frames if frame.get("inApp")]
@@ -137,10 +164,42 @@ def verify(event, data, remote_size, sent, offline, uploader_release, run):
     assert len(offline_frames) == len(FUNCTIONS)
     for frame, (name, _) in zip(reversed(offline_frames), FUNCTIONS):
         assert name in (frame["symbol"] or ""), f"Offline symbolication expected {name}, got {frame['symbol']}"
+    launch = verify_launch(event["contexts"]["launch_timeline"], killed)
     return {"attachmentBytes": len(data), "release": release, "uploaderRelease": uploader_release,
             "inAppFunctions": [frame["function"] for frame in in_app],
             "offlineSymbols": [frame["symbol"] for frame in offline_frames],
-            "title": event.get("title"), "groupID": event.get("groupID")}
+            "title": event.get("title"), "groupID": event.get("groupID"), "launchTimeline": launch}
+
+
+def kill_launch(device, run, evidence):
+    """Launch the probe's launch phase, wait for its flushed timeline record, then SIGKILL it."""
+    launched = command("xcrun", "simctl", "launch", "--terminate-running-process", device, BUNDLE,
+                       env=dict(os.environ, SIMCTL_CHILD_PODHAVEN_METRICKIT_RUN=run,
+                                SIMCTL_CHILD_PODHAVEN_METRICKIT_PHASE="launch"))
+    pid = int(launched.rsplit(":", 1)[1])
+    log = Path(command("xcrun", "simctl", "get_app_container", device, BUNDLE, "data")) / "Documents/recent-log.ndjson"
+    deadline = time.monotonic() + 60
+    record = None
+    while record is None and time.monotonic() < deadline:
+        lines = log.read_text().splitlines() if log.exists() else []
+        record = next((json.loads(line) for line in lines if f"{LAUNCH_READY}{run} pid={pid}" in line), None)
+        if record is None:
+            time.sleep(1)
+    if record is None:
+        raise RuntimeError("The probe's launch phase did not record its timeline within 60 seconds")
+    os.kill(pid, signal.SIGKILL)
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.5)
+    else:
+        raise RuntimeError(f"Probe launch {pid} survived SIGKILL")
+    killed = {"pid": pid, "sessionID": record["sessionID"], "build": record["buildNumber"]}
+    (evidence / "killed-launch.json").write_text(json.dumps(killed, indent=2) + "\n")
+    return killed
 
 
 def main():
@@ -191,16 +250,18 @@ def main():
                      "--project", "podhaven", "--wait", str(products / "PodHaven.app.dSYM"),
                      stderr=subprocess.STDOUT)
     (evidence / "dsym-upload.log").write_text(upload + "\n")
-    sent = json.dumps(diagnostic(uuids[0], offsets), separators=(",", ":")).encode()
-    (evidence / "sent-diagnostic.json").write_bytes(sent)
     if device["state"] != "Booted":
         command("xcrun", "simctl", "boot", args.device)
     command("xcrun", "simctl", "bootstatus", args.device, "-b")
     command("xcrun", "simctl", "install", args.device, str(app))
-    command("xcrun", "simctl", "launch", "--terminate-running-process", args.device, BUNDLE,
-            env=dict(os.environ, SIMCTL_CHILD_PODHAVEN_METRICKIT_RUN=run,
-                     SIMCTL_CHILD_PODHAVEN_METRICKIT_DIAGNOSTIC=sent.decode()))
     try:
+        killed = kill_launch(args.device, run, evidence)
+        sent = json.dumps(diagnostic(uuids[0], offsets, killed["pid"]), separators=(",", ":")).encode()
+        (evidence / "sent-diagnostic.json").write_bytes(sent)
+        command("xcrun", "simctl", "launch", "--terminate-running-process", args.device, BUNDLE,
+                env=dict(os.environ, SIMCTL_CHILD_PODHAVEN_METRICKIT_RUN=run,
+                         SIMCTL_CHILD_PODHAVEN_METRICKIT_PHASE="deliver",
+                         SIMCTL_CHILD_PODHAVEN_METRICKIT_DIAGNOSTIC=sent.decode()))
         print(f"Controlled MetricKit crash run {run}; waiting for remote ingestion", flush=True)
         deadline = time.monotonic() + 180
         while time.monotonic() < deadline:
@@ -233,7 +294,7 @@ def main():
             str(downloaded / ATTACHMENT), "--json", "--cache-dir", str(evidence / "dsym-cache"),
         ], cwd=ROOT, text=True))
         (evidence / "offline-symbolication.json").write_text(json.dumps(offline, indent=2) + "\n")
-        result = verify(event, data, item["size"], sent, offline, uploader_release, run)
+        result = verify(event, data, item["size"], sent, offline, uploader_release, run, killed)
         assert probe.source_state() == source, "Sources changed during the smoke run"
         result.update(eventID=event_id, run=run, source=source,
                       attachments=sorted((entry["name"], entry["size"]) for entry in attachments))

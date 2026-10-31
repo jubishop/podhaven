@@ -27,6 +27,7 @@ struct PhoneSceneView: View {
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.databaseMaintainer) private var databaseMaintainer
   @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
+  @DynamicInjected(\.launchTimeline) private var launchTimeline
   @DynamicInjected(\.silenceProcessor) private var silenceProcessor
   @DynamicInjected(\.publisherTranscriptProcessor) private var publisherTranscriptProcessor
   @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
@@ -56,6 +57,7 @@ struct PhoneSceneView: View {
     }
     .preferredColorScheme(userSettings.appearanceMode.colorScheme)
     .onChange(of: scenePhase, initial: true) { _, newPhase in
+      launchTimeline.record(.firstScenePhase)
       sharedState.$scenePhase.new(newPhase)
       appHangReportingGate.handleScenePhaseChange(to: newPhase)
 
@@ -92,6 +94,7 @@ struct PhoneSceneView: View {
       default:
         break
       }
+      launchTimeline.record(.firstScenePhaseHandled)
     }
     .onOpenURL { url in
       Self.log.info("Received incoming URL: \(url)")

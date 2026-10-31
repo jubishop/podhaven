@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
   @DynamicInjected(\.appLauncher) private var appLauncher
   @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
   @DynamicInjected(\.cacheManagerSession) private var cacheManagerSession
+  @DynamicInjected(\.dateProvider) private var dateProvider
   @DynamicInjected(\.notificationService) private var notificationService
 
   private static let log = Log.as("AppDelegate")
@@ -22,8 +23,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    let didFinishLaunchingAt = dateProvider.now
     UNUserNotificationCenter.current().delegate = self
-    appLauncher.bootstrap()
+    appLauncher.bootstrap(didFinishLaunchingAt: didFinishLaunchingAt)
     return true
   }
 

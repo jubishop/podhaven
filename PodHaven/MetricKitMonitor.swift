@@ -176,13 +176,16 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
     termination: MetricKitCrashTermination,
     from payload: any MetricKitDiagnosticReporting
   ) {
+    let launchTimeline = Container.shared.launchTimeline()
+      .crashContext(pid: crash.crashMetadata.pid, endingBy: payload.timeStampEnd)
     let report: MetricKitCrashReport
     do {
       report = try MetricKitCrashReport(
         crash,
         termination: termination,
         begin: payload.timeStampBegin,
-        end: payload.timeStampEnd
+        end: payload.timeStampEnd,
+        launchTimeline: launchTimeline
       )
     } catch {
       Self.log.caughtError(
@@ -195,7 +198,8 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
     Self.log.info(
       """
       Forwarded MetricKit \(termination.rawValue) crash diagnostic to Sentry: \
-      frames=\(report.frameCount), attachment=\(report.attachmentStatus)
+      frames=\(report.frameCount), attachment=\(report.attachmentStatus), \
+      launchTimeline=\(launchTimeline["attribution"] ?? "missing")
       """
     )
   }

@@ -19,11 +19,11 @@ as phone foreground activity. See [SwiftUI ScenePhase](https://developer.apple.c
 
 ## Startup and ownership
 
-`AppLauncher.bootstrap()` initializes the existing database and registers
-the shared remote-command pipeline before scene connection. CarPlay installs
-its native tab root directly in the connect callback. It then calls
-`prepareForBrowsing()`, which starts the existing once-only `StateManager`
-observers for queue, tags, and Smart Lists.
+`AppLauncher.bootstrap(didFinishLaunchingAt:)` initializes the existing
+database and registers the shared remote-command pipeline before scene
+connection. CarPlay installs its native tab root directly in the connect
+callback. It then calls `prepareForBrowsing()`, which starts the existing
+once-only `StateManager` observers for queue, tags, and Smart Lists.
 
 Browsing does not call `prepareForPlayback()` or `prepareForForeground()`.
 It does not restore a saved media asset, activate audio, resume playback,
