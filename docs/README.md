@@ -28,7 +28,7 @@ Preserve decision reasons and evidence. Follow the
 - [CarPlay MVP automated acceptance](carplay-validation.md): integration evidence matrix, signed builds, reproducible checks, and native/device limits
 - [Siri media playback](siri-media-playback.md): extension catalog, background handoff, playback ownership, and assistant cells
 - [Silence diagnostics](silence-diagnostics.md): local telemetry fields, notice bounds, and the real-world assessment that found pacing unsupported
-- [Foreground termination diagnostics](sentry-termination-diagnostics.md): prior-session log retention, MetricKit exit summaries, attribution, and validation limits
+- [Foreground termination diagnostics](sentry-termination-diagnostics.md): prior-session log retention, MetricKit exit summaries, launch timelines for watchdog kills, attribution, and validation limits
 - [Recovered-hang diagnostic delivery](sentry-recovered-hang-diagnostics.md): bounded attachments, the temporary hint callback, and SDK migration requirements
 
 - [OPML import diagnostics](opml-import-diagnostics.md): parse-failure event fields, the attached import file, and the capture limit

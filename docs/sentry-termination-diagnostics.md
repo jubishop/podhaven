@@ -127,7 +127,8 @@ Attribution comes from the diagnostic, not the delivering process. The release
 is `<bundle>@<version>+<build>`, `dist` is the build, and the `app` context's
 version and build use the same values. The `metrickit_crash` context records
 `termination`, `attribution=diagnostic_metadata`, the version, build, OS
-version, architecture, device type, and bundle identifier. It also records
+version, architecture, device type, bundle identifier, and the terminated
+process's `pid`. It also records
 the payload's `periodStart` and `periodEnd`; the exception type and code, the
 signal, and the termination reason when present; and thread, frame, and
 attachment counts. Its `observation=delivery_launch` and `deliverySessionID`
@@ -164,6 +165,67 @@ fields. An unreadable or empty call stack is logged as an error and not sent,
 because the SDK would otherwise attach the delivering process's threads.
 To symbolicate a downloaded attachment offline, pass it to the `analyze-logs`
 skill's `symbolicate_metrickit.py`.
+
+## Launch timeline
+
+A watchdog kill during launch can lose the process's queued NDJSON records,
+because the file writer runs at background QoS. In
+[PODHAVEN-74](https://github.com/jubishop/podhaven/issues/815), only the
+explicitly flushed first record reached disk. `LaunchTimeline` keeps a durable
+record of each launch's phases instead.
+
+Each launch maps one fixed 4 KiB file under `launch-timelines/` in the app's
+documents directory. Its header holds the pid, the kernel's process start time,
+the log session ID, version, build, git commit, and the milestone names in slot
+order. Recording a milestone stores its wall-clock time in that slot, and only
+the first occurrence counts. The mapping is shared, so the kernel keeps the
+stores after a SIGKILL, and a milestone costs no write, encoding, or queue hop.
+Creating the file costs a directory listing, a pruning pass, and one mapping,
+once per launch. The directory keeps the newest `LaunchTimeline.capacity`
+launches, counting the current one.
+
+The milestones follow the launch path:
+
+| Milestone | Recorded |
+| --- | --- |
+| `loggingStarted` | After swift-log is bootstrapped, before the first record opens the log files |
+| `logsOpened`, `logsFlushed` | After that first record, then after the explicit pre-Sentry flush |
+| `sentryStarted` | After `SentrySDK.start` returns |
+| `databaseOpened` | After `initializeAppDB` opens and migrates the database |
+| `backgroundTasksRegistered` | After every background task is registered |
+| `audioConfigured` | After audio session setup, including the asynchronous-retry fallback |
+| `bootstrapReturned` | At the end of `AppLauncher.bootstrap` |
+| `firstScenePhase`, `firstScenePhaseHandled` | Around `PhoneSceneView`'s handling of its first scene phase |
+| `siriCatalogPublicationStarted`, `siriCatalogPublicationFinished` | Around the launch Siri catalog publication on the database writer |
+
+The logging and Sentry milestones are recorded only in deployed environments,
+where `configureLogging` runs that path.
+
+When `MetricKitMonitor` forwards an eligible crash diagnostic, it matches the
+diagnostic's `pid` against the retained launches other than the current one. It
+picks the latest launch with that pid that started by the diagnostic's end, so
+a pid reused after a reboot or after the crash doesn't match. The event's
+`launch_timeline` context then holds:
+
+- `attribution`: `pid_match`, `not_retained`, or `unavailable` when the
+  directory can't be listed.
+- `pid`, `retainedLaunches`, and `unreadableLaunches`.
+- For a match, the launch's `sessionID`, `appVersion`, `appBuild`,
+  `gitCommitHash`, and `processStart`. It also holds each reached milestone's
+  timestamp and `secondsAfterProcessStart` in time order, and `lastMilestone`.
+
+The `sessionID` matches the launch's NDJSON records. The context holds no
+titles, URLs, user or device identifiers, or log contents.
+
+Read a matched timeline against the termination reason's allowance:
+
+- A late first milestone means time before PodHaven's code ran, such as pre-main
+  loading.
+- A late gap between milestones names the slow bootstrap step.
+- A prompt `bootstrapReturned` with a late or missing `firstScenePhase` points
+  at UIKit and SwiftUI scene setup.
+- The Siri publication milestones show whether that publication overlapped the
+  slow window.
 
 ## PODHAVEN-3J assessment
 
@@ -209,14 +271,18 @@ the `recent_log_files` context.
 Run `bin/sentry-metrickit-smoke --device <available-iOS-Simulator-UDID>` with
 authenticated Sentry CLI access to verify crash-diagnostic delivery. It builds
 an isolated Simulator probe from the current sources and uploads the probe's
-dSYM. The probe sends a synthetic watchdog diagnostic through
+dSYM. A first probe launch records launch-timeline milestones and flushes a
+readiness record, and the helper then kills it with SIGKILL. A second launch
+sends a synthetic watchdog diagnostic naming the killed launch's pid through
 `MetricKitMonitor.receive(_:)` and the production Sentry configuration. The
 diagnostic's frames are real function offsets in the probe binary, and its
 version and build differ from the probe's own. The helper reads the event and
 attachment back from Sentry. It checks symbolicated in-app frames in
 caller-to-callee order, an issue title naming the crashing in-app function,
 diagnostic attribution, the exact bounded attachment, the context fields, and
-the absence of user identity. It also symbolicates the downloaded attachment offline.
+the absence of user identity. It also checks that `launch_timeline` matched the
+killed launch's pid, session, and own build, and that its milestones survived
+the kill in order. It then symbolicates the downloaded attachment offline.
 Evidence stays under ignored `.cache/sentry-metrickit-smoke/`, within the
 [smoke evidence bound](sentry-recovered-hang-diagnostics.md#controlled-ios-verification).
 It never installs on a physical device. Actual MetricKit delivery of a real watchdog

@@ -146,9 +146,12 @@ struct AppDB {
       Self.log.caughtError("Could not invalidate Siri catalog before launch publication", error)
     }
     let publisher = SiriCatalogPublisher(file: file)
+    let launchTimeline = Container.shared.launchTimeline()
     db.asyncWriteWithoutTransaction { db in
       db.add(transactionObserver: publisher, extent: .databaseLifetime)
+      launchTimeline.record(.siriCatalogPublicationStarted)
       publisher.publish(db, trigger: .launch(openDuration: openDuration))
+      launchTimeline.record(.siriCatalogPublicationFinished)
       published.open()
     }
   }

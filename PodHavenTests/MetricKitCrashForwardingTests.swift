@@ -29,7 +29,8 @@ struct MetricKitCrashForwardingTests {
       osVersion: "iPhone OS 26.1 (23B85)",
       platformArchitecture: "arm64e",
       deviceType: "iPhone17,1",
-      bundleIdentifier: "com.artisanalsoftware.PodHaven"
+      bundleIdentifier: "com.artisanalsoftware.PodHaven",
+      pid: 4242
     )
     var exceptionType: NSNumber? = 10
     var exceptionCode: NSNumber? = 0
@@ -138,6 +139,7 @@ struct MetricKitCrashForwardingTests {
     let platformArchitecture: String
     let deviceType: String
     let bundleIdentifier: String
+    let pid: Int32
     let periodStart: String
     let periodEnd: String
     let exceptionType: Int?
@@ -153,9 +155,23 @@ struct MetricKitCrashForwardingTests {
     let rawPayloadAttachment: String
   }
 
+  private struct WireMilestone: Decodable {
+    let milestone: String
+    let secondsAfterProcessStart: Double?
+  }
+
+  private struct WireLaunchTimeline: Decodable {
+    let attribution: String
+    let pid: Int32
+    let sessionID: String?
+    let lastMilestone: String?
+    let milestones: [WireMilestone]?
+  }
+
   private struct WireContexts: Decodable {
     let app: WireAppContext?
     let metrickitCrash: WireCrashContext
+    let launchTimeline: WireLaunchTimeline?
   }
 
   private struct WireEvent: Decodable {
@@ -363,6 +379,7 @@ struct MetricKitCrashForwardingTests {
     #expect(context.platformArchitecture == "arm64e")
     #expect(context.deviceType == "iPhone17,1")
     #expect(context.bundleIdentifier == "com.artisanalsoftware.PodHaven")
+    #expect(context.pid == 4242)
     #expect(context.periodStart == payload.timeStampBegin.ISO8601Format())
     #expect(context.periodEnd == payload.timeStampEnd.ISO8601Format())
     #expect(context.exceptionType == 10)
@@ -382,11 +399,36 @@ struct MetricKitCrashForwardingTests {
     #expect(raw.count <= MetricKitCrashReport.maximumAttachmentBytes)
     #expect(context.rawPayloadBytes == raw.count)
     #expect(context.rawPayloadAttachment == "included")
+    #expect(event.contexts.launchTimeline?.attribution == "not_retained")
+    #expect(event.contexts.launchTimeline?.pid == 4242)
 
     let local = logs.filter { $0.message == "MetricKit crash diagnostic received" }
     #expect(local.count == 1)
     #expect(local.first?.level == .notice)
     #expect(local.first?.metadata["metricKitDiagnostic"] == String(decoding: raw, as: UTF8.self))
+  }
+
+  @Test("a forwarded crash carries the retained timeline of the launch it killed")
+  func crashCarriesKilledLaunchTimeline() throws {
+    let start = Date(timeIntervalSince1970: 1_789_999_000)
+    Container.shared.launchProcess.register { LaunchProcess(pid: 4242, start: start) }
+    Container.shared.fakeDate().freeze(at: start.addingTimeInterval(8.5))
+    Container.shared.launchTimeline().record(.sentryStarted)
+    Container.shared.launchProcess.register {
+      LaunchProcess(pid: 5353, start: start.addingTimeInterval(7_200))
+    }
+    Container.shared.launchTimeline.reset(.scope)
+
+    let captured = captures([Payload(crashReports: [Self.crash()])])
+
+    let event = try decode(try #require(captured.first))
+    let timeline = try #require(event.contexts.launchTimeline)
+    #expect(timeline.attribution == "pid_match")
+    #expect(timeline.pid == 4242)
+    #expect(timeline.sessionID == FileLogHandler.sessionID)
+    #expect(timeline.lastMilestone == "sentryStarted")
+    #expect(timeline.milestones?.map(\.milestone) == ["sentryStarted"])
+    #expect(timeline.milestones?.map(\.secondsAfterProcessStart) == [8.5])
   }
 
   @Test("the grouping key ignores per-occurrence values and separates termination categories")

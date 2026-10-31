@@ -29,6 +29,7 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
   @DynamicInjected(\.publisherTranscriptProcessor) private var publisherTranscriptProcessor
   @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
+  @DynamicInjected(\.launchTimeline) private var launchTimeline
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.processActivationDiagnostics) private var processActivationDiagnostics
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -71,6 +72,7 @@ struct AppLauncher: Sendable {
 
     // Force DB initialization so schema migrations run immediately.
     Container.shared.initializeAppDB()
+    launchTimeline.record(.databaseOpened)
 
     thermalPressureMonitor.start()
 
@@ -99,6 +101,7 @@ struct AppLauncher: Sendable {
     Container.shared.silenceProcessor().register()
     publisherTranscriptProcessor.register()
     transcriptionProcessor.register()
+    launchTimeline.record(.backgroundTasksRegistered)
 
     // Subscribe before audio session config so a mediaservicesd respawn during
     // launch isn't missed (Apple guidance for mediaServicesWereResetNotification).
@@ -125,6 +128,8 @@ struct AppLauncher: Sendable {
         CommandCenter.registerRemoteCommandHandlers()
       }
     }
+    launchTimeline.record(.audioConfigured)
+    launchTimeline.record(.bootstrapReturned)
   }
 
   // MARK: - Shared Data
@@ -221,9 +226,13 @@ struct AppLauncher: Sendable {
       Self.bootstrapOSLogAndFileLog { label in
         [SentryLogHandler(label: label), CrashReportHandler(label: label)]
       }
+      launchTimeline.record(.loggingStarted)
       Self.log.debug("configureLogging: starting diagnostic session")
+      launchTimeline.record(.logsOpened)
       FileLogHandler.flush()
+      launchTimeline.record(.logsFlushed)
       Self.configureSentry()
+      launchTimeline.record(.sentryStarted)
       Self.log.debug(
         """
         configureLogging: OSLog, FileLog, CrashReport; Sentry recent log attachments configured: \
