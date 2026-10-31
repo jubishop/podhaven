@@ -74,6 +74,12 @@ class MetricKitSmokeTests(unittest.TestCase):
         self.assertEqual(result["launchTimeline"]["millisecondsAfterOrigin"],
                          {name: 250 + index for index, name in enumerate(smoke.LAUNCH_MILESTONES)})
 
+    def test_verify_accepts_unreadable_launches_left_by_earlier_runs(self):
+        event, sent, offline = fixture()
+        event["contexts"]["launch_timeline"].update(retainedLaunches=7, unreadableLaunches=6)
+        result = smoke.verify(event, sent, len(sent), sent, offline, UPLOADER, RUN, KILLED)
+        self.assertEqual(result["launchTimeline"]["retainedLaunches"], 7)
+
     def test_diagnostic_names_the_killed_launch(self):
         metadata = smoke.diagnostic(BINARY_UUID, OFFSETS, KILLED["pid"])["diagnosticMetaData"]
         self.assertEqual(metadata, dict(smoke.METADATA, pid=KILLED["pid"]))

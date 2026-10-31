@@ -111,7 +111,6 @@ def verify_launch(timeline, killed):
     assert timeline["attribution"] == "pid_match" and timeline["pid"] == killed["pid"], "Killed launch not matched"
     assert timeline["sessionID"] == killed["sessionID"], "Timeline is not the killed launch's session"
     assert timeline["appBuild"] == killed["build"] != BUILD, "Timeline build is not the killed launch's own"
-    assert timeline["unreadableLaunches"] == 0, "A retained launch timeline was unreadable"
     assert timeline["origin"] == "processStart", "Milestones do not count from the killed launch's start"
     assert timeline["prewarmed"] is False, "A simctl launch is not prewarmed"
     milestones = timeline["millisecondsAfterOrigin"]
