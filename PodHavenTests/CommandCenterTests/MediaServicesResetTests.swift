@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
+import GRDB
 import Semaphore
 import Testing
 
@@ -354,6 +355,40 @@ import Testing
       await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
         == initialLoadCount + 2
     )
+  }
+
+  @Test("recovery play stops when the interrupted episode was deleted")
+  func recoveryPlayStopsWhenInterruptedEpisodeWasDeleted() async throws {
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.pause()
+    let initialAVPlayer = avPlayer
+
+    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+    try await Wait.until(
+      { await avPlayer != initialAVPlayer },
+      { "Expected new AVPlayer to be created" }
+    )
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Audio Services Restarted" },
+      { @MainActor in "Expected an audio-services reset explanation" }
+    )
+    #expect(sharedState.playbackStatus == .paused)
+
+    _ = try await Container.shared.appDB().writer
+      .write { db in
+        try Episode.withIDs([podcastEpisode.id]).deleteAll(db)
+      }
+    await playManager.play()
+
+    #expect(sharedState.onDeck == nil)
+    #expect(sharedState.currentEpisodeID == nil)
+    #expect(sharedState.playbackStatus == .stopped)
   }
 
   @Test("media services reset rebuilds without prompting when no episode exists")

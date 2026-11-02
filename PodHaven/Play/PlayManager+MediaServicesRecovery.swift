@@ -72,6 +72,7 @@ extension PlayManager {
         mediaServicesRecoveryState = .none
         pendingPlaybackRequest = .none
         stateManager.clearOnDeck()
+        setStatus(.stopped)
         return false
       }
       let loaded = try await load(podcastEpisode, preserving: requestID)
