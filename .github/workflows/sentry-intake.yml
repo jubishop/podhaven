@@ -22,10 +22,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # setup-node's lts/* can lag nodejs.org when a new major turns LTS; see
+      # docs/foundation/engineering-policy.md#runtime-and-toolchain-versions.
+      - name: Find the newest Node LTS on nodejs.org
+        id: node
+        shell: bash
+        run: |
+          version=$(curl -fsSL --retry 3 https://nodejs.org/dist/index.json |
+            jq -er '[.[] | select(.lts) | .version | ltrimstr("v")] | max_by(split(".") | map(tonumber))')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v7
         with:
-          node-version: lts/*
-          check-latest: true
+          node-version: ${{ steps.node.outputs.version }}
 
       - name: Install Sentry CLI
         run: npm install --global sentry@latest

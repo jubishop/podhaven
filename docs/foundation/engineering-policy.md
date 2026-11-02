@@ -106,10 +106,29 @@ bump. For Node, that is the newest LTS line.
 - Application commands reject only versions below that minimum, before
   installing, testing, building, or starting services. Report the version
   found, the minimum, and how to select a newer one.
-- CI installs the latest stable release on every run (for example,
-  `node-version: lts/*` with `check-latest: true`, so the runner does not
-  reuse an older cached release), and a new release is tested without anyone
-  asking.
+- CI installs the latest stable release on every run, so a new release is
+  tested without anyone asking. Set `check-latest: true` beside a range such
+  as `3.x`, so the runner does not reuse an older release from its tool cache.
+- For Node, CI resolves the newest LTS from nodejs.org's release index, the
+  list version managers such as fnm and nvm read, and installs that exact
+  version. Do not give `actions/setup-node` `lts/*`, directly or through a
+  version file: it resolves that alias from the `actions/node-versions`
+  manifest, which can mark a new LTS major days after nodejs.org does, and
+  `check-latest` reads the same manifest. On 2026-11-01, four days after
+  nodejs.org marked v26.13.0 LTS, `lts/*` still installed 24.22.2.
+
+  ```yaml
+  - name: Find the newest Node LTS on nodejs.org
+    id: node
+    shell: bash
+    run: |
+      version=$(curl -fsSL --retry 3 https://nodejs.org/dist/index.json |
+        jq -er '[.[] | select(.lts) | .version | ltrimstr("v")] | max_by(split(".") | map(tonumber))')
+      echo "version=$version" >> "$GITHUB_OUTPUT"
+  - uses: actions/setup-node@v7
+    with:
+      node-version: ${{ steps.node.outputs.version }}
+  ```
 - Workflows reference GitHub Actions by major tag, such as
   `actions/checkout@v7`, not by commit SHA, and install CI tools at their
   latest version. Move to a new major tag when one ships. A job that holds
