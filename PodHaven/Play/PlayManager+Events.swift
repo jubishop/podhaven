@@ -211,7 +211,14 @@ extension PlayManager {
     // one's observers and player item would be leaked.
     await podAVPlayer.clear()
 
-    if let interruptedEpisodeID {
+    let preservedOnDeck: OnDeck?
+    if let onDeck = sharedState.onDeck, onDeck.id == interruptedEpisodeID {
+      preservedOnDeck = onDeck
+    } else {
+      preservedOnDeck = nil
+    }
+
+    if preservedOnDeck == nil, let interruptedEpisodeID {
       do {
         try await queue.unshift(interruptedEpisodeID)
       } catch {
@@ -236,15 +243,23 @@ extension PlayManager {
     Self.log.debug("handleMediaServicesReset: preserved interrupted playback for user action")
 
     let audioSessionConfigured = await Container.shared.configureAudioSession()()
-    let resumeEpisode: PodcastEpisode?
-    do {
-      resumeEpisode = try await queue.nextEpisode
-    } catch {
-      Self.log.caughtError(
-        "handleMediaServicesReset: failed to read the rebuilt Up Next queue",
-        error
-      )
-      resumeEpisode = nil
+    let resumeEpisode: (id: Episode.ID, title: String)?
+    if let preservedOnDeck {
+      resumeEpisode = (preservedOnDeck.id, preservedOnDeck.title)
+    } else {
+      do {
+        if let nextEpisode = try await queue.nextEpisode {
+          resumeEpisode = (nextEpisode.id, nextEpisode.episode.title)
+        } else {
+          resumeEpisode = nil
+        }
+      } catch {
+        Self.log.caughtError(
+          "handleMediaServicesReset: failed to read the rebuilt Up Next queue",
+          error
+        )
+        resumeEpisode = nil
+      }
     }
 
     let outcome: MediaServicesResetOutcome
@@ -292,8 +307,8 @@ extension PlayManager {
     await alert(
       title: "Audio Services Restarted",
       """
-      Your device restarted its audio services. “\(resumeEpisode.episode.title)” is at the top of \
-      Up Next. Play it when you’re ready to resume.
+      Your device restarted its audio services. Play “\(resumeEpisode.title)” when you’re ready \
+      to resume.
       """
     )
   }

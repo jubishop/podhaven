@@ -165,7 +165,11 @@ import Testing
       { @MainActor in Container.shared.avPlayer() as! FakeAVPlayer !== initialPlayer },
       { "Media reset must replace the retired player" }
     )
-    try await PlayHelpers.waitFor(.stopped)
+    try await Wait.until(
+      { @MainActor in Container.shared.alert().config?.title == "Audio Services Restarted" },
+      { "Media reset must finish before CarPlay selection" }
+    )
+    try await PlayHelpers.waitFor(.paused)
     let upNext = try #require(scene.root.templates.first as? CPListTemplate)
     scene.root.selectTemplate(at: 0)
     scene.root.delegate?.tabBarTemplate(scene.root, didSelect: upNext)
@@ -178,7 +182,7 @@ import Testing
       { @MainActor in scene.controller.topTemplate === CPNowPlayingTemplate.shared },
       { "CarPlay must reach transport controls after reset" }
     )
-    #expect(Container.shared.sharedState().playbackStatus == .stopped)
+    #expect(Container.shared.sharedState().playbackStatus == .paused)
     let remote = Container.shared.mpRemoteCommandCenter() as! FakeMPRemoteCommandCenter
     #expect(remote.play.isEnabled)
     remote.firePlay()

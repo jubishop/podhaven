@@ -469,7 +469,11 @@ import Testing
     } _: {
       "Media services did not rebuild the player"
     }
-    try await PlayHelpers.waitFor(.stopped)
+    try await Wait.until(
+      { @MainActor in Container.shared.alert().config?.title == "Audio Services Restarted" },
+      { "Media services recovery did not finish" }
+    )
+    try await PlayHelpers.waitFor(.paused)
     await Container.shared.playManager().play()
     try await PlayHelpers.waitFor(.playing)
     #expect(Container.shared.sharedState().currentEpisodeID == episode.id)
