@@ -729,6 +729,71 @@ import Testing
     )
   }
 
+  @Test("repeated reset during a recovery load keeps the interrupted episode OnDeck")
+  func repeatedResetDuringRecoveryLoadKeepsInterruptedEpisodeOnDeck() async throws {
+    try await LogCapture.withSink { sink in
+      PlayHelpers.setupCommandHandling()
+      await playManager.start()
+      let (podcastEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+      try await queue.unshift(queuedEpisode.id)
+      try await PlayHelpers.load(podcastEpisode)
+      try await PlayHelpers.pause()
+      let initialAVPlayer = avPlayer
+
+      notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+        .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+      try await Wait.until(
+        { await avPlayer != initialAVPlayer },
+        { "Expected new AVPlayer to be created" }
+      )
+      try await Wait.until(
+        { @MainActor in alert.config?.title == "Audio Services Restarted" },
+        { @MainActor in "Expected an audio-services reset explanation" }
+      )
+      #expect(sharedState.playbackStatus == .paused)
+      try await PlayHelpers.waitForQueue([queuedEpisode])
+
+      let loadStarted = AsyncSemaphore(value: 0)
+      let finishLoading = AsyncSemaphore(value: 0)
+      await episodeAssetLoader.respond(to: podcastEpisode.episode.mediaURL) { _ in
+        loadStarted.signal()
+        try await finishLoading.waitUnlessCancelled()
+        return (true, .seconds(60))
+      }
+      let recoveryTask = Task { await playManager.play() }
+      defer {
+        recoveryTask.cancel()
+        finishLoading.signal()
+      }
+      await loadStarted.wait()
+      let recoveryAVPlayer = avPlayer
+
+      notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+        .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+      try await Wait.until(
+        { await avPlayer != recoveryAVPlayer },
+        { "Expected a second new AVPlayer to be created" }
+      )
+      finishLoading.signal()
+      await recoveryTask.value
+      try await Wait.until(
+        {
+          sink.captured()
+            .filter { $0.message.contains("event=mediaServicesResetHandled") }
+            .count == 2
+        },
+        { "Expected the repeated reset to be handled" }
+      )
+
+      try await PlayHelpers.waitForOnDeck(podcastEpisode)
+      #expect(sharedState.playbackStatus == .paused)
+      try await PlayHelpers.waitForQueue([queuedEpisode])
+    }
+  }
+
   @Test("media services reset disposes invalid player without requeueing OnDeck")
   func mediaServicesResetDisposesInvalidPlayerWithoutRequeueingOnDeck() async throws {
     PlayHelpers.setupCommandHandling()
