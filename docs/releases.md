@@ -196,15 +196,24 @@ revision has app commits that build lacks, it reports:
 
 - when that build's tag was created and how long ago;
 - how many commits landed since, over which dates, and how many change the app;
+- the newest later build in Everyone that testers don't have yet, such as one
+  waiting for beta review: its build number, version, and state in App Store
+  Connect, when it was submitted for review, and how many of the reported app
+  commits its local release tag includes;
 - the app commits: each with its date and full message when there are at most
   three, or an `llm` technical summary followed by a dated list when there are
   more.
 
+Internal testers get each build once it finishes processing, without beta
+review, so an internal tester can already have a build that Everyone lacks.
+
 In a terminal it then asks whether to release anyway; the default is no.
 Without a terminal it stops. It also stops when no build is in testing. Either
 way, nothing has changed yet: run `testflight` first to give testers those
-changes. `--notes` does not skip the check, and retrying a started release does
-not repeat it. An explicit `--build` is checked through its local release tag.
+changes, or, when the later build is waiting for or in beta review and includes
+every reported commit, wait for Apple to approve it. `--notes` does not skip the
+check, and retrying a started release does not repeat it. An explicit `--build`
+is checked through its local release tag.
 
 Use either override when needed:
 

@@ -27,6 +27,8 @@ with (base / 'events').open('a') as stream:
 if name == 'fastlane' and args[0] == 'distribute_testflight':
     if 'base:true' in args:
         pathlib.Path(os.environ['PODHAVEN_TESTFLIGHT_BASE_PATH']).write_text(os.environ.get('TESTED_BUILD', '569'))
+        if os.environ.get('PODHAVEN_TESTFLIGHT_PENDING_PATH'):
+            pathlib.Path(os.environ['PODHAVEN_TESTFLIGHT_PENDING_PATH']).write_text(os.environ.get('PENDING_BUILD', ''))
 elif name == 'fastlane':
     mode = next(arg.split(':', 1)[1] for arg in args if arg.startswith('mode:'))
     if os.environ.get('APPSTORE_FAIL_PHASE') == mode:
@@ -226,11 +228,26 @@ class AppStoreCommandTests(unittest.TestCase):
                 self.assertIn("Testers in Everyone don't have 1 app commit yet", result.stderr)
                 self.assertIn("Fix CarPlay skipping", result.stderr)
                 self.assertIn("Run testflight first", result.stderr)
+                self.assertNotIn("newer build", result.stderr)
                 self.assertNotIn("Retry the same command", result.stderr)
                 self.assertEqual(self.git("rev-parse", "HEAD"), head)
                 self.assertFalse(self.events("xcodebuild"))
                 self.assertFalse(any("mode:preflight" in call[1] for call in self.events("fastlane")))
                 self.assertFalse((self.base / "notes-input").exists())
+
+    def test_report_names_a_newer_build_waiting_for_beta_review(self):
+        self.commit_app_change("Fix CarPlay skipping", tested=False)
+        self.git("tag", "-a", "v1.0.2b570", "-m", "Waiting build")
+        pending = json.dumps({"build": "570", "version": "1.0.2", "state": "WAITING_FOR_BETA_REVIEW",
+                              "submitted": "2026-11-02T16:52:25-08:00"})
+        result = self.run_command("--notes", "Public notes", PENDING_BUILD=pending, TZ="America/Los_Angeles")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("A newer build, 570 (1.0.2), hasn't reached them: Apple lists it as waiting for beta review.",
+                      result.stderr)
+        self.assertIn("It was submitted for review Nov 2, 2026", result.stderr)
+        self.assertIn("Wait for Apple's beta review of build 570", result.stderr)
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.git("rev-parse", "v1.0.2b570^{commit}"))
+        self.assertFalse(any("mode:preflight" in call[1] for call in self.events("fastlane")))
 
     def test_release_without_a_build_in_testing_stops(self):
         result = self.run_command("--notes", "Public notes", TESTED_BUILD="")

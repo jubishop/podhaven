@@ -3,6 +3,7 @@
 
 import argparse
 from datetime import datetime
+import json
 import os
 from pathlib import Path
 import re
@@ -66,7 +67,18 @@ def moment(stamp):
     return datetime.fromtimestamp(int(stamp)).astimezone()
 
 
-def report_untested(root, base, end):
+def timing(moment):
+    age = (datetime.now().astimezone().date() - moment.date()).days
+    ago = "today" if age == 0 else "yesterday" if age == 1 else f"{age} days ago"
+    return f"{day(moment)} at {moment.hour % 12 or 12}:{moment:%M %p %Z} ({ago})"
+
+
+def release_tags(root, build):
+    pattern = re.compile(r"v[0-9]+(?:\.[0-9]+){0,2}b" + build)
+    return [tag for tag in git(root, "tag", "-l", "v*b" + build).split() if pattern.fullmatch(tag)]
+
+
+def report_untested(root, base, end, pending):
     commits = []
     for entry in git(root, "log", "--reverse", "--format=%h%x1f%at%x1f%B%x1e", f"{base}..{end}", "--", *APP_PATHS).split("\x1e"):
         if entry.strip():
@@ -76,14 +88,29 @@ def report_untested(root, base, end):
         return
     landed = [moment(stamp) for stamp in git(root, "log", "--format=%at", f"{base}..{end}").split()]
     shipped = moment(git(root, "for-each-ref", "--format=%(creatordate:unix)", f"refs/tags/{base}").strip())
-    age = (datetime.now().astimezone().date() - shipped.date()).days
-    ago = "today" if age == 0 else "yesterday" if age == 1 else f"{age} days ago"
     first, last = min(landed), max(landed)
     span = f"on {day(first)}" if first.date() == last.date() else f"between {day(first)} and {day(last)}"
     lines = [f"==> Testers in Everyone don't have {count(len(commits), 'app commit')} yet.", "",
-             f"Their newest build, {base}, went out {day(shipped)} at {shipped.hour % 12 or 12}:{shipped:%M %p %Z} ({ago}).",
+             f"Their newest build, {base}, went out {timing(shipped)}.",
              f"Since then, {count(len(landed), 'commit')} landed {span}, and {len(commits)} of them "
-             f"change{'s' if len(commits) == 1 else ''} the app.", ""]
+             f"change{'s' if len(commits) == 1 else ''} the app."]
+    remedy = "Run testflight first"
+    if pending:
+        lines.append(f"A newer build, {pending['build']} ({pending['version']}), hasn't reached them: Apple lists it as "
+                     f"{pending['state'].replace('_', ' ').lower()}.")
+        if pending["submitted"]:
+            submitted = datetime.fromisoformat(pending["submitted"]).astimezone()
+            lines.append(f"It was submitted for review {timing(submitted)}.")
+        tags = release_tags(root, pending["build"])
+        if len(tags) == 1:
+            missing = len(git(root, "log", "--format=%h", end, f"^{base}", f"^{tags[0]}", "--", *APP_PATHS).split())
+            included = len(commits) - missing
+            lines.append("It includes every app commit below." if missing == 0
+                         else "It includes none of the app commits below." if included == 0
+                         else f"It includes {included} of the {len(commits)} app commits below.")
+            if missing == 0 and pending["state"] in ("WAITING_FOR_BETA_REVIEW", "IN_BETA_REVIEW"):
+                remedy = f"Wait for Apple's beta review of build {pending['build']}"
+    lines.append("")
 
     summary = ""
     if len(commits) > SUMMARY_THRESHOLD:
@@ -100,7 +127,7 @@ def report_untested(root, base, end):
             lines.append("")
     print("\n".join(lines), file=sys.stderr, flush=True)
 
-    stop = "Stopped before releasing app changes testers don't have. Run testflight first"
+    stop = f"Stopped before releasing app changes testers don't have. {remedy}"
     if not (sys.stdin.isatty() and sys.stderr.isatty()):
         sys.exit(stop + ", or run appstore in a terminal and answer y.")
     print("Release to the App Store anyway? [y/N] ", end="", file=sys.stderr, flush=True)
@@ -114,14 +141,15 @@ def main():
     parser.add_argument("--since-build", required=True, metavar="NUMBER",
                         help="Build number whose release tag starts the summarized changes.")
     parser.add_argument("--to", default="HEAD", metavar="REF", help="Revision that ends the summarized changes.")
+    parser.add_argument("--pending", metavar="PATH", help="For untested: JSON from the TestFlight base lane naming a "
+                                                          "newer build in Everyone that testers don't have yet.")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]+", args.since_build):
         parser.error("--since-build requires a numeric build number, such as 581.")
     root = Path(__file__).resolve().parents[1]
     remedy = " Pass --notes." if args.audience in AUDIENCES else ""
 
-    pattern = re.compile(r"v[0-9]+(?:\.[0-9]+){0,2}b" + args.since_build)
-    tags = [tag for tag in git(root, "tag", "-l", "v*b" + args.since_build).split() if pattern.fullmatch(tag)]
+    tags = release_tags(root, args.since_build)
     if len(tags) != 1:
         sys.exit(f"error: Expected one local release tag for build {args.since_build}, found {len(tags)}. "
                  f"Fetch tags with git fetch --tags.{remedy}")
@@ -129,7 +157,8 @@ def main():
     if subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", base, args.to]).returncode != 0:
         sys.exit(f"error: {base} is not an ancestor of {args.to}.{remedy}")
     if args.audience == "untested":
-        report_untested(root, base, args.to)
+        pending = Path(args.pending).read_text().strip() if args.pending else ""
+        report_untested(root, base, args.to, json.loads(pending) if pending else None)
         return
 
     label, prompt, fallback = AUDIENCES[args.audience]

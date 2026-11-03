@@ -97,17 +97,34 @@ class TestFlightTests(unittest.TestCase):
     def test_base_finds_the_newest_ios_build_testers_received(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "base"
+            pending = Path(folder) / "pending"
             result, events = self.run_lane("base", TESTFLIGHT_BASE="true", PODHAVEN_TESTFLIGHT_NOTES="",
-                                           PODHAVEN_TESTFLIGHT_BASE_PATH=str(path))
+                                           PODHAVEN_TESTFLIGHT_BASE_PATH=str(path),
+                                           PODHAVEN_TESTFLIGHT_PENDING_PATH=str(pending))
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(path.read_text(), "588")
+            self.assertEqual(json.loads(pending.read_text()),
+                             {"build": "590", "version": "1.0.2", "state": "WAITING_FOR_BETA_REVIEW",
+                              "submitted": "2026-11-02T16:52:25-08:00"})
         query = next(event[1] for event in events if event[0] == "list_builds")
         self.assertEqual(query["filter"], {"betaGroups": "everyone-id", "expired": "false"})
         self.assertEqual(query["sort"], "-uploadedDate")
         self.assertIn("buildBetaDetail", query["includes"])
         self.assertIn("preReleaseVersion", query["includes"])
+        self.assertIn("betaAppReviewSubmission", query["includes"])
         self.assertEqual(sum(event[0] == "next_page" for event in events), 1)
         self.assertFalse(any(event[0] in ("wait", "builds", "expire", "distribute") for event in events))
+
+    def test_base_without_a_newer_build_reports_none_pending(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "base"
+            pending = Path(folder) / "pending"
+            result, _ = self.run_lane("base_current", TESTFLIGHT_BASE="true", PODHAVEN_TESTFLIGHT_NOTES="",
+                                      PODHAVEN_TESTFLIGHT_BASE_PATH=str(path),
+                                      PODHAVEN_TESTFLIGHT_PENDING_PATH=str(pending))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(path.read_text(), "588")
+            self.assertEqual(pending.read_text(), "")
 
     def test_base_without_a_build_in_testing_reports_none(self):
         with tempfile.TemporaryDirectory() as folder:

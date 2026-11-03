@@ -49,15 +49,20 @@ module Spaceship
     def self.get_builds(filter:, includes:, sort:, limit:)
       $events << ["list_builds", { filter: filter, includes: includes, sort: sort, limit: limit }]
       build = lambda do |number, state, platform = "IOS"|
-        OpenStruct.new(version: number, build_beta_detail: OpenStruct.new(external_build_state: state),
-                       pre_release_version: OpenStruct.new(platform: platform))
+        OpenStruct.new(version: number, app_version: "1.0.2", build_beta_detail: OpenStruct.new(external_build_state: state),
+                       pre_release_version: OpenStruct.new(platform: platform),
+                       beta_app_review_submission: OpenStruct.new(id: "review-#{number}"))
       end
       first = [build.call("590", "WAITING_FOR_BETA_REVIEW"), build.call("589", "IN_BETA_TESTING", "MAC_OS")]
+      first.shift if $scenario == "base_current"
       second = [build.call("588", $scenario == "base_none" ? "BETA_REJECTED" : "IN_BETA_TESTING"),
                 build.call("587", $scenario == "base_none" ? "READY_FOR_BETA_SUBMISSION" : "IN_BETA_TESTING")]
-      last_page = OpenStruct.new(to_models: second)
+      last_page = OpenStruct.new(to_models: second, body: { "included" => [] })
       last_page.define_singleton_method(:next_page) { $events << ["next_page"]; nil }
-      page = OpenStruct.new(to_models: first)
+      included = [{ "type" => "buildBetaDetails", "id" => "review-590", "attributes" => {} },
+                  { "type" => "betaAppReviewSubmissions", "id" => "review-590",
+                    "attributes" => { "betaReviewState" => "WAITING_FOR_REVIEW", "submittedDate" => "2026-11-02T16:52:25-08:00" } }]
+      page = OpenStruct.new(to_models: first, body: { "included" => included })
       page.define_singleton_method(:next_page) { $events << ["next_page"]; last_page }
       page
     end

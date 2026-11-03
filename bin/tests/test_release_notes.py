@@ -261,6 +261,49 @@ class ReleaseNotesTests(unittest.TestCase):
         self.assertIn("Detail for fix 1.", result.stderr)
         self.assertIn("Detail for fix 4.", result.stderr)
 
+    def pending(self, build="584", state="WAITING_FOR_BETA_REVIEW", submitted="2026-10-26T16:52:25-07:00"):
+        path = self.base / "pending.json"
+        path.write_text(json.dumps({"build": build, "version": "1.4.2", "state": state, "submitted": submitted}))
+        return str(path)
+
+    def test_untested_names_a_newer_build_waiting_for_beta_review(self):
+        self.add_untested_commits(2)
+        self.git("tag", "-a", "v1.4.2b584", "-m", "Waiting build")
+        result = self.run_notes("untested", "--since-build", "583", "--pending", self.pending())
+        self.assertNotEqual(result.returncode, 0)
+        report = result.stderr
+        self.assertIn("A newer build, 584 (1.4.2), hasn't reached them: Apple lists it as waiting for beta review.",
+                      report)
+        self.assertIn("It was submitted for review Oct 26, 2026 at 4:52 PM PDT (", report)
+        self.assertIn("It includes every app commit below.", report)
+        self.assertIn("Wait for Apple's beta review of build 584", report)
+        self.assertNotIn("Run testflight first", report)
+
+    def test_untested_says_which_commits_a_newer_build_has(self):
+        self.add_untested_commits(2)
+        self.git("tag", "-a", "v1.4.2b584", "-m", "Rejected build", "HEAD~1")
+        for build, coverage in (("584", "It includes 1 of the 2 app commits below."), ("585", None)):
+            with self.subTest(build=build):
+                pending = self.pending(build=build, state="BETA_REJECTED", submitted=None)
+                report = self.run_notes("untested", "--since-build", "583", "--pending", pending).stderr
+                self.assertIn(f"A newer build, {build} (1.4.2), hasn't reached them: Apple lists it as beta rejected.",
+                              report)
+                self.assertNotIn("submitted for review", report)
+                if coverage:
+                    self.assertIn(coverage, report)
+                else:
+                    self.assertNotIn("It includes", report)
+                self.assertIn("Run testflight first", report)
+
+    def test_untested_without_a_newer_build_names_none(self):
+        self.add_untested_commits(1)
+        path = self.base / "pending.json"
+        path.write_text("")
+        report = self.run_notes("untested", "--since-build", "583", "--pending", str(path)).stderr
+        self.assertIn("Testers in Everyone don't have 1 app commit yet.", report)
+        self.assertNotIn("newer build", report)
+        self.assertIn("Run testflight first", report)
+
     def test_untested_is_silent_when_testers_have_every_app_change(self):
         self.commit("docs/releases.md", "📝 docs: Explain release tooling")
         result = self.run_notes("untested", "--since-build", "582")

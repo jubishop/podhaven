@@ -45,8 +45,10 @@ module PodHavenTestFlight
     UI.user_error!("Expected exactly one external TestFlight group named Everyone.") unless groups.length == 1
     group = groups.first
     if base
-      tested = latest_tested_build(group)
+      tested, pending = latest_tested_build(group)
       File.write(ENV.fetch("PODHAVEN_TESTFLIGHT_BASE_PATH"), tested ? tested.version : "")
+      pending_path = ENV.fetch("PODHAVEN_TESTFLIGHT_PENDING_PATH", "")
+      File.write(pending_path, pending ? JSON.generate(pending) : "") unless pending_path.empty?
       return
     end
     version = options[:version].to_s
@@ -121,19 +123,29 @@ module PodHavenTestFlight
 
   def self.latest_tested_build(group)
     page = Spaceship::ConnectAPI.get_builds(filter: { betaGroups: group.id, expired: "false" },
-                                            includes: "buildBetaDetail,preReleaseVersion", sort: "-uploadedDate", limit: 50)
+                                            includes: "buildBetaDetail,preReleaseVersion,betaAppReviewSubmission",
+                                            sort: "-uploadedDate", limit: 50)
+    pending = nil
     while page
-      build = page.to_models.find do |candidate|
-        candidate.pre_release_version&.platform == "IOS" && candidate.build_beta_detail&.external_build_state == "IN_BETA_TESTING"
-      end
-      if build
-        UI.message("Testers in Everyone have build #{build.version}.")
-        return build
+      page.to_models.each do |candidate|
+        next unless candidate.pre_release_version&.platform == "IOS"
+        state = candidate.build_beta_detail&.external_build_state
+        if state == "IN_BETA_TESTING"
+          UI.message("Testers in Everyone have build #{candidate.version}.")
+          return candidate, pending
+        end
+        next if pending
+        # Spaceship's BetaAppReviewSubmission model omits submittedDate.
+        submission = page.body.fetch("included", []).find do |item|
+          item["type"] == "betaAppReviewSubmissions" && item["id"] == candidate.beta_app_review_submission&.id
+        end
+        pending = { build: candidate.version, version: candidate.app_version, state: state,
+                    submitted: submission&.dig("attributes", "submittedDate") }
       end
       page = page.next_page
     end
     UI.message("No iOS build is in testing for Everyone.")
-    nil
+    [nil, pending]
   end
 
   def self.prepare_review(app, version, number, expire_waiting:)

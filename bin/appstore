@@ -105,14 +105,16 @@ def release_app(root, environment, version, notes, build=None):
             print("==> Checking which app changes TestFlight testers have...", flush=True)
             with tempfile.TemporaryDirectory(prefix="podhaven-testflight-base-") as directory:
                 tested_path = Path(directory) / "build.txt"
+                pending_path = Path(directory) / "pending.json"
                 subprocess.run(["fastlane", "distribute_testflight", "base:true"], cwd=root, check=True,
-                               env={**environment, "PODHAVEN_TESTFLIGHT_BASE_PATH": str(tested_path)})
+                               env={**environment, "PODHAVEN_TESTFLIGHT_BASE_PATH": str(tested_path),
+                                    "PODHAVEN_TESTFLIGHT_PENDING_PATH": str(pending_path)})
                 tested_build = tested_path.read_text().strip()
-            if not tested_build:
-                raise ValueError("No iOS build is in testing for Everyone, so testers have not tried this release. "
-                                 "Run testflight first.")
-            review = subprocess.run([str(root / "bin/release-notes"), "untested", "--since-build", tested_build, "--to", end],
-                                    cwd=root)
+                if not tested_build:
+                    raise ValueError("No iOS build is in testing for Everyone, so testers have not tried this release. "
+                                     "Run testflight first.")
+                review = subprocess.run([str(root / "bin/release-notes"), "untested", "--since-build", tested_build,
+                                         "--to", end, "--pending", str(pending_path)], cwd=root)
             if review.returncode != 0:
                 sys.exit(review.returncode)
         if notes is None:
