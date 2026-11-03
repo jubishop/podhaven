@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
+import GRDB
 import Semaphore
 import Testing
 
@@ -72,13 +73,13 @@ import Testing
         { "Expected new AVPlayer to be created" }
       )
       try await PlayHelpers.waitForOnDeck(podcastEpisode)
-      try await PlayHelpers.waitFor(.stopped)
-      try await PlayHelpers.waitForQueue([podcastEpisode, queuedEpisode])
-      #expect(sharedState.currentEpisodeID == podcastEpisode.id)
       try await Wait.until(
         { @MainActor in alert.config?.title == "Audio Services Restarted" },
         { @MainActor in "Expected an audio-services reset explanation" }
       )
+      #expect(sharedState.playbackStatus == .paused)
+      try await PlayHelpers.waitForQueue([queuedEpisode])
+      #expect(sharedState.currentEpisodeID == podcastEpisode.id)
 
       #expect(
         await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
@@ -169,7 +170,12 @@ import Testing
       { "Expected new AVPlayer to be created" }
     )
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
-    try await PlayHelpers.waitFor(.stopped)
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Audio Services Restarted" },
+      { @MainActor in "Expected an audio-services reset explanation" }
+    )
+    #expect(sharedState.playbackStatus == .paused)
+    try await PlayHelpers.waitForQueue([])
 
     mpRemoteCommandCenter.fireTogglePlayPause()
 
@@ -205,13 +211,18 @@ import Testing
       { "Expected new AVPlayer to be created" }
     )
     try await PlayHelpers.waitForOnDeck(interruptedEpisode)
-    try await PlayHelpers.waitFor(.stopped)
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Audio Services Restarted" },
+      { @MainActor in "Expected an audio-services reset explanation" }
+    )
+    #expect(sharedState.playbackStatus == .paused)
 
     audioSession.configureError { $0 = TestError.simulatedFailure }
     try await playManager.play(replacementEpisode)
 
     try await PlayHelpers.waitForOnDeck(interruptedEpisode)
-    try await PlayHelpers.waitFor(.stopped)
+    #expect(sharedState.playbackStatus == .paused)
+    try await PlayHelpers.waitForQueue([])
 
     audioSession.configureError { $0 = nil }
     await playManager.play()
@@ -249,7 +260,11 @@ import Testing
       { "Expected new AVPlayer to be created" }
     )
     try await PlayHelpers.waitForOnDeck(interruptedEpisode)
-    try await PlayHelpers.waitFor(.stopped)
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Audio Services Restarted" },
+      { @MainActor in "Expected an audio-services reset explanation" }
+    )
+    #expect(sharedState.playbackStatus == .paused)
 
     await episodeAssetLoader.respond(
       to: replacementEpisode.episode.mediaURL,
@@ -262,7 +277,8 @@ import Testing
     try #require(sharedState.onDeck?.id == interruptedEpisode.id)
     #expect(sharedState.currentEpisodeID == interruptedEpisode.id)
     try await PlayHelpers.waitFor(resumeTime)
-    try await PlayHelpers.waitFor(.stopped)
+    #expect(sharedState.playbackStatus == .paused)
+    try await PlayHelpers.waitForQueue([replacementEpisode])
 
     await playManager.play()
 
@@ -301,8 +317,12 @@ import Testing
       { "Expected new AVPlayer to be created" }
     )
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
-    try await PlayHelpers.waitFor(.stopped)
-    try await PlayHelpers.waitForQueue([podcastEpisode])
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Audio Services Restarted" },
+      { @MainActor in "Expected an audio-services reset explanation" }
+    )
+    #expect(sharedState.playbackStatus == .paused)
+    try await PlayHelpers.waitForQueue([])
 
     await episodeAssetLoader.respond(
       to: podcastEpisode.episode.mediaURL,
@@ -312,8 +332,8 @@ import Testing
 
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
     try await PlayHelpers.waitFor(resumeTime)
-    try await PlayHelpers.waitFor(.stopped)
-    try await PlayHelpers.waitForQueue([podcastEpisode])
+    #expect(sharedState.playbackStatus == .paused)
+    try await PlayHelpers.waitForQueue([])
     #expect(sharedState.currentEpisodeID == podcastEpisode.id)
     #expect(
       await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
@@ -335,6 +355,40 @@ import Testing
       await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
         == initialLoadCount + 2
     )
+  }
+
+  @Test("recovery play stops when the interrupted episode was deleted")
+  func recoveryPlayStopsWhenInterruptedEpisodeWasDeleted() async throws {
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.pause()
+    let initialAVPlayer = avPlayer
+
+    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+    try await Wait.until(
+      { await avPlayer != initialAVPlayer },
+      { "Expected new AVPlayer to be created" }
+    )
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Audio Services Restarted" },
+      { @MainActor in "Expected an audio-services reset explanation" }
+    )
+    #expect(sharedState.playbackStatus == .paused)
+
+    _ = try await Container.shared.appDB().writer
+      .write { db in
+        try Episode.withIDs([podcastEpisode.id]).deleteAll(db)
+      }
+    await playManager.play()
+
+    #expect(sharedState.onDeck == nil)
+    #expect(sharedState.currentEpisodeID == nil)
+    #expect(sharedState.playbackStatus == .stopped)
   }
 
   @Test("media services reset rebuilds without prompting when no episode exists")
@@ -394,10 +448,6 @@ import Testing
       notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
         .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
 
-      try await PlayHelpers.waitFor(.stopped)
-      try await PlayHelpers.waitForOnDeck(podcastEpisode)
-      try await PlayHelpers.waitForQueue([podcastEpisode])
-      #expect(sharedState.currentEpisodeID == podcastEpisode.id)
       try await Wait.until(
         { await avPlayer != initialAVPlayer },
         { "Expected new AVPlayer to be created" }
@@ -406,6 +456,10 @@ import Testing
         { @MainActor in alert.config?.title == "Couldn't start audio playback" },
         { @MainActor in "Expected alert after failed audio session reconfiguration" }
       )
+      try await PlayHelpers.waitForOnDeck(podcastEpisode)
+      #expect(sharedState.playbackStatus == .paused)
+      try await PlayHelpers.waitForQueue([])
+      #expect(sharedState.currentEpisodeID == podcastEpisode.id)
       #expect(await audioSession.activeCalls.filter(\.self).count == initialActivationCount)
       try await Wait.until(
         {
@@ -582,11 +636,12 @@ import Testing
         { "Expected new AVPlayer to be created" }
       )
       try await PlayHelpers.waitForOnDeck(podcastEpisode)
-      try await PlayHelpers.waitForQueue([podcastEpisode])
       try await Wait.until(
         { @MainActor in alert.config?.title == "Audio Services Restarted" },
         { @MainActor in "Expected an audio-services reset explanation" }
       )
+      #expect(sharedState.playbackStatus == .paused)
+      try await PlayHelpers.waitForQueue([])
     }
   }
 
@@ -674,8 +729,73 @@ import Testing
     )
   }
 
-  @Test("media services reset disposes invalid player before restoring queue")
-  func mediaServicesResetDisposesInvalidPlayerBeforeRestoringQueue() async throws {
+  @Test("repeated reset during a recovery load keeps the interrupted episode OnDeck")
+  func repeatedResetDuringRecoveryLoadKeepsInterruptedEpisodeOnDeck() async throws {
+    try await LogCapture.withSink { sink in
+      PlayHelpers.setupCommandHandling()
+      await playManager.start()
+      let (podcastEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+      try await queue.unshift(queuedEpisode.id)
+      try await PlayHelpers.load(podcastEpisode)
+      try await PlayHelpers.pause()
+      let initialAVPlayer = avPlayer
+
+      notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+        .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+      try await Wait.until(
+        { await avPlayer != initialAVPlayer },
+        { "Expected new AVPlayer to be created" }
+      )
+      try await Wait.until(
+        { @MainActor in alert.config?.title == "Audio Services Restarted" },
+        { @MainActor in "Expected an audio-services reset explanation" }
+      )
+      #expect(sharedState.playbackStatus == .paused)
+      try await PlayHelpers.waitForQueue([queuedEpisode])
+
+      let loadStarted = AsyncSemaphore(value: 0)
+      let finishLoading = AsyncSemaphore(value: 0)
+      await episodeAssetLoader.respond(to: podcastEpisode.episode.mediaURL) { _ in
+        loadStarted.signal()
+        try await finishLoading.waitUnlessCancelled()
+        return (true, .seconds(60))
+      }
+      let recoveryTask = Task { await playManager.play() }
+      defer {
+        recoveryTask.cancel()
+        finishLoading.signal()
+      }
+      await loadStarted.wait()
+      let recoveryAVPlayer = avPlayer
+
+      notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+        .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+      try await Wait.until(
+        { await avPlayer != recoveryAVPlayer },
+        { "Expected a second new AVPlayer to be created" }
+      )
+      finishLoading.signal()
+      await recoveryTask.value
+      try await Wait.until(
+        {
+          sink.captured()
+            .filter { $0.message.contains("event=mediaServicesResetHandled") }
+            .count == 2
+        },
+        { "Expected the repeated reset to be handled" }
+      )
+
+      try await PlayHelpers.waitForOnDeck(podcastEpisode)
+      #expect(sharedState.playbackStatus == .paused)
+      try await PlayHelpers.waitForQueue([queuedEpisode])
+    }
+  }
+
+  @Test("media services reset disposes invalid player without requeueing OnDeck")
+  func mediaServicesResetDisposesInvalidPlayerWithoutRequeueingOnDeck() async throws {
     PlayHelpers.setupCommandHandling()
     await playManager.start()
     let resumeTime = CMTime.seconds(123)
@@ -687,31 +807,23 @@ import Testing
     try await PlayHelpers.waitFor(resumeTime)
     try await PlayHelpers.pause()
     let initialAVPlayer = avPlayer
-    let fakeQueue = try #require(queue as? FakeQueue)
-    let unshiftStarted = AsyncSemaphore(value: 0)
-    let finishUnshift = AsyncSemaphore(value: 0)
-    fakeQueue.beforeUnshiftEpisode { episodeID in
-      #expect(episodeID == podcastEpisode.id)
-      unshiftStarted.signal()
-      await finishUnshift.wait()
-    }
-    defer { finishUnshift.signal() }
 
     notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
       .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
 
-    await unshiftStarted.wait()
-    #expect(initialAVPlayer.current == nil)
-    #expect(initialAVPlayer.timeObservers.isEmpty)
-
-    finishUnshift.signal()
     try await Wait.until(
       { await avPlayer != initialAVPlayer },
       { "Expected new AVPlayer to be created" }
     )
-    try await PlayHelpers.waitForQueue([podcastEpisode])
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Audio Services Restarted" },
+      { @MainActor in "Expected an audio-services reset explanation" }
+    )
+    #expect(initialAVPlayer.current == nil)
+    #expect(initialAVPlayer.timeObservers.isEmpty)
+    try await PlayHelpers.waitForQueue([])
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
-    try await PlayHelpers.waitFor(.stopped)
+    #expect(sharedState.playbackStatus == .paused)
     #expect(sharedState.currentEpisodeID == podcastEpisode.id)
     let preservedEpisode = try #require(try await repo.podcastEpisode(podcastEpisode.id))
     #expect(preservedEpisode.currentTime == resumeTime)

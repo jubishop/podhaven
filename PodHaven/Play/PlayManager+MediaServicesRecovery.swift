@@ -26,7 +26,6 @@ extension PlayManager {
     pendingPlaybackRequest = .none
     NowPlayingInfo.clear()
     onDeckBecameCurrentAt = nil
-    setStatus(.stopped)
 
     if let interruptedEpisodeID {
       mediaServicesRecoveryState = .awaitingUserAction(interruptedEpisodeID)
@@ -34,15 +33,25 @@ extension PlayManager {
       mediaServicesRecoveryState = .none
       stateManager.clearOnDeck()
     }
+    setStatus(sharedState.onDeck == nil ? .stopped : .paused)
     Task { @MainActor in CommandCenter.updateNextTrack() }
   }
 
-  func restoreMediaServicesRecoveryPresentation(_ podcastEpisode: PodcastEpisode) {
+  func restoreMediaServicesRecoveryPresentation(_ podcastEpisode: PodcastEpisode) async {
     guard mediaServicesRecoveryEpisodeID == podcastEpisode.id else { return }
     stateManager.setOnDeck(podcastEpisode)
     onDeckBecameCurrentAt = nil
-    setStatus(.stopped)
+    setStatus(.paused)
     Task { @MainActor in CommandCenter.updateNextTrack() }
+
+    do {
+      try await queue.dequeue(podcastEpisode.id)
+    } catch {
+      Self.log.caughtError(
+        "restoreMediaServicesRecoveryPresentation: failed to dequeue episode \(podcastEpisode.id)",
+        error
+      )
+    }
   }
 
   func completeMediaServicesRecovery() {
@@ -63,6 +72,7 @@ extension PlayManager {
         mediaServicesRecoveryState = .none
         pendingPlaybackRequest = .none
         stateManager.clearOnDeck()
+        setStatus(.stopped)
         return false
       }
       let loaded = try await load(podcastEpisode, preserving: requestID)

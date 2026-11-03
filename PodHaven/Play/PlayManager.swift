@@ -171,7 +171,7 @@ final class PlayManager {
       return try await task.value
     } catch {
       if let recoveryEpisode, playbackRequestRevision == acceptedRevision {
-        restoreMediaServicesRecoveryPresentation(recoveryEpisode)
+        await restoreMediaServicesRecoveryPresentation(recoveryEpisode)
       }
       throw error
     }
