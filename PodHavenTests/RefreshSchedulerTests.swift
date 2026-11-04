@@ -14,6 +14,7 @@ import UIKit
 @MainActor struct RefreshSchedulerTests {
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
   @DynamicInjected(\.cacheManagerSession) private var cacheManagerSession
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.repo) private var repo
@@ -35,6 +36,9 @@ import UIKit
   }
   private var fakeApplication: FakeApplication {
     uiApplication as! FakeApplication
+  }
+  private var fakeObservatory: FakeObservatory {
+    observatory as! FakeObservatory
   }
   private var fakeSleeper: FakeSleeper {
     sleeper as! FakeSleeper
@@ -298,24 +302,36 @@ import UIKit
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: responseData)
     fakeApplication.applicationState = .background
+    // Only the refresh's handoff, not the queue observation, can start downloads.
+    fakeObservatory.holdNextQueuedPodcastEpisodesDelivery()
+    defer { fakeObservatory.releaseHeldQueuedPodcastEpisodesDelivery() }
 
     refreshScheduler.register()
 
     let identifier = try #require(fakeBGTaskScheduler.submissions.first?.identifier)
-    let task = try #require(fakeBGTaskScheduler.launchTask(withIdentifier: identifier))
+    let cacheDownloadTasks = await cacheSession.downloadTasks
+    let downloadDescriptionsAtCompletion = ThreadSafe<Set<String>>([])
+    let task = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier) {
+        downloadDescriptionsAtCompletion(Set(cacheDownloadTasks().compactMap(\.taskDescription)))
+      }
+    )
     try await Wait.until(
       { task.completionResults == [true] },
       { "Expected background refresh to complete successfully, got \(task.completionResults)" }
     )
 
-    let queuedEpisodeIDs = try await Container.shared.appDB().reader.read { db in
-      try Episode.all().queued().selectID().fetchAll(db)
-    }
+    let queuedEpisodeIDs = try await Container.shared.appDB().reader
+      .read { db in
+        try Episode.all().queued().selectID().fetchAll(db)
+      }
     #expect(queuedEpisodeIDs.count == 1)
     for episodeID in queuedEpisodeIDs {
-      let downloadTasks = await cacheSession.downloadTasks().filter {
-        $0.taskDescription == String(episodeID.rawValue)
-      }
+      #expect(downloadDescriptionsAtCompletion().contains(String(episodeID.rawValue)))
+      let downloadTasks = await cacheSession.downloadTasks()
+        .filter {
+          $0.taskDescription == String(episodeID.rawValue)
+        }
       #expect(downloadTasks.count == 1)
       for downloadTask in downloadTasks {
         #expect(await downloadTask.isResumed())

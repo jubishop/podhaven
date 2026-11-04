@@ -49,11 +49,55 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     >]
   >([])
 
-  private struct HeldDeliveryQueueState: Sendable {
-    var armed: DispatchQueue?
-    var active: DispatchQueue?
+  private struct HeldDelivery: Sendable {
+    private struct State: Sendable {
+      var armed: DispatchQueue?
+      var active: DispatchQueue?
+    }
+
+    private let label: String
+    private let state = ThreadSafe(State())
+
+    init(label: String) {
+      self.label = label
+    }
+
+    func holdNext() {
+      let queue = DispatchQueue(label: label)
+      queue.suspend()
+      release()
+      state { state in
+        state.armed = queue
+      }
+    }
+
+    func takeArmedQueue() -> DispatchQueue? {
+      state { state in
+        let queueToUse = state.armed
+        state.armed = nil
+        state.active = queueToUse
+        return queueToUse
+      }
+    }
+
+    func release() {
+      guard
+        let queue = state({ state in
+          let queueToRelease = state.active ?? state.armed
+          state.active = nil
+          state.armed = nil
+          return queueToRelease
+        })
+      else { return }
+      queue.resume()
+    }
   }
-  private let heldListablePodcastEpisodesQueue = ThreadSafe(HeldDeliveryQueueState())
+  private let heldListablePodcastEpisodes = HeldDelivery(
+    label: "FakeObservatory.listablePodcastEpisodes.hold"
+  )
+  private let heldQueuedPodcastEpisodes = HeldDelivery(
+    label: "FakeObservatory.queuedPodcastEpisodes.hold"
+  )
 
   private let observatory: any Observing
 
@@ -138,44 +182,34 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     limit: Int
   ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
     recordCall(methodName: "listablePodcastEpisodes(filter:order:limit:)", parameters: limit)
-    if let queue = heldListablePodcastEpisodesQueue({ state in
-      let queueToUse = state.armed
-      state.armed = nil
-      state.active = queueToUse
-      return queueToUse
-    }) {
-      return
-        ValueObservation
-        .tracking { db in
-          try ListablePodcastEpisode
-            .request(filter: filter, order: order, limit: limit)
-            .fetchAll(db)
-        }
-        .removeDuplicates()
-        .values(in: Container.shared.appDB().unsafeTestDB, scheduling: .async(onQueue: queue))
+    if let queue = heldListablePodcastEpisodes.takeArmedQueue() {
+      return listablePodcastEpisodes(filter: filter, order: order, limit: limit, deliveredOn: queue)
     }
     return observatory.listablePodcastEpisodes(filter: filter, order: order, limit: limit)
   }
 
   func holdNextListablePodcastEpisodesDelivery() {
-    let queue = DispatchQueue(label: "FakeObservatory.listablePodcastEpisodes.hold")
-    queue.suspend()
-    releaseHeldListablePodcastEpisodesDelivery()
-    heldListablePodcastEpisodesQueue { state in
-      state.armed = queue
-    }
+    heldListablePodcastEpisodes.holdNext()
   }
 
   func releaseHeldListablePodcastEpisodesDelivery() {
-    guard
-      let queue = heldListablePodcastEpisodesQueue({ state in
-        let queueToRelease = state.active ?? state.armed
-        state.active = nil
-        state.armed = nil
-        return queueToRelease
-      })
-    else { return }
-    queue.resume()
+    heldListablePodcastEpisodes.release()
+  }
+
+  private func listablePodcastEpisodes(
+    filter: SQLExpression,
+    order: SQLOrdering?,
+    limit: Int,
+    deliveredOn queue: DispatchQueue
+  ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
+    ValueObservation
+      .tracking { db in
+        try ListablePodcastEpisode
+          .request(filter: filter, order: order, limit: limit)
+          .fetchAll(db)
+      }
+      .removeDuplicates()
+      .values(in: Container.shared.appDB().unsafeTestDB, scheduling: .async(onQueue: queue))
   }
 
   // MARK: - Episodes
@@ -189,7 +223,23 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
 
   func queuedPodcastEpisodes(limit: Int) -> AsyncValueObservation<[ListablePodcastEpisode]> {
     recordCall(methodName: "queuedPodcastEpisodes", parameters: limit)
+    if let queue = heldQueuedPodcastEpisodes.takeArmedQueue() {
+      return listablePodcastEpisodes(
+        filter: Episode.queued,
+        order: Episode.Columns.queueOrder.asc,
+        limit: limit,
+        deliveredOn: queue
+      )
+    }
     return observatory.queuedPodcastEpisodes(limit: limit)
+  }
+
+  func holdNextQueuedPodcastEpisodesDelivery() {
+    heldQueuedPodcastEpisodes.holdNext()
+  }
+
+  func releaseHeldQueuedPodcastEpisodesDelivery() {
+    heldQueuedPodcastEpisodes.release()
   }
 
   // MARK: - Tags

@@ -110,13 +110,15 @@ struct CacheManager {
   func handOffQueuedDownloads() async {
     start()
     await Task {
+      let queuedEpisodeIDs: [Episode.ID]
       do {
         try await observing.wait()
-        let queuedEpisodeIDs = try await repo.queuedEpisodeIDs()
-        await handleQueueChange(Set(queuedEpisodeIDs))
+        queuedEpisodeIDs = try await repo.queuedEpisodeIDs()
       } catch {
         Self.log.caughtError("handOffQueuedDownloads failed", error)
+        return
       }
+      await handleQueueChange(Set(queuedEpisodeIDs))
     }
     .value
   }
