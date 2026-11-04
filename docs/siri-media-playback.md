@@ -70,9 +70,11 @@ publication's fetch or catalog write. A relevant commit that is pending when
 a publication would start stops it; that commit's outcome starts another.
 
 The catalog stays unavailable from the first relevant commit until a
-publication reflects every relevant commit, which spans the burst plus one
-publication. Extension requests in that window fail truthfully, as they did
-while the writer was held. Each publication holds a UIKit background task, so
+publication reflects every relevant commit. A commit doesn't stop a
+publication already under way; that publication finishes before it is
+discarded. The window therefore spans the burst plus up to two publications.
+Extension requests in that window fail truthfully, as they did while the
+writer was held. Each publication holds a UIKit background task, so
 a background write's catalog normally lands before iOS suspends the app.
 Launch removes a staged file that a crash left behind.
 
@@ -321,9 +323,11 @@ does not prove a background launch.
 A cold Siri handoff that arrives during the launch check or publication, or
 during a commit publication, waits for it, so its latency includes the
 remaining time. Extension requests in that window fail truthfully. Commit
-publications run off the writer, so their `publishMs` measures how long the
-catalog took to become available again after the run began, not writer time. A
-publication discarded for a later commit records no summary.
+publications run off the writer, so their `publishMs` measures only the
+publication that installed the catalog, from its snapshot fetch through the
+swap, not writer time. A publication discarded for a later commit records no
+summary, so after a burst the catalog was unavailable for longer than
+`publishMs`.
 
 A local diagnostic benchmark seeded 110 podcasts and 110,000 episodes, giving a
 27,709,630-byte schema 1 catalog. In a Debug test host on My Mac, the previous synchronous
