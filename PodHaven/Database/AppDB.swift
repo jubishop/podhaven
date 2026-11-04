@@ -151,7 +151,7 @@ struct AppDB {
     let publisher = SiriCatalogPublisher(file: file)
     let launchTimeline = Container.shared.launchTimeline()
     db.asyncWriteWithoutTransaction { db in
-      db.add(transactionObserver: publisher, extent: .databaseLifetime)
+      publisher.observe(db)
       launchTimeline.record(.siriCatalogPublicationStarted)
       publisher.launch(db, openDuration: openDuration)
       launchTimeline.record(.siriCatalogPublicationFinished)

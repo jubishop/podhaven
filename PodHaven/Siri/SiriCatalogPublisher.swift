@@ -20,7 +20,32 @@ extension Container {
 }
 
 final class SiriCatalogPublisher: TransactionObserver, Sendable {
-  private enum State { case unchanged, changed, invalidated }
+  private enum State { case unchanged, finishChanged, changed, invalidated }
+
+  private struct Published {
+    let data: Data
+    let omitsEpisodes: Bool
+  }
+
+  // Finish state reaches the catalog only through which episodes it omits.
+  private final class FinishObserver: TransactionObserver, Sendable {
+    private let state: ThreadSafe<State>
+
+    init(state: ThreadSafe<State>) { self.state = state }
+
+    func observes(eventsOfKind kind: DatabaseEventKind) -> Bool {
+      guard case .update(let table, let columns) = kind else { return false }
+      return table == "episode" && columns.contains("finishDate")
+    }
+
+    func databaseDidChange(with event: DatabaseEvent) {
+      state { if $0 == .unchanged { $0 = .finishChanged } }
+    }
+
+    func databaseDidCommit(_ db: Database) {}
+
+    func databaseDidRollback(_ db: Database) {}
+  }
 
   private struct Stamp: Decodable {
     let schemaVersion: Int
@@ -34,19 +59,22 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
   private let diagnostics = Container.shared.siriCatalogPublicationDiagnostics()
   private let file: SiriCatalogFile
   private let state = ThreadSafe(State.unchanged)
-  private let lastPublished = ThreadSafe<Data?>(nil)
+  private let lastPublished = ThreadSafe<Published?>(nil)
   private static let log = Log.as("SiriCatalogPublisher")
 
   init(file: SiriCatalogFile) { self.file = file }
+
+  func observe(_ db: Database) {
+    db.add(transactionObserver: self, extent: .databaseLifetime)
+    db.add(transactionObserver: FinishObserver(state: state), extent: .databaseLifetime)
+  }
 
   func observes(eventsOfKind kind: DatabaseEventKind) -> Bool {
     switch kind {
     case .insert(let table), .delete(let table):
       return ["podcast", "episode"].contains(table)
     case .update(let table, let columns):
-      let relevant: Set<String> = [
-        "title", "feedURL", "guid", "podcastId", "pubDate", "finishDate",
-      ]
+      let relevant: Set<String> = ["title", "feedURL", "guid", "podcastId", "pubDate"]
       return ["podcast", "episode"].contains(table) && !columns.isDisjoint(with: relevant)
     }
   }
@@ -54,6 +82,10 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
   func databaseDidChange(with event: DatabaseEvent) { state(.changed) }
 
   func databaseWillCommit() {
+    if state() == .finishChanged {
+      let unaffected = lastPublished()?.omitsEpisodes == false
+      state(unaffected ? .unchanged : .changed)
+    }
     guard state() == .changed else { return }
     do {
       try file.invalidate()
@@ -73,14 +105,14 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
     let invalidated = state() == .invalidated
     state(.unchanged)
     guard invalidated, let lastPublished = lastPublished() else { return }
-    do { try file.write(lastPublished) } catch {
+    do { try file.write(lastPublished.data) } catch {
       Self.log.caughtError("Could not restore Siri catalog after rollback", error)
     }
   }
 
   func launch(_ db: Database, openDuration: Duration?) {
     let startedAt = continuousClockNow()
-    let kept: Data?
+    let kept: Published?
     do {
       kept = try keptCatalog(db)
     } catch {
@@ -93,7 +125,7 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
       diagnostics.recordSkip(
         openDuration: openDuration,
         checkDuration: checkDuration,
-        bytes: kept.count
+        bytes: kept.data.count
       )
       return
     }
@@ -106,7 +138,7 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
   func publish(_ db: Database, trigger: SiriCatalogPublicationDiagnostics.Trigger) {
     let startedAt = continuousClockNow()
     do {
-      let source = try currentSource(db)
+      let source = try currentSource(db, omitsEpisodes: false)
       let podcasts =
         try Podcast
         .select(Podcast.Columns.id, Podcast.Columns.feedURL, Podcast.Columns.title)
@@ -146,6 +178,7 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
       var data = try SiriCatalogFile.encode(catalog)
       var omitted: Set<Int64> = []
       if data.count > SiriCatalogFile.maximumBytes {
+        let boundedSource = try currentSource(db, omitsEpisodes: true)
         let episodesByID = Dictionary(
           uniqueKeysWithValues: catalog.podcasts.flatMap(\.episodes).map { ($0.id, $0) }
         )
@@ -169,13 +202,13 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
                 episodes: podcast.episodes.filter { !omitted.contains($0.id) }
               )
             },
-            source: source
+            source: boundedSource
           )
           data = try SiriCatalogFile.encode(catalog)
         }
       }
       try file.write(data)
-      lastPublished(data)
+      lastPublished(Published(data: data, omitsEpisodes: !omitted.isEmpty))
       diagnostics.record(
         SiriCatalogPublicationDiagnostics.Publication(
           trigger: trigger,
@@ -189,6 +222,7 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
       )
     } catch {
       Self.log.caughtError("Could not publish Siri catalog", error)
+      lastPublished(nil)
       do { try file.invalidate() } catch {
         Self.log.caughtError("Could not invalidate unavailable Siri catalog", error)
       }
@@ -196,24 +230,27 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
   }
 
   // Restores the catalog set aside at launch when it reflects the committed library.
-  private func keptCatalog(_ db: Database) throws -> Data? {
+  private func keptCatalog(_ db: Database) throws -> Published? {
     guard let data = try file.asideData(), !data.isEmpty, data.count <= SiriCatalogFile.maximumBytes
     else { return nil }
     let stamp = try JSONDecoder().decode(Stamp.self, from: data)
-    guard stamp.schemaVersion == SiriCatalog.currentSchemaVersion,
-      try stamp.source == currentSource(db)
+    guard stamp.schemaVersion == SiriCatalog.currentSchemaVersion, let source = stamp.source
     else { return nil }
+    let omitsEpisodes = source.finishRevision != nil
+    guard try source == currentSource(db, omitsEpisodes: omitsEpisodes) else { return nil }
     try file.restoreAside()
-    return data
+    return Published(data: data, omitsEpisodes: omitsEpisodes)
   }
 
-  private func currentSource(_ db: Database) throws -> SiriCatalog.Source {
+  private func currentSource(_ db: Database, omitsEpisodes: Bool) throws -> SiriCatalog.Source {
     guard
-      let revision = try Table("siriCatalogRevision")
-        .select(Column("revision"), as: Int64.self).fetchOne(db)
+      let revisions = try Table("siriCatalogRevision")
+        .select(Column("revision"), Column("finishRevision")).fetchOne(db)
     else { throw DatabaseError(message: "Missing Siri catalog revision") }
+    let finishRevision: Int64 = revisions["finishRevision"]
     return SiriCatalog.Source(
-      revision: revision,
+      revision: revisions["revision"],
+      finishRevision: omitsEpisodes ? finishRevision : nil,
       migrations: try DatabaseMigrator().appliedIdentifiers(db).count,
       policy: Self.policyVersion
     )

@@ -23,12 +23,13 @@ import Testing
     return path
   }
 
+  // Counts invalidations as writes too.
   private func countedCatalog(in directory: URL) -> (SiriCatalogFile, ThreadSafe<Int>) {
     let writes = ThreadSafe(0)
     let file = SiriCatalogFile(
       url: directory.appendingPathComponent("siri-media.json"),
       replaceContents: { data, url in
-        if !data.isEmpty { writes { $0 += 1 } }
+        writes { $0 += 1 }
         try data.write(to: url, options: .atomic)
       }
     )
@@ -39,6 +40,13 @@ import Testing
     let appDB = try AppDB.launch(path: path, siriCatalogFile: file)
     try await appDB.siriCatalogPublished()
     return try await file.read().generation
+  }
+
+  private func edit(_ file: SiriCatalogFile, _ old: String, _ new: String) throws {
+    let json = try String(contentsOf: file.url, encoding: .utf8)
+    try #require(json.contains(old))
+    try json.replacingOccurrences(of: old, with: new)
+      .write(to: file.url, atomically: true, encoding: .utf8)
   }
 
   private func catalogFiles(in directory: URL) throws -> [String] {
@@ -117,6 +125,98 @@ import Testing
     #expect(try await launchedGeneration(path: path, file: file) == renamed.generation)
   }
 
+  @Test("finishing an episode in a library within the read limit leaves its catalog current")
+  func finishedEpisode() async throws {
+    let directory = TestFiles.uniqueURL()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let path = try committedLibrary(in: directory)
+    let (file, writes) = countedCatalog(in: directory)
+    let appDB = try AppDB.launch(path: path, siriCatalogFile: file)
+    try await appDB.siriCatalogPublished()
+    let published = try await file.read()
+    let episodeID = try #require(try await appDB.reader.read { db in try Episode.fetchOne(db)?.id })
+    let writesBefore = writes()
+
+    #expect(try await Repo(reader: appDB.reader, writer: appDB.writer).markFinished(episodeID))
+
+    #expect(writes() == writesBefore, "Finishing an episode rewrote the catalog")
+    let catalog = try await file.read()
+    #expect(catalog.generation == published.generation)
+    #expect(catalog.podcasts == published.podcasts)
+    #expect(try await launchedGeneration(path: path, file: file) == published.generation)
+    #expect(writes() == writesBefore, "Launch republished a catalog a finish left current")
+  }
+
+  @Test("a launch keeps a catalog that omits episodes only while finish state is unchanged")
+  func omittingCatalog() async throws {
+    let directory = TestFiles.uniqueURL()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let path = try committedLibrary(in: directory)
+    let (file, writes) = countedCatalog(in: directory)
+    let published = try await launchedGeneration(path: path, file: file)
+    let queue = try DatabaseQueue(path: path)
+    let finishRevision = try await queue.read { db in
+      try Int64.fetchOne(db, sql: "SELECT finishRevision FROM siriCatalogRevision")
+    }
+    try queue.close()
+    // Stamp the catalog as one whose omissions followed finish state.
+    try edit(
+      file,
+      "\"migrations\":",
+      "\"finishRevision\":\(try #require(finishRevision)),\"migrations\":"
+    )
+    let writesBefore = writes()
+
+    #expect(try await launchedGeneration(path: path, file: file) == published)
+    #expect(writes() == writesBefore, "Launch republished a catalog with current finish state")
+
+    let finishing = try DatabaseQueue(path: path)
+    try await finishing.write { db in
+      try db.execute(sql: "UPDATE episode SET finishDate = CURRENT_TIMESTAMP")
+    }
+    try finishing.close()
+    #expect(try await launchedGeneration(path: path, file: file) != published)
+    #expect(writes() == writesBefore + 1, "Launch kept a catalog after finish state changed")
+  }
+
+  @Test("a failed publication stays unavailable through rollback until a finish republishes")
+  func failedPublication() async throws {
+    let directory = TestFiles.uniqueURL()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let path = try committedLibrary(in: directory)
+    let failing = ThreadSafe(false)
+    let file = SiriCatalogFile(
+      url: directory.appendingPathComponent("siri-media.json"),
+      replaceContents: { data, url in
+        if !data.isEmpty, failing() { throw CocoaError(.fileWriteOutOfSpace) }
+        try data.write(to: url, options: .atomic)
+      }
+    )
+    let appDB = try AppDB.launch(path: path, siriCatalogFile: file)
+    try await appDB.siriCatalogPublished()
+
+    failing(true)
+    try await appDB.writer.write { db in
+      try Podcast.all().updateAll(db, Podcast.Columns.title.set(to: "Renamed show"))
+    }
+    failing(false)
+    await #expect(throws: (any Error).self) { try await file.read() }
+
+    appDB.unsafeTestDB.add(transactionObserver: FailingCommit(), extent: .databaseLifetime)
+    await #expect(throws: FailingCommit.Failure.self) {
+      try await appDB.writer.write { db in
+        try Podcast.all().updateAll(db, Podcast.Columns.title.set(to: "Failed show"))
+      }
+    }
+    await #expect(throws: (any Error).self, "Rollback restored a catalog older than the library") {
+      try await file.read()
+    }
+
+    let episodeID = try #require(try await appDB.reader.read { db in try Episode.fetchOne(db)?.id })
+    #expect(try await Repo(reader: appDB.reader, writer: appDB.writer).markFinished(episodeID))
+    #expect(try await file.read().podcasts.map(\.title) == ["Renamed show"])
+  }
+
   enum Staleness: CaseIterable, Sendable {
     case relevantChange, crashBeforeRepublication, invalidFile, unstamped, schemaVersion, policy,
       migrations
@@ -130,12 +230,6 @@ import Testing
     let (file, writes) = countedCatalog(in: directory)
     let published = try await launchedGeneration(path: path, file: file)
     var show = "Committed show"
-    func edit(_ old: String, _ new: String) throws {
-      let json = try String(contentsOf: file.url, encoding: .utf8)
-      try #require(json.contains(old))
-      try json.replacingOccurrences(of: old, with: new)
-        .write(to: file.url, atomically: true, encoding: .utf8)
-    }
     switch staleness {
     case .relevantChange, .crashBeforeRepublication:
       if staleness == .crashBeforeRepublication { try file.invalidate() }
@@ -150,13 +244,13 @@ import Testing
       try file.write(SiriCatalog(podcasts: try await file.read().podcasts))
     case .schemaVersion:
       let version = SiriCatalog.currentSchemaVersion
-      try edit("\"schemaVersion\":\(version)", "\"schemaVersion\":\(version - 1)")
+      try edit(file, "\"schemaVersion\":\(version)", "\"schemaVersion\":\(version - 1)")
     case .policy:
       let policy = SiriCatalogPublisher.policyVersion
-      try edit("\"policy\":\(policy)", "\"policy\":\(policy - 1)")
+      try edit(file, "\"policy\":\(policy)", "\"policy\":\(policy - 1)")
     case .migrations:
       let migrations = try #require(try await file.read().source?.migrations)
-      try edit("\"migrations\":\(migrations)", "\"migrations\":\(migrations - 1)")
+      try edit(file, "\"migrations\":\(migrations)", "\"migrations\":\(migrations - 1)")
     }
     let writesBefore = writes()
 

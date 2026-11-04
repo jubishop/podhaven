@@ -35,15 +35,20 @@ before reading the catalog, so a cold handoff resolves against the committed
 library.
 
 Afterward, the app republishes synchronously on the writer after relevant
-commits, including background refresh and deletion. Before a relevant commit,
-the previous catalog becomes unavailable. A crash or failed write therefore
-causes a truthful temporary failure instead of silently trusting an obsolete
-snapshot. Rollback restores the last published or kept catalog. The app
-database stays in its current location. Each publication has a new generation
+commits, including background refresh and deletion. A finish-state change is
+relevant only while the published catalog omits episodes, because finish state
+otherwise cannot change it; see [catalog size](#catalog-size). In build 593,
+republishing a 190-podcast, 111,500-episode library held the writer for 2.3
+seconds each time an episode finished. Before a relevant commit, the previous
+catalog becomes unavailable. A crash or failed write therefore causes a
+truthful temporary failure instead of silently trusting an obsolete snapshot.
+Rollback restores the last published or kept catalog unless a later
+publication failed. The app database stays in its current location. Each publication has a new generation
 ID; a kept catalog keeps its generation. The main app checks that generation
 after its asynchronous lookup and before playback.
-Names, deletion, publication dates, and finished state invalidate pending
-selections; routine position writes do not.
+Names, deletion, and publication dates invalidate pending selections, as does
+finished state while the catalog omits episodes; routine position writes do
+not.
 
 ### Launch freshness
 
@@ -56,21 +61,25 @@ keeps a catalog it can prove current.
 Migration v84 adds a one-row `siriCatalogRevision` table. Triggers replace its
 random revision in the same transaction as every podcast or episode insert or
 delete and every update of a column the commit observer treats as relevant.
-`SiriCatalogTests` holds the triggers to the observer's column set, so a
+Migration v85 moves episode finish dates to a separate random
+`finishRevision`, so finishing an episode leaves the revision unchanged.
+`SiriCatalogTests` holds the triggers to the observers' column sets, so a
 migration that rebuilds either table must recreate them. A random value rather
 than a counter keeps a restored or replaced database from matching a catalog
 published from a different history.
 
 Each publication records a `source`: that revision, the number of applied
-migrations, and `SiriCatalogPublisher.policyVersion`. Bump the policy version
-whenever the same library would publish a different catalog, such as a change
-to the [size-limit omission policy](#catalog-size). Launch keeps the set-aside
+migrations, and `SiriCatalogPublisher.policyVersion`. A catalog that omits
+episodes also records the finish revision, because finish state chose its
+omissions. Bump the policy version whenever the same library would publish a
+different catalog, such as a change to the
+[size-limit omission policy](#catalog-size). Launch keeps the set-aside
 file only when it is nonempty, within the reader limit, has the current schema
 version, and records the database's current source. Anything else republishes:
 
 - A relevant commit whose republication never finished. Commits invalidate the
-  file first, and the trigger changes the revision even if that invalidation
-  failed.
+  file first, and the triggers change a revision the catalog records even if
+  that invalidation failed.
 - A launch migration. Its data changes fire the triggers, and any applied
   migration changes the count, which covers table rebuilds that bypass them.
 - A catalog schema or publication policy change.
@@ -239,9 +248,9 @@ the encoded catalog fits:
 Each pass estimates sizes before JSON escapes and encodes the result again,
 until the catalog fits or no episodes remain. Omitted episodes cannot be
 resolved by name. Podcasts stay resolvable, and the app picks a podcast's
-episode from its own database. Publication dates and finished state already
-trigger republication, so an episode joins or leaves the catalog at the next
-relevant commit. Only when the podcasts alone exceed the limit do diagnostics
+episode from its own database. Publication dates always trigger republication,
+and finished state does while the catalog omits episodes, so an episode joins
+or leaves the catalog at the next relevant commit. Only when the podcasts alone exceed the limit do diagnostics
 report `oversized=true`, and readers then fail truthfully.
 
 `SiriCatalogTests` publishes a synthetic library through the database

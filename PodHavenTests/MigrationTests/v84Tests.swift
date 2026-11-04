@@ -32,7 +32,7 @@ struct V84MigrationTests {
       )
     }
 
-    try migrator.migrate(appDB.unsafeTestDB)
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v84")
 
     try await appDB.unsafeTestDB.write { (db: Database) throws in
       #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM siriCatalogRevision") == 1)
