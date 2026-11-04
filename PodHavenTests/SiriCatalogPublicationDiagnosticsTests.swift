@@ -103,7 +103,7 @@ struct SiriCatalogPublicationDiagnosticsTests {
       }
     )
     let database = Container.shared.appDB().unsafeTestDB
-    database.add(transactionObserver: SiriCatalogPublisher(file: file), extent: .databaseLifetime)
+    database.writeWithoutTransaction { SiriCatalogPublisher(file: file).observe($0) }
     func commit(_ index: Int) throws -> [LogCapture.Captured] {
       try database.writeWithoutTransaction { db in
         try LogCapture.withSink { sink in

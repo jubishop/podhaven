@@ -122,6 +122,8 @@ struct SiriCatalog: Codable, Sendable {
   // The library revision, applied migrations, and publication policy a catalog reflects.
   struct Source: Codable, Equatable, Sendable {
     let revision: Int64
+    // Present only when finish state chose which episodes to omit.
+    let finishRevision: Int64?
     let migrations: Int
     let policy: Int
   }
