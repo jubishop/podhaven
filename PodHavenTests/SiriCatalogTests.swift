@@ -147,7 +147,7 @@ struct SiriCatalogTests {
     #expect(try await file.read().podcasts.isEmpty)
   }
 
-  @Test("the library revision changes exactly when a statement can change the catalog")
+  @Test("the library revisions change exactly when a statement can change the catalog")
   func libraryRevision() async throws {
     let publisher = SiriCatalogPublisher(file: Container.shared.siriCatalogFile())
     let series = try await Container.shared.repo()
@@ -159,20 +159,29 @@ struct SiriCatalogTests {
       )
     try await Container.shared.appDB().unsafeTestDB
       .write { db in
-        func changes(_ statement: () throws -> Void) throws -> Bool {
-          let revision = "SELECT revision FROM siriCatalogRevision"
-          let before = try Int64.fetchOne(db, sql: revision)
+        func changes(
+          _ revision: String = "revision",
+          _ statement: () throws -> Void
+        ) throws -> Bool {
+          let query = "SELECT \(revision) FROM siriCatalogRevision"
+          let before = try Int64.fetchOne(db, sql: query)
           try statement()
-          return try Int64.fetchOne(db, sql: revision) != before
+          return try Int64.fetchOne(db, sql: query) != before
         }
         for table in ["podcast", "episode"] {
           for column in try db.columns(in: table).map(\.name) {
+            let update = "UPDATE \(table) SET \(column) = \(column)"
             #expect(
-              try changes { try db.execute(sql: "UPDATE \(table) SET \(column) = \(column)") }
+              try changes { try db.execute(sql: update) }
                 == publisher.observes(
                   eventsOfKind: .update(tableName: table, columnNames: [column])
                 ),
               "\(table).\(column)"
+            )
+            #expect(
+              try changes("finishRevision") { try db.execute(sql: update) }
+                == (table == "episode" && column == "finishDate"),
+              "\(table).\(column) finish"
             )
           }
         }
@@ -235,7 +244,7 @@ struct SiriCatalogTests {
   func boundedPublication() async throws {
     let file = Container.shared.siriCatalogFile()
     let database = Container.shared.appDB().unsafeTestDB
-    database.add(transactionObserver: SiriCatalogPublisher(file: file), extent: .databaseLifetime)
+    try await database.writeWithoutTransaction { SiriCatalogPublisher(file: file).observe($0) }
     // About twice the limit; escaped quotes make encoded titles longer than their raw text.
     let podcastCount = 3
     let episodeCount = 16_800
@@ -317,6 +326,24 @@ struct SiriCatalogTests {
     for value in ["Private Sentinel", "private-sentinel"] {
       #expect(!message.contains(value), "Diagnostics must not include media metadata")
     }
+
+    // Finishing the oldest unfinished episode makes it the first to omit.
+    let finishLogs = try await database.writeWithoutTransaction { db in
+      try LogCapture.withSink { sink in
+        try db.inTransaction {
+          try Episode.filter(Episode.Columns.guid == guid(0))
+            .updateAll(db, Episode.Columns.finishDate.set(to: Date()))
+          return .commit
+        }
+        return sink.captured().filter { $0.message.hasPrefix("siriCatalogPublication ") }
+      }
+    }
+    let reprioritized = try await file.read()
+    let republished = Set(reprioritized.podcasts.flatMap(\.episodes).map(\.guid))
+    #expect(reprioritized.generation != catalog.generation)
+    #expect(!republished.contains(guid(0)))
+    #expect(republished.contains(guid(1)) && republished.contains(guid(episodeCount - 1)))
+    #expect(finishLogs.count == 1)
   }
 
   @Test("unavailable or invalidated catalog data never produces a handoff")
