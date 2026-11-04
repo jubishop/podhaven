@@ -745,6 +745,8 @@ final class PlayManager {
     guard try await load(replacement), settledOnDeckID == replacement.id else { return }
     let requestID = UUID()
     setAutoAdvancePhase(autoAdvanceID, to: .awaitingPlayback(requestID))
+    // A player that kept its rate starts the replacement while it loads.
+    settleAutoAdvancePlayback(sharedState.playbackStatus)
     await play(requestID: requestID)
   }
 

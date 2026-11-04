@@ -120,7 +120,8 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
     if current == nil {
       timeControlStatus = .waitingToPlayAtSpecifiedRate
     } else {
-      timeControlStatus = .playing
+      // AVPlayer reports no status change when play() finds it already playing.
+      if timeControlStatus != .playing { timeControlStatus = .playing }
       setRate(defaultRate)
     }
   }

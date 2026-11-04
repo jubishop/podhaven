@@ -64,6 +64,26 @@ import UIKit
     #expect(application.taskIdentifiers(named: Self.taskName) == [identifier])
   }
 
+  @Test("advancing while playing ends the background task once the next episode plays")
+  func advancingWhilePlayingEndsTaskWhenNextEpisodePlays() async throws {
+    let (currentEpisode, nextEpisode) = try await Create.twoPodcastEpisodes()
+    try await queue.unshift(nextEpisode.id)
+    try await startPlaying(currentEpisode)
+    let avPlayer = avPlayer
+    await episodeAssetLoader.respond(to: nextEpisode.episode.mediaURL) { _ in
+      // AVPlayer keeps its rate without an item, so the next item plays once bound.
+      await avPlayer.waitingToPlay(waitingReason: .noItemToPlay)
+      return (true, CMTime.seconds(30))
+    }
+
+    await playManager.finishEpisode()
+
+    #expect(sharedState.playbackStatus == .playing)
+    let identifier = try autoAdvanceTask()
+    try await waitForEnd(of: identifier)
+    #expect(application.taskIdentifiers(named: Self.taskName) == [identifier])
+  }
+
   @Test(
     "automatic advancement ends its background task when it stops without playback",
     arguments: Exit.allCases
