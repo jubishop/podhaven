@@ -293,6 +293,8 @@ if ! command -v sentry &>/dev/null; then
   echo "error: sentry not found. Install it from https://cli.sentry.dev" >&2
   exit 1
 fi
+# The CLI's response cache can return Sentry state from before this script's writes.
+export SENTRY_NO_CACHE=1
 if ! sentry auth status &>/dev/null; then
   echo "error: Sentry auth required. Run: sentry auth login" >&2
   exit 1

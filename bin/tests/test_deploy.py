@@ -21,7 +21,8 @@ base = pathlib.Path(os.environ['DEPLOY_FIXTURE'])
 name = pathlib.Path(sys.argv[0]).name
 args = sys.argv[1:]
 with (base / 'events').open('a') as log:
-    log.write(json.dumps([name, args, os.environ.get('PODHAVEN_TESTFLIGHT_NOTES')]) + '\n')
+    log.write(json.dumps([name, args, os.environ.get('PODHAVEN_TESTFLIGHT_NOTES'),
+                          os.environ.get('SENTRY_NO_CACHE')]) + '\n')
 if name == 'git':
     args = args[2:] if args[:1] == ['-C'] else args
     state_path = base / 'state'
@@ -107,10 +108,18 @@ elif name == 'sentry':
     if args[:1] == ['api']:
         endpoint, debug_id = args[1].split('?query=')
         if endpoint != 'projects/artisanal-software/podhaven/files/dsyms/': sys.exit('Unexpected endpoint')
+        cache_path = base / 'sentry-response-cache'
+        cache = json.loads(cache_path.read_text()) if cache_path.exists() else {}
+        cached = os.environ.get('SENTRY_NO_CACHE') != '1'
+        if cached and args[1] in cache:
+            print(cache[args[1]])
+            sys.exit()
         dwarf = debug_id.upper() != os.environ.get('SENTRY_EXE_ONLY')
-        print(json.dumps([{'debugId': debug_id.lower(),
-                           'data': {'type': 'dbg' if dwarf else 'exe',
-                                    'features': ['symtab', 'unwind'] + (['debug'] if dwarf else [])}}]))
+        body = json.dumps([{'debugId': debug_id.lower(),
+                            'data': {'type': 'dbg' if dwarf else 'exe',
+                                     'features': ['symtab', 'unwind'] + (['debug'] if dwarf else [])}}])
+        if cached: cache_path.write_text(json.dumps({**cache, args[1]: body}))
+        print(body)
 elif name in ('gh', 'rm'): pass
 else: raise SystemExit('Unexpected command: ' + name)
 '''
@@ -140,7 +149,7 @@ class DeployTests(unittest.TestCase):
         self.env = {**os.environ, "PATH": str(self.commands) + os.pathsep + os.environ["PATH"],
                     "DEPLOY_FIXTURE": str(self.base), "DEPLOY_DEBUG_IDS": json.dumps(DEBUG_IDS)}
         for key in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID", "PODHAVEN_TESTFLIGHT_NOTES",
-                    "SENTRY_ORG", "SENTRY_PROJECT"):
+                    "SENTRY_ORG", "SENTRY_PROJECT", "SENTRY_NO_CACHE"):
             self.env.pop(key, None)
 
     def run_deploy(self, *args, **env):
@@ -346,6 +355,22 @@ class DeployTests(unittest.TestCase):
                 self.assertEqual(len(self.events("fastlane")), 2)
                 self.assertEqual(json.loads((self.base / "state").read_text())["tag"], "v1.0b568")
 
+    def test_rerun_reads_debug_files_sentry_gained_after_a_failed_check(self):
+        result = self.run_deploy("--notes", "Fixes", SENTRY_EXE_ONLY=DEBUG_IDS["PodHaven"])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Sentry debug symbols", result.stderr)
+        result = self.run_deploy("--notes", "Fixes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(sum("-exportArchive" in event[1] for event in self.events("xcodebuild")), 1)
+
+    def test_every_sentry_call_bypasses_the_cli_response_cache(self):
+        result = self.run_deploy("--notes", "Fixes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        calls = self.events("sentry")
+        self.assertEqual({tuple(call[1][:1]) for call in calls},
+                         {("auth",), ("debug-files",), ("api",), ("release",)})
+        self.assertEqual([call[1] for call in calls if call[3] != "1"], [])
+
     def test_failed_debug_symbol_upload_stops_before_app_store_upload(self):
         result = self.run_deploy(FAIL_SENTRY="debug-files")
         self.assertNotEqual(result.returncode, 0)
@@ -403,7 +428,8 @@ class TaggedDeployTests(unittest.TestCase):
                     "DEPLOY_DEBUG_IDS": json.dumps(DEBUG_IDS),
                     "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
         for key in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID", "PODHAVEN_TESTFLIGHT_NOTES",
-                    "SENTRY_ORG", "SENTRY_PROJECT", "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+                    "SENTRY_ORG", "SENTRY_PROJECT", "SENTRY_NO_CACHE", "GIT_DIR", "GIT_WORK_TREE",
+                    "GIT_INDEX_FILE"):
             self.env.pop(key, None)
         self.git("init", "-b", "main")
         self.git("config", "user.name", "Deploy Test")
