@@ -3,6 +3,7 @@
 import FactoryKit
 import FactoryTesting
 import Foundation
+import GRDB
 import SwiftUI
 import Testing
 import UIKit
@@ -12,12 +13,16 @@ import UIKit
 @Suite("of RefreshScheduler tests", .container)
 @MainActor struct RefreshSchedulerTests {
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
+  @DynamicInjected(\.cacheManagerSession) private var cacheManagerSession
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sleeper) private var sleeper
   @DynamicInjected(\.uiApplication) private var uiApplication
 
+  private var cacheSession: FakeDataFetchable {
+    cacheManagerSession as! FakeDataFetchable
+  }
   private var fakeBGTaskScheduler: FakeBGTaskScheduler {
     bgTaskScheduler as! FakeBGTaskScheduler
   }
@@ -282,7 +287,45 @@ import UIKit
     try await fakeSleeper.waitForSleepRequests(count: 1)
   }
 
-  private func makeStaleSubscribedSeries() async throws -> PodcastSeries {
+  @Test("background refresh hands newly queued episodes to the cache session before completing")
+  func backgroundRefreshCachesNewlyQueuedEpisodes() async throws {
+    let fakeBGTaskScheduler = fakeBGTaskScheduler
+    let session = session
+    let podcastSeries = try await makeStaleSubscribedSeries(queueAllEpisodes: .onTop)
+    let responseData = PreviewBundle.loadAsset(
+      named: "hardfork_short_updated",
+      in: .FeedRSS
+    )
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: responseData)
+    fakeApplication.applicationState = .background
+
+    refreshScheduler.register()
+
+    let identifier = try #require(fakeBGTaskScheduler.submissions.first?.identifier)
+    let task = try #require(fakeBGTaskScheduler.launchTask(withIdentifier: identifier))
+    try await Wait.until(
+      { task.completionResults == [true] },
+      { "Expected background refresh to complete successfully, got \(task.completionResults)" }
+    )
+
+    let queuedEpisodeIDs = try await Container.shared.appDB().reader.read { db in
+      try Episode.all().queued().selectID().fetchAll(db)
+    }
+    #expect(queuedEpisodeIDs.count == 1)
+    for episodeID in queuedEpisodeIDs {
+      let downloadTasks = await cacheSession.downloadTasks().filter {
+        $0.taskDescription == String(episodeID.rawValue)
+      }
+      #expect(downloadTasks.count == 1)
+      for downloadTask in downloadTasks {
+        #expect(await downloadTask.isResumed())
+      }
+    }
+  }
+
+  private func makeStaleSubscribedSeries(
+    queueAllEpisodes: QueueAllEpisodes = .never
+  ) async throws -> PodcastSeries {
     let feedURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     let podcastFeed = try await PodcastFeed.parse(data, from: feedURL)
@@ -294,7 +337,8 @@ import UIKit
       description: basePodcast.description,
       link: basePodcast.link,
       lastUpdate: 5.hoursAgo,
-      subscriptionDate: Date()
+      subscriptionDate: Date(),
+      queueAllEpisodes: queueAllEpisodes
     )
 
     return try await repo.insertSeries(
