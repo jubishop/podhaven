@@ -240,7 +240,17 @@ struct AppLauncherTests {
         "startup.stateManager": ["started", "completed"],
         "startup.playManager": ["started", "completed"],
         "startup.widgetSnapshotWriter": ["started", "completed"],
+        "startup.cacheManager": ["started", "completed"],
       ]
     )
+  }
+
+  @Test("background playback startup caches episodes queued without a foreground")
+  func playbackStartupCachesQueuedEpisodes() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    await Container.shared.appLauncher().prepareForPlayback()
+
+    try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
   }
 }
