@@ -63,7 +63,7 @@ actor FakeEpisodeAssetLoader {
 
   func waitRespond<T: RawRepresentable>(
     to taggedURL: T,
-    data: ResponseData = (true, CMTime.seconds(Double.random(in: 1...999)))
+    data: ResponseData = (true, CMTime.seconds(Double(Int.random(in: 1...999))))
   ) async -> AsyncSemaphore where T.RawValue == URL {
     let asyncSemaphore = AsyncSemaphore(value: 0)
     respond(to: taggedURL) { episode in
