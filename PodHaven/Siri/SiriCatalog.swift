@@ -338,11 +338,24 @@ struct SiriCatalogFile: Sendable {
   }
 
   func write(_ data: Data) throws {
-    try FileManager.default.createDirectory(
-      at: url.deletingLastPathComponent(),
-      withIntermediateDirectories: true
+    try write(data, to: url)
+  }
+
+  // Writes a replacement that `installStaged()` later swaps in atomically.
+  func stage(_ data: Data) throws {
+    try write(data, to: stagedURL)
+  }
+
+  func installStaged() throws {
+    _ = try FileManager.default.replaceItemAt(
+      url,
+      withItemAt: stagedURL,
+      options: .usingNewMetadataOnly
     )
-    try replaceContents(data, url)
+  }
+
+  func removeStaged() throws {
+    try remove(stagedURL)
   }
 
   // Readers find no catalog until `restoreAside()` or a write replaces it.
@@ -376,12 +389,25 @@ struct SiriCatalogFile: Sendable {
   }
 
   func removeAside() throws {
+    try remove(asideURL)
+  }
+
+  private var asideURL: URL { url.appendingPathExtension("launch") }
+  private var stagedURL: URL { url.appendingPathExtension("staged") }
+
+  private func write(_ data: Data, to destination: URL) throws {
+    try FileManager.default.createDirectory(
+      at: destination.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try replaceContents(data, destination)
+  }
+
+  private func remove(_ item: URL) throws {
     do {
-      try FileManager.default.removeItem(at: asideURL)
+      try FileManager.default.removeItem(at: item)
     } catch {
       guard ErrorKit.isMissingFile(error) else { throw error }
     }
   }
-
-  private var asideURL: URL { url.appendingPathExtension("launch") }
 }

@@ -30,25 +30,51 @@ writer ahead of any library write. That job registers the commit observer. It
 restores the set-aside file when it is [verifiably current](#launch-freshness)
 and otherwise publishes the committed library. Until it finishes, the extension
 finds no catalog and fails truthfully rather than reading an unverified
-snapshot. The main app's Siri handler waits for that check or publication
-before reading the catalog, so a cold handoff resolves against the committed
-library.
+snapshot. The main app's Siri handler waits for that check or publication,
+and for any [commit publication](#commit-publication) in progress, before
+reading the catalog, so a cold handoff resolves against the committed library.
 
-Afterward, the app republishes synchronously on the writer after relevant
-commits, including background refresh and deletion. A finish-state change is
-relevant only while the published catalog omits episodes, because finish state
-otherwise cannot change it; see [catalog size](#catalog-size). In build 593,
-republishing a 190-podcast, 111,500-episode library held the writer for 2.3
-seconds each time an episode finished. Before a relevant commit, the previous
-catalog becomes unavailable. A crash or failed write therefore causes a
-truthful temporary failure instead of silently trusting an obsolete snapshot.
-Rollback restores the last published or kept catalog unless a later
-publication failed. The app database stays in its current location. Each publication has a new generation
+Afterward, relevant commits, including background refresh and deletion,
+republish the catalog off the database writer. A finish-state change is
+relevant only while the current catalog omits episodes or a publication is
+pending, because finish state otherwise cannot change it; see
+[catalog size](#catalog-size). Before a relevant commit, the previous catalog
+becomes unavailable. A crash or failed write therefore causes a truthful
+temporary failure instead of silently trusting an obsolete snapshot. Rollback
+restores the last published or kept catalog while it still reflects every
+committed relevant change, unless a later publication failed. The app database stays in its current location. Each publication has a new generation
 ID; a kept catalog keeps its generation. The main app checks that generation
 after its asynchronous lookup and before playback.
 Names, deletion, and publication dates invalidate pending selections, as does
 finished state while the catalog omits episodes; routine position writes do
 not.
+
+### Commit publication
+
+Republication used to run synchronously on the writer after each relevant
+commit. Every later write, such as marking an episode finished, waited behind
+it. In build 593, it held the writer for 2.3 seconds each time an episode
+finished in a 190-podcast, 111,500-episode library. In the 14 days to
+November 4, 2026, every sampled commit publication in Sentry logs took over a
+second: 6.5–11 seconds for that library and up to 22 seconds for a
+70-podcast, 45,000-episode one, mostly fetching rows.
+
+A commit now returns without waiting for publication. One publication runs at
+a time on a read snapshot, so it fetches, encodes, and writes the new catalog
+beside the file while writes continue. It then swaps that file in atomically,
+but only if no relevant commit has landed or begun since its snapshot.
+Otherwise it discards the catalog and publishes again, so a burst of relevant
+commits, such as one feed refresh, publishes once after the burst. The swap
+and commit invalidation take the same lock, so a commit never waits for a
+publication's fetch or catalog write. A relevant commit that is pending when
+a publication would start stops it; that commit's outcome starts another.
+
+The catalog stays unavailable from the first relevant commit until a
+publication reflects every relevant commit, which spans the burst plus one
+publication. Extension requests in that window fail truthfully, as they did
+while the writer was held. Each publication holds a UIKit background task, so
+a background write's catalog normally lands before iOS suspends the app.
+Launch removes a staged file that a crash left behind.
 
 ### Launch freshness
 
@@ -292,9 +318,12 @@ Like the existing launch log, `appState` reflects UIKit during launch: the
 foreground Simulator smoke launch reported `background`, so this field alone
 does not prove a background launch.
 
-A cold Siri handoff that arrives during the launch check or publication waits
-for it, so its latency includes the remaining time. Extension requests in that
-window fail truthfully.
+A cold Siri handoff that arrives during the launch check or publication, or
+during a commit publication, waits for it, so its latency includes the
+remaining time. Extension requests in that window fail truthfully. Commit
+publications run off the writer, so their `publishMs` measures how long the
+catalog took to become available again after the run began, not writer time. A
+publication discarded for a later commit records no summary.
 
 A local diagnostic benchmark seeded 110 podcasts and 110,000 episodes, giving a
 27,709,630-byte schema 1 catalog. In a Debug test host on My Mac, the previous synchronous

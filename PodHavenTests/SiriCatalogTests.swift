@@ -111,9 +111,7 @@ struct SiriCatalogTests {
     }
   }
 
-  @Test(
-    "background database commits publish inserts, renames, deletion, and rollback synchronously"
-  )
+  @Test("background database commits publish inserts, renames, deletion, and rollback")
   func databaseFreshness() async throws {
     let db = Container.shared.appDB()
     let file = Container.shared.siriCatalogFile()
@@ -127,10 +125,12 @@ struct SiriCatalogTests {
           unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode")]
         )
       )
+    try await db.siriCatalogPublished()
     #expect(try await file.read().podcasts.flatMap(\.entries).map(\.title) == ["Show", "Episode"])
     try await db.writer.write { db in
       try Podcast.withID(series.podcast.id).updateAll(db, Podcast.Columns.title.set(to: "New show"))
     }
+    try await db.siriCatalogPublished()
     #expect(
       try await file.read().podcasts.flatMap(\.entries).map(\.displayTitle) == [
         "New show", "Episode — New show",
@@ -144,12 +144,38 @@ struct SiriCatalogTests {
     } catch {}
     #expect(try await file.read().podcasts.flatMap(\.entries).count == 2)
     try await Container.shared.repo().deletePodcast(series.podcast.id)
+    try await db.siriCatalogPublished()
     #expect(try await file.read().podcasts.isEmpty)
+  }
+
+  @Test("a commit publication keeps the app running in the background until it finishes")
+  func backgroundPublication() async throws {
+    let file = Container.shared.siriCatalogFile()
+    let database = Container.shared.appDB().unsafeTestDB
+    let publisher = SiriCatalogPublisher(file: file, reader: database)
+    try await database.writeWithoutTransaction { publisher.observe($0) }
+    // A synchronous write lets the publication task inherit the test's application.
+    let insert: () throws -> Void = {
+      try database.write { db in try Create.unsavedPodcast(title: "Show").insert(db) }
+    }
+    try insert()
+    try await publisher.published()
+
+    #expect(try await file.read().podcasts.map(\.title) == ["Show"])
+    let application = try #require(await Container.shared.uiApplication() as? FakeApplication)
+    let tasks = await application.taskIdentifiers(named: "siriCatalogPublication")
+    #expect(tasks.count == 1)
+    for task in tasks {
+      #expect(await !application.hasActiveTask(identifier: task))
+    }
   }
 
   @Test("the library revisions change exactly when a statement can change the catalog")
   func libraryRevision() async throws {
-    let publisher = SiriCatalogPublisher(file: Container.shared.siriCatalogFile())
+    let publisher = SiriCatalogPublisher(
+      file: Container.shared.siriCatalogFile(),
+      reader: Container.shared.appDB().unsafeTestDB
+    )
     let series = try await Container.shared.repo()
       .insertSeries(
         UnsavedPodcastSeries(
@@ -205,6 +231,7 @@ struct SiriCatalogTests {
       )
     let episode = PodcastEpisode(podcast: series.podcast, episode: series.episodes[0])
     let file = Container.shared.siriCatalogFile()
+    let publisher = SiriCatalogPublisher(file: file, reader: Container.shared.appDB().unsafeTestDB)
     try await Container.shared.appDB().writer
       .write { db in
         let queries = ThreadSafe<[String]>([])
@@ -213,7 +240,7 @@ struct SiriCatalogTests {
             queries { $0.append(statement.sql) }
           }
         }
-        SiriCatalogPublisher(file: file).publish(db, trigger: .commit)
+        publisher.publish(db, trigger: .commit)
         db.trace(options: [])
         #expect(!queries().isEmpty)
         for query in queries() {
@@ -244,7 +271,8 @@ struct SiriCatalogTests {
   func boundedPublication() async throws {
     let file = Container.shared.siriCatalogFile()
     let database = Container.shared.appDB().unsafeTestDB
-    try await database.writeWithoutTransaction { SiriCatalogPublisher(file: file).observe($0) }
+    let publisher = SiriCatalogPublisher(file: file, reader: database)
+    try await database.writeWithoutTransaction { publisher.observe($0) }
     // About twice the limit; escaped quotes make encoded titles longer than their raw text.
     let podcastCount = 3
     let episodeCount = 16_800
@@ -256,8 +284,9 @@ struct SiriCatalogTests {
     @Sendable func title(_ episode: Int) -> String {
       "Private Sentinel Episode \(episode) \(padding)"
     }
-    let logs = try await database.writeWithoutTransaction { db in
-      try LogCapture.withSink { sink in
+    // Synchronous writes let the publication task inherit the log sink.
+    let seed: () throws -> Void = {
+      try database.writeWithoutTransaction { db in
         try db.inTransaction {
           let podcastIDs = try (0..<podcastCount)
             .map { podcast in
@@ -281,8 +310,12 @@ struct SiriCatalogTests {
           }
           return .commit
         }
-        return sink.captured().filter { $0.message.hasPrefix("siriCatalogPublication ") }
       }
+    }
+    let logs = try await LogCapture.withSink { sink in
+      try seed()
+      try await publisher.published()
+      return sink.captured().filter { $0.message.hasPrefix("siriCatalogPublication ") }
     }
 
     let catalog = try await file.read()
@@ -328,15 +361,19 @@ struct SiriCatalogTests {
     }
 
     // Finishing the oldest unfinished episode makes it the first to omit.
-    let finishLogs = try await database.writeWithoutTransaction { db in
-      try LogCapture.withSink { sink in
+    let finishOldest: () throws -> Void = {
+      try database.writeWithoutTransaction { db in
         try db.inTransaction {
           try Episode.filter(Episode.Columns.guid == guid(0))
             .updateAll(db, Episode.Columns.finishDate.set(to: Date()))
           return .commit
         }
-        return sink.captured().filter { $0.message.hasPrefix("siriCatalogPublication ") }
       }
+    }
+    let finishLogs = try await LogCapture.withSink { sink in
+      try finishOldest()
+      try await publisher.published()
+      return sink.captured().filter { $0.message.hasPrefix("siriCatalogPublication ") }
     }
     let reprioritized = try await file.read()
     let republished = Set(reprioritized.podcasts.flatMap(\.episodes).map(\.guid))

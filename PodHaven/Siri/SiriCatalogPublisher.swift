@@ -20,18 +20,48 @@ extension Container {
 }
 
 final class SiriCatalogPublisher: TransactionObserver, Sendable {
-  private enum State { case unchanged, finishChanged, changed, invalidated }
+  // A relevant commit is `committing` from `databaseWillCommit()` until its outcome, and
+  // `invalidated` once the catalog file is emptied for it.
+  private enum Transaction { case unchanged, finishChanged, changed, committing, invalidated }
 
   private struct Published {
     let data: Data
     let omitsEpisodes: Bool
   }
 
+  private struct Built: Sendable {
+    let data: Data
+    let podcasts: Int
+    let episodes: Int
+    let omittedEpisodes: Int
+    let fetchedAt: ContinuousClock.Instant
+  }
+
+  private struct Status {
+    var transaction = Transaction.unchanged
+    // Landed relevant commits, and how many of them the last finished publication reflects.
+    var commits = 0
+    var settled = 0
+    // The last finished publication's catalog, or nil when it failed.
+    var published: Published?
+    var running: AsyncLatch<Void>?
+
+    var commitPending: Bool { [.committing, .invalidated].contains(transaction) }
+    var current: Published? { settled == commits ? published : nil }
+
+    mutating func startPublishing() -> AsyncLatch<Void>? {
+      guard running == nil else { return nil }
+      let run = AsyncLatch<Void>()
+      running = run
+      return run
+    }
+  }
+
   // Finish state reaches the catalog only through which episodes it omits.
   private final class FinishObserver: TransactionObserver, Sendable {
-    private let state: ThreadSafe<State>
+    private let status: ThreadSafe<Status>
 
-    init(state: ThreadSafe<State>) { self.state = state }
+    init(status: ThreadSafe<Status>) { self.status = status }
 
     func observes(eventsOfKind kind: DatabaseEventKind) -> Bool {
       guard case .update(let table, let columns) = kind else { return false }
@@ -39,7 +69,7 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
     }
 
     func databaseDidChange(with event: DatabaseEvent) {
-      state { if $0 == .unchanged { $0 = .finishChanged } }
+      status { if $0.transaction == .unchanged { $0.transaction = .finishChanged } }
     }
 
     func databaseDidCommit(_ db: Database) {}
@@ -58,15 +88,23 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
   private let continuousClockNow = Container.shared.continuousClockNow()
   private let diagnostics = Container.shared.siriCatalogPublicationDiagnostics()
   private let file: SiriCatalogFile
-  private let state = ThreadSafe(State.unchanged)
-  private let lastPublished = ThreadSafe<Published?>(nil)
+  private let reader: any DatabaseReader
+  private let status: ThreadSafe<Status>
+  private let finishObserver: FinishObserver
   private static let log = Log.as("SiriCatalogPublisher")
 
-  init(file: SiriCatalogFile) { self.file = file }
+  init(file: SiriCatalogFile, reader: any DatabaseReader) {
+    let status = ThreadSafe(Status())
+    self.file = file
+    self.reader = reader
+    self.status = status
+    finishObserver = FinishObserver(status: status)
+  }
 
+  // The caller owns the publisher; the database retaining it would retain itself through `reader`.
   func observe(_ db: Database) {
-    db.add(transactionObserver: self, extent: .databaseLifetime)
-    db.add(transactionObserver: FinishObserver(state: state), extent: .databaseLifetime)
+    db.add(transactionObserver: self, extent: .observerLifetime)
+    db.add(transactionObserver: finishObserver, extent: .observerLifetime)
   }
 
   func observes(eventsOfKind kind: DatabaseEventKind) -> Bool {
@@ -79,35 +117,57 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
     }
   }
 
-  func databaseDidChange(with event: DatabaseEvent) { state(.changed) }
+  func databaseDidChange(with event: DatabaseEvent) { status { $0.transaction = .changed } }
 
+  // After launch, the catalog file changes only under the status lock, so no publication can
+  // land between this invalidation and the commit's outcome.
   func databaseWillCommit() {
-    if state() == .finishChanged {
-      let unaffected = lastPublished()?.omitsEpisodes == false
-      state(unaffected ? .unchanged : .changed)
-    }
-    guard state() == .changed else { return }
-    do {
-      try file.invalidate()
-      state(.invalidated)
-    } catch {
-      Self.log.caughtError("Could not invalidate Siri catalog before library commit", error)
+    status { status in
+      if status.transaction == .finishChanged {
+        let unaffected = status.current?.omitsEpisodes == false
+        status.transaction = unaffected ? .unchanged : .changed
+      }
+      guard status.transaction == .changed else { return }
+      status.transaction = .committing
+      do {
+        try file.invalidate()
+        status.transaction = .invalidated
+      } catch {
+        Self.log.caughtError("Could not invalidate Siri catalog before library commit", error)
+      }
     }
   }
 
   func databaseDidCommit(_ db: Database) {
-    guard state() != .unchanged else { return }
-    state(.unchanged)
-    publish(db, trigger: .commit)
+    let run = status { status -> AsyncLatch<Void>? in
+      guard status.transaction != .unchanged else { return nil }
+      status.transaction = .unchanged
+      status.commits += 1
+      return status.startPublishing()
+    }
+    if let run { Task { await publishCommits(run) } }
   }
 
   func databaseDidRollback(_ db: Database) {
-    let invalidated = state() == .invalidated
-    state(.unchanged)
-    guard invalidated, let lastPublished = lastPublished() else { return }
-    do { try file.write(lastPublished.data) } catch {
-      Self.log.caughtError("Could not restore Siri catalog after rollback", error)
+    let run = status { status -> AsyncLatch<Void>? in
+      let transaction = status.transaction
+      status.transaction = .unchanged
+      guard [.committing, .invalidated].contains(transaction) else { return nil }
+      guard status.settled == status.commits else { return status.startPublishing() }
+      if transaction == .invalidated, let published = status.published {
+        do { try file.write(published.data) } catch {
+          Self.log.caughtError("Could not restore Siri catalog after rollback", error)
+        }
+      }
+      return nil
     }
+    if let run { Task { await publishCommits(run) } }
+  }
+
+  func published() async throws {
+    guard let running = status({ $0.running }) else { return }
+    Self.log.debug("Waiting for the Siri catalog publication")
+    try await running.wait()
   }
 
   func launch(_ db: Database, openDuration: Duration?) {
@@ -120,8 +180,11 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
       kept = nil
     }
     let checkDuration = continuousClockNow() - startedAt
+    do { try file.removeStaged() } catch {
+      Self.log.caughtError("Could not remove a staged Siri catalog from an earlier launch", error)
+    }
     if let kept {
-      lastPublished(kept)
+      status { $0.published = kept }
       diagnostics.recordSkip(
         openDuration: openDuration,
         checkDuration: checkDuration,
@@ -138,95 +201,181 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
   func publish(_ db: Database, trigger: SiriCatalogPublicationDiagnostics.Trigger) {
     let startedAt = continuousClockNow()
     do {
-      let source = try currentSource(db, omitsEpisodes: false)
-      let podcasts =
-        try Podcast
-        .select(Podcast.Columns.id, Podcast.Columns.feedURL, Podcast.Columns.title)
-        .order(Podcast.Columns.id).asRequest(of: Row.self).fetchAll(db)
-      let episodes =
-        try Episode
-        .select(
-          Episode.Columns.id,
-          Episode.Columns.podcastId,
-          Episode.Columns.guid,
-          Episode.Columns.title
-        )
-        .order(Episode.Columns.id).asRequest(of: Row.self).fetchAll(db)
-      let episodesByPodcast = Dictionary(grouping: episodes) { row -> Int64 in
-        row[Episode.Columns.podcastId]
+      let built = try build(db)
+      try file.write(built.data)
+      status { status in
+        status.settled = status.commits
+        status.published = Published(data: built.data, omitsEpisodes: built.omittedEpisodes > 0)
       }
-      var catalog = SiriCatalog(
-        podcasts: podcasts.map { podcast in
-          let id: Int64 = podcast[Podcast.Columns.id]
-          return SiriCatalog.Podcast(
-            id: id,
-            feed: podcast[Podcast.Columns.feedURL],
-            title: podcast[Podcast.Columns.title],
-            episodes: (episodesByPodcast[id] ?? [])
-              .map {
-                SiriCatalog.Episode(
-                  id: $0[Episode.Columns.id],
-                  guid: $0[Episode.Columns.guid],
-                  title: $0[Episode.Columns.title]
-                )
-              }
-          )
-        },
-        source: source
-      )
-      let fetchedAt = continuousClockNow()
-      var data = try SiriCatalogFile.encode(catalog)
-      var omitted: Set<Int64> = []
-      if data.count > SiriCatalogFile.maximumBytes {
-        let boundedSource = try currentSource(db, omitsEpisodes: true)
-        let episodesByID = Dictionary(
-          uniqueKeysWithValues: catalog.podcasts.flatMap(\.episodes).map { ($0.id, $0) }
-        )
-        var byPriority =
-          try Episode
-          .select(Episode.Columns.id, as: Int64.self)
-          .order(Episode.unfinished.desc, Episode.Columns.pubDate.desc, Episode.Columns.id.desc)
-          .fetchAll(db).compactMap { episodesByID[$0] }
-        while data.count > SiriCatalogFile.maximumBytes, !byPriority.isEmpty {
-          var excess = data.count - SiriCatalogFile.maximumBytes
-          while excess > 0, let episode = byPriority.popLast() {
-            omitted.insert(episode.id)
-            excess -= episode.estimatedEncodedBytes
-          }
-          catalog = SiriCatalog(
-            podcasts: catalog.podcasts.map { podcast in
-              SiriCatalog.Podcast(
-                id: podcast.id,
-                feed: podcast.feed,
-                title: podcast.title,
-                episodes: podcast.episodes.filter { !omitted.contains($0.id) }
-              )
-            },
-            source: boundedSource
-          )
-          data = try SiriCatalogFile.encode(catalog)
-        }
-      }
-      try file.write(data)
-      lastPublished(Published(data: data, omitsEpisodes: !omitted.isEmpty))
-      diagnostics.record(
-        SiriCatalogPublicationDiagnostics.Publication(
-          trigger: trigger,
-          fetchDuration: fetchedAt - startedAt,
-          writeDuration: continuousClockNow() - fetchedAt,
-          podcasts: podcasts.count,
-          episodes: episodes.count - omitted.count,
-          omittedEpisodes: omitted.count,
-          bytes: data.count
-        )
-      )
+      record(built, trigger: trigger, startedAt: startedAt)
     } catch {
       Self.log.caughtError("Could not publish Siri catalog", error)
-      lastPublished(nil)
+      status { status in
+        status.settled = status.commits
+        status.published = nil
+      }
       do { try file.invalidate() } catch {
         Self.log.caughtError("Could not invalidate unavailable Siri catalog", error)
       }
     }
+  }
+
+  // Publishes from read snapshots until the catalog reflects every relevant commit, discarding
+  // any catalog a later commit made stale. A pending relevant commit stops the run; its outcome
+  // starts another. The background task keeps a background write's catalog from waiting for the
+  // next launch.
+  private func publishCommits(_ run: AsyncLatch<Void>) async {
+    let backgroundTask = await BackgroundTask.start(withName: "siriCatalogPublication")
+    while true {
+      let target = status { status -> Int? in
+        guard status.settled != status.commits, !status.commitPending else {
+          status.running = nil
+          return nil
+        }
+        return status.commits
+      }
+      guard let target else { break }
+      let startedAt = continuousClockNow()
+      let built: Built
+      do {
+        built = try await reader.read { db in try self.build(db) }
+        try file.stage(built.data)
+      } catch {
+        fail(target, error)
+        continue
+      }
+      let installed = status { status -> Result<Bool, any Error> in
+        guard status.commits == target, !status.commitPending else { return .success(false) }
+        do {
+          try file.installStaged()
+        } catch {
+          return .failure(error)
+        }
+        status.settled = target
+        status.published = Published(data: built.data, omitsEpisodes: built.omittedEpisodes > 0)
+        return .success(true)
+      }
+      switch installed {
+      case .success(true):
+        record(built, trigger: .commit, startedAt: startedAt)
+      case .success(false):
+        Self.log.debug("Discarded a Siri catalog publication that a later commit made stale")
+      case .failure(let error):
+        fail(target, error)
+      }
+    }
+    await backgroundTask.end()
+    run.open()
+  }
+
+  // Leaves the catalog unavailable until the next relevant commit, unless one landed or is pending.
+  private func fail(_ target: Int, _ error: any Error) {
+    Self.log.caughtError("Could not publish Siri catalog", error)
+    status { status in
+      guard status.commits == target, !status.commitPending else { return }
+      status.settled = target
+      status.published = nil
+      do { try file.invalidate() } catch {
+        Self.log.caughtError("Could not invalidate unavailable Siri catalog", error)
+      }
+    }
+  }
+
+  private func record(
+    _ built: Built,
+    trigger: SiriCatalogPublicationDiagnostics.Trigger,
+    startedAt: ContinuousClock.Instant
+  ) {
+    diagnostics.record(
+      SiriCatalogPublicationDiagnostics.Publication(
+        trigger: trigger,
+        fetchDuration: built.fetchedAt - startedAt,
+        writeDuration: continuousClockNow() - built.fetchedAt,
+        podcasts: built.podcasts,
+        episodes: built.episodes,
+        omittedEpisodes: built.omittedEpisodes,
+        bytes: built.data.count
+      )
+    )
+  }
+
+  private func build(_ db: Database) throws -> Built {
+    let source = try currentSource(db, omitsEpisodes: false)
+    let podcasts =
+      try Podcast
+      .select(Podcast.Columns.id, Podcast.Columns.feedURL, Podcast.Columns.title)
+      .order(Podcast.Columns.id).asRequest(of: Row.self).fetchAll(db)
+    let episodes =
+      try Episode
+      .select(
+        Episode.Columns.id,
+        Episode.Columns.podcastId,
+        Episode.Columns.guid,
+        Episode.Columns.title
+      )
+      .order(Episode.Columns.id).asRequest(of: Row.self).fetchAll(db)
+    let episodesByPodcast = Dictionary(grouping: episodes) { row -> Int64 in
+      row[Episode.Columns.podcastId]
+    }
+    var catalog = SiriCatalog(
+      podcasts: podcasts.map { podcast in
+        let id: Int64 = podcast[Podcast.Columns.id]
+        return SiriCatalog.Podcast(
+          id: id,
+          feed: podcast[Podcast.Columns.feedURL],
+          title: podcast[Podcast.Columns.title],
+          episodes: (episodesByPodcast[id] ?? [])
+            .map {
+              SiriCatalog.Episode(
+                id: $0[Episode.Columns.id],
+                guid: $0[Episode.Columns.guid],
+                title: $0[Episode.Columns.title]
+              )
+            }
+        )
+      },
+      source: source
+    )
+    let fetchedAt = continuousClockNow()
+    var data = try SiriCatalogFile.encode(catalog)
+    var omitted: Set<Int64> = []
+    if data.count > SiriCatalogFile.maximumBytes {
+      let boundedSource = try currentSource(db, omitsEpisodes: true)
+      let episodesByID = Dictionary(
+        uniqueKeysWithValues: catalog.podcasts.flatMap(\.episodes).map { ($0.id, $0) }
+      )
+      var byPriority =
+        try Episode
+        .select(Episode.Columns.id, as: Int64.self)
+        .order(Episode.unfinished.desc, Episode.Columns.pubDate.desc, Episode.Columns.id.desc)
+        .fetchAll(db).compactMap { episodesByID[$0] }
+      while data.count > SiriCatalogFile.maximumBytes, !byPriority.isEmpty {
+        var excess = data.count - SiriCatalogFile.maximumBytes
+        while excess > 0, let episode = byPriority.popLast() {
+          omitted.insert(episode.id)
+          excess -= episode.estimatedEncodedBytes
+        }
+        catalog = SiriCatalog(
+          podcasts: catalog.podcasts.map { podcast in
+            SiriCatalog.Podcast(
+              id: podcast.id,
+              feed: podcast.feed,
+              title: podcast.title,
+              episodes: podcast.episodes.filter { !omitted.contains($0.id) }
+            )
+          },
+          source: boundedSource
+        )
+        data = try SiriCatalogFile.encode(catalog)
+      }
+    }
+    return Built(
+      data: data,
+      podcasts: podcasts.count,
+      episodes: episodes.count - omitted.count,
+      omittedEpisodes: omitted.count,
+      fetchedAt: fetchedAt
+    )
   }
 
   // Restores the catalog set aside at launch when it reflects the committed library.

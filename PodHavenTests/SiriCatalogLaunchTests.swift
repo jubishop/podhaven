@@ -93,6 +93,46 @@ import Testing
     #expect(storage.mainThreadCatalogWrites() == 0, "Publication must not write on the main thread")
   }
 
+  @Test(
+    "a library commit returns before its catalog publication and never exposes an older catalog"
+  )
+  func pendingCommitPublication() async throws {
+    let directory = TestFiles.uniqueURL()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let path = try committedLibrary(in: directory)
+    let url = directory.appendingPathComponent("siri-media.json")
+    let published = try await launchedGeneration(path: path, file: SiriCatalogFile(url: url))
+    let storage = FakeSiriCatalogStorage()
+    defer { storage.release() }
+    let file = SiriCatalogFile(url: url, replaceContents: storage.replace)
+    let appDB = try AppDB.launch(path: path, siriCatalogFile: file)
+    try await appDB.siriCatalogPublished()
+    #expect(try await file.read().generation == published)
+
+    let renamed = ThreadSafe(false)
+    let rename = Task {
+      try await appDB.writer.write { db in
+        try Podcast.all().updateAll(db, Podcast.Columns.title.set(to: "Renamed show"))
+      }
+      renamed(true)
+    }
+    try await Wait.until({ storage.catalogWriteHeld() }, { "Commit publication did not start" })
+    try await Wait.until({ renamed() }, { "The library commit waited for catalog publication" })
+    await #expect(throws: (any Error).self, "Readers saw a catalog older than the library") {
+      try await file.read()
+    }
+    try await appDB.writer.write { db in
+      try Podcast.all().updateAll(db, Podcast.Columns.title.set(to: "Final show"))
+    }
+
+    storage.release()
+    try await rename.value
+    try await appDB.siriCatalogPublished()
+    let catalog = try await file.read()
+    #expect(catalog.generation != published)
+    #expect(catalog.podcasts.map(\.title) == ["Final show"])
+  }
+
   @Test("a launch keeps a current catalog without republishing it")
   func currentCatalog() async throws {
     let directory = TestFiles.uniqueURL()
@@ -119,6 +159,7 @@ import Testing
     try await appDB.writer.write { db in
       try Podcast.all().updateAll(db, Podcast.Columns.title.set(to: "Renamed show"))
     }
+    try await appDB.siriCatalogPublished()
     let renamed = try await file.read()
     #expect(renamed.generation != published)
     #expect(renamed.podcasts.map(\.title) == ["Renamed show"])
@@ -199,6 +240,7 @@ import Testing
     try await appDB.writer.write { db in
       try Podcast.all().updateAll(db, Podcast.Columns.title.set(to: "Renamed show"))
     }
+    try await appDB.siriCatalogPublished()
     failing(false)
     await #expect(throws: (any Error).self) { try await file.read() }
 
@@ -214,6 +256,7 @@ import Testing
 
     let episodeID = try #require(try await appDB.reader.read { db in try Episode.fetchOne(db)?.id })
     #expect(try await Repo(reader: appDB.reader, writer: appDB.writer).markFinished(episodeID))
+    try await appDB.siriCatalogPublished()
     #expect(try await file.read().podcasts.map(\.title) == ["Renamed show"])
   }
 
