@@ -19,7 +19,10 @@ import UIKit
     self.name = name
   }
 
-  static func start(withName name: String = #function) -> BackgroundTask {
+  static func start(
+    withName name: String = #function,
+    onExpiration: (@MainActor @Sendable () -> Void)? = nil
+  ) -> BackgroundTask {
     Self.log.debug("start: \(name)")
     let backgroundTask = BackgroundTask(withName: name)
     backgroundTask.id = application.beginBackgroundTask(withName: name) {
@@ -28,6 +31,7 @@ import UIKit
         return
       }
       Self.log.info("start: \(name) expirationHandler")
+      onExpiration?()
       Self.application.endBackgroundTask(backgroundTask.id)
       backgroundTask.id = .invalid
     }

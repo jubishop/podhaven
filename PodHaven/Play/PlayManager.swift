@@ -93,6 +93,7 @@ final class PlayManager {
 
   // MARK: - State Management
 
+  var autoAdvance: AutoAdvance?
   var lastRecoveryAttempt: (episodeID: Episode.ID, time: Date)?
   var lastMediaServicesResetAt: Date?
   var latestAudioRouteChange: AudioRouteChange?
@@ -141,7 +142,7 @@ final class PlayManager {
     if let requestID {
       guard playbackRequestRevision == requestID else { throw CancellationError() }
     } else {
-      playbackRevision.new(UUID())
+      newPlaybackRequest(UUID())
     }
     let acceptedRevision = playbackRequestRevision
     cancelWidgetRouteRecovery(reason: "newLoad")
@@ -175,6 +176,11 @@ final class PlayManager {
       }
       throw error
     }
+  }
+
+  private func newPlaybackRequest(_ requestID: UUID) {
+    playbackRevision.new(requestID)
+    supersedeAutoAdvance(by: requestID)
   }
 
   private func claimLoadTransition(for episodeID: Episode.ID?) -> UUID {
@@ -532,7 +538,7 @@ final class PlayManager {
       try Task.checkCancellation()
       guard playbackRequestRevision == revision else { return .superseded }
     }
-    playbackRevision.new(requestID)
+    newPlaybackRequest(requestID)
     let isMediaServicesRecovery = mediaServicesRecoveryEpisodeID == podcastEpisode.id
     pendingPlaybackRequest = .play(podcastEpisode.id)
     let loaded: Bool
@@ -567,9 +573,8 @@ final class PlayManager {
     return settledOnDeckID == podcastEpisode.id ? .ready : .unavailable
   }
 
-  func play(origin: PlaybackRequestOrigin = .application) async {
-    let requestID = UUID()
-    playbackRevision.new(requestID)
+  func play(origin: PlaybackRequestOrigin = .application, requestID: UUID = UUID()) async {
+    newPlaybackRequest(requestID)
     cancelWidgetRouteRecovery(reason: "newPlay")
     guard let episodeID = sharedState.onDeck?.id ?? sharedState.currentEpisodeID else {
       pendingPlaybackRequest = .none
@@ -594,14 +599,14 @@ final class PlayManager {
   }
 
   func pause() async {
-    playbackRevision.new(UUID())
+    newPlaybackRequest(UUID())
     cancelWidgetRouteRecovery(reason: "userPause")
     pendingPlaybackRequest = .none
     await podAVPlayer.pause()
   }
 
   func stop(requestID: UUID = UUID()) async {
-    playbackRevision.new(requestID)
+    newPlaybackRequest(requestID)
     cancelWidgetRouteRecovery(reason: "userStop")
     pendingPlaybackRequest = .none
     let previousLoad = loadTask
@@ -650,7 +655,7 @@ final class PlayManager {
   func toggle() async {
     guard mediaServicesRecoveryEpisodeID == nil else { return await play() }
     let requestID = UUID()
-    playbackRevision.new(requestID)
+    newPlaybackRequest(requestID)
     pendingPlaybackRequest = .none
     cancelWidgetRouteRecovery(reason: "userToggle")
     await podAVPlayer.toggle(requestID: requestID)
@@ -671,11 +676,14 @@ final class PlayManager {
     }
     loadTransition?.finishedIDs.insert(episodeID)
     if episodeID == onDeckID { loadTransition?.state = .ownsPlaybackState }
+    let autoAdvanceID: UUID? = if finalizationID != nil { await beginAutoAdvance() } else { nil }
+    defer { settleAutoAdvanceTransition(autoAdvanceID) }
     do {
       try await repo.markFinished(episodeID)
     } catch {
       Self.log.caughtError("finishEpisode: failed to mark episode \(episodeID) finished", error)
     }
+    setAutoAdvancePhase(autoAdvanceID, to: .resolvingReplacement)
 
     guard let finalizationID else {
       await cleanUpAfterLoadSuccess(episodeID)
@@ -700,8 +708,7 @@ final class PlayManager {
       try requireLoadTransitionOwnership(finalizationID)
       if let nextEpisode {
         Self.log.debug("next episode exists to automatically load: \(nextEpisode.toString)")
-        guard try await load(nextEpisode), settledOnDeckID == nextEpisode.id else { return }
-        await play()
+        try await advance(to: nextEpisode, autoAdvanceID: autoAdvanceID)
         return
       }
 
@@ -709,8 +716,7 @@ final class PlayManager {
       try requireLoadTransitionOwnership(finalizationID)
       if let recommended {
         Self.log.debug("autoloading queue-empty recommendation: \(recommended.toString)")
-        guard try await load(recommended), settledOnDeckID == recommended.id else { return }
-        await play()
+        try await advance(to: recommended, autoAdvanceID: autoAdvanceID)
         return
       }
       Self.log.debug("no automatic replacement episode, stopping")
@@ -732,6 +738,14 @@ final class PlayManager {
       }
       await alert(ErrorKit.message(for: error))
     }
+  }
+
+  private func advance(to replacement: PodcastEpisode, autoAdvanceID: UUID?) async throws {
+    setAutoAdvancePhase(autoAdvanceID, to: .loading(replacement.id))
+    guard try await load(replacement), settledOnDeckID == replacement.id else { return }
+    let requestID = UUID()
+    setAutoAdvancePhase(autoAdvanceID, to: .awaitingPlayback(requestID))
+    await play(requestID: requestID)
   }
 
   // Filters published IDs by current state; `finishDate` excludes the finished episode.

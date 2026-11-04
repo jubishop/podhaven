@@ -15,6 +15,7 @@ final class FakeApplication: ApplicationProviding, FakeCallable {
 
   private var nextTaskIdentifier: Int = 1
   private var activeTasks: [UIBackgroundTaskIdentifier: (@MainActor @Sendable () -> Void)?] = [:]
+  private var begunTasks: [(identifier: UIBackgroundTaskIdentifier, name: String?)] = []
 
   var openedURLs: [URL] = []
 
@@ -29,6 +30,7 @@ final class FakeApplication: ApplicationProviding, FakeCallable {
     let identifier = UIBackgroundTaskIdentifier(rawValue: nextTaskIdentifier)
     nextTaskIdentifier += 1
     activeTasks[identifier] = handler
+    begunTasks.append((identifier, taskName))
     return identifier
   }
 
@@ -59,6 +61,17 @@ final class FakeApplication: ApplicationProviding, FakeCallable {
 
   func hasActiveTask(identifier: UIBackgroundTaskIdentifier) -> Bool {
     activeTasks[identifier] != nil
+  }
+
+  func taskIdentifiers(named name: String) -> [UIBackgroundTaskIdentifier] {
+    begunTasks.filter { $0.name == name }.map(\.identifier)
+  }
+
+  func endCallCount(for identifier: UIBackgroundTaskIdentifier) -> Int {
+    calls(of: MethodCall<Int>.self)
+      .count { call in
+        call.methodName == "endBackgroundTask" && call.parameters == identifier.rawValue
+      }
   }
 
   func expireAllTasks() {
