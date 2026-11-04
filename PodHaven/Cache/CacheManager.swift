@@ -69,6 +69,8 @@ struct CacheManager {
   // MARK: - State Management
 
   private let startOnce = Once()
+  private let observing = AsyncLatch<Void>()
+  private let queueChangeLock = ThreadLock()
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
   private let downloadRegistry = ThreadSafe(DownloadRegistry())
   private let downloadLatches = ThreadSafe<[CacheDownloadAttempt: AsyncLatch<Void>]>([:])
@@ -97,8 +99,28 @@ struct CacheManager {
         await reconcileStaleDownloads()
         startCurrentEpisodeIDObservation()
         startQueueObservation()
+        observing.open()
       }
     }
+  }
+
+  // A background launch can suspend once its work finishes, before the queue
+  // observation sees that work's queue changes. Runs even if the caller is
+  // cancelled, since queue handling records IDs before their downloads start.
+  func handOffQueuedDownloads() async {
+    start()
+    await Task {
+      let queuedEpisodeIDs: [Episode.ID]
+      do {
+        try await observing.wait()
+        queuedEpisodeIDs = try await repo.queuedEpisodeIDs()
+      } catch {
+        Self.log.caughtError("handOffQueuedDownloads failed", error)
+        return
+      }
+      await handleQueueChange(Set(queuedEpisodeIDs))
+    }
+    .value
   }
 
   // Clear downloading flags stranded by a force-quit, which cancels background
@@ -510,6 +532,14 @@ struct CacheManager {
   }
 
   private func handleQueueChange(_ queuedEpisodeIDs: Set<Episode.ID>) async {
+    do {
+      try await queueChangeLock.waitForClaim()
+    } catch {
+      Self.log.caughtError("handleQueueChange: stopped waiting for queue handling", error)
+      return
+    }
+    defer { queueChangeLock.release() }
+
     let newEpisodeIDs = queuedEpisodeIDs.subtracting(currentQueuedEpisodeIDs())
     currentQueuedEpisodeIDs(queuedEpisodeIDs)
 
