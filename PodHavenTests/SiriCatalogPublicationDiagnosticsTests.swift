@@ -91,7 +91,7 @@ struct SiriCatalogPublicationDiagnosticsTests {
   }
 
   @Test("slow commit publications warn privately at most once per interval")
-  func slowCommits() throws {
+  func slowCommits() async throws {
     let clock = Container.shared.fakeContinuousClock()
     clock.freeze()
     let url = Container.shared.siriCatalogFile().url
@@ -103,32 +103,38 @@ struct SiriCatalogPublicationDiagnosticsTests {
       }
     )
     let database = Container.shared.appDB().unsafeTestDB
-    database.writeWithoutTransaction { SiriCatalogPublisher(file: file).observe($0) }
-    func commit(_ index: Int) throws -> [LogCapture.Captured] {
+    let publisher = SiriCatalogPublisher(file: file, reader: database)
+    try await database.writeWithoutTransaction { publisher.observe($0) }
+    // A synchronous write lets the publication task inherit the log sink and fake clock.
+    func insert(_ index: Int) throws {
       try database.writeWithoutTransaction { db in
-        try LogCapture.withSink { sink in
-          try db.inTransaction {
-            let podcast =
-              try Create.unsavedPodcast(
-                feedURL: FeedURL(URL(string: "https://private-sentinel.invalid/\(index)")!),
-                title: "Private Sentinel Title \(index)"
-              )
-              .insertAndFetch(db, as: Podcast.self)
-            _ =
-              try Create.unsavedEpisode(
-                podcastId: podcast.id,
-                guid: GUID("private-sentinel-guid-\(index)"),
-                title: "Private Sentinel Episode \(index)"
-              )
-              .insertAndFetch(db, as: Episode.self)
-            return .commit
-          }
-          return publicationLogs(sink)
+        try db.inTransaction {
+          let podcast =
+            try Create.unsavedPodcast(
+              feedURL: FeedURL(URL(string: "https://private-sentinel.invalid/\(index)")!),
+              title: "Private Sentinel Title \(index)"
+            )
+            .insertAndFetch(db, as: Podcast.self)
+          _ =
+            try Create.unsavedEpisode(
+              podcastId: podcast.id,
+              guid: GUID("private-sentinel-guid-\(index)"),
+              title: "Private Sentinel Episode \(index)"
+            )
+            .insertAndFetch(db, as: Episode.self)
+          return .commit
         }
       }
     }
+    func commit(_ index: Int) async throws -> [LogCapture.Captured] {
+      try await LogCapture.withSink { sink in
+        try insert(index)
+        try await publisher.published()
+        return publicationLogs(sink)
+      }
+    }
 
-    let first = try commit(1)
+    let first = try await commit(1)
     #expect(first.map(\.level) == [.warning])
     let message = try #require(first.first?.message)
     #expect(
@@ -143,9 +149,9 @@ struct SiriCatalogPublicationDiagnosticsTests {
       #expect(!message.contains(value), "Diagnostics must not include media metadata")
     }
 
-    #expect(try commit(2).map(\.level) == [.debug])
+    #expect(try await commit(2).map(\.level) == [.debug])
     clock.advance(by: .seconds(15 * 60))
-    let third = try commit(3)
+    let third = try await commit(3)
     #expect(third.map(\.level) == [.warning])
     #expect(third.first?.message.contains("podcasts=3 episodes=3") == true)
     #expect(third.first?.message.hasSuffix("suppressed=1") == true)

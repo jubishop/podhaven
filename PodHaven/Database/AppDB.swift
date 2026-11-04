@@ -127,6 +127,7 @@ struct AppDB {
 
   private let db: any DatabaseWriter
   private let siriCatalogPublication = ThreadSafe<AsyncLatch<Void>?>(nil)
+  private let siriCatalogPublisher = ThreadSafe<SiriCatalogPublisher?>(nil)
   private init(_ db: some DatabaseWriter, migrate: Bool = true) {
     self.db = db
     if migrate {
@@ -148,7 +149,8 @@ struct AppDB {
         Self.log.caughtError("Could not invalidate Siri catalog before launch publication", error)
       }
     }
-    let publisher = SiriCatalogPublisher(file: file)
+    let publisher = SiriCatalogPublisher(file: file, reader: db)
+    siriCatalogPublisher(publisher)
     let launchTimeline = Container.shared.launchTimeline()
     db.asyncWriteWithoutTransaction { db in
       publisher.observe(db)
@@ -159,10 +161,14 @@ struct AppDB {
     }
   }
 
+  // Waits for the launch check and any commit publication, so the catalog reflects the
+  // committed library unless its publication failed or a newer commit is pending.
   func siriCatalogPublished() async throws {
-    guard let published = siriCatalogPublication(), !published.isOpen else { return }
-    Self.log.debug("Waiting for the launch Siri catalog publication")
-    try await published.wait()
+    if let published = siriCatalogPublication(), !published.isOpen {
+      Self.log.debug("Waiting for the launch Siri catalog publication")
+      try await published.wait()
+    }
+    try await siriCatalogPublisher()?.published()
   }
 
   struct Reader: Sendable {
