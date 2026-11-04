@@ -110,6 +110,22 @@ import UIKit
     #expect(backgroundTask.id == .invalid)
   }
 
+  @Test("that expiration runs onExpiration before ending the task")
+  func testExpirationRunsOnExpirationBeforeEnding() async throws {
+    let endCallsAtExpiration = ThreadSafe<Int?>(nil)
+    let backgroundTask = BackgroundTask.start(withName: "TestTask") { [fakeApplication] in
+      endCallsAtExpiration(
+        fakeApplication.allCallsInOrder.count { $0.methodName == "endBackgroundTask" }
+      )
+    }
+
+    fakeApplication.expireTask(backgroundTask.id)
+
+    #expect(endCallsAtExpiration() == 0)
+    _ = try fakeApplication.expectCalls(methodName: "endBackgroundTask", count: 1)
+    #expect(backgroundTask.id == .invalid)
+  }
+
   @Test("that expiration handler handles already invalid task gracefully")
   func testExpirationHandlerHandlesAlreadyInvalidTask() async throws {
     let backgroundTask = BackgroundTask.start(withName: "TestTask")

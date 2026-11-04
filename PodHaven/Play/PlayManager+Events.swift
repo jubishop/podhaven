@@ -23,6 +23,7 @@ extension PlayManager {
   func setStatus(_ status: PlaybackStatus) {
     Self.log.debug("setStatus: \(status)")
     sharedState.setPlaybackStatus(status)
+    settleAutoAdvancePlayback(status)
 
     if status == .stopped {
       do {
