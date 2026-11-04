@@ -251,6 +251,15 @@ struct Repo: Databasing {
     }
   }
 
+  func queuedEpisodeIDs() async throws -> [Episode.ID] {
+    try await reader.read { db in
+      try Episode.all()
+        .queued()
+        .select(Episode.Columns.id, as: Episode.ID.self)
+        .fetchAll(db)
+    }
+  }
+
   // MARK: - Series Writers
 
   @discardableResult

@@ -15,6 +15,9 @@ extension Container {
 }
 
 struct RefreshScheduler: Sendable {
+  @DynamicInjected(\.appLauncher) private var appLauncher
+  @DynamicInjected(\.cacheManager) private var cacheManager
+
   private var connectionState: ConnectionState { Container.shared.connectionState() }
   private var refreshManager: RefreshManager { Container.shared.refreshManager() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
@@ -173,6 +176,7 @@ struct RefreshScheduler: Sendable {
       do {
         Self.log.debug("background refresh: performing refresh")
 
+        await appLauncher.prepareForBackgroundRefresh()
         try await runRefresh(backgroundPolicy)
         try Task.checkCancellation()
 
@@ -285,6 +289,7 @@ struct RefreshScheduler: Sendable {
         ? refreshPolicy.cellLimit
         : refreshPolicy.wifiLimit
     )
+    await cacheManager.handOffQueuedDownloads()
   }
 
   private func finishRefresh() {

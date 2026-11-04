@@ -48,6 +48,7 @@ struct AppLauncher: Sendable {
 
   private static let log = Log.as("AppLauncher")
   private let prepareForPlaybackOnce = AsyncOnce()
+  private let prepareForBackgroundRefreshOnce = AsyncOnce()
   private let prepareForForegroundOnce = AsyncOnce()
 
   // MXMetricManager holds subscribers weakly, so this must outlive registration.
@@ -146,6 +147,17 @@ struct AppLauncher: Sendable {
       await self.measureStartup("stateManager") { self.prepareForBrowsing() }
       await self.measureStartup("playManager") { await self.playManager.start() }
       await self.measureStartup("widgetSnapshotWriter") { self.widgetSnapshotWriter.start() }
+      await self.measureStartup("cacheManager") { self.cacheManager.start() }
+    }
+  }
+
+  // MARK: - Background Refresh
+
+  func prepareForBackgroundRefresh() async {
+    await prepareForBackgroundRefreshOnce.run {
+      Self.log.info("Preparing for background feed refresh")
+      await self.measureStartup("stateManager") { self.prepareForBrowsing() }
+      await self.measureStartup("cacheManager") { self.cacheManager.start() }
     }
   }
 
@@ -186,7 +198,6 @@ struct AppLauncher: Sendable {
       await self.prepareForPlayback()
       guard !Task.isCancelled else { return }
 
-      await self.measureStartup("cacheManager") { self.cacheManager.start() }
       await self.measureStartup("recommendationEngine") { self.recommendationEngine.start() }
       await self.measureStartup("memoryWarningMonitor") {
         await Container.shared.memoryWarningMonitor().start()

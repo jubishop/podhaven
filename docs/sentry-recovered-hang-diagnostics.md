@@ -94,8 +94,8 @@ first `launched`, `activated`, `contentInserted`, and `contentAppeared`
 milestones, each with wall-clock time, uptime, seconds before capture,
 main-thread flag, available memory, and thermal pressure. Fatal App Hangs and
 MetricKit hangs omit it because a later process sends them. Each milestone is
-also logged once to the recent log. The foreground and playback startup steps
-record `startup.*` operation markers.
+also logged once to the recent log. The foreground, playback, and background
+feed-refresh startup steps record `startup.*` operation markers.
 
 Compare the hang start with these milestones and markers. Main-thread
 operation markers that cover the hang point to our own work. The startup steps
