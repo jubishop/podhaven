@@ -31,6 +31,18 @@ SAMPLE_SECONDS = 10
 SAMPLE_TIMEOUT_SECONDS = 120
 POLL_SECONDS = 1
 TEST_HOST = "com.artisanalsoftware.PodHaven.debug"
+# Timing suites each run alone in their own test host after the other app tests, so
+# no other test's work counts against their budgets: (result bundle, log, suite).
+TIMING_PHASES = (
+    ("SiriPerformance", "siri-performance", "SiriLargeCatalogTests"),
+    ("OPMLPerformance", "opml-performance", "OPMLLargeImportTests"),
+)
+SWIFT_PHASES = (
+    ("TestResults", "xcodebuild", "swift-validation",
+     [f"-skip-testing:PodHavenTests/{suite}" for _, _, suite in TIMING_PHASES], ["--full"]),
+    *((bundle, log, f"{log}-validation", [f"-only-testing:PodHavenTests/{suite}"], [])
+      for bundle, log, suite in TIMING_PHASES),
+)
 # The system, not the tests, keeps these in the test host's temporary directory.
 TEST_HOST_SYSTEM_ENTRIES = {"TemporaryItems", f"{TEST_HOST}.savedState"}
 # Xcode names the directory where each run's test host writes coverage profiles with
@@ -200,10 +212,10 @@ def reusable_evidence(report):
             return None
         artifacts = saved.get("artifacts")
         if (not isinstance(artifacts, dict)
-                or not {"tooling.log", "macros.log", "xcodebuild.log", "swift-validation.log",
-                        "siri-performance.log", "siri-performance-validation.log"} <= artifacts.keys()
-                or not (output / "TestResults.xcresult").is_dir()
-                or not (output / "SiriPerformance.xcresult").is_dir()
+                or not {"tooling.log", "macros.log",
+                        *(f"{name}.log" for _, log, validation, _, _ in SWIFT_PHASES
+                          for name in (log, validation))} <= artifacts.keys()
+                or not all((output / f"{bundle}.xcresult").is_dir() for bundle, *_ in SWIFT_PHASES)
                 or evidence_files(output) != artifacts
                 or checkout_state() != report["checkout"]):
             return None
@@ -284,17 +296,12 @@ def main():
         with my_mac_lock(f"bin/test-all in {ROOT}") as lock:
             earlier_entries = test_host_temporary_entries(test_host_data())
             try:
-                for bundle_name, log_name, validation_name, selection, validation_options in (
-                    ("TestResults", "xcodebuild", "swift-validation",
-                     "-skip-testing:PodHavenTests/SiriLargeCatalogTests", ["--full"]),
-                    ("SiriPerformance", "siri-performance", "siri-performance-validation",
-                     "-only-testing:PodHavenTests/SiriLargeCatalogTests", []),
-                ):
+                for bundle_name, log_name, validation_name, selection, validation_options in SWIFT_PHASES:
                     bundle = output / f"{bundle_name}.xcresult"
                     test_status = run([
                         "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
                         "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
-                        "-skipMacroValidation", "-resultBundlePath", str(bundle), selection,
+                        "-skipMacroValidation", "-resultBundlePath", str(bundle), *selection,
                         "LM_FORCE_LINK_GENERATION=YES",
                     ], output, log_name, check=False, pass_fds=(lock,), watch_host=True)
                     samples = "".join(f"\nTest host sample: {path}"

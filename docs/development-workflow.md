@@ -203,11 +203,13 @@ runs the complete suite and also supports uncommitted development work.
 
 `bin/test-all` runs repository checks, Python skill and helper tests, shell
 tooling tests, Swift formatting checks, macro tests, and the complete
-`PodHaven` test plan on My Mac (Designed for iPhone). The large Siri catalog
-timing suite runs in a separate, required phase after the other app tests.
-Its five-second budgets therefore exclude contention from unrelated tests.
-Both phases must pass with zero skipped tests and validated diagnostics;
-their logs and result bundles are retained in the same evidence directory.
+`PodHaven` test plan on My Mac (Designed for iPhone). Each timing suite, the
+large Siri catalog suite and the large OPML import suite, runs in its own
+required phase after the other app tests, so its budgets exclude contention
+from unrelated tests. The OPML suite's main-thread budget counts the main
+thread's own CPU time, which other tests' main-actor work would inflate. Every
+phase must pass with zero skipped tests and validated diagnostics; their logs
+and result bundles are retained in the same evidence directory.
 
 My Mac also runs hosted UI tests that the iOS Simulator skips. Use additional
 simulator checks when a change needs environment-specific coverage. Development
@@ -274,7 +276,7 @@ and names them in the failure output. It takes at most one pair per phase and
 then keeps waiting for `xcodebuild`, so the samples add evidence without
 ending the run early or changing whether it passes. Comparing the two samples
 shows which threads stayed blocked. Only the app phase's log names its host
-while tests run. The Siri performance phase's log names its host only after
+while tests run. A timing phase's log names its host only after
 the host exits, so a stall in that phase leaves no samples.
 
 The command runs automated tests with isolated service fixtures. Live Sentry

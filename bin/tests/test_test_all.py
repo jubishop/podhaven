@@ -48,11 +48,13 @@ elif name == 'xcodebuild':
     assert args[args.index('-destination') + 1] == 'platform=macOS,name=My Mac'
     assert 'LM_FORCE_LINK_GENERATION=YES' in args
     bundle = pathlib.Path(args[args.index('-resultBundlePath') + 1])
-    performance = bundle.stem == 'SiriPerformance'
-    fault = os.environ.get('TEST_PERFORMANCE_FAULT') if performance else None
-    selection = '-only-testing' if performance else '-skip-testing'
-    assert [arg for arg in args if arg.startswith(('-only-testing', '-skip-testing'))] == [
-        selection + ':PodHavenTests/SiriLargeCatalogTests']
+    timing = {'SiriPerformance': 'SiriLargeCatalogTests', 'OPMLPerformance': 'OPMLLargeImportTests'}
+    performance = bundle.stem in timing
+    fault = (os.environ.get('TEST_PERFORMANCE_FAULT')
+             if bundle.stem == os.environ.get('TEST_PERFORMANCE_PHASE', 'SiriPerformance') else None)
+    assert [arg for arg in args if arg.startswith(('-only-testing', '-skip-testing'))] == (
+        ['-only-testing:PodHavenTests/' + timing[bundle.stem]] if performance
+        else ['-skip-testing:PodHavenTests/' + suite for suite in timing.values()])
     if os.environ.get('TEST_HOLD_FIFO') and not performance:
         pathlib.Path(os.environ['TEST_HOLD_FIFO']).read_text()
     stalled = os.environ.get('TEST_HOST_STALL') == bundle.stem
@@ -102,7 +104,8 @@ elif name == 'xcodebuild':
 elif name == 'xcrun' and args[:2] == ['xcresulttool', 'get']:
     bundle = pathlib.Path(args[args.index('--path') + 1])
     if not bundle.is_dir(): sys.exit(1)
-    fault = os.environ.get('TEST_PERFORMANCE_FAULT') if bundle.stem == 'SiriPerformance' else None
+    fault = (os.environ.get('TEST_PERFORMANCE_FAULT')
+             if bundle.stem == os.environ.get('TEST_PERFORMANCE_PHASE', 'SiriPerformance') else None)
     if 'summary' in args:
         print(json.dumps({'result': 'Failed' if fault == 'failed-result' else 'Passed',
                           'passedTests': 0 if fault == 'empty' else 20,
@@ -126,8 +129,9 @@ elif name == 'xcrun' and args[:2] == ['xcresulttool', 'get']:
 elif name == 'xcrun' and args[:2] == ['xcresulttool', 'export']:
     output = pathlib.Path(args[args.index('--output-path') + 1])
     output.mkdir(parents=True)
-    performance = pathlib.Path(args[args.index('--path') + 1]).stem == 'SiriPerformance'
-    fault = os.environ.get('TEST_PERFORMANCE_FAULT') if performance else None
+    phase = pathlib.Path(args[args.index('--path') + 1]).stem
+    fault = (os.environ.get('TEST_PERFORMANCE_FAULT')
+             if phase == os.environ.get('TEST_PERFORMANCE_PHASE', 'SiriPerformance') else None)
     (output / 'StandardOutputAndStandardError.txt').write_text(
         'Main Thread Checker: invalid access' if fault == 'runtime' else 'Tests completed')
 elif name == 'sample':
@@ -229,18 +233,19 @@ class TestAllTests(unittest.TestCase):
         self.assertEqual(self.report()["checkout"]["status"], "")
         self.assertEqual(self.report()["result"], "passed")
 
-    def test_siri_performance_runs_separately_and_both_runs_are_validated(self):
+    def test_timing_suites_run_separately_and_every_run_is_validated(self):
         result = self.run_all()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
         builds = [args for name, args in events if name == "xcodebuild" and "test" in args]
-        self.assertEqual(len(builds), 2)
-        self.assertEqual([arg for arg in builds[0] if arg.startswith(("-only-testing", "-skip-testing"))],
-                         ["-skip-testing:PodHavenTests/SiriLargeCatalogTests"])
-        self.assertEqual([arg for arg in builds[1] if arg.startswith(("-only-testing", "-skip-testing"))],
-                         ["-only-testing:PodHavenTests/SiriLargeCatalogTests"])
+        self.assertEqual([[arg for arg in args if arg.startswith(("-only-testing", "-skip-testing"))]
+                          for args in builds],
+                         [["-skip-testing:PodHavenTests/SiriLargeCatalogTests",
+                           "-skip-testing:PodHavenTests/OPMLLargeImportTests"],
+                          ["-only-testing:PodHavenTests/SiriLargeCatalogTests"],
+                          ["-only-testing:PodHavenTests/OPMLLargeImportTests"]])
         bundles = [args[args.index("-resultBundlePath") + 1] for args in builds]
-        self.assertEqual(len(set(bundles)), 2)
+        self.assertEqual(len(set(bundles)), 3)
         for bundle in bundles:
             for command in (["get", "test-results", "summary"], ["get", "build-results"],
                             ["get", "test-results", "tests"], ["export", "diagnostics"]):
@@ -248,16 +253,18 @@ class TestAllTests(unittest.TestCase):
                                     and args[args.index("--path") + 1] == bundle
                                     for name, args in events))
         artifacts = self.report()["artifacts"]
-        self.assertIn("siri-performance.log", artifacts)
-        self.assertIn("siri-performance-validation.log", artifacts)
+        for log in ("siri-performance", "opml-performance"):
+            self.assertIn(f"{log}.log", artifacts)
+            self.assertIn(f"{log}-validation.log", artifacts)
 
-    def test_siri_performance_failures_never_leave_a_passing_report(self):
-        for fault in ("build", "missing-bundle", "failed-result", "empty", "skipped", "warning", "runtime"):
-            with self.subTest(fault=fault):
-                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
-                result = self.run_all(TEST_PERFORMANCE_FAULT=fault)
-                self.assertNotEqual(result.returncode, 0, result.stdout)
-                self.assertEqual(self.report()["result"], "failed")
+    def test_timing_suite_failures_never_leave_a_passing_report(self):
+        for phase in ("SiriPerformance", "OPMLPerformance"):
+            for fault in ("build", "missing-bundle", "failed-result", "empty", "skipped", "warning", "runtime"):
+                with self.subTest(phase=phase, fault=fault):
+                    shutil.rmtree(self.repo / ".cache", ignore_errors=True)
+                    result = self.run_all(TEST_PERFORMANCE_PHASE=phase, TEST_PERFORMANCE_FAULT=fault)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertEqual(self.report()["result"], "failed")
 
     def test_concurrent_runs_from_different_checkouts_take_turns_on_my_mac(self):
         other = self.base / "other"
@@ -308,11 +315,12 @@ class TestAllTests(unittest.TestCase):
         events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
         owners = [Path(args[args.index("-resultBundlePath") + 1]).parents[3]
                   for name, args in events if name == "xcodebuild" and "test" in args]
-        self.assertEqual(owners, [self.repo.resolve()] * 2 + [other.resolve()] * 2)
+        self.assertEqual(owners, [self.repo.resolve()] * 3 + [other.resolve()] * 3)
 
     def test_stalled_test_host_is_sampled_twice_without_ending_the_run(self):
         self.shorten_host_watch(1)
-        for bundle, log in (("TestResults", "xcodebuild"), ("SiriPerformance", "siri-performance")):
+        for bundle, log in (("TestResults", "xcodebuild"), ("SiriPerformance", "siri-performance"),
+                            ("OPMLPerformance", "opml-performance")):
             with self.subTest(phase=log):
                 shutil.rmtree(self.repo / ".cache", ignore_errors=True)
                 (self.base / "events").unlink(missing_ok=True)
@@ -394,7 +402,7 @@ class TestAllTests(unittest.TestCase):
                 result = self.run_all(TEST_HOST_COVERAGE=str(data), TEST_BUILD_FAILURE=failure)
                 self.assertEqual(result.returncode != 0, bool(failure), result.stdout + result.stderr)
                 made = (self.base / "coverage").read_text().split()
-                self.assertEqual(len(made), 1 if failure else 2)
+                self.assertEqual(len(made), 1 if failure else 3)
                 self.assertEqual({path.name for path in data.iterdir()}, kept)
 
     def test_missing_test_host_container_fails_the_run(self):

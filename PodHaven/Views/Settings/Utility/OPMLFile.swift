@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import OrderedCollections
 
 @Observable @MainActor class OPMLFile: Identifiable {
   let id = UUID()
@@ -15,10 +16,10 @@ import Foundation
   var inProgressCount: Int {
     waiting.count + downloading.count
   }
-  var failed: Set<OPMLOutline> = []
-  var waiting: Set<OPMLOutline> = []
-  var downloading: Set<OPMLOutline> = []
-  var finished: Set<OPMLOutline> = []
+  var failed: OrderedSet<OPMLOutline> = []
+  var waiting: OrderedSet<OPMLOutline> = []
+  var downloading: OrderedSet<OPMLOutline> = []
+  var finished: OrderedSet<OPMLOutline> = []
 
   init(title: String, skippedCount: Int) {
     self.title = title

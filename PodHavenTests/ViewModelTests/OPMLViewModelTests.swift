@@ -3,6 +3,7 @@
 import FactoryKit
 import FactoryTesting
 import Foundation
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -233,6 +234,56 @@ import Testing
     }
     #expect(summaries.count == 1)
     #expect(summaries.first?.message.contains("2 of 3 new feeds failed") == true)
+  }
+
+  @Test("importing OPML logs a summary instead of a line per feed or transition")
+  func importOPMLLogsSummary() async throws {
+    let feedCount = 50
+    let opmlURL = createTestOPMLURL()
+    await opmlSession.respond(to: opmlURL, data: SyntheticFeed.opml(feedCount: feedCount))
+    await SyntheticFeed.respond(feedSession, episodes: 1)
+
+    let captured = try await LogCapture.withSink { sink in
+      try await importOPML(from: opmlURL)
+      try await waitForAllComplete()
+      return sink.captured()
+    }
+
+    try await verifyOPMLFileState(totalCount: feedCount, finished: feedCount, failed: 0)
+    let viewModelLogs = captured.filter { $0.file.hasSuffix("OPMLViewModel.swift") }
+    #expect(viewModelLogs.count < 5, "\(viewModelLogs.map(\.message))")
+    #expect(viewModelLogs.allSatisfy { $0.message.count < 500 })
+  }
+
+  @Test("importing OPML keeps waiting feeds in their OPML order")
+  func importOPMLKeepsWaitingFeedsInOrder() async throws {
+    let feedCount = 60
+    let opmlURL = createTestOPMLURL()
+    await opmlSession.respond(to: opmlURL, data: SyntheticFeed.opml(feedCount: feedCount))
+    let release = AsyncSemaphore(value: 0)
+    await SyntheticFeed.respond(feedSession, episodes: 1) { _ in
+      try await release.waitUnlessCancelled()
+    }
+
+    Task { await opmlViewModel.importOPMLFromURL(url: opmlURL) }
+    let opmlFile = try await waitForOPMLFile()
+    try await waitForInProgressCount(feedCount)
+    try await Wait.until(
+      { @MainActor in !opmlFile.downloading.isEmpty },
+      { "No feed started downloading" }
+    )
+
+    let waitingIndices = try opmlFile.waiting.map { outline in
+      try #require(SyntheticFeed.index(of: outline.feedURL.rawValue))
+    }
+    #expect(waitingIndices.count > 1)
+    #expect(waitingIndices == waitingIndices.sorted())
+
+    opmlViewModel.stopDownloading()
+    try await Wait.until(
+      { @MainActor in self.opmlViewModel.opmlFile == nil },
+      { "Stopping the import did not dismiss its sheet" }
+    )
   }
 
   @Test("importing OPML verifies progress tracking transitions")

@@ -59,15 +59,11 @@ struct OPMLImportSheet: View {
     .padding([.horizontal])
 
     List {
-      OPMLImportSheetSection(outlines: Array(opmlFile.downloading))
-      OPMLImportSheetSection(outlines: Array(opmlFile.waiting))
-      OPMLImportSheetSection(outlines: Array(opmlFile.failed))
-      OPMLImportSheetSection(outlines: Array(opmlFile.finished))
+      OPMLImportSheetSection(outlines: opmlFile.downloading.elements)
+      OPMLImportSheetSection(outlines: opmlFile.waiting.elements)
+      OPMLImportSheetSection(outlines: opmlFile.failed.elements)
+      OPMLImportSheetSection(outlines: opmlFile.finished.elements)
     }
-    .animation(.default, value: Array(opmlFile.downloading))
-    .animation(.default, value: Array(opmlFile.waiting))
-    .animation(.default, value: Array(opmlFile.failed))
-    .animation(.default, value: Array(opmlFile.finished))
     .interactiveDismissDisabled(true)
   }
 }
