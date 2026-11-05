@@ -26,7 +26,7 @@ struct PodcastRSSTests {
     #expect(episode.guid == "changelog.com/17/2644")
     #expect(episode.title == "State of the \"log\" 2024 (Friends)")
     #expect(
-      episode.enclosure?.url.absoluteString
+      episode.enclosure?.url?.absoluteString
         == "https://op3.dev/e/https://cdn.changelog.com/uploads/friends/74/changelog--friends-74.mp3"
     )
     #expect(episode.pubDate! == Date.rfc2822.date(from: "Fri, 20 Dec 2024 20:00:00 +0000"))
@@ -36,7 +36,7 @@ struct PodcastRSSTests {
     #expect(episode.description!.hasPrefix("<p>Our 7th annual year-end wrap-up"))
     #expect(episode.link?.absoluteString == "https://changelog.com/friends/74")
     #expect(
-      episode.iTunes.image!.href.absoluteString
+      episode.iTunes.image?.href?.absoluteString
         == "https://cdn.changelog.com/uploads/covers/changelog--friends-original.png?v=63848361609"
     )
   }
@@ -106,6 +106,127 @@ struct PodcastRSSTests {
     let podcast = try await PodcastRSS.parse(Data(xml.utf8))
     #expect(podcast.title == "Empty New Feed URL")
     #expect(podcast.iTunes.newFeedURL == nil)
+  }
+
+  @Test("parsing an empty episode itunes:image href keeps the feed")
+  func parseEmptyEpisodeImageHref() async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+        <channel>
+          <title>Empty Episode Image</title>
+          <description>Feed with an empty episode image</description>
+          <atom:link href="https://example.com/feed.xml" rel="self" type="application/rss+xml"/>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Episode One</title>
+            <enclosure url="https://example.com/one.mp3" type="audio/mpeg"/>
+            <itunes:image href="https://example.com/one.jpg"/>
+          </item>
+          <item>
+            <title>Episode Two</title>
+            <enclosure url="https://example.com/two.mp3" type="audio/mpeg"/>
+            <itunes:image href=""/>
+          </item>
+          <item>
+            <title>Episode Three</title>
+            <enclosure url="https://example.com/three.mp3" type="audio/mpeg"/>
+            <itunes:image href="   "/>
+          </item>
+        </channel>
+      </rss>
+      """
+    let podcast = try await PodcastRSS.parse(Data(xml.utf8))
+    #expect(podcast.episodes.map(\.title) == ["Episode One", "Episode Two", "Episode Three"])
+    #expect(podcast.episodes[0].iTunes.image?.href == URL(string: "https://example.com/one.jpg"))
+    #expect(podcast.episodes[1].iTunes.image?.href == nil)
+    #expect(podcast.episodes[2].iTunes.image?.href == nil)
+    #expect(
+      podcast.episodes[1].enclosure?.url == MediaURL(URL(string: "https://example.com/two.mp3")!)
+    )
+  }
+
+  @Test("parsing an empty enclosure url keeps the feed")
+  func parseEmptyEnclosureURL() async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+        <channel>
+          <title>Empty Enclosure</title>
+          <description>Feed with an empty enclosure url</description>
+          <atom:link href="https://example.com/feed.xml" rel="self" type="application/rss+xml"/>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Episode One</title>
+            <enclosure url="https://example.com/one.mp3" type="audio/mpeg"/>
+          </item>
+          <item>
+            <title>Episode Two</title>
+            <enclosure url="" type="audio/mpeg"/>
+          </item>
+          <item>
+            <title>Episode Three</title>
+            <enclosure url="   " type="audio/mpeg"/>
+          </item>
+        </channel>
+      </rss>
+      """
+    let podcast = try await PodcastRSS.parse(Data(xml.utf8))
+    #expect(podcast.episodes.map(\.title) == ["Episode One", "Episode Two", "Episode Three"])
+    #expect(
+      podcast.episodes[0].enclosure?.url == MediaURL(URL(string: "https://example.com/one.mp3")!)
+    )
+    #expect(podcast.episodes[1].enclosure?.url == nil)
+    #expect(podcast.episodes[2].enclosure?.url == nil)
+  }
+
+  @Test("parsing an empty atom:link href keeps the feed")
+  func parseEmptyAtomLinkHref() async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+        <channel>
+          <title>Empty Atom Link</title>
+          <description>Feed with an empty atom:link href</description>
+          <atom:link href="" rel="self" type="application/rss+xml"/>
+          <atom:link href="" rel="hub"/>
+          <atom:link href="https://example.com/feed.xml" rel="self" type="application/rss+xml"/>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Episode One</title>
+            <enclosure url="https://example.com/one.mp3" type="audio/mpeg"/>
+          </item>
+        </channel>
+      </rss>
+      """
+    let podcast = try await PodcastRSS.parse(Data(xml.utf8))
+    #expect(podcast.title == "Empty Atom Link")
+    #expect(podcast.feedURL == FeedURL(URL(string: "https://example.com/feed.xml")!))
+    #expect(podcast.episodes.map(\.title) == ["Episode One"])
+  }
+
+  @Test("parsing an atom:link without rel keeps the feed")
+  func parseAtomLinkWithoutRel() async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+        <channel>
+          <title>Atom Link Without Rel</title>
+          <description>Feed with an atom:link that has no rel</description>
+          <atom:link href="https://example.com/alternate"/>
+          <atom:link href="https://example.com/feed.xml" rel="self" type="application/rss+xml"/>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Episode One</title>
+            <enclosure url="https://example.com/one.mp3" type="audio/mpeg"/>
+          </item>
+        </channel>
+      </rss>
+      """
+    let podcast = try await PodcastRSS.parse(Data(xml.utf8))
+    #expect(podcast.title == "Atom Link Without Rel")
+    #expect(podcast.feedURL == FeedURL(URL(string: "https://example.com/feed.xml")!))
+    #expect(podcast.episodes.map(\.title) == ["Episode One"])
   }
 
   @Test("parsing the Marketplace feed")
