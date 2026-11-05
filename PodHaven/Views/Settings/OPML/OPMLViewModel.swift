@@ -98,14 +98,24 @@ extension Container {
   private func downloadOPMLFile(_ opml: PodcastOPML) async throws {
     Self.log.debug("Downloading podcasts in opml: \(opml)")
 
-    let opmlFile = OPMLFile(title: opml.title ?? "Podcast Subscriptions")
+    let rssFeeds = opml.rssFeeds
+    if rssFeeds.skippedCount > 0 {
+      Self.log.info(
+        "downloadOPMLFile: skipped \(rssFeeds.skippedCount) outlines without a usable feed URL"
+      )
+    }
+
+    let opmlFile = OPMLFile(
+      title: opml.title ?? "Podcast Subscriptions",
+      skippedCount: rssFeeds.skippedCount
+    )
     let allPodcasts = IdentifiedArray(
       uniqueElements: try await repo.allPodcasts(AppDB.noOp),
       id: \.feedURL
     )
 
     let (newFeedCount, failedFeedCount) = await withTaskGroup(of: Bool.self) { group in
-      for rssFeed in opml.rssFeeds {
+      for rssFeed in rssFeeds.feeds {
         if let podcast = allPodcasts[id: rssFeed.feedURL] {
           Self.log.debug("Podcast: \(podcast.toString) already exists")
 

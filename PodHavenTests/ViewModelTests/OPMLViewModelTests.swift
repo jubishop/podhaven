@@ -9,6 +9,7 @@ import Testing
 
 @Suite("of OPMLViewModel tests", .container)
 @MainActor class OPMLViewModelTests {
+  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.opmlViewModel) private var opmlViewModel
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.podcastOPMLSession) private var podcastOPMLSession
@@ -157,6 +158,44 @@ import Testing
       expectedCount: 1,
       feedURLs: [validFeedURL.absoluteString]
     )
+  }
+
+  @Test("importing OPML with empty feed URLs imports the valid feeds")
+  func importOPMLWithEmptyFeedURLs() async throws {
+    let feed1URL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
+    let feed2URL = URL(string: "https://feeds.simplecast.com/l2i9YnTd")!
+
+    let opmlURL = createTestOPMLURL()
+    await setupOPMLResponse(
+      to: opmlURL,
+      feeds: [
+        (title: "Lenny's Podcast", url: feed1URL.absoluteString),
+        (title: "Gone Podcast", url: ""),
+        (title: "Hard Fork", url: feed2URL.absoluteString),
+        (title: "Another Gone Podcast", url: ""),
+        (title: "Blank Podcast", url: " "),
+      ]
+    )
+    await setupValidFeedResponse(to: feed1URL, assetName: "lenny")
+    await setupValidFeedResponse(to: feed2URL, assetName: "hardfork_short")
+
+    let captured = try await LogCapture.withSink { sink in
+      try await importOPML(from: opmlURL)
+      try await waitForAllComplete()
+      return sink.captured()
+    }
+
+    try await verifyOPMLFileState(totalCount: 2, finished: 2, failed: 0)
+    #expect(try await waitForOPMLFile().skippedCount == 3)
+    try await verifyPodcastsInRepo(
+      expectedCount: 2,
+      feedURLs: [feed1URL.absoluteString, feed2URL.absoluteString]
+    )
+    #expect(alert.config == nil)
+
+    let skipLogs = captured.filter { $0.message.contains("feed URL") }
+    #expect(skipLogs.count == 1)
+    #expect(skipLogs.first?.message.contains("skipped 3 outlines") == true)
   }
 
   @Test("importing OPML logs feed failures below the Sentry warning level with one summary")

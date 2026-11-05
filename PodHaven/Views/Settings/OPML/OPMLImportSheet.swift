@@ -18,6 +18,19 @@ struct OPMLImportSheet: View {
       .font(.headline)
       .padding([.top])
 
+    if opmlFile.skippedCount > 0 {
+      Text(
+        """
+        Skipped \(opmlFile.skippedCount) \(opmlFile.skippedCount == 1 ? "entry" : "entries") \
+        without a usable feed URL
+        """
+      )
+      .font(.subheadline)
+      .foregroundStyle(.secondary)
+      .multilineTextAlignment(.center)
+      .padding([.horizontal])
+    }
+
     HStack {
       Group {
         if opmlFile.inProgressCount == 0 {
@@ -93,5 +106,33 @@ func importOPMLFile(_ viewModel: OPMLViewModel, _ resource: String) {
   .sheet(item: $viewModel.opmlFile) { opmlFile in
     OPMLImportSheet(viewModel: viewModel, opmlFile: opmlFile)
   }
+}
+
+#Preview("Skipped entries") {
+  @Previewable @State var opmlFile: OPMLFile? = {
+    let opmlFile = OPMLFile(title: "Podcast Subscriptions", skippedCount: 3)
+    opmlFile.finished = [OPMLOutline(status: .finished, text: "Hard Fork")]
+    opmlFile.failed = [OPMLOutline(status: .failed, text: "Unreachable Podcast")]
+    return opmlFile
+  }()
+
+  Form {}
+    .preview()
+    .sheet(item: $opmlFile) { opmlFile in
+      OPMLImportSheet(viewModel: Container.shared.opmlViewModel(), opmlFile: opmlFile)
+    }
+}
+
+#Preview("No usable feeds") {
+  @Previewable @State var opmlFile: OPMLFile? = OPMLFile(
+    title: "Podcast Subscriptions",
+    skippedCount: 1
+  )
+
+  Form {}
+    .preview()
+    .sheet(item: $opmlFile) { opmlFile in
+      OPMLImportSheet(viewModel: Container.shared.opmlViewModel(), opmlFile: opmlFile)
+    }
 }
 #endif

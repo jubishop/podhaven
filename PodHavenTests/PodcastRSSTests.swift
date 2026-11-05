@@ -86,6 +86,28 @@ struct PodcastRSSTests {
     }
   }
 
+  @Test("parsing an empty itunes:new-feed-url keeps the feed")
+  func parseEmptyNewFeedURL() async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+        <channel>
+          <title>Empty New Feed URL</title>
+          <description>Feed with an empty new-feed-url</description>
+          <atom:link href="https://example.com/feed.xml" rel="self" type="application/rss+xml"/>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <itunes:new-feed-url/>
+          <item>
+            <title>Episode One</title>
+          </item>
+        </channel>
+      </rss>
+      """
+    let podcast = try await PodcastRSS.parse(Data(xml.utf8))
+    #expect(podcast.title == "Empty New Feed URL")
+    #expect(podcast.iTunes.newFeedURL == nil)
+  }
+
   @Test("parsing the Marketplace feed")
   func parseMarketplaceFeed() async throws {
     let data = PreviewBundle.loadAsset(named: "marketplace", in: .FeedRSS)

@@ -181,12 +181,20 @@ struct PodcastRSS: Decodable, Sendable {
         let href: URL
       }
       let image: Image
-      let newFeedURL: FeedURL?
+      private let newFeedURLString: String?
       let summary: String?
+
+      var newFeedURL: FeedURL? {
+        guard let newFeedURLString,
+          let url = URL(string: newFeedURLString.trimmingCharacters(in: .whitespacesAndNewlines))
+        else { return nil }
+
+        return FeedURL(url)
+      }
 
       enum CodingKeys: String, CodingKey {
         case image = "itunes:image"
-        case newFeedURL = "itunes:new-feed-url"
+        case newFeedURLString = "itunes:new-feed-url"
         case summary = "itunes:summary"
       }
     }
