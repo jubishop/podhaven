@@ -15,6 +15,11 @@ struct PodcastRSS: Decodable, Sendable {
     return try decoder.decode(PodcastRSS.self, from: data).channel
   }
 
+  private static func url(from string: String?) -> URL? {
+    guard let string else { return nil }
+    return URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines))
+  }
+
   // MARK: - Episode
 
   @dynamicMemberLookup struct Episode: Decodable, Sendable {
@@ -22,7 +27,16 @@ struct PodcastRSS: Decodable, Sendable {
 
     struct TopLevelValues: Decodable, Sendable {
       struct Enclosure: Decodable, Sendable {
-        let url: MediaURL
+        private let urlString: String?
+
+        var url: MediaURL? {
+          guard let url = PodcastRSS.url(from: urlString) else { return nil }
+          return MediaURL(url)
+        }
+
+        enum CodingKeys: String, CodingKey {
+          case urlString = "url"
+        }
       }
       let title: String
       let enclosure: Enclosure?
@@ -42,7 +56,13 @@ struct PodcastRSS: Decodable, Sendable {
 
     struct ITunesNamespace: Decodable, Sendable {
       struct Image: Decodable, Sendable {
-        let href: URL
+        private let hrefString: String?
+
+        var href: URL? { PodcastRSS.url(from: hrefString) }
+
+        enum CodingKeys: String, CodingKey {
+          case hrefString = "href"
+        }
       }
       let image: Image?
       let duration: String?
@@ -156,8 +176,15 @@ struct PodcastRSS: Decodable, Sendable {
 
     struct TopLevelValues: Decodable, Sendable {
       struct AtomLink: Decodable, Sendable {
-        let href: URL
-        let rel: String
+        private let hrefString: String?
+        let rel: String?
+
+        var href: URL? { PodcastRSS.url(from: hrefString) }
+
+        enum CodingKeys: String, CodingKey {
+          case hrefString = "href"
+          case rel
+        }
       }
       let title: String
       let description: String
@@ -185,10 +212,7 @@ struct PodcastRSS: Decodable, Sendable {
       let summary: String?
 
       var newFeedURL: FeedURL? {
-        guard let newFeedURLString,
-          let url = URL(string: newFeedURLString.trimmingCharacters(in: .whitespacesAndNewlines))
-        else { return nil }
-
+        guard let url = PodcastRSS.url(from: newFeedURLString) else { return nil }
         return FeedURL(url)
       }
 
@@ -213,7 +237,7 @@ struct PodcastRSS: Decodable, Sendable {
     }
 
     var feedURL: FeedURL? {
-      guard let url = self.atomLinks.first(where: { $0.rel == "self" })?.href
+      guard let url = values.atomLinks.filter({ $0.rel == "self" }).compactMap(\.href).first
       else { return nil }
 
       return FeedURL(url)

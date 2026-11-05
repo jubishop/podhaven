@@ -129,6 +129,57 @@ struct PodcastFeedTests {
     #expect(episodes.count == 17)
   }
 
+  @Test("parsing a feed skips an empty enclosure url and keeps an empty episode image")
+  func parseFeedWithEmptyEnclosureAndImageURLs() async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+        <channel>
+          <title>Empty URLs</title>
+          <description>Feed with empty enclosure and image urls</description>
+          <atom:link href="" rel="hub"/>
+          <atom:link href="https://example.com/feed.xml" rel="self" type="application/rss+xml"/>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Valid Episode</title>
+            <guid>valid</guid>
+            <enclosure url="https://example.com/valid.mp3" type="audio/mpeg"/>
+            <itunes:image href="https://example.com/valid.jpg"/>
+          </item>
+          <item>
+            <title>Empty Enclosure</title>
+            <guid>empty-enclosure</guid>
+            <enclosure url="" type="audio/mpeg"/>
+          </item>
+          <item>
+            <title>Empty Image</title>
+            <guid>empty-image</guid>
+            <enclosure url="https://example.com/empty-image.mp3" type="audio/mpeg"/>
+            <itunes:image href=""/>
+          </item>
+        </channel>
+      </rss>
+      """
+    let feed = try await PodcastFeed.parse(
+      Data(xml.utf8),
+      from: FeedURL(URL(string: "https://example.com/other.xml")!)
+    )
+    #expect(feed.feedURL == FeedURL(URL(string: "https://example.com/feed.xml")!))
+
+    let episodes = feed.toUnsavedEpisodes()
+    #expect(Set(episodes.map(\.guid)) == [GUID("valid"), GUID("empty-image")])
+
+    let validEpisode = try #require(episodes.first { $0.guid == GUID("valid") })
+    #expect(validEpisode.image == URL(string: "https://example.com/valid.jpg"))
+
+    let emptyImageEpisode = try #require(episodes.first { $0.guid == GUID("empty-image") })
+    #expect(emptyImageEpisode.title == "Empty Image")
+    #expect(
+      emptyImageEpisode.mediaURL == MediaURL(URL(string: "https://example.com/empty-image.mp3")!)
+    )
+    #expect(emptyImageEpisode.image == nil)
+  }
+
   @Test("parsing the considerthis feed with items missing guids")
   func parseConsiderThisFeedWithMissingGuids() async throws {
     let data = PreviewBundle.loadAsset(named: "considerthis", in: .FeedRSS)

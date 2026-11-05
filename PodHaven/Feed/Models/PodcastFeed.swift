@@ -36,7 +36,7 @@ struct EpisodeFeed: Sendable, Equatable {
 
   fileprivate init?(rssEpisode: PodcastRSS.Episode, podcastLanguage: String?) {
     guard let mediaURL = rssEpisode.enclosure?.url else {
-      Self.log.debug("Missing enclosure for \(rssEpisode.title); skipping")
+      Self.log.debug("Missing enclosure URL for \(rssEpisode.title); skipping")
       return nil
     }
 
