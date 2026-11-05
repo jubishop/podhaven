@@ -242,6 +242,42 @@ struct PodcastFeedTests {
     #expect(try feed.toUnsavedPodcast().feedURL == newURL)
   }
 
+  @Test("parsing a feed keeps its valid episodes when an item fails to decode")
+  func parseFeedWithUndecodableItem() async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+        <channel>
+          <title>Undecodable Item</title>
+          <description>Feed with an item that fails to decode</description>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Valid Episode</title>
+            <guid>valid</guid>
+            <enclosure url="https://example.com/valid.mp3" type="audio/mpeg"/>
+          </item>
+          <item>
+            <guid>untitled</guid>
+            <description>An item with a description and no title</description>
+            <enclosure url="https://example.com/untitled.mp3" type="audio/mpeg"/>
+          </item>
+          <item>
+            <title>Another Valid Episode</title>
+            <guid>another-valid</guid>
+            <enclosure url="https://example.com/another-valid.mp3" type="audio/mpeg"/>
+          </item>
+        </channel>
+      </rss>
+      """
+    let feed = try await PodcastFeed.parse(
+      Data(xml.utf8),
+      from: FeedURL(URL(string: "https://example.com/feed.xml")!)
+    )
+
+    let episodes = feed.toUnsavedEpisodes()
+    #expect(Set(episodes.map(\.guid)) == [GUID("valid"), GUID("another-valid")])
+  }
+
   @Test("parsing the considerthis feed with items missing guids")
   func parseConsiderThisFeedWithMissingGuids() async throws {
     let data = PreviewBundle.loadAsset(named: "considerthis", in: .FeedRSS)
