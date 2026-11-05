@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import Logging
 import SwiftUI
+import Tagged
 import UniformTypeIdentifiers
 import XMLCoder
 
@@ -60,7 +61,7 @@ struct PodcastOPML: Codable, Sendable {
       head: Head(title: "PodHaven Subscriptions"),
       body: Body(
         outlines: podcasts.map { podcast in
-          Body.Outline(text: podcast.title, xmlUrl: podcast.feedURL)
+          Body.Outline(text: podcast.title, xmlUrl: podcast.feedURL.absoluteString)
         }
       )
     )
@@ -81,11 +82,11 @@ struct PodcastOPML: Codable, Sendable {
     fileprivate struct Outline: Codable, Sendable, DynamicNodeEncoding {
       let text: String
       let title: String?
-      let xmlUrl: FeedURL?
+      let xmlUrl: String?
       let type: String?
       let outlines: [Outline]?
 
-      init(text: String, xmlUrl: FeedURL, type: String = "rss") {
+      init(text: String, xmlUrl: String, type: String = "rss") {
         self.text = text
         self.title = text
         self.xmlUrl = xmlUrl
@@ -123,24 +124,49 @@ struct PodcastOPML: Codable, Sendable {
 
   // MARK: - Data Accessors
 
-  var rssFeeds: [(feedURL: FeedURL, title: String)] {
-    body.outlines
-      .flatMap { $0.flattenedOutlines }
-      .compactMap { outline in
-        guard let xmlUrl = outline.xmlUrl else { return nil }
+  struct RSSFeeds: Sendable {
+    let feeds: [(feedURL: FeedURL, title: String)]
+    let skippedCount: Int
+  }
 
-        do {
-          let feedURL = try xmlUrl.convertToHTTPSURL()
-          return (feedURL: feedURL, title: outline.text)
-        } catch {
-          Self.log.caughtError(
-            "Invalid feed URL '\(xmlUrl)' for outline '\(outline.text)'",
-            error,
-            level: .info
-          )
-          return nil
-        }
+  var rssFeeds: RSSFeeds {
+    var feeds: [(feedURL: FeedURL, title: String)] = []
+    var skippedCount = 0
+    for outline in body.outlines.flatMap(\.flattenedOutlines) {
+      guard let xmlUrl = outline.xmlUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
+      else {
+        if outline.type?.lowercased() == "rss" { skippedCount += 1 }
+        continue
       }
+
+      guard !xmlUrl.isEmpty
+      else {
+        skippedCount += 1
+        continue
+      }
+
+      guard let url = URL(string: xmlUrl)
+      else {
+        Self.log.info("Unparseable feed URL '\(xmlUrl)' for outline '\(outline.text)'")
+        skippedCount += 1
+        continue
+      }
+
+      let feedURL: FeedURL
+      do {
+        feedURL = try FeedURL(url).convertToHTTPSURL()
+      } catch {
+        Self.log.caughtError(
+          "Invalid feed URL '\(xmlUrl)' for outline '\(outline.text)'",
+          error,
+          level: .info
+        )
+        skippedCount += 1
+        continue
+      }
+      feeds.append((feedURL: feedURL, title: outline.text))
+    }
+    return RSSFeeds(feeds: feeds, skippedCount: skippedCount)
   }
 
   var title: String? { head.title }

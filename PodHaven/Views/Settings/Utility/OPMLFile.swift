@@ -5,6 +5,7 @@ import Foundation
 @Observable @MainActor class OPMLFile: Identifiable {
   let id = UUID()
   let title: String
+  let skippedCount: Int
   var totalCount: Int {
     failed.count
       + waiting.count
@@ -19,7 +20,8 @@ import Foundation
   var downloading: Set<OPMLOutline> = []
   var finished: Set<OPMLOutline> = []
 
-  init(title: String) {
+  init(title: String, skippedCount: Int) {
     self.title = title
+    self.skippedCount = skippedCount
   }
 }
