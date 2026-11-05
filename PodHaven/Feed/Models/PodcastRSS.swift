@@ -190,18 +190,30 @@ struct PodcastRSS: Decodable, Sendable {
       let description: String
       let contentEncoded: String?
       let link: String?  // URL?
-      let episodes: [Episode]
       let atomLinks: [AtomLink]
       let language: String?
 
       enum CodingKeys: String, CodingKey {
         case title, description, language, link
-        case episodes = "item"
         case atomLinks = "atom:link"
         case contentEncoded = "content:encoded"
       }
     }
     private let values: TopLevelValues
+
+    private enum ItemKey: String, CodingKey {
+      case item
+    }
+
+    private struct DecodedEpisode: Decodable {
+      let result: Result<Episode, any Error>
+
+      init(from decoder: any Decoder) throws {
+        result = Result { try Episode(from: decoder) }
+      }
+    }
+
+    let episodes: [Episode]
 
     struct ITunesNamespace: Decodable, Sendable {
       struct Image: Decodable, Sendable {
@@ -256,6 +268,26 @@ struct PodcastRSS: Decodable, Sendable {
     init(from decoder: any Decoder) throws {
       values = try TopLevelValues(from: decoder)
       iTunes = try ITunesNamespace(from: decoder)
+
+      let items = try decoder.container(keyedBy: ItemKey.self)
+        .decode([DecodedEpisode].self, forKey: .item)
+      var episodes: [Episode] = []
+      var failures: [any Error] = []
+      for item in items {
+        switch item.result {
+        case .success(let episode): episodes.append(episode)
+        case .failure(let error): failures.append(error)
+        }
+      }
+      if let firstFailure = failures.first {
+        guard !episodes.isEmpty else { throw firstFailure }
+        PodcastRSS.log.caughtError(
+          "Dropped \(failures.count) of \(items.count) undecodable RSS items in '\(values.title)'",
+          firstFailure,
+          level: .warning
+        )
+      }
+      self.episodes = episodes
     }
   }
 
