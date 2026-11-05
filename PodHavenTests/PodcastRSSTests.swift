@@ -229,6 +229,84 @@ struct PodcastRSSTests {
     #expect(podcast.episodes.map(\.title) == ["Episode One"])
   }
 
+  @Test("parsing undecodable items drops only those items and logs them once")
+  func parseUndecodableItems() async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+        <channel>
+          <title>Undecodable Items</title>
+          <description>Feed with items that fail to decode</description>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Episode One</title>
+            <enclosure url="https://example.com/one.mp3" type="audio/mpeg"/>
+          </item>
+          <item>
+            <description>An item with a description and no title</description>
+            <enclosure url="https://example.com/untitled.mp3" type="audio/mpeg"/>
+          </item>
+          <item>
+            <title>Episode Three</title>
+            <enclosure url="https://example.com/three.mp3" type="audio/mpeg"/>
+          </item>
+          <item/>
+        </channel>
+      </rss>
+      """
+    let (podcast, logs) = try await LogCapture.withSink { sink in
+      let podcast = try await PodcastRSS.parse(Data(xml.utf8))
+      return (podcast, sink.captured().filter { $0.message.contains("undecodable RSS items") })
+    }
+
+    #expect(podcast.title == "Undecodable Items")
+    #expect(podcast.episodes.map(\.title) == ["Episode One", "Episode Three"])
+    #expect(logs.count == 1)
+    let log = try #require(logs.first)
+    #expect(log.level == .warning)
+    #expect(log.message.hasPrefix("Dropped 2 of 4 undecodable RSS items in 'Undecodable Items'"))
+  }
+
+  @Test("parsing a feed whose every item fails to decode fails")
+  func parseFeedWhoseEveryItemFailsToDecode() async {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+        <channel>
+          <title>Every Item Undecodable</title>
+          <description>Feed whose items all fail to decode</description>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <enclosure url="https://example.com/one.mp3" type="audio/mpeg"/>
+          </item>
+          <item>
+            <description>An item with a description and no title</description>
+          </item>
+        </channel>
+      </rss>
+      """
+    await #expect(throws: DecodingError.self) {
+      try await PodcastRSS.parse(Data(xml.utf8))
+    }
+  }
+
+  @Test("parsing a feed with no items keeps the feed")
+  func parseFeedWithNoItems() async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+        <channel>
+          <title>No Items</title>
+          <description>Feed without items</description>
+          <itunes:image href="https://example.com/art.jpg"/>
+        </channel>
+      </rss>
+      """
+    let podcast = try await PodcastRSS.parse(Data(xml.utf8))
+    #expect(podcast.title == "No Items")
+    #expect(podcast.episodes.isEmpty)
+  }
+
   @Test("parsing the Marketplace feed")
   func parseMarketplaceFeed() async throws {
     let data = PreviewBundle.loadAsset(named: "marketplace", in: .FeedRSS)
