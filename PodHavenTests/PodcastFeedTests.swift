@@ -180,6 +180,68 @@ struct PodcastFeedTests {
     #expect(emptyImageEpisode.image == nil)
   }
 
+  @Test(
+    "parsing a feed keeps the fetched URL when the self link isn't an absolute HTTP URL",
+    arguments: ["/feed.xml", "feed://example.com/rss", "feed.xml", "//example.com/feed.xml"]
+  )
+  func parseFeedWithNonAbsoluteSelfLink(selfLink: String) async throws {
+    let fetchedURL = FeedURL(URL(string: "https://example.com/podcast/rss")!)
+    let feed = try await PodcastFeed.parse(feedData(selfLink: selfLink), from: fetchedURL)
+
+    #expect(feed.feedURL == fetchedURL)
+    #expect(try feed.toUnsavedPodcast().feedURL == fetchedURL)
+    #expect(feed.toUnsavedEpisodes().map(\.guid) == [GUID("episode")])
+  }
+
+  @Test(
+    "parsing a feed uses an absolute HTTP self link as HTTPS",
+    arguments: [
+      ("http://example.com/feed.xml", "https://example.com/feed.xml"),
+      ("https://example.com/feed.xml", "https://example.com/feed.xml"),
+    ]
+  )
+  func parseFeedWithAbsoluteSelfLink(selfLink: String, expected: String) async throws {
+    let feed = try await PodcastFeed.parse(
+      feedData(selfLink: selfLink),
+      from: FeedURL(URL(string: "https://example.com/podcast/rss")!)
+    )
+
+    let expectedURL = FeedURL(URL(string: expected)!)
+    #expect(feed.feedURL == expectedURL)
+    #expect(try feed.toUnsavedPodcast().feedURL == expectedURL)
+  }
+
+  @Test(
+    "parsing a feed ignores an itunes:new-feed-url that isn't an absolute HTTP URL",
+    arguments: ["/feed.xml", "feed://example.com/rss", "feed.xml", "//example.com/feed.xml"]
+  )
+  func parseFeedWithNonAbsoluteNewFeedURL(newFeedURL: String) async throws {
+    let selfURL = FeedURL(URL(string: "https://example.com/feed.xml")!)
+    let feed = try await PodcastFeed.parse(
+      feedData(selfLink: selfURL.rawValue.absoluteString, newFeedURL: newFeedURL),
+      from: FeedURL(URL(string: "https://example.com/podcast/rss")!)
+    )
+
+    #expect(feed.updatedFeedURL == selfURL)
+    #expect(try feed.toUnsavedPodcast().feedURL == selfURL)
+    #expect(feed.toUnsavedEpisodes().map(\.guid) == [GUID("episode")])
+  }
+
+  @Test("parsing a feed uses an absolute HTTP itunes:new-feed-url as HTTPS")
+  func parseFeedWithAbsoluteHTTPNewFeedURL() async throws {
+    let feed = try await PodcastFeed.parse(
+      feedData(
+        selfLink: "https://example.com/feed.xml",
+        newFeedURL: "http://example.com/new.xml"
+      ),
+      from: FeedURL(URL(string: "https://example.com/podcast/rss")!)
+    )
+
+    let newURL = FeedURL(URL(string: "https://example.com/new.xml")!)
+    #expect(feed.updatedFeedURL == newURL)
+    #expect(try feed.toUnsavedPodcast().feedURL == newURL)
+  }
+
   @Test("parsing the considerthis feed with items missing guids")
   func parseConsiderThisFeedWithMissingGuids() async throws {
     let data = PreviewBundle.loadAsset(named: "considerthis", in: .FeedRSS)
@@ -338,5 +400,30 @@ struct PodcastFeedTests {
 
     #expect(podcastSeries.podcast.title == unsavedPodcast.title)
     #expect(podcastSeries.episodes.count == unsavedEpisodes.count)
+  }
+
+  // MARK: - Helpers
+
+  private func feedData(selfLink: String, newFeedURL: String? = nil) -> Data {
+    let newFeedURLElement =
+      if let newFeedURL { "<itunes:new-feed-url>\(newFeedURL)</itunes:new-feed-url>" } else { "" }
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+        <channel>
+          <title>Feed URLs</title>
+          <description>Feed with a self link</description>
+          <atom:link href="\(selfLink)" rel="self" type="application/rss+xml"/>
+          \(newFeedURLElement)
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Episode</title>
+            <guid>episode</guid>
+            <enclosure url="https://example.com/episode.mp3" type="audio/mpeg"/>
+          </item>
+        </channel>
+      </rss>
+      """
+    return Data(xml.utf8)
   }
 }

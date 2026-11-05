@@ -170,6 +170,7 @@ struct PodcastFeed: Sendable, Stringable {
   // MARK: - Instance Definition
 
   let feedURL: FeedURL
+  let updatedFeedURL: FeedURL
 
   private let rssPodcast: PodcastRSS.Podcast
   private let link: URL?
@@ -180,7 +181,9 @@ struct PodcastFeed: Sendable, Stringable {
 
   private init(rssPodcast: PodcastRSS.Podcast, from: FeedURL) throws {
     self.rssPodcast = rssPodcast
-    self.feedURL = try (rssPodcast.feedURL ?? from).convertToHTTPSURL()
+    let feedURL = try Self.absoluteHTTPSURL(rssPodcast.feedURL) ?? from.convertToHTTPSURL()
+    self.feedURL = feedURL
+    self.updatedFeedURL = Self.absoluteHTTPSURL(rssPodcast.iTunes.newFeedURL) ?? feedURL
     self.link = rssPodcast.link
     self.image = rssPodcast.iTunes.image.href
     self.episodeFeeds = rssPodcast.episodes.compactMap {
@@ -188,8 +191,19 @@ struct PodcastFeed: Sendable, Stringable {
     }
   }
 
-  var updatedFeedURL: FeedURL {
-    rssPodcast.iTunes.newFeedURL ?? feedURL
+  private static func absoluteHTTPSURL(_ feedURL: FeedURL?) -> FeedURL? {
+    guard let feedURL else { return nil }
+    guard feedURL.rawValue.scheme != nil else {
+      log.warning("Ignoring relative feed URL: \(feedURL)")
+      return nil
+    }
+
+    do {
+      return try feedURL.convertToHTTPSURL()
+    } catch {
+      log.caughtError("Ignoring invalid feed URL: \(feedURL)", error, level: .warning)
+      return nil
+    }
   }
 
   func toUnsavedSeries(
