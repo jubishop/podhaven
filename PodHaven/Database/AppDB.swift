@@ -74,7 +74,7 @@ struct AppDB {
     let dbPool = try DatabasePool(path: path, configuration: makeConfiguration())
     let appDB = AppDB(dbPool)
     let openDuration = now() - openedAt
-    // Synchronous writer access must precede the queued publication, or it waits for it.
+    // Synchronous writer access must precede the queued launch check, or it waits for it.
     dbPool.add(
       transactionObserver: WriteProbe(enabled: Container.shared.userSettings().$enableWriteProbe),
       extent: .databaseLifetime
@@ -138,8 +138,9 @@ struct AppDB {
   var reader: Reader { Reader(self) }
   var writer: Writer { Writer(self) }
 
-  // The catalog stays unreadable until the launch check keeps or republishes it on the
-  // writer queue, ahead of any library write, so a stale snapshot is never readable.
+  // The catalog stays unreadable until the launch check, queued on the writer ahead of any
+  // library write, keeps it or a publication off the writer replaces it, so a stale snapshot is
+  // never readable.
   func startSiriCatalog(_ file: SiriCatalogFile, openDuration: Duration? = nil) {
     let published = AsyncLatch<Void>()
     siriCatalogPublication(published)
@@ -155,14 +156,16 @@ struct AppDB {
     db.asyncWriteWithoutTransaction { db in
       publisher.observe(db)
       launchTimeline.record(.siriCatalogPublicationStarted)
-      publisher.launch(db, openDuration: openDuration)
-      launchTimeline.record(.siriCatalogPublicationFinished)
-      published.open()
+      publisher.launch(db, openDuration: openDuration) {
+        launchTimeline.record(.siriCatalogPublicationFinished)
+        published.open()
+      }
     }
   }
 
-  // Waits for the launch check and any commit publication, so the catalog reflects the
-  // committed library unless its publication failed or a newer commit is pending.
+  // Waits for the launch check, any publication it needs, and any commit publication, so the
+  // catalog reflects the committed library unless its publication failed or a newer commit is
+  // pending.
   func siriCatalogPublished() async throws {
     if let published = siriCatalogPublication(), !published.isOpen {
       Self.log.debug("Waiting for the launch Siri catalog publication")

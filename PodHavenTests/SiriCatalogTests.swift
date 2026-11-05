@@ -231,30 +231,34 @@ struct SiriCatalogTests {
       )
     let episode = PodcastEpisode(podcast: series.podcast, episode: series.episodes[0])
     let file = Container.shared.siriCatalogFile()
-    let publisher = SiriCatalogPublisher(file: file, reader: Container.shared.appDB().unsafeTestDB)
-    try await Container.shared.appDB().writer
-      .write { db in
-        let queries = ThreadSafe<[String]>([])
-        db.trace { event in
-          if case .statement(let statement) = event {
-            queries { $0.append(statement.sql) }
-          }
-        }
-        publisher.publish(db, trigger: .commit)
-        db.trace(options: [])
-        #expect(!queries().isEmpty)
-        for query in queries() {
-          let region = try db.makeStatement(sql: query).databaseRegion
-          for (table, column) in [
-            ("episode", "transcript"), ("episode", "description"), ("podcast", "description"),
-          ] {
-            #expect(
-              !region.isModified(byEventsOfKind: .update(tableName: table, columnNames: [column])),
-              "Catalog publication must not read \(table).\(column)"
-            )
-          }
+    let database = Container.shared.appDB().unsafeTestDB
+    let publisher = SiriCatalogPublisher(file: file, reader: database)
+    let queries = ThreadSafe<[String]>([])
+    try await database.writeWithoutTransaction { db in
+      db.trace { event in
+        if case .statement(let statement) = event {
+          queries { $0.append(statement.sql) }
         }
       }
+      publisher.observe(db)
+      publisher.launch(db, openDuration: nil) {}
+    }
+    try await publisher.published()
+    try await database.writeWithoutTransaction { db in
+      db.trace(options: [])
+      #expect(queries().contains { $0.contains("\"episode\"") })
+      for query in queries() {
+        let region = try db.makeStatement(sql: query).databaseRegion
+        for (table, column) in [
+          ("episode", "transcript"), ("episode", "description"), ("podcast", "description"),
+        ] {
+          #expect(
+            !region.isModified(byEventsOfKind: .update(tableName: table, columnNames: [column])),
+            "Catalog publication must not read \(table).\(column)"
+          )
+        }
+      }
+    }
     let entries = try await file.read().podcasts.flatMap(\.entries)
     #expect(entries.count == 2)
     #expect(entries[0].identity.id == episode.podcast.id.rawValue)

@@ -27,12 +27,16 @@ republishes. See [catalog size](#catalog-size).
 Launch database initialization never builds the catalog on the calling thread.
 It moves the previous file aside, then queues the launch check on the database
 writer ahead of any library write. That job registers the commit observer. It
-restores the set-aside file when it is [verifiably current](#launch-freshness)
-and otherwise publishes the committed library. Until it finishes, the extension
-finds no catalog and fails truthfully rather than reading an unverified
-snapshot. The main app's Siri handler waits for that check or publication,
-and for any [commit publication](#commit-publication) in progress, before
-reading the catalog, so a cold handoff resolves against the committed library.
+restores the set-aside file when it is [verifiably current](#launch-freshness).
+Otherwise it hands republication to the
+[commit publication](#commit-publication) run, which publishes the committed
+library off the writer, so launch-time writes such as queue and refresh work
+don't wait for it. A relevant write that lands first makes that catalog stale,
+and the run publishes again. Until a catalog is kept or published, the
+extension finds no catalog and fails truthfully rather than reading an
+unverified snapshot. The main app's Siri handler waits for that check and any
+republication, and for any commit publication in progress, before reading the
+catalog, so a cold handoff resolves against the committed library.
 
 Afterward, relevant commits, including background refresh and deletion,
 republish the catalog off the database writer. A finish-state change is
@@ -113,9 +117,14 @@ version, and records the database's current source. Anything else republishes:
 - A catalog schema or publication policy change.
 - An invalid or unstamped file, including one an earlier app version wrote.
 
-The kept file's bytes become the publisher's rollback restore point. A
-publication or failed check removes the set-aside copy, and the next launch's
-move replaces any copy a crash left behind.
+The kept file's bytes become the publisher's rollback restore point. A check
+that cannot keep the file removes the set-aside copy before handing off
+republication, and the next launch's move replaces any copy a crash left behind.
+
+Launch republication used to run inside the queued launch job, so every
+launch-time write waited for it after each migration, often in a background
+launch. It now uses the off-writer run, which holds a UIKit background task
+like any commit publication.
 
 The extension rereads the catalog for resolution, confirmation, and handling.
 The system callback copies request fields into a Sendable value. An explicit
@@ -296,7 +305,7 @@ Each catalog publication logs one bounded summary with fixed fields:
 
 | Field | Meaning |
 | --- | --- |
-| `trigger` | `launch` for the first check or publication in a process, `commit` afterward |
+| `trigger` | `launch` for the launch check or the republication it hands off, `commit` afterward |
 | `skipped` | Whether launch kept a current catalog instead of publishing; `false` for commits |
 | `checkMs` | Launch [freshness](#launch-freshness) check time; `none` for commits |
 | `publishMs`, `fetchMs`, `writeMs` | Total, row fetch and entry build, and JSON encode, any omission, plus atomic write; `none` when skipped |
@@ -322,12 +331,14 @@ does not prove a background launch.
 
 A cold Siri handoff that arrives during the launch check or publication, or
 during a commit publication, waits for it, so its latency includes the
-remaining time. Extension requests in that window fail truthfully. Commit
-publications run off the writer, so their `publishMs` measures only the
+remaining time. Extension requests in that window fail truthfully. Launch and
+commit publications run off the writer, so their `publishMs` measures only the
 publication that installed the catalog, from its snapshot fetch through the
-swap, not writer time. A publication discarded for a later commit records no
-summary, so after a burst the catalog was unavailable for longer than
-`publishMs`.
+swap, not writer time; a launch summary's `checkMs` is its only writer time. A
+publication discarded for a later commit records no summary, so after a burst
+the catalog was unavailable for longer than `publishMs`. A process emits at
+most one launch summary: a kept catalog, or the launch republication that
+first installs. A failed launch republication logs its error instead.
 
 A local diagnostic benchmark seeded 110 podcasts and 110,000 episodes, giving a
 27,709,630-byte schema 1 catalog. In a Debug test host on My Mac, the previous synchronous
