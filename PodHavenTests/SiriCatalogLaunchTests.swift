@@ -75,7 +75,7 @@ import Testing
     )
 
     #expect(storage.completedCatalogWrites() == 0, "Launch initialization waited for publication")
-    try await Wait.until({ storage.catalogWriteHeld() }, { "Launch publication did not start" })
+    try await storage.catalogWriteHeld.wait()
     await Task { @MainActor in MainActor.preconditionIsolated() }.value
     #expect(storage.completedCatalogWrites() == 0, "Main-actor work progresses during publication")
     await #expect(throws: (any Error).self) {
@@ -91,6 +91,47 @@ import Testing
         ]
     )
     #expect(storage.mainThreadCatalogWrites() == 0, "Publication must not write on the main thread")
+  }
+
+  @Test("a library write completes before the launch republication it supersedes")
+  func writeDuringLaunchPublication() async throws {
+    let directory = TestFiles.uniqueURL()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let path = try committedLibrary(in: directory)
+    let url = directory.appendingPathComponent("siri-media.json")
+    try SiriCatalogFile(url: url)
+      .write(
+        SiriCatalog(podcasts: [
+          .init(id: 1, feed: "https://stale.test", title: "Stale show", episodes: [])
+        ])
+      )
+    let storage = FakeSiriCatalogStorage()
+    defer { storage.release() }
+    let file = SiriCatalogFile(url: url, replaceContents: storage.replace)
+    let appDB = try AppDB.launch(path: path, siriCatalogFile: file)
+    try await storage.catalogWriteHeld.wait()
+
+    let renamed = ThreadSafe(false)
+    let rename = Task {
+      try await appDB.writer.write { db in
+        try Podcast.all().updateAll(db, Podcast.Columns.title.set(to: "Renamed show"))
+      }
+      renamed(true)
+    }
+    try await Wait.until({ renamed() }, { "The library write waited for launch publication" })
+    await #expect(throws: (any Error).self, "Readers saw an unverified catalog") {
+      try await file.read()
+    }
+
+    storage.release()
+    try await rename.value
+    try await appDB.siriCatalogPublished()
+    #expect(
+      try await file.read().podcasts.flatMap(\.entries).map(\.displayTitle) == [
+        "Renamed show", "Committed episode — Renamed show",
+      ]
+    )
+    #expect(try catalogFiles(in: directory) == ["siri-media.json"])
   }
 
   @Test(
@@ -116,7 +157,7 @@ import Testing
       }
       renamed(true)
     }
-    try await Wait.until({ storage.catalogWriteHeld() }, { "Commit publication did not start" })
+    try await storage.catalogWriteHeld.wait()
     try await Wait.until({ renamed() }, { "The library commit waited for catalog publication" })
     await #expect(throws: (any Error).self, "Readers saw a catalog older than the library") {
       try await file.read()
@@ -258,6 +299,32 @@ import Testing
     #expect(try await Repo(reader: appDB.reader, writer: appDB.writer).markFinished(episodeID))
     try await appDB.siriCatalogPublished()
     #expect(try await file.read().podcasts.map(\.title) == ["Renamed show"])
+  }
+
+  @Test("a failed launch republication leaves the catalog unavailable without holding waiters")
+  func failedLaunchPublication() async throws {
+    let directory = TestFiles.uniqueURL()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let path = try committedLibrary(in: directory)
+    let failing = ThreadSafe(true)
+    let file = SiriCatalogFile(
+      url: directory.appendingPathComponent("siri-media.json"),
+      replaceContents: { data, url in
+        if !data.isEmpty, failing() { throw CocoaError(.fileWriteOutOfSpace) }
+        try data.write(to: url, options: .atomic)
+      }
+    )
+    let appDB = try AppDB.launch(path: path, siriCatalogFile: file)
+    try await appDB.siriCatalogPublished()
+    await #expect(throws: (any Error).self) { try await file.read() }
+
+    failing(false)
+    try await appDB.writer.write { db in
+      try Podcast.all().updateAll(db, Podcast.Columns.title.set(to: "Renamed show"))
+    }
+    try await appDB.siriCatalogPublished()
+    #expect(try await file.read().podcasts.map(\.title) == ["Renamed show"])
+    #expect(try catalogFiles(in: directory) == ["siri-media.json"])
   }
 
   enum Staleness: CaseIterable, Sendable {

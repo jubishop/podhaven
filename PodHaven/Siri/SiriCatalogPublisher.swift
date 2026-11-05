@@ -37,14 +37,28 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
     let fetchedAt: ContinuousClock.Instant
   }
 
+  private struct LaunchPublication {
+    let trigger: SiriCatalogPublicationDiagnostics.Trigger
+    let finished: @Sendable () -> Void
+  }
+
+  private enum Installation {
+    case installed(LaunchPublication?)
+    case discarded
+    case failed(any Error)
+  }
+
   private struct Status {
     var transaction = Transaction.unchanged
-    // Landed relevant commits, and how many of them the last finished publication reflects.
+    // Relevant changes, counting a launch catalog that needs republication as one, and how many of
+    // them the last finished publication reflects.
     var commits = 0
     var settled = 0
     // The last finished publication's catalog, or nil when it failed.
     var published: Published?
     var running: AsyncLatch<Void>?
+    // Launch's republication until a publication installs or fails.
+    var launch: LaunchPublication?
 
     var commitPending: Bool { [.committing, .invalidated].contains(transaction) }
     var current: Published? { settled == commits ? published : nil }
@@ -54,6 +68,13 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
       let run = AsyncLatch<Void>()
       running = run
       return run
+    }
+
+    mutating func settle(_ target: Int, published: Published?) -> LaunchPublication? {
+      settled = target
+      self.published = published
+      defer { launch = nil }
+      return launch
     }
   }
 
@@ -119,8 +140,8 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
 
   func databaseDidChange(with event: DatabaseEvent) { status { $0.transaction = .changed } }
 
-  // After launch, the catalog file changes only under the status lock, so no publication can
-  // land between this invalidation and the commit's outcome.
+  // After the launch check, the catalog file changes only under the status lock, so no
+  // publication can land between this invalidation and the commit's outcome.
   func databaseWillCommit() {
     status { status in
       if status.transaction == .finishChanged {
@@ -145,7 +166,7 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
       status.commits += 1
       return status.startPublishing()
     }
-    if let run { Task { await publishCommits(run) } }
+    if let run { Task { await publishChanges(run) } }
   }
 
   func databaseDidRollback(_ db: Database) {
@@ -161,7 +182,7 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
       }
       return nil
     }
-    if let run { Task { await publishCommits(run) } }
+    if let run { Task { await publishChanges(run) } }
   }
 
   func published() async throws {
@@ -170,7 +191,13 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
     try await running.wait()
   }
 
-  func launch(_ db: Database, openDuration: Duration?) {
+  // Keeps a current catalog or hands its republication off the writer; `finished` runs once
+  // the catalog is kept or that republication installs or fails.
+  func launch(
+    _ db: Database,
+    openDuration: Duration?,
+    finished: @escaping @Sendable () -> Void
+  ) {
     let startedAt = continuousClockNow()
     let kept: Published?
     do {
@@ -190,41 +217,28 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
         checkDuration: checkDuration,
         bytes: kept.data.count
       )
+      finished()
       return
     }
     do { try file.removeAside() } catch {
       Self.log.caughtError("Could not remove Siri catalog from an earlier launch", error)
     }
-    publish(db, trigger: .launch(openDuration: openDuration, checkDuration: checkDuration))
-  }
-
-  func publish(_ db: Database, trigger: SiriCatalogPublicationDiagnostics.Trigger) {
-    let startedAt = continuousClockNow()
-    do {
-      let built = try build(db)
-      try file.write(built.data)
-      status { status in
-        status.settled = status.commits
-        status.published = Published(data: built.data, omitsEpisodes: built.omittedEpisodes > 0)
-      }
-      record(built, trigger: trigger, startedAt: startedAt)
-    } catch {
-      Self.log.caughtError("Could not publish Siri catalog", error)
-      status { status in
-        status.settled = status.commits
-        status.published = nil
-      }
-      do { try file.invalidate() } catch {
-        Self.log.caughtError("Could not invalidate unavailable Siri catalog", error)
-      }
+    let run = status { status -> AsyncLatch<Void>? in
+      status.commits += 1
+      status.launch = LaunchPublication(
+        trigger: .launch(openDuration: openDuration, checkDuration: checkDuration),
+        finished: finished
+      )
+      return status.startPublishing()
     }
+    if let run { Task { await publishChanges(run) } }
   }
 
-  // Publishes from read snapshots until the catalog reflects every relevant commit, discarding
+  // Publishes from read snapshots until the catalog reflects every relevant change, discarding
   // any catalog a later commit made stale. A pending relevant commit stops the run; its outcome
-  // starts another. The background task keeps a background write's catalog from waiting for the
-  // next launch.
-  private func publishCommits(_ run: AsyncLatch<Void>) async {
+  // starts another. The background task keeps a background launch's or write's catalog from
+  // waiting for the next launch.
+  private func publishChanges(_ run: AsyncLatch<Void>) async {
     let backgroundTask = await BackgroundTask.start(withName: "siriCatalogPublication")
     while true {
       let target = status { status -> Int? in
@@ -244,23 +258,23 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
         fail(target, error)
         continue
       }
-      let installed = status { status -> Result<Bool, any Error> in
-        guard status.commits == target, !status.commitPending else { return .success(false) }
+      let installation = status { status -> Installation in
+        guard status.commits == target, !status.commitPending else { return .discarded }
         do {
           try file.installStaged()
         } catch {
-          return .failure(error)
+          return .failed(error)
         }
-        status.settled = target
-        status.published = Published(data: built.data, omitsEpisodes: built.omittedEpisodes > 0)
-        return .success(true)
+        let published = Published(data: built.data, omitsEpisodes: built.omittedEpisodes > 0)
+        return .installed(status.settle(target, published: published))
       }
-      switch installed {
-      case .success(true):
-        record(built, trigger: .commit, startedAt: startedAt)
-      case .success(false):
+      switch installation {
+      case .installed(let launch):
+        record(built, trigger: launch?.trigger ?? .commit, startedAt: startedAt)
+        launch?.finished()
+      case .discarded:
         Self.log.debug("Discarded a Siri catalog publication that a later commit made stale")
-      case .failure(let error):
+      case .failed(let error):
         fail(target, error)
       }
     }
@@ -271,14 +285,14 @@ final class SiriCatalogPublisher: TransactionObserver, Sendable {
   // Leaves the catalog unavailable until the next relevant commit, unless one landed or is pending.
   private func fail(_ target: Int, _ error: any Error) {
     Self.log.caughtError("Could not publish Siri catalog", error)
-    status { status in
-      guard status.commits == target, !status.commitPending else { return }
-      status.settled = target
-      status.published = nil
+    let launch = status { status -> LaunchPublication? in
+      guard status.commits == target, !status.commitPending else { return nil }
       do { try file.invalidate() } catch {
         Self.log.caughtError("Could not invalidate unavailable Siri catalog", error)
       }
+      return status.settle(target, published: nil)
     }
+    launch?.finished()
   }
 
   private func record(

@@ -90,6 +90,61 @@ struct SiriCatalogPublicationDiagnosticsTests {
     }
   }
 
+  @Test("a launch republication that a commit supersedes reports one launch summary")
+  func supersededLaunchPublication() async throws {
+    Container.shared.siriCatalogPublicationDiagnostics().launching(applicationState: .background)
+    let database = Container.shared.appDB().unsafeTestDB
+    let committed = ThreadSafe(false)
+    // The first staged catalog lands after a library commit that makes it stale.
+    let file = SiriCatalogFile(
+      url: Container.shared.siriCatalogFile().url,
+      replaceContents: { data, url in
+        if !data.isEmpty, !committed() {
+          committed(true)
+          try database.write { db in try Create.unsavedPodcast(title: "Show").insert(db) }
+        }
+        try data.write(to: url, options: .atomic)
+      }
+    )
+    let publisher = SiriCatalogPublisher(file: file, reader: database)
+    let finished = ThreadSafe(0)
+    // Synchronous writes let the publication task inherit the log sink.
+    let launch: () -> Void = {
+      database.writeWithoutTransaction { db in
+        publisher.observe(db)
+        publisher.launch(db, openDuration: .milliseconds(37)) { finished { $0 += 1 } }
+      }
+    }
+    let rename: () throws -> Void = {
+      try database.write { db in
+        _ = try Podcast.all().updateAll(db, Podcast.Columns.title.set(to: "Renamed show"))
+      }
+    }
+    let launchLogs = try await LogCapture.withSink { sink in
+      launch()
+      try await publisher.published()
+      return publicationLogs(sink)
+    }
+
+    #expect(committed())
+    #expect(finished() == 1)
+    #expect(try await file.read().podcasts.map(\.title) == ["Show"])
+    #expect(launchLogs.count == 1)
+    let message = try #require(launchLogs.first?.message)
+    #expect(message.hasPrefix("siriCatalogPublication trigger=launch skipped=false checkMs="))
+    #expect(message.contains(" podcasts=1 episodes=0 omitted=0 "))
+    #expect(message.hasSuffix(" openMs=37 appState=background suppressed=0"))
+
+    let commitLogs = try await LogCapture.withSink { sink in
+      try rename()
+      try await publisher.published()
+      return publicationLogs(sink)
+    }
+    #expect(finished() == 1)
+    #expect(commitLogs.count == 1)
+    #expect(commitLogs.first?.message.hasPrefix("siriCatalogPublication trigger=commit ") == true)
+  }
+
   @Test("slow commit publications warn privately at most once per interval")
   func slowCommits() async throws {
     let clock = Container.shared.fakeContinuousClock()
