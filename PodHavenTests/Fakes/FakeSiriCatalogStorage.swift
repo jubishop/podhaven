@@ -4,9 +4,9 @@ import Foundation
 
 @testable import PodHaven
 
-// Holds the first background catalog write to model slow storage under GRDB's
-// synchronous writer queue. Main-thread writes pass through so a launch-thread
-// publication fails the test instead of deadlocking it.
+// Holds the first background catalog write to model slow storage during an
+// off-writer publication, blocking its concurrency thread. Main-thread writes pass
+// through so a launch-thread publication fails the test instead of deadlocking it.
 final class FakeSiriCatalogStorage: Sendable {
   let catalogWriteHeld = ThreadSafe(false)
   let completedCatalogWrites = ThreadSafe(0)
