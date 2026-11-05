@@ -3,6 +3,8 @@
 import SwiftUI
 
 struct OPMLImportSheetSection: View {
+  static let maxVisibleRows = 100
+
   @Environment(\.colorScheme) private var colorScheme
 
   private var headers: [OPMLOutline.Status: Text] {
@@ -16,11 +18,13 @@ struct OPMLImportSheetSection: View {
     ]
   }
 
-  private let outlines: [OPMLOutline]
+  private let outlines: ArraySlice<OPMLOutline>
+  private let hiddenCount: Int
   private let status: OPMLOutline.Status
 
   init(outlines: [OPMLOutline]) {
-    self.outlines = outlines
+    self.outlines = outlines.prefix(Self.maxVisibleRows)
+    hiddenCount = outlines.count - self.outlines.count
     if let first = outlines.first {
       status = first.status
     } else {
@@ -32,7 +36,7 @@ struct OPMLImportSheetSection: View {
     if outlines.isEmpty {
       EmptyView()
     } else {
-      Section(header: headers[status]) {
+      Section {
         ForEach(outlines) { outline in
           HStack {
             Text(outline.text)
@@ -53,6 +57,12 @@ struct OPMLImportSheetSection: View {
                 .labelStyle(.iconOnly)
             }
           }
+        }
+      } header: {
+        headers[status]
+      } footer: {
+        if hiddenCount > 0 {
+          Text("\(hiddenCount) more")
         }
       }
     }
@@ -75,6 +85,16 @@ struct OPMLImportSheetSection: View {
     )
     OPMLImportSheetSection(
       outlines: [OPMLOutline(status: .waiting, text: "Waiting")]
+    )
+  }
+  .preview()
+}
+
+#Preview("More outlines than visible rows") {
+  List {
+    OPMLImportSheetSection(
+      outlines: (0..<OPMLImportSheetSection.maxVisibleRows + 25)
+        .map { OPMLOutline(status: .waiting, text: "Podcast \($0)") }
     )
   }
   .preview()

@@ -5,6 +5,7 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
+import OrderedCollections
 import SwiftUI
 import Tagged
 import UniformTypeIdentifiers
@@ -96,8 +97,6 @@ extension Container {
   // MARK: - Private Helpers
 
   private func downloadOPMLFile(_ opml: PodcastOPML) async throws {
-    Self.log.debug("Downloading podcasts in opml: \(opml)")
-
     let rssFeeds = opml.rssFeeds
     if rssFeeds.skippedCount > 0 {
       Self.log.info(
@@ -117,8 +116,6 @@ extension Container {
     let (newFeedCount, failedFeedCount) = await withTaskGroup(of: Bool.self) { group in
       for rssFeed in rssFeeds.feeds {
         if let podcast = allPodcasts[id: rssFeed.feedURL] {
-          Self.log.debug("Podcast: \(podcast.toString) already exists")
-
           if !podcast.subscribed {
             group.addTask { [weak self, podcast] in
               guard let self else { return false }
@@ -136,11 +133,9 @@ extension Container {
               return false
             }
           }
-          opmlFile.finished.insert(OPMLOutline(status: .finished, text: rssFeed.title))
+          opmlFile.finished.append(OPMLOutline(status: .finished, text: rssFeed.title))
         } else {
-          Self.log.debug("Marking as waiting to download: \(rssFeed.title)")
-
-          opmlFile.waiting.insert(
+          opmlFile.waiting.append(
             OPMLOutline(
               status: .waiting,
               feedURL: rssFeed.feedURL,
@@ -152,6 +147,12 @@ extension Container {
 
       self.opmlFile = opmlFile
       let newFeedCount = opmlFile.waiting.count
+      Self.log.debug(
+        """
+        downloadOPMLFile: downloading \(newFeedCount) new feeds; \
+        \(opmlFile.finished.count) already in the library
+        """
+      )
       for outline in opmlFile.waiting {
         group.addTask { [weak self, opmlFile, outline] in
           guard let self = self else { return false }
@@ -215,19 +216,17 @@ extension Container {
     in opmlFile: OPMLFile,
     to newStatus: OPMLOutline.Status
   ) {
-    Self.log.debug("Marking \(outline.text) to \(newStatus)")
-
     outline.status = newStatus
     switch newStatus {
     case .finished:
       opmlFile.downloading.remove(outline)
-      opmlFile.finished.insert(outline)
+      opmlFile.finished.append(outline)
     case .failed:
       opmlFile.downloading.remove(outline)
-      opmlFile.failed.insert(outline)
+      opmlFile.failed.append(outline)
     case .downloading:
       opmlFile.waiting.remove(outline)
-      opmlFile.downloading.insert(outline)
+      opmlFile.downloading.append(outline)
     case .waiting:
       Assert.fatal("Updated status back to waiting?!")
     }
