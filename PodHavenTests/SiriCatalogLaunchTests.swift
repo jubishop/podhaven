@@ -75,7 +75,7 @@ import Testing
     )
 
     #expect(storage.completedCatalogWrites() == 0, "Launch initialization waited for publication")
-    try await Wait.until({ storage.catalogWriteHeld() }, { "Launch publication did not start" })
+    try await storage.catalogWriteHeld.wait()
     await Task { @MainActor in MainActor.preconditionIsolated() }.value
     #expect(storage.completedCatalogWrites() == 0, "Main-actor work progresses during publication")
     await #expect(throws: (any Error).self) {
@@ -109,7 +109,7 @@ import Testing
     defer { storage.release() }
     let file = SiriCatalogFile(url: url, replaceContents: storage.replace)
     let appDB = try AppDB.launch(path: path, siriCatalogFile: file)
-    try await Wait.until({ storage.catalogWriteHeld() }, { "Launch publication did not start" })
+    try await storage.catalogWriteHeld.wait()
 
     let renamed = ThreadSafe(false)
     let rename = Task {
@@ -157,7 +157,7 @@ import Testing
       }
       renamed(true)
     }
-    try await Wait.until({ storage.catalogWriteHeld() }, { "Commit publication did not start" })
+    try await storage.catalogWriteHeld.wait()
     try await Wait.until({ renamed() }, { "The library commit waited for catalog publication" })
     await #expect(throws: (any Error).self, "Readers saw a catalog older than the library") {
       try await file.read()

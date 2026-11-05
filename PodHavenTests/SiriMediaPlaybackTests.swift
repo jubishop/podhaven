@@ -66,7 +66,7 @@ import UIKit
           replaceContents: storage.replace
         )
       )
-    try await Wait.until({ storage.catalogWriteHeld() }, { "Launch publication did not start" })
+    try await storage.catalogWriteHeld.wait()
     let intent = SiriTestIntent.named("A launch episode", type: .podcastEpisode)
     let delegate: any UIApplicationDelegate = AppDelegate()
     let handler = try #require(
