@@ -38,6 +38,35 @@ actor RefreshManagerFeedFailureTests {
     #expect(parseFailureLevels(for: notXMLURL, in: captured) == [.warning, .notice])
   }
 
+  @Test("performRefresh warns once per process for a feed whose podcast image isn't HTTP")
+  func nonHTTPPodcastImageWarnsOncePerFeed() async throws {
+    let feedURL = try await insertPodcast(feedURL: "https://example.com/ftp-image.rss")
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+        <channel>
+          <title>FTP Image</title>
+          <description>Feed with a podcast image that isn't HTTP</description>
+          <itunes:image href="ftp://example.com/art.jpg"/>
+          <item>
+            <title>Episode</title>
+            <guid>episode</guid>
+            <enclosure url="https://example.com/episode.mp3" type="audio/mpeg"/>
+          </item>
+        </channel>
+      </rss>
+      """
+    await session.respond(to: feedURL, data: Data(xml.utf8))
+
+    let captured = try await LogCapture.withSink { sink in
+      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+      return sink.captured()
+    }
+
+    #expect(parseFailureLevels(for: feedURL, in: captured) == [.warning, .notice])
+  }
+
   @Test("performRefresh keeps network and HTTP feed failures below warning")
   func networkAndHTTPFailuresStayAtNotice() async throws {
     let offlineURL = try await insertPodcast(feedURL: "https://example.com/offline.rss")
