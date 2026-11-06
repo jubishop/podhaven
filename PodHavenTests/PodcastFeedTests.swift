@@ -320,12 +320,11 @@ struct PodcastFeedTests {
       transcript: "https://example.com/episode.vtt"
     )
 
-    await #expect(throws: URLError.self) {
+    await #expect(throws: DecodingError.self) {
       try await PodcastFeed.parse(
         data,
         from: FeedURL(URL(string: "https://example.com/podcast/rss")!)
       )
-      .toUnsavedPodcast()
     }
   }
 

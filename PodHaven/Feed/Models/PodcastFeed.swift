@@ -220,7 +220,17 @@ struct PodcastFeed: Sendable, Stringable {
       kind: "podcast link",
       title: rssPodcast.title
     )
-    self.image = try rssPodcast.iTunes.image.href.convertToHTTPSURL(relativeTo: baseURL)
+    do {
+      self.image = try rssPodcast.iTunes.image.href.convertToHTTPSURL(relativeTo: baseURL)
+    } catch {
+      throw DecodingError.dataCorrupted(
+        DecodingError.Context(
+          codingPath: [],
+          debugDescription: "Invalid itunes:image URL: \(rssPodcast.iTunes.image.href)",
+          underlyingError: error
+        )
+      )
+    }
     self.episodeFeeds = rssPodcast.episodes.compactMap {
       EpisodeFeed(rssEpisode: $0, podcastLanguage: rssPodcast.language, baseURL: baseURL)
     }
