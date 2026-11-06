@@ -697,17 +697,17 @@ struct Repo: Databasing {
 
   @discardableResult
   func markSubscribed(_ podcastIDs: [Podcast.ID]) async throws -> Int {
-    try await _setSubscribedColumn(podcastIDs, to: true)
+    try await _setSubscribedColumn(podcastIDs, to: true, level: .debug)
   }
 
   @discardableResult
-  func markSubscribed(_ podcastID: Podcast.ID) async throws -> Bool {
-    try await markSubscribed([podcastID]) > 0
+  func markSubscribed(_ podcastID: Podcast.ID, level: Logger.Level) async throws -> Bool {
+    try await _setSubscribedColumn([podcastID], to: true, level: level) > 0
   }
 
   @discardableResult
   func markUnsubscribed(_ podcastIDs: [Podcast.ID]) async throws -> Int {
-    try await _setSubscribedColumn(podcastIDs, to: false)
+    try await _setSubscribedColumn(podcastIDs, to: false, level: .debug)
   }
 
   @discardableResult
@@ -974,14 +974,19 @@ struct Repo: Databasing {
 
   // MARK: Private Helpers
 
-  private func _setSubscribedColumn(_ podcastIDs: [Podcast.ID], to subscribed: Bool) async throws
-    -> Int
-  {
-    Self.log.debug("Set \(podcastIDs) to: \(subscribed ? "subscribed" : "unsubscribed")")
+  private func _setSubscribedColumn(
+    _ podcastIDs: [Podcast.ID],
+    to subscribed: Bool,
+    level: Logger.Level
+  ) async throws -> Int {
+    Self.log.log(
+      level: level,
+      "Set \(podcastIDs) to: \(subscribed ? "subscribed" : "unsubscribed")"
+    )
 
     guard !podcastIDs.isEmpty else { return 0 }
 
-    return try await writer.write { db in
+    return try await writer.write(level: level) { db in
       try Podcast
         .withIDs(podcastIDs)
         .updateAll(db, Podcast.Columns.subscriptionDate.set(to: subscribed ? Date() : nil))

@@ -11,6 +11,10 @@ enum SyntheticFeed {
     URL(string: "https://synthetic.test/feed/\(index)")!
   }
 
+  static func movedURL(_ index: Int) -> URL {
+    URL(string: "https://synthetic.test/moved/\(index)")!
+  }
+
   static func index(of url: URL) -> Int? {
     Int(url.lastPathComponent)
   }
@@ -36,11 +40,14 @@ enum SyntheticFeed {
       <body>
       \(outlines)</body>
       </opml>
-      """.utf8
+      """
+      .utf8
     )
   }
 
-  static func rss(index: Int, episodes: Int) -> Data {
+  static func rss(index: Int, episodes: Int, moved: Bool = false) -> Data {
+    let newFeedURL =
+      moved ? "<itunes:new-feed-url>\(movedURL(index).absoluteString)</itunes:new-feed-url>" : ""
     var items = ""
     for episode in 0..<episodes {
       items += """
@@ -55,20 +62,23 @@ enum SyntheticFeed {
       <?xml version="1.0" encoding="UTF-8"?>
       <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel>\
       <title>\(title(index))</title><description>Synthetic feed \(index)</description>\
-      <itunes:image href="https://synthetic.test/art/\(index).jpg"/>\(items)</channel></rss>
-      """.utf8
+      <itunes:image href="https://synthetic.test/art/\(index).jpg"/>\
+      \(newFeedURL)\(items)</channel></rss>
+      """
+      .utf8
     )
   }
 
   static func respond(
     _ feedSession: FakeDataFetchable,
     episodes: Int,
+    moved: Bool = false,
     after delay: @escaping @Sendable (URL) async throws -> Void = { _ in }
   ) async {
     await feedSession.setDefaultHandler { url in
       let index = try #require(index(of: url))
       try await delay(url)
-      return (rss(index: index, episodes: episodes), URL.response(url))
+      return (rss(index: index, episodes: episodes, moved: moved), URL.response(url))
     }
   }
 }

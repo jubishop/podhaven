@@ -466,6 +466,79 @@ import Testing
     )
   }
 
+  @Test("importing OPML subscribes library podcasts its feeds resolve to under other URLs")
+  func importOPMLSubscribesLibraryPodcastsAtResolvedURLs() async throws {
+    let unsubscribedSeries = try await insertPodcastSeries(
+      feedURL: URL(string: "https://api.substack.com/feed/podcast/10845.rss")!,
+      assetName: "lenny",
+      subscribed: false
+    )
+    let subscribedSeries = try await insertPodcastSeries(
+      feedURL: URL(string: "https://feeds.simplecast.com/l2i9YnTd")!,
+      assetName: "hardfork_short",
+      subscribed: true
+    )
+    let subscriptionDate = try #require(
+      try await repo.podcast(subscribedSeries.id)?.subscriptionDate
+    )
+
+    let lennyAliasURL = URL(string: "https://podcasts.example.com/lenny")!
+    let hardForkAliasURL = URL(string: "https://podcasts.example.com/hard-fork")!
+    let opmlURL = createTestOPMLURL()
+    await setupOPMLResponse(
+      to: opmlURL,
+      feeds: [
+        (title: "Lenny's Podcast", url: lennyAliasURL.absoluteString),
+        (title: "Hard Fork", url: hardForkAliasURL.absoluteString),
+      ]
+    )
+    await setupValidFeedResponse(to: lennyAliasURL, assetName: "lenny")
+    await setupValidFeedResponse(to: hardForkAliasURL, assetName: "hardfork_short")
+
+    try await importOPML(from: opmlURL)
+    try await waitForAllComplete()
+
+    try await verifyOPMLFileState(totalCount: 2, finished: 2, failed: 0)
+    try await verifyPodcastsInRepo(expectedCount: 2)
+    #expect(try await repo.podcast(unsubscribedSeries.id)?.subscribed == true)
+    #expect(try await repo.podcast(subscribedSeries.id)?.subscriptionDate == subscriptionDate)
+  }
+
+  @Test("importing OPML counts feeds that resolve to library podcasts in its summary")
+  func importOPMLSummarizesFeedsResolvingToLibraryPodcasts() async throws {
+    let feedCount = 50
+    for index in 0..<feedCount {
+      let podcastFeed = try await PodcastFeed.parse(
+        SyntheticFeed.rss(index: index, episodes: 1, moved: true),
+        from: FeedURL(SyntheticFeed.url(index))
+      )
+      try await repo.insertSeries(try podcastFeed.toUnsavedSeries())
+    }
+    let opmlURL = createTestOPMLURL()
+    await opmlSession.respond(to: opmlURL, data: SyntheticFeed.opml(feedCount: feedCount))
+    await SyntheticFeed.respond(feedSession, episodes: 1, moved: true)
+
+    let captured = try await LogCapture.withSink { sink in
+      try await importOPML(from: opmlURL)
+      try await waitForAllComplete()
+      return sink.captured()
+    }
+
+    try await verifyOPMLFileState(totalCount: feedCount, finished: feedCount, failed: 0)
+    try await verifyPodcastsInRepo(
+      expectedCount: feedCount,
+      feedURLs: Set((0..<feedCount).map { SyntheticFeed.movedURL($0).absoluteString })
+    )
+    #expect(captured.count < 10, "\(captured.map { "\($0.file): \($0.message)" })")
+    #expect(captured.allSatisfy { $0.message.count < 500 })
+    let summaries = captured.filter {
+      $0.message.contains(
+        "imported 0 of \(feedCount) new feeds; \(feedCount) resolved to library podcasts"
+      )
+    }
+    #expect(summaries.count == 1, "\(captured.map(\.message))")
+  }
+
   // MARK: - Helpers
 
   func createTestOPML(
