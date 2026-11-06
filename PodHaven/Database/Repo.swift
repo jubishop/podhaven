@@ -701,8 +701,8 @@ struct Repo: Databasing {
   }
 
   @discardableResult
-  func markSubscribed(_ podcastID: Podcast.ID) async throws -> Bool {
-    try await markSubscribed([podcastID]) > 0
+  func markSubscribed(_ podcastID: Podcast.ID, level: Logger.Level) async throws -> Bool {
+    try await _setSubscribedColumn([podcastID], to: true, level: level) > 0
   }
 
   @discardableResult
