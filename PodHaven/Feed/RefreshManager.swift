@@ -28,6 +28,8 @@ struct RefreshManager {
 
   private let downloadManager: DownloadManager
   private let inFlight = ThreadSafe<Set<URL>>([])
+  // Feeds that fail to parse stay stale and retry every pass, so warn once per process.
+  private let reportedUndecodableFeeds = ThreadSafe<Set<URL>>([])
 
   // MARK: - Initialization
 
@@ -159,6 +161,13 @@ struct RefreshManager {
     do {
       podcastFeed = try await PodcastFeed.parse(downloadTask.downloadFinished())
     } catch {
+      let level: Logger.Level
+      switch error {
+      case is DecodingError, PodcastFeedError.notXML:
+        level = reportedUndecodableFeeds { $0.insert(url).inserted } ? .warning : .notice
+      default:
+        level = .notice
+      }
       Self.log.caughtError(
         """
         Failed to parse podcast feed
@@ -166,7 +175,7 @@ struct RefreshManager {
           FeedURL: \(podcast.feedURL)
         """,
         error,
-        level: .notice
+        level: level
       )
       return nil
     }
