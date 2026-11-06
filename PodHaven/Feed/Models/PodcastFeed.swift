@@ -33,8 +33,10 @@ struct EpisodeFeed: Sendable, Equatable {
   let publisherTranscriptReferences: [PublisherTranscriptReference]
 
   private let rssEpisode: PodcastRSS.Episode
+  private let link: URL?
+  private let image: URL?
 
-  fileprivate init?(rssEpisode: PodcastRSS.Episode, podcastLanguage: String?) {
+  fileprivate init?(rssEpisode: PodcastRSS.Episode, podcastLanguage: String?, baseURL: URL) {
     guard let mediaURL = rssEpisode.enclosure?.url else {
       Self.log.debug("Missing enclosure URL for \(rssEpisode.title); skipping")
       return nil
@@ -42,7 +44,7 @@ struct EpisodeFeed: Sendable, Equatable {
 
     let validatedMediaURL: MediaURL
     do {
-      validatedMediaURL = try mediaURL.convertToHTTPSURL()
+      validatedMediaURL = MediaURL(try mediaURL.rawValue.convertToHTTPSURL(relativeTo: baseURL))
     } catch {
       Self.log.caughtError(
         "Invalid MediaURL: \(mediaURL) for '\(rssEpisode.title)'",
@@ -55,8 +57,35 @@ struct EpisodeFeed: Sendable, Equatable {
     self.rssEpisode = rssEpisode
     self.guid = rssEpisode.guid ?? GUID(validatedMediaURL.absoluteString)
     self.mediaURL = validatedMediaURL
+    self.link = PodcastFeed.contentURL(
+      rssEpisode.link,
+      relativeTo: baseURL,
+      kind: "episode link",
+      title: rssEpisode.title
+    )
+    self.image = PodcastFeed.contentURL(
+      rssEpisode.iTunes.image?.href,
+      relativeTo: baseURL,
+      kind: "episode image",
+      title: rssEpisode.title
+    )
     self.publisherTranscriptReferences = PublisherTranscriptReference.canonicalized(
-      rssEpisode.podcast.transcripts,
+      rssEpisode.podcast.transcripts.compactMap { reference in
+        guard
+          let url = PodcastFeed.contentURL(
+            reference.url,
+            relativeTo: baseURL,
+            kind: "publisher transcript",
+            title: rssEpisode.title
+          )
+        else { return nil }
+
+        return PublisherTranscriptReference(
+          url: url,
+          mimeType: reference.mimeType,
+          language: reference.language
+        )
+      },
       defaultLanguage: podcastLanguage
     )
   }
@@ -71,8 +100,8 @@ struct EpisodeFeed: Sendable, Equatable {
       pubDate: rssEpisode.pubDate ?? episode?.pubDate,
       duration: duration ?? episode?.duration,
       description: rssEpisode.description ?? episode?.description,
-      link: rssEpisode.link ?? episode?.link,
-      image: rssEpisode.iTunes.image?.href ?? episode?.image,
+      link: link ?? episode?.link,
+      image: image ?? episode?.image,
       publisherTranscriptReferences: publisherTranscriptReferences
     )
   }
@@ -184,10 +213,32 @@ struct PodcastFeed: Sendable, Stringable {
     let feedURL = try Self.absoluteHTTPSURL(rssPodcast.feedURL) ?? from.convertToHTTPSURL()
     self.feedURL = feedURL
     self.updatedFeedURL = Self.absoluteHTTPSURL(rssPodcast.iTunes.newFeedURL) ?? feedURL
-    self.link = rssPodcast.link
-    self.image = rssPodcast.iTunes.image.href
+    let baseURL = from.rawValue
+    self.link = Self.contentURL(
+      rssPodcast.link,
+      relativeTo: baseURL,
+      kind: "podcast link",
+      title: rssPodcast.title
+    )
+    self.image = try rssPodcast.iTunes.image.href.convertToHTTPSURL(relativeTo: baseURL)
     self.episodeFeeds = rssPodcast.episodes.compactMap {
-      EpisodeFeed(rssEpisode: $0, podcastLanguage: rssPodcast.language)
+      EpisodeFeed(rssEpisode: $0, podcastLanguage: rssPodcast.language, baseURL: baseURL)
+    }
+  }
+
+  fileprivate static func contentURL(
+    _ url: URL?,
+    relativeTo baseURL: URL,
+    kind: String,
+    title: String
+  ) -> URL? {
+    guard let url else { return nil }
+
+    do {
+      return try url.convertToHTTPSURL(relativeTo: baseURL)
+    } catch {
+      log.caughtError("Ignoring invalid \(kind) URL '\(url)' for '\(title)'", error, level: .info)
+      return nil
     }
   }
 
