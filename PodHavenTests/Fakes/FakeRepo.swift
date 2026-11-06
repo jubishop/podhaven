@@ -3,6 +3,7 @@
 import AVFoundation
 import Foundation
 import GRDB
+import Logging
 import Tagged
 
 @testable import PodHaven
@@ -354,14 +355,14 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // MARK: - Series Writers
 
   @discardableResult
-  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) async throws
-    -> PodcastSeries
+  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries, level: Logger.Level)
+    async throws -> PodcastSeries
   {
     recordCall(
       methodName: "insertSeries",
       parameters: unsavedPodcastSeries
     )
-    return try await repo.insertSeries(unsavedPodcastSeries)
+    return try await repo.insertSeries(unsavedPodcastSeries, level: level)
   }
 
   func updateSeriesFromFeed(

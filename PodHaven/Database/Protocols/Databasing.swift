@@ -3,6 +3,7 @@
 import AVFoundation
 import Foundation
 import GRDB
+import Logging
 import Tagged
 
 protocol Databasing: Sendable {
@@ -51,8 +52,8 @@ protocol Databasing: Sendable {
   // MARK: - Series Writers
 
   @discardableResult
-  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) async throws
-    -> PodcastSeries
+  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries, level: Logger.Level)
+    async throws -> PodcastSeries
 
   @discardableResult
   func updateSeriesFromFeed(
@@ -211,5 +212,12 @@ protocol Databasing: Sendable {
 extension Databasing {
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
     try await podcastSeries(feedURL, iTunesID: nil)
+  }
+
+  @discardableResult
+  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) async throws
+    -> PodcastSeries
+  {
+    try await insertSeries(unsavedPodcastSeries, level: .debug)
   }
 }

@@ -263,10 +263,11 @@ struct Repo: Databasing {
   // MARK: - Series Writers
 
   @discardableResult
-  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) async throws
-    -> PodcastSeries
+  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries, level: Logger.Level)
+    async throws -> PodcastSeries
   {
-    Self.log.debug(
+    Self.log.log(
+      level: level,
       """
       Inserting series
         Podcast: \(unsavedPodcastSeries.toString)
@@ -274,7 +275,7 @@ struct Repo: Databasing {
       """
     )
 
-    return try await writer.write { db in
+    return try await writer.write(level: level) { db in
       let unsavedPodcast = unsavedPodcastSeries.unsavedPodcast
       let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
       var episodes = IdentifiedArrayOf<Episode>()

@@ -250,9 +250,51 @@ import Testing
     }
 
     try await verifyOPMLFileState(totalCount: feedCount, finished: feedCount, failed: 0)
-    let viewModelLogs = captured.filter { $0.file.hasSuffix("OPMLViewModel.swift") }
-    #expect(viewModelLogs.count < 5, "\(viewModelLogs.map(\.message))")
-    #expect(viewModelLogs.allSatisfy { $0.message.count < 500 })
+    try await verifyPodcastsInRepo(expectedCount: feedCount)
+    #expect(captured.count < 10, "\(captured.map { "\($0.file): \($0.message)" })")
+    #expect(captured.allSatisfy { $0.message.count < 500 })
+    let summaries = captured.filter { $0.message.contains("imported \(feedCount) of") }
+    #expect(summaries.count == 1, "\(captured.map(\.message))")
+  }
+
+  @Test("stopping an OPML import logs its cancelled feeds once as a count")
+  func stopOPMLImportLogsCancelledCount() async throws {
+    let feedCount = 60
+    let opmlURL = createTestOPMLURL()
+    await opmlSession.respond(to: opmlURL, data: SyntheticFeed.opml(feedCount: feedCount))
+    let gated = ThreadSafe(true)
+    let release = AsyncSemaphore(value: 0)
+    await SyntheticFeed.respond(feedSession, episodes: 1) { _ in
+      if gated() { try await release.waitUnlessCancelled() }
+    }
+
+    let captured = try await LogCapture.withSink { sink in
+      let importTask = Task { await opmlViewModel.importOPMLFromURL(url: opmlURL) }
+      let opmlFile = try await waitForOPMLFile()
+      try await Wait.until(
+        { @MainActor in !opmlFile.downloading.isEmpty },
+        { "No feed started downloading" }
+      )
+      opmlViewModel.stopDownloading()
+      try await Wait.until(
+        { @MainActor in self.opmlViewModel.opmlFile == nil },
+        { "Stopping the import did not dismiss its sheet" }
+      )
+      gated(false)
+      await importTask.value
+      return sink.captured()
+    }
+
+    let importedCount = try await repo.allPodcasts(AppDB.noOp).count
+    let cancelledCount = feedCount - importedCount
+    #expect(cancelledCount > 0)
+    #expect(
+      captured.filter { $0.message.contains("failed to download/parse feed") }.isEmpty,
+      "\(captured.map(\.message))"
+    )
+    #expect(captured.count < 10, "\(captured.map { "\($0.file): \($0.message)" })")
+    let summaries = captured.filter { $0.message.contains(", \(cancelledCount) cancelled") }
+    #expect(summaries.count == 1, "\(captured.map(\.message))")
   }
 
   @Test("importing OPML keeps waiting feeds in their OPML order")
