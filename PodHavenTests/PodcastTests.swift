@@ -230,13 +230,19 @@ class PodcastTests {
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(subscriptionDate: nil))
     )
     #expect(podcastSeries2.podcast.subscribed == false)
+    let originalSubscriptionDate = 30.daysAgo
     let podcastSeries3 = try await repo.insertSeries(
-      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(subscriptionDate: Date()))
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(subscriptionDate: originalSubscriptionDate)
+      )
     )
     #expect(podcastSeries3.podcast.subscribed == true)
 
     let subscriptionTime = Date()
-    try await repo.markSubscribed([podcastSeries1.id, podcastSeries2.id, podcastSeries3.id])
+    let subscribedCount = try await repo.markSubscribed(
+      [podcastSeries1.id, podcastSeries2.id, podcastSeries3.id]
+    )
+    #expect(subscribedCount == 2)
 
     let fetchedPodcast1 = try await repo.podcastSeries(podcastSeries1.id)!
     #expect(fetchedPodcast1.podcast.subscribed == true)
@@ -246,7 +252,9 @@ class PodcastTests {
     #expect(fetchedPodcast2.podcast.subscriptionDate!.approximatelyEquals(subscriptionTime))
     let fetchedPodcast3 = try await repo.podcastSeries(podcastSeries3.id)!
     #expect(fetchedPodcast3.podcast.subscribed == true)
-    #expect(fetchedPodcast3.podcast.subscriptionDate!.approximatelyEquals(subscriptionTime))
+    #expect(
+      fetchedPodcast3.podcast.subscriptionDate!.approximatelyEquals(originalSubscriptionDate)
+    )
   }
 
   @Test("markUnsubscribed() successfully marks multiple podcasts as unsubscribed")

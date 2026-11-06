@@ -987,9 +987,16 @@ struct Repo: Databasing {
     guard !podcastIDs.isEmpty else { return 0 }
 
     return try await writer.write(level: level) { db in
-      try Podcast
-        .withIDs(podcastIDs)
-        .updateAll(db, Podcast.Columns.subscriptionDate.set(to: subscribed ? Date() : nil))
+      if subscribed {
+        try Podcast
+          .withIDs(podcastIDs)
+          .unsubscribed()
+          .updateAll(db, Podcast.Columns.subscriptionDate.set(to: Date()))
+      } else {
+        try Podcast
+          .withIDs(podcastIDs)
+          .updateAll(db, Podcast.Columns.subscriptionDate.set(to: nil))
+      }
     }
   }
 }
