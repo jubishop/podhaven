@@ -24,6 +24,12 @@ extension Container {
 
   nonisolated private static let log = Log.as(LogSubsystem.SettingsView.opml)
 
+  private enum FeedOutcome {
+    case finished
+    case failed(remarkable: Bool)
+    case cancelled
+  }
+
   var opmlImporting = false
   var opmlFile: OPMLFile?
 
@@ -113,12 +119,12 @@ extension Container {
       id: \.feedURL
     )
 
-    let (newFeedCount, failedFeedCount) = await withTaskGroup(of: Bool.self) { group in
+    let counts = await withTaskGroup(of: FeedOutcome.self) { group in
       for rssFeed in rssFeeds.feeds {
         if let podcast = allPodcasts[id: rssFeed.feedURL] {
           if !podcast.subscribed {
             group.addTask { [weak self, podcast] in
-              guard let self else { return false }
+              guard let self else { return .finished }
               do {
                 try await repo.markSubscribed(podcast.id)
                 if let podcast = try await repo.podcast(podcast.id) {
@@ -130,7 +136,7 @@ extension Container {
                   error
                 )
               }
-              return false
+              return .finished
             }
           }
           opmlFile.finished.append(OPMLOutline(status: .finished, text: rssFeed.title))
@@ -155,7 +161,7 @@ extension Container {
       )
       for outline in opmlFile.waiting {
         group.addTask { [weak self, opmlFile, outline] in
-          guard let self = self else { return false }
+          guard let self = self else { return .cancelled }
 
           let downloadTask = await downloadManager.addURL(outline.feedURL.rawValue)
 
@@ -163,7 +169,7 @@ extension Container {
             try await downloadTask.downloadBegan()
             await updateOutlineStatus(outline, in: opmlFile, to: .downloading)
             let podcastFeed = try await PodcastFeed.parse(downloadTask.downloadFinished())
-            let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+            let unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscriptionDate: Date())
 
             await Task { @MainActor [outline, unsavedPodcast] in
               outline.feedURL = unsavedPodcast.feedURL
@@ -171,18 +177,21 @@ extension Container {
             }
             .value
 
-            let podcastSeries = try await repo.insertSeries(
+            try await repo.insertSeries(
               UnsavedPodcastSeries(
                 unsavedPodcast: unsavedPodcast,
                 unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-              )
+              ),
+              level: .trace
             )
-            try await repo.markSubscribed(podcastSeries.id)
             await updateOutlineStatus(outline, in: opmlFile, to: .finished)
-            return false
+            return .finished
           } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
             await updateOutlineStatus(outline, in: opmlFile, to: .finished)
-            return false
+            return .finished
+          } catch is CancellationError {
+            await updateOutlineStatus(outline, in: opmlFile, to: .failed)
+            return .cancelled
           } catch {
             Self.log.caughtError(
               """
@@ -193,21 +202,35 @@ extension Container {
               level: .notice
             )
             await updateOutlineStatus(outline, in: opmlFile, to: .failed)
-            return ErrorKit.isRemarkable(error)
+            return .failed(remarkable: ErrorKit.isRemarkable(error))
           }
         }
       }
 
-      var failedFeedCount = 0
-      for await failed in group where failed {
-        failedFeedCount += 1
+      var counts = (new: newFeedCount, failed: 0, remarkable: 0, cancelled: 0)
+      for await outcome in group {
+        switch outcome {
+        case .finished:
+          break
+        case .failed(let remarkable):
+          counts.failed += 1
+          if remarkable { counts.remarkable += 1 }
+        case .cancelled:
+          counts.cancelled += 1
+        }
       }
-      return (newFeedCount, failedFeedCount)
+      return counts
     }
 
-    guard failedFeedCount > 0 else { return }
+    Self.log.info(
+      """
+      downloadOPMLFile: imported \(counts.new - counts.failed - counts.cancelled) \
+      of \(counts.new) new feeds; \(counts.failed) failed, \(counts.cancelled) cancelled
+      """
+    )
+    guard counts.remarkable > 0 else { return }
     Self.log.warning(
-      "downloadOPMLFile: \(failedFeedCount) of \(newFeedCount) new feeds failed to download or parse"
+      "downloadOPMLFile: \(counts.remarkable) of \(counts.new) new feeds failed to download or parse"
     )
   }
 

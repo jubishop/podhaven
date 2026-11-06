@@ -225,7 +225,8 @@ struct PodcastFeed: Sendable, Stringable {
 
   func toUnsavedPodcast(
     merging podcast: Podcast? = nil,
-    iTunesID: ITunesPodcastID? = nil
+    iTunesID: ITunesPodcastID? = nil,
+    subscriptionDate: Date? = nil
   ) throws -> UnsavedPodcast {
     try UnsavedPodcast(
       feedURL: updatedFeedURL,
@@ -234,6 +235,7 @@ struct PodcastFeed: Sendable, Stringable {
       image: image,
       description: rssPodcast.description,
       link: link ?? podcast?.link,
+      subscriptionDate: subscriptionDate,
       alwaysTranscribeNewEpisodes: podcast?.alwaysTranscribeNewEpisodes ?? false,
       freshnessCadence: podcast?.freshnessCadence
     )
