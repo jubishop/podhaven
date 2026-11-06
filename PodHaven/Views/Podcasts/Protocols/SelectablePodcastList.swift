@@ -13,10 +13,8 @@ import Logging
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] { get }
   var selectedSavedPodcastIDs: [Podcast.ID] { get }
 
-  // Must Implement: Iterates over selected podcasts, calling the closure for each one
-  func forEachSelectedPodcast(
-    perform action: @escaping @Sendable (Podcast) async throws -> Void
-  ) async
+  // Must Implement: Saves any unsaved selected podcasts and returns their IDs
+  func saveSelectedPodcasts() async -> [Podcast.ID]
 
   var anySelectedSubscribed: Bool { get }
   var anySelectedUnsubscribed: Bool { get }
@@ -99,9 +97,21 @@ extension SelectablePodcastList {
     Task { [weak self] in
       guard let self else { return }
 
-      await forEachSelectedPodcast { podcast in
-        try await Container.shared.repo().markSubscribed(podcast.id)
+      let podcastIDs = await saveSelectedPodcasts()
+      let subscribedCount: Int
+      do {
+        subscribedCount = try await repo.markSubscribed(podcastIDs, level: .trace)
+      } catch {
+        Self.log.caughtError(
+          "subscribeSelectedPodcasts: failed to subscribe \(podcastIDs.count) podcasts",
+          error
+        )
+        return
       }
+
+      Self.log.debug(
+        "subscribeSelectedPodcasts: subscribed \(subscribedCount) of \(selectedCount) selected podcasts"
+      )
     }
   }
 
@@ -211,42 +221,8 @@ extension SelectablePodcastList {
   }
 }
 
-extension SelectablePodcastList where PodcastType == Podcast {
-  func forEachSelectedPodcast(
-    perform action: @escaping @Sendable (Podcast) async throws -> Void
-  ) async {
-    for podcastWithMetadata in selectedPodcastsWithMetadata {
-      do {
-        try await action(podcastWithMetadata.podcast)
-      } catch {
-        Self.log.caughtError(
-          "forEachSelectedPodcast: action failed for \(podcastWithMetadata.podcast.title)",
-          error
-        )
-      }
-    }
-  }
-}
-
 extension SelectablePodcastList where PodcastType == ListablePodcast {
-  func forEachSelectedPodcast(
-    perform action: @escaping @Sendable (Podcast) async throws -> Void
-  ) async {
-    let repo = Container.shared.repo()
-
-    for podcastID in selectedSavedPodcastIDs {
-      do {
-        guard let podcastSeries = try await repo.podcastSeries(podcastID) else {
-          Self.log.warning("forEachSelectedPodcast: podcast \(podcastID) not found")
-          continue
-        }
-        try await action(podcastSeries.podcast)
-      } catch {
-        Self.log.caughtError(
-          "forEachSelectedPodcast: action failed for podcast \(podcastID)",
-          error
-        )
-      }
-    }
+  func saveSelectedPodcasts() async -> [Podcast.ID] {
+    selectedSavedPodcastIDs
   }
 }

@@ -181,7 +181,72 @@ import Testing
     }
   }
 
+  // MARK: - Subscribing a selection
+
+  @Test("subscribeSelectedPodcasts logs a count, not a line per podcast")
+  func subscribeSelectedLogsSummary() async throws {
+    let podcastCount = 50
+    for index in 0..<podcastCount {
+      _ = try await Create.podcast(
+        feedURL: FeedURL(SyntheticFeed.url(index)),
+        title: SyntheticFeed.title(index)
+      )
+    }
+    let viewModel = PodcastsListViewModel(title: "Test")
+    try await loadEntries(
+      into: viewModel,
+      podcasts: try await observatory.listablePodcastsWithEpisodeMetadata().get()
+    )
+    viewModel.podcastList.selectAllEntries()
+
+    let captured = try await LogCapture.withSink { sink in
+      viewModel.subscribeSelectedPodcasts()
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains { $0.message.contains("subscribed \(podcastCount) of \(podcastCount)") }
+        },
+        { "no subscribe summary among \(sink.captured().count) lines" }
+      )
+      return sink.captured()
+    }
+
+    let podcasts = try await repo.allPodcasts(AppDB.noOp)
+    #expect(podcasts.count == podcastCount)
+    #expect(podcasts.allSatisfy { $0.subscribed })
+    #expect(captured.count < 10, "\(captured.map { "\($0.file): \($0.message)" })")
+    #expect(captured.allSatisfy { $0.message.count < 500 })
+  }
+
+  @Test("subscribeSelectedPodcasts logs a failed subscribe")
+  func subscribeSelectedLogsFailure() async throws {
+    let setup = try await setupFourTaggedPodcasts()
+    let viewModel = PodcastsListViewModel(title: "Test")
+    try await loadEntries(into: viewModel, podcasts: setup.entries)
+    viewModel.podcastList.selectAllEntries()
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.markSubscribedBulkError(InjectedRepoError())
+
+    let captured = try await LogCapture.withSink { sink in
+      viewModel.subscribeSelectedPodcasts()
+      try await Wait.until(
+        { sink.captured().contains { $0.level == .error } },
+        { "no error logged among \(sink.captured().map(\.message))" }
+      )
+      return sink.captured()
+    }
+
+    let failures = captured.filter {
+      $0.level == .error && $0.message.contains("subscribeSelectedPodcasts")
+    }
+    #expect(failures.count == 1, "\(captured.map(\.message))")
+    let podcasts = try await repo.allPodcasts(AppDB.noOp)
+    #expect(podcasts.allSatisfy { !$0.subscribed })
+  }
+
   // MARK: - Helpers
+
+  private struct InjectedRepoError: Error, Sendable {}
 
   private struct Setup {
     let pod1: Podcast.ID

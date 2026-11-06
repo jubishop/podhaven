@@ -34,19 +34,17 @@ class SearchViewModel:
 
   var podcastList = PowerList<PodcastWithEpisodeMetadata<ListedPodcast>>()
 
-  func forEachSelectedPodcast(
-    perform action: @escaping @Sendable (Podcast) async throws -> Void
-  ) async {
-    await withTaskGroup(of: Podcast?.self) { group in
+  func saveSelectedPodcasts() async -> [Podcast.ID] {
+    await withTaskGroup(of: Podcast.ID?.self) { group in
       for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
         group.addTask {
           do {
-            return try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast()
+            return try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast().id
           } catch {
             Self.log
               .caughtError(
                 """
-                forEachSelectedPodcast: get/create failed \
+                saveSelectedPodcasts: get/create failed \
                 \(selectedPodcastWithMetadata.podcast.title)
                 """,
                 error
@@ -56,18 +54,11 @@ class SearchViewModel:
         }
       }
 
-      for await podcast in group {
-        if let podcast {
-          do {
-            try await action(podcast)
-          } catch {
-            Self.log.caughtError(
-              "forEachSelectedPodcast: action failed for \(podcast.title)",
-              error
-            )
-          }
-        }
+      var podcastIDs: [Podcast.ID] = []
+      for await podcastID in group {
+        if let podcastID { podcastIDs.append(podcastID) }
       }
+      return podcastIDs
     }
   }
 
