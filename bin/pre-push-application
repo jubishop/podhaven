@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Refuse a push until bin/check --full, which runs the tooling tests, passes on each pushed revision that changes tooling.
+
+The managed pre-push hook runs this after its document checks, with Git's arguments and standard input.
+Tooling is every path under bin/ and .agents/, whose tests read skill prose, and every other non-Markdown
+path outside the application targets. Each revision is checked in a disposable linked worktree, so
+uncommitted edits neither hide nor cause a failure, and bin/check --full reuses a recent pass for its tree."""
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+TOOLING = ("bin/", ".agents/")
+APPLICATION = ("PodHaven/", "PodHaven.xcodeproj/", "PodHavenIntents/", "PodHavenMacros/", "PodHavenShare/",
+               "PodHavenTests/", "PodHavenWidget/")
+# Git exports repository selectors and -c settings to hooks; the checks must see a plain environment.
+ENVIRONMENT = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+
+
+def git(*args, check=True):
+    result = subprocess.run(["git", *args], cwd=ROOT, env=ENVIRONMENT, text=True, capture_output=True)
+    if check and result.returncode:
+        raise RuntimeError(result.stderr.strip() or "Git command failed")
+    return result
+
+
+def commit_of(revision):
+    result = git("rev-parse", "--verify", "--quiet", revision + "^{commit}", check=False)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def changes_tooling(remote, commit):
+    """Report whether pushing commit over the remote's old commit, or as a new ref, changes tooling."""
+    if set(remote) != {"0"} and commit_of(remote):
+        paths = git("diff", "--no-renames", "--name-only", "-z", remote, commit).stdout
+    else:
+        paths = git("log", "-m", "--no-renames", "--name-only", "-z", "--format=", commit, "--not", "--remotes").stdout
+    return any(path.startswith(TOOLING) or not (path.endswith(".md") or path.startswith(APPLICATION))
+               for path in paths.split("\0") if path)
+
+
+def main():
+    revisions = {}
+    for line in sys.stdin.read().splitlines():
+        # Git passes the local ref as typed, such as ":/Fix the index", so only it can hold spaces.
+        fields = line.rsplit(" ", 3)
+        if (len(fields) != 4 or not fields[0] or not fields[2]
+                or not all(re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", fields[i]) for i in (1, 3))):
+            raise ValueError("Unexpected pre-push input: " + line)
+        _, local, remote_ref, remote = fields
+        commit = set(local) != {"0"} and commit_of(local)
+        if commit and commit not in revisions and changes_tooling(remote, commit):
+            revisions[commit] = remote_ref
+    for commit, remote_ref in revisions.items():
+        print("Running bin/check --full on " + commit[:12] + ", which changes repository tooling.", flush=True)
+        with tempfile.TemporaryDirectory(prefix="podhaven-pre-push-") as temporary:
+            checkout = Path(temporary) / "checkout"
+            git("-c", "core.hooksPath=/dev/null", "worktree", "add", "--quiet", "--detach", str(checkout), commit)
+            try:
+                code = subprocess.run([str(checkout / "bin/check"), "--full"], cwd=checkout, env=ENVIRONMENT).returncode
+            finally:
+                git("worktree", "remove", "--force", str(checkout))
+        if code:
+            print("bin/check --full failed for " + commit[:12] + ", pushed to " + remote_ref +
+                  ", so Git refused the push. Fix the tooling, commit, and push again.", file=sys.stderr)
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+        print(str(error) + "\nThe tooling pre-push check could not finish, so Git refused the push.", file=sys.stderr)
+        sys.exit(1)

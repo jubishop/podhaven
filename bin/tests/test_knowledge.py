@@ -22,8 +22,10 @@ class KnowledgeTests(unittest.TestCase):
         self.base = Path(self.temp.name).resolve()
         self.repo = self.base / "main checkout"
         self.repo.mkdir()
+        # The project's own pre-push gate would run its full tooling suite on these fixtures' pushes.
         for name in ("bin", "docs", "memory"):
-            shutil.copytree(SOURCE / name, self.repo / name, ignore=shutil.ignore_patterns("__pycache__"))
+            shutil.copytree(SOURCE / name, self.repo / name,
+                            ignore=shutil.ignore_patterns("__pycache__", "pre-push-application"))
         (self.repo / ".config").mkdir()
         shutil.copy2(SOURCE / ".config/knowledge.json", self.repo / ".config/knowledge.json")
         for name in ("README.md", "AGENTS.md", "LICENSE", "LICENSE.project-starter", ".gitignore", ".project-starter.json"):

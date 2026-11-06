@@ -454,6 +454,29 @@ hashes of its managed files, and the enabled `memory-audit` feature. Update
 them with Project Starter's `bin/sync`. PodHaven overrides no managed file:
 its Xcode preparation runs from the project-owned `bin/setup-application`.
 
+### Tooling pre-push gate
+
+**Decision — 2026-11-06:** The pre-push hook enforces the tooling tests, so a
+Project Starter sync or direct tooling push can't leave them failing on `main`
+unnoticed. After the managed
+[document checks](foundation/engineering-policy.md#pre-push-hook),
+`bin/pre-push-application` runs `bin/check --full` on each pushed revision
+that changes tooling, in a disposable linked worktree, and Git refuses the
+push when it fails or cannot run. Uncommitted edits neither hide nor cause a
+failure.
+
+Tooling is every path under `bin/` and `.agents/`, including pages, because
+tooling tests read skill prose, and every other non-Markdown path outside the
+application targets. Pushes that change only application targets or other
+Markdown skip the gate; application changes reach `main` through pull requests
+validated by `bin/test-all`. A new branch counts only its commits that no
+remote-tracking branch holds.
+
+The gate reuses a recent passing `bin/check --full` for the same tree, so
+running `bin/check --full` on the final clean commit before pushing makes the
+gate nearly instant. Rebasing changes the tree, so the gate runs the tooling
+tests again, which takes several minutes.
+
 ## Scheduled memory audit
 
 A weekly local job checks every active [memory](../memory/README.md) note
