@@ -48,6 +48,7 @@ actor RefreshManagerTests {
         unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
       )
     )
+    try await repo.updateLastUpdates([(series.podcast.id, 2.hoursAgo)])
     let updatedData = PreviewBundle.loadAsset(
       named: "hardfork_short_updated",
       in: .FeedRSS
@@ -87,6 +88,7 @@ actor RefreshManagerTests {
         unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
       )
     )
+    try await repo.updateLastUpdates([(series.podcast.id, 2.hoursAgo)])
     await session.respond(to: series.podcast.feedURL.rawValue, data: data)
     let submissionCount = fakeBGTaskScheduler.submissions.count
 

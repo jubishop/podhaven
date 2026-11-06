@@ -14,6 +14,7 @@ import Testing
   @DynamicInjected(\.opmlViewModel) private var opmlViewModel
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.podcastOPMLSession) private var podcastOPMLSession
+  @DynamicInjected(\.refreshManager) private var refreshManager
   @DynamicInjected(\.repo) private var repo
 
   var feedSession: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
@@ -295,6 +296,35 @@ import Testing
     #expect(captured.count < 10, "\(captured.map { "\($0.file): \($0.message)" })")
     let summaries = captured.filter { $0.message.contains(", \(cancelledCount) cancelled") }
     #expect(summaries.count == 1, "\(captured.map(\.message))")
+  }
+
+  @Test("importing OPML leaves just-fetched feeds out of the next refresh")
+  func importOPMLLeavesFetchedFeedsFresh() async throws {
+    let feedCount = 3
+    let opmlURL = createTestOPMLURL()
+    await opmlSession.respond(to: opmlURL, data: SyntheticFeed.opml(feedCount: feedCount))
+    await SyntheticFeed.respond(feedSession, episodes: 1)
+    let neverFetched = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: FeedURL(SyntheticFeed.url(feedCount)),
+          subscriptionDate: Date()
+        )
+      )
+    )
+
+    try await importOPML(from: opmlURL)
+    try await waitForAllComplete()
+    try await verifyPodcastsInRepo(expectedCount: feedCount + 1)
+    let importRequestCount = await feedSession.requests.count
+
+    try await refreshManager.performRefresh(
+      stalenessThreshold: .hours(1),
+      filter: Podcast.subscribed
+    )
+
+    let refreshRequests = await feedSession.requests.dropFirst(importRequestCount)
+    #expect(Array(refreshRequests) == [neverFetched.podcast.feedURL.rawValue])
   }
 
   @Test("importing OPML keeps waiting feeds in their OPML order")
