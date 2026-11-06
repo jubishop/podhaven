@@ -1,11 +1,11 @@
 {
-  "version": "3.8.0",
+  "version": "3.8.1",
   "source": "https://github.com/jubishop/project-starter",
-  "ref": "v3.8.0",
+  "ref": "v3.8.1",
   "managed": {
     "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
     "bin/_checks.py": "129d566c40266698c15ba309f6ccc9c71ab11bd28a4c3ec8e4f1145d8262257e",
-    "bin/_knowledge.py": "133ec6c66a29c31598dd36a3d6421c9b072fb9f7078bef06553f91a8a3b0da32",
+    "bin/_knowledge.py": "f258112eb454b47ff6dc9a400ec89bb7fa0f98ab12664d47273ffb181c49cef7",
     "bin/_memory_audit.py": "765a98dac8bbea849b10c9d73578cf087f47e20d04499a423c9c68fb22b45475",
     "bin/check": "1eb794b0695f4840553f89d5be40060c58a749e9b3a261ac6992b5617c3ab57f",
     "bin/doctor": "bafccb584f6e9fb9fe161d3021f9d3832dc1e51ccabb9bee5794b0222894b79f",

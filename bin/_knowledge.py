@@ -356,8 +356,10 @@ def check_push(updates):
     """Run bin/check --documents-only on each pushed revision that changes Markdown; return the exit status."""
     revisions = {}
     for line in updates.splitlines():
-        fields = line.split()
-        if len(fields) != 4:
+        # Git passes the local ref as typed, such as ":/Fix the index", so only it can hold spaces.
+        fields = line.rsplit(" ", 3)
+        if (len(fields) != 4 or not fields[0] or not fields[2]
+                or not all(re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", fields[i]) for i in (1, 3))):
             raise ValueError("Unexpected pre-push input: " + line)
         _, local, remote_ref, remote = fields
         commit = set(local) != {"0"} and git("rev-parse", "--verify", "--quiet", local + "^{commit}", optional=True)
