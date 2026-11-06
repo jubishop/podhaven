@@ -26,6 +26,7 @@ extension Container {
 
   private enum FeedOutcome {
     case finished
+    case inLibrary
     case failed(remarkable: Bool)
     case cancelled
   }
@@ -177,16 +178,27 @@ extension Container {
             }
             .value
 
-            try await repo.insertSeries(
-              UnsavedPodcastSeries(
-                unsavedPodcast: unsavedPodcast,
-                unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-              ),
-              level: .trace
-            )
-            await updateOutlineStatus(outline, in: opmlFile, to: .finished)
-            return .finished
-          } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
+            do {
+              try await repo.insertSeries(
+                UnsavedPodcastSeries(
+                  unsavedPodcast: unsavedPodcast,
+                  unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
+                ),
+                level: .trace
+              )
+            } catch let error as DatabaseError
+              where error.extendedResultCode == .SQLITE_CONSTRAINT_UNIQUE
+            {
+              let libraryPodcasts = try await repo.allPodcasts(
+                Podcast.Columns.feedURL == unsavedPodcast.feedURL
+              )
+              guard let libraryPodcast = libraryPodcasts.first else { throw error }
+              if !libraryPodcast.subscribed {
+                try await repo.markSubscribed(libraryPodcast.id, level: .trace)
+              }
+              await updateOutlineStatus(outline, in: opmlFile, to: .finished)
+              return .inLibrary
+            }
             await updateOutlineStatus(outline, in: opmlFile, to: .finished)
             return .finished
           } catch is CancellationError {
@@ -207,11 +219,13 @@ extension Container {
         }
       }
 
-      var counts = (new: newFeedCount, failed: 0, remarkable: 0, cancelled: 0)
+      var counts = (new: newFeedCount, inLibrary: 0, failed: 0, remarkable: 0, cancelled: 0)
       for await outcome in group {
         switch outcome {
         case .finished:
           break
+        case .inLibrary:
+          counts.inLibrary += 1
         case .failed(let remarkable):
           counts.failed += 1
           if remarkable { counts.remarkable += 1 }
@@ -224,8 +238,10 @@ extension Container {
 
     Self.log.info(
       """
-      downloadOPMLFile: imported \(counts.new - counts.failed - counts.cancelled) \
-      of \(counts.new) new feeds; \(counts.failed) failed, \(counts.cancelled) cancelled
+      downloadOPMLFile: imported \
+      \(counts.new - counts.inLibrary - counts.failed - counts.cancelled) \
+      of \(counts.new) new feeds; \(counts.inLibrary) resolved to library podcasts, \
+      \(counts.failed) failed, \(counts.cancelled) cancelled
       """
     )
     guard counts.remarkable > 0 else { return }
