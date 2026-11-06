@@ -258,6 +258,33 @@ import Testing
     #expect(summaries.count == 1, "\(captured.map(\.message))")
   }
 
+  @Test("importing OPML that resubscribes library podcasts logs a count, not a line per podcast")
+  func importOPMLResubscribeLogsSummary() async throws {
+    let podcastCount = 50
+    for index in 0..<podcastCount {
+      _ = try await Create.podcast(
+        feedURL: FeedURL(SyntheticFeed.url(index)),
+        title: SyntheticFeed.title(index)
+      )
+    }
+    let opmlURL = createTestOPMLURL()
+    await opmlSession.respond(to: opmlURL, data: SyntheticFeed.opml(feedCount: podcastCount))
+    await SyntheticFeed.respond(feedSession, episodes: 1)
+
+    let captured = try await LogCapture.withSink { sink in
+      try await importOPML(from: opmlURL)
+      try await waitForAllComplete()
+      return sink.captured()
+    }
+
+    try await verifyOPMLFileState(totalCount: podcastCount, finished: podcastCount, failed: 0)
+    try await verifyPodcastsInRepo(expectedCount: podcastCount)
+    #expect(captured.count < 10, "\(captured.map { "\($0.file): \($0.message)" })")
+    #expect(captured.allSatisfy { $0.message.count < 500 })
+    let summaries = captured.filter { $0.message.contains("\(podcastCount) resubscribed") }
+    #expect(summaries.count == 1, "\(captured.map(\.message))")
+  }
+
   @Test("stopping an OPML import logs its cancelled feeds once as a count")
   func stopOPMLImportLogsCancelledCount() async throws {
     let feedCount = 60

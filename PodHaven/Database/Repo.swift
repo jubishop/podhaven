@@ -696,8 +696,8 @@ struct Repo: Databasing {
   // MARK: - Podcast Attribute Writers
 
   @discardableResult
-  func markSubscribed(_ podcastIDs: [Podcast.ID]) async throws -> Int {
-    try await _setSubscribedColumn(podcastIDs, to: true, level: .debug)
+  func markSubscribed(_ podcastIDs: [Podcast.ID], level: Logger.Level) async throws -> Int {
+    try await _setSubscribedColumn(podcastIDs, to: true, level: level)
   }
 
   @discardableResult
