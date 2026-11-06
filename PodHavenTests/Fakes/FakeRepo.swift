@@ -846,9 +846,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
-  func markSubscribed(_ podcastIDs: [Podcast.ID]) async throws -> Int {
+  func markSubscribed(_ podcastIDs: [Podcast.ID], level: Logger.Level) async throws -> Int {
     recordCall(methodName: "markSubscribed", parameters: podcastIDs)
-    return try await repo.markSubscribed(podcastIDs)
+    return try await repo.markSubscribed(podcastIDs, level: level)
   }
 
   @discardableResult
