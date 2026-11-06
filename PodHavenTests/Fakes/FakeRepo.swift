@@ -25,6 +25,10 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // subsequent calls reach the real repo.
   nonisolated let episodeFetchError = ThreadSafe<(any Error & Sendable)?>(nil)
 
+  // One-shot error to throw from `markSubscribed(_ podcastIDs:level:)`.
+  // Cleared on use so subsequent calls reach the real repo.
+  nonisolated let markSubscribedBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
+
   // When true, the next `episode(_:Episode.ID)` call parks until
   // `resumeAllEpisodeFetchSuspensions()` fires; cleared on use. Counts are
   // nonisolated so tests poll without contending for the actor (same pattern
@@ -848,6 +852,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   @discardableResult
   func markSubscribed(_ podcastIDs: [Podcast.ID], level: Logger.Level) async throws -> Int {
     recordCall(methodName: "markSubscribed", parameters: podcastIDs)
+    if let injected = markSubscribedBulkError({ error in
+      let captured = error
+      error = nil
+      return captured
+    }) {
+      throw injected
+    }
     return try await repo.markSubscribed(podcastIDs, level: level)
   }
 
