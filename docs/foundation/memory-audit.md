@@ -220,7 +220,9 @@ error. A second rejection fails the run. Both attempts' logs are kept.
 When the checks pass and notes changed, the runner commits the change in the
 clone with the checkout's Git identity, adds the `commitTrailers`, and pushes
 it to `main` on every push URL of `origin`. Git hooks stay off in the clone;
-none gates a memory-only commit. If `main` moved during the audit, the commit
+none gates a memory-only commit, and the runner has already run the
+[pre-push hook](engineering-policy.md#pre-push-hook)'s document checks on
+the proposed tree. If `main` moved during the audit, the commit
 is rebased onto it, unless the move changed `memory/`; then the run fails and
 the next run audits the new notes. The local checkout is never touched; pull
 to see the change.

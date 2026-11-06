@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
-EVENTS = ("post-checkout", "post-commit", "post-merge", "post-rewrite")
+EVENTS = ("post-checkout", "post-commit", "post-merge", "post-rewrite", "pre-push")
 
 
 def stamp():
@@ -326,7 +326,7 @@ def install_hooks():
     bundled = ROOT / "bin/hooks"
     if mode == "external":
         print("Preserved external hooks: " + str(active))
-        print("Verify all four forwarding calls as described in docs/foundation/knowledge-search.md#existing-hooks.")
+        print("Verify every forwarding call as described in docs/foundation/knowledge-search.md#existing-hooks.")
         return
     configured = git("config", "--get", "core.hooksPath", optional=True)
     existing = active.is_dir() and any(p.is_file() and os.access(p, os.X_OK)
@@ -339,6 +339,59 @@ def install_hooks():
             raise RuntimeError("Missing executable hook: bin/hooks/" + event)
     git("config", "--local", "core.hooksPath", "bin/hooks")
     print("Active hooks: bin/hooks")
+
+
+def changes_markdown(remote, commit):
+    """Report whether pushing commit over the remote's old commit, or as a new ref, changes a Markdown file."""
+    known = set(remote) != {"0"} and git("rev-parse", "--verify", "--quiet", remote + "^{commit}", optional=True)
+    # Without renames, a page renamed away still counts as removed.
+    if known:
+        paths = git("diff", "--no-renames", "--name-only", "-z", remote, commit)
+    else:
+        paths = git("log", "-m", "--no-renames", "--name-only", "-z", "--format=", commit, "--not", "--remotes")
+    return any(path.endswith(".md") for path in paths.split("\0"))
+
+
+def check_push(updates):
+    """Run bin/check --documents-only on each pushed revision that changes Markdown; return the exit status."""
+    revisions = {}
+    for line in updates.splitlines():
+        fields = line.split()
+        if len(fields) != 4:
+            raise ValueError("Unexpected pre-push input: " + line)
+        _, local, remote_ref, remote = fields
+        commit = set(local) != {"0"} and git("rev-parse", "--verify", "--quiet", local + "^{commit}", optional=True)
+        if commit and commit not in revisions and changes_markdown(remote, commit):
+            revisions[commit] = remote_ref
+    status = 0
+    for commit, remote_ref in revisions.items():
+        # Check the pushed revision itself, not the working tree, in a disposable clone with hooks off.
+        with tempfile.TemporaryDirectory(prefix="project-starter-push-") as snapshot:
+            common = git("rev-parse", "--path-format=absolute", "--git-common-dir")
+            git("-c", "core.hooksPath=/dev/null", "clone", "--quiet", "--shared", "--no-checkout", common, snapshot)
+            git("-c", "core.hooksPath=/dev/null", "checkout", "--quiet", "--detach", commit, root=Path(snapshot))
+            check = Path(snapshot) / "bin/check"
+            if not os.access(check, os.X_OK):
+                print("Skipped the document checks for " + commit[:12] + ", which has no bin/check.", file=sys.stderr)
+                continue
+            result = subprocess.run([str(check), "--documents-only"], cwd=snapshot, env=git_environment(),
+                                    text=True, capture_output=True)
+        if result.returncode:
+            print("bin/check --documents-only failed for " + commit[:12] + ", pushed to " + remote_ref +
+                  ", so Git refused the push:\n" + (result.stderr or result.stdout).rstrip() +
+                  "\nFix the pages, commit, and push again.", file=sys.stderr)
+            status = 1
+    return status
+
+
+def pre_push_application(arguments, updates):
+    """Run the project-owned pre-push hook as Git would run it; return its exit status."""
+    application = ROOT / "bin/pre-push-application"
+    if not application.exists():
+        return 0
+    if not os.access(application, os.X_OK):
+        raise RuntimeError("bin/pre-push-application must be executable")
+    return subprocess.run([str(application), *arguments], cwd=ROOT, input=updates, text=True).returncode
 
 
 def worker_active():
@@ -616,12 +669,15 @@ def cli(action):
             return bool(report["issues"])
         if action == "hook":
             if not args or args[0] not in EVENTS:
-                raise ValueError("Usage: bin/knowledge-hook <post-checkout|post-commit|post-merge|post-rewrite> [hook arguments]")
+                raise ValueError("Usage: bin/knowledge-hook <" + "|".join(EVENTS) + "> [hook arguments]")
             event = args[0]
             with lock_file(cache() / "hooks.lock"):
                 observed = read_json(cache() / "hooks.json")
                 observed[event] = {"at": stamp(), "path": str(hooks_path())}
                 atomic_json(cache() / "hooks.json", observed)
+            if event == "pre-push":
+                updates = sys.stdin.read()
+                return check_push(updates) or pre_push_application(args[1:], updates)
             new_checkout = event == "post-checkout" and len(args) >= 4 and args[3] == "1" and args[1] and set(args[1]) == {"0"}
             if new_checkout:
                 prepare(ROOT)
@@ -643,6 +699,10 @@ def cli(action):
         print(str(error), file=sys.stderr)
         if action == "knowledge":
             print("Report this failure to the user immediately and attempt repair. If repair fails, pause knowledge-dependent work until the user approves a fallback. Do not silently bypass QMD with rg or direct reads.", file=sys.stderr)
+        if action == "hook" and args[:1] == ["pre-push"]:
+            # Fail closed: a push the hook could not check may carry broken pages.
+            print("The pre-push hook could not finish, so Git refused the push. Run bin/doctor.", file=sys.stderr)
+            return 1
         if action == "hook":
             print("Knowledge hook failed; Git can continue. Run bin/doctor.", file=sys.stderr)
             return 0

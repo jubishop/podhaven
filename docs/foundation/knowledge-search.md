@@ -120,8 +120,8 @@ only after checking for uncommitted and unpushed work, then verify
 
 Setup does not replace an active `core.hooksPath` or executable hooks in the
 default hooks directory. Integrate through the existing manager instead: each
-of the four events calls `bin/knowledge-hook` with the event name and its
-original arguments.
+of the four refresh events and `pre-push` calls `bin/knowledge-hook` with the
+event name and its original arguments.
 
 ```sh
 repo_root=$(git rev-parse --show-toplevel) || exit 1
@@ -129,7 +129,11 @@ repo_root=$(git rev-parse --show-toplevel) || exit 1
 ```
 
 Place the call before any unconditional `exit`, and preserve the hook's exit
-status, arguments, and stdin; the helper does not read stdin. Then run
+status, arguments, and stdin. The helper reads stdin only for `pre-push`,
+which runs the
+[pre-push document checks](engineering-policy.md#pre-push-hook): pass it the
+hook's stdin, saving a copy first if the hook reads stdin too, and exit
+nonzero when the helper does, so Git refuses the push. Then run
 `git config --local knowledge.hooks external` and `bin/setup`. Verify each
 event in a disposable checkout. `bin/doctor` lists the forwarding events it
 has observed, which shows past runs, not that a later edit works.

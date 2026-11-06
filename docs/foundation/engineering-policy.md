@@ -210,12 +210,33 @@ as a successful `bin/check --full` for that tree. Worktrees of a repository
 share the record, and `bin/check --full --no-reuse` runs the application checks
 regardless.
 
+### Pre-push hook
+
+The managed `pre-push` hook enforces the document checks for text. When a
+push changes a Markdown file, it runs `bin/check --documents-only` on each
+pushed revision in a disposable clone, so uncommitted edits neither hide nor
+cause a failure, and Git refuses the push when the check fails or cannot run.
+A new branch counts as changing Markdown when one of its commits that no
+remote-tracking branch holds does. Other pushes skip it; their kind of change
+already runs `bin/check`.
+
+Put a project's own pre-push checks in an executable
+`bin/pre-push-application`. Once the document checks pass, the hook runs it
+from the checkout root with Git's arguments, standard input, and
+environment, and its failure refuses the push.
+
+Never push past it with `git push --no-verify` to deliver pages that fail.
+Bypass it only when the hook itself is broken, after
+`bin/check --documents-only` passes on the pushed revision, and repair the
+hook with `bin/doctor`.
+
 ### Hosted CI
 
 CI runs `bin/check --full` for pull requests and pushes to the default
 branch. Its triggers set `paths-ignore: ['**.md']`, so a change to Markdown
 alone starts no hosted run; the local `bin/check --documents-only` that
-[text](#kinds-of-change) passes before it is pushed checks it instead. When
+[text](#kinds-of-change) passes before it is pushed checks it instead, and the
+[pre-push hook](#pre-push-hook) enforces it. When
 Markdown affects behavior, such as pages the application serves or tests
 read, use a `paths` filter instead: `'**'`, then `'!**.md'`, then those
 pages. A workflow skipped by a path filter reports no status, so do not make
@@ -237,7 +258,8 @@ bypass failures in hand-written pages.
 
 A Project Starter sync writes text and development code that Project
 Starter's release checks already exercised, so it goes directly to the default
-branch without further checks. With no manual follow-up, commit only the
+branch without further checks; the [pre-push hook](#pre-push-hook) still
+checks the pages it changes. With no manual follow-up, commit only the
 synced files, with `[skip ci]` in the message so
 GitHub Actions starts no push workflows, and push from a checkout with no
 other unpushed commits. Never bypass enforced branch protection.
