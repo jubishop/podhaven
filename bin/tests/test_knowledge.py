@@ -588,32 +588,45 @@ fcntl.flock = flock
     def test_external_hook_integration_preserves_behavior_arguments_and_stdin(self):
         hooks = self.repo / "custom hooks"
         hooks.mkdir()
-        for event in ("post-checkout", "post-commit", "post-merge", "post-rewrite"):
+        for event in ("post-checkout", "post-commit", "post-merge", "post-rewrite", "pre-push"):
             path = hooks / event
             path.write_text("#!" + sys.executable + '''
 import json, os, subprocess, sys
 from pathlib import Path
 event = Path(__file__).name
-payload = sys.stdin.read() if event == "post-rewrite" else ""
+payload = sys.stdin.read() if event in ("post-rewrite", "pre-push") else ""
 with open(os.environ["OLD_HOOKS"], "a") as log:
     log.write(json.dumps({"event": event, "args": sys.argv[1:], "stdin": payload}) + "\\n")
-subprocess.run([str(Path.cwd() / "bin/knowledge-hook"), event, *sys.argv[1:]], check=True)
+subprocess.run([str(Path.cwd() / "bin/knowledge-hook"), event, *sys.argv[1:]], input=payload, text=True, check=True)
 sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
 ''')
             path.chmod(0o755)
         self.run_command("git", "config", "core.hooksPath", "custom hooks")
         self.run_command("git", "config", "knowledge.hooks", "external")
         self.run_command("bin/setup")
-        stdin_file = self.base / "rewritten commits"
-        stdin_file.write_text("old new\n")
-        for event, args in (("post-checkout", ["1" * 40, "2" * 40, "1"]), ("post-commit", []),
-                            ("post-merge", ["0"]), ("post-rewrite", ["amend"])):
+        self.commit()
+        head = self.run_command("git", "rev-parse", "HEAD").stdout.strip()
+        stdin_file = self.base / "hook input"
+        inputs = {"post-rewrite": "old new\n", "pre-push": "refs/heads/main " + head + " refs/heads/main " + "0" * 40 + "\n"}
+        for event, args in (("post-checkout", ["1" * 40, "2" * 40, "1"]), ("post-commit", []), ("post-merge", ["0"]),
+                            ("post-rewrite", ["amend"]), ("pre-push", ["origin", "/remote"])):
+            stdin_file.write_text(inputs.get(event, ""))
             self.run_command("git", "hook", "run", "--to-stdin=" + str(stdin_file), event, "--", *args)
         self.drain()
-        originals = [json.loads(line) for line in (self.base / "old-hooks.jsonl").read_text().splitlines()]
-        self.assertEqual(originals[-1]["args"], ["amend"])
-        self.assertEqual(originals[-1]["stdin"], "old new\n")
+        originals = {entry["event"]: entry for entry in map(json.loads, (self.base / "old-hooks.jsonl").read_text().splitlines())}
+        self.assertEqual(originals["post-rewrite"]["args"], ["amend"])
+        self.assertEqual(originals["post-rewrite"]["stdin"], "old new\n")
+        self.assertEqual(originals["pre-push"]["stdin"], inputs["pre-push"])
         self.run_command("bin/doctor")
+        # The forwarded pre-push refuses a push whose pages fail the document checks.
+        (self.repo / "docs/broken.md").write_text("# Missing status\n")
+        self.commit()
+        stdin_file.write_text("refs/heads/main " + self.run_command("git", "rev-parse", "HEAD").stdout.strip() +
+                              " refs/heads/main " + head + "\n")
+        result = self.run_command("git", "hook", "run", "--to-stdin=" + str(stdin_file), "pre-push", "--",
+                                  "origin", "/remote", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("docs/broken.md: missing frontmatter", result.stderr)
         result = self.run_command("git", "hook", "run", "post-commit", extra={"OLD_HOOK_EXIT": "7"}, check=False)
         self.assertEqual(result.returncode, 7)
         self.drain()
