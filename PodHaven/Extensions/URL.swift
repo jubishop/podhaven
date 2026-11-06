@@ -30,6 +30,15 @@ extension URL: Stringable {
     return url
   }
 
+  func convertToHTTPSURL(relativeTo base: URL) throws(URLError) -> URL {
+    guard let url = URL(string: absoluteString, relativeTo: base)?.absoluteURL, url.scheme != nil
+    else {
+      throw URLError(.badURL, userInfo: ["message": "URL: \(self) cannot resolve against \(base)."])
+    }
+
+    return try url.convertToHTTPSURL()
+  }
+
   func validate() throws(URLError) {
     guard let scheme = self.scheme, scheme == "https"
     else { throw URLError(.badURL, userInfo: ["message": "URL: \(self) must use https scheme."]) }

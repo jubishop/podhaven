@@ -242,6 +242,92 @@ struct PodcastFeedTests {
     #expect(try feed.toUnsavedPodcast().feedURL == newURL)
   }
 
+  @Test(
+    "parsing a feed resolves content URLs against the fetched URL and upgrades HTTP to HTTPS",
+    arguments: [
+      ("", "https://example.com/podcast/"),
+      ("/", "https://example.com/"),
+      ("../", "https://example.com/"),
+      ("//cdn.example.com/", "https://cdn.example.com/"),
+      ("http://cdn.example.com/", "https://cdn.example.com/"),
+      ("https://cdn.example.com/", "https://cdn.example.com/"),
+    ]
+  )
+  func parseFeedWithContentURLs(prefix: String, expectedPrefix: String) async throws {
+    let feed = try await PodcastFeed.parse(
+      contentFeedData(
+        podcastImage: "\(prefix)art.jpg",
+        podcastLink: "\(prefix)show",
+        enclosure: "\(prefix)episode.mp3",
+        episodeImage: "\(prefix)episode.jpg",
+        episodeLink: "\(prefix)episode",
+        transcript: "\(prefix)episode.vtt"
+      ),
+      from: FeedURL(URL(string: "https://example.com/podcast/rss")!)
+    )
+
+    let unsavedPodcast = try feed.toUnsavedPodcast()
+    #expect(unsavedPodcast.image == URL(string: "\(expectedPrefix)art.jpg"))
+    #expect(unsavedPodcast.link == URL(string: "\(expectedPrefix)show"))
+
+    let episode = try #require(feed.toUnsavedEpisodes().first)
+    let mediaURL = MediaURL(URL(string: "\(expectedPrefix)episode.mp3")!)
+    #expect(episode.mediaURL == mediaURL)
+    #expect(episode.guid == GUID(mediaURL.rawValue.absoluteString))
+    #expect(episode.image == URL(string: "\(expectedPrefix)episode.jpg"))
+    #expect(episode.link == URL(string: "\(expectedPrefix)episode"))
+    #expect(
+      episode.publisherTranscriptReferences.map(\.url)
+        == [URL(string: "\(expectedPrefix)episode.vtt")!]
+    )
+  }
+
+  @Test("parsing a feed drops optional content URLs and skips enclosures that aren't HTTP")
+  func parseFeedWithNonHTTPContentURLs() async throws {
+    let feed = try await PodcastFeed.parse(
+      contentFeedData(
+        podcastImage: "https://example.com/art.jpg",
+        podcastLink: "ftp://example.com/show",
+        enclosure: "https://example.com/episode.mp3",
+        episodeImage: "ftp://example.com/episode.jpg",
+        episodeLink: "mailto:host@example.com",
+        transcript: "ftp://example.com/episode.vtt",
+        skippedEnclosure: "ftp://example.com/skipped.mp3"
+      ),
+      from: FeedURL(URL(string: "https://example.com/podcast/rss")!)
+    )
+
+    #expect(try feed.toUnsavedPodcast().link == nil)
+
+    let episodes = feed.toUnsavedEpisodes()
+    #expect(
+      episodes.map(\.mediaURL) == [MediaURL(URL(string: "https://example.com/episode.mp3")!)]
+    )
+    let episode = try #require(episodes.first)
+    #expect(episode.image == nil)
+    #expect(episode.link == nil)
+    #expect(episode.publisherTranscriptReferences.isEmpty)
+  }
+
+  @Test("parsing a feed rejects a podcast image that isn't HTTP")
+  func parseFeedWithNonHTTPPodcastImage() async throws {
+    let data = contentFeedData(
+      podcastImage: "ftp://example.com/art.jpg",
+      podcastLink: "https://example.com/show",
+      enclosure: "https://example.com/episode.mp3",
+      episodeImage: "https://example.com/episode.jpg",
+      episodeLink: "https://example.com/episode",
+      transcript: "https://example.com/episode.vtt"
+    )
+
+    await #expect(throws: DecodingError.self) {
+      try await PodcastFeed.parse(
+        data,
+        from: FeedURL(URL(string: "https://example.com/podcast/rss")!)
+      )
+    }
+  }
+
   @Test("parsing a feed keeps its valid episodes when an item fails to decode")
   func parseFeedWithUndecodableItem() async throws {
     let xml = """
@@ -457,6 +543,48 @@ struct PodcastFeedTests {
             <guid>episode</guid>
             <enclosure url="https://example.com/episode.mp3" type="audio/mpeg"/>
           </item>
+        </channel>
+      </rss>
+      """
+    return Data(xml.utf8)
+  }
+
+  private func contentFeedData(
+    podcastImage: String,
+    podcastLink: String,
+    enclosure: String,
+    episodeImage: String,
+    episodeLink: String,
+    transcript: String,
+    skippedEnclosure: String? = nil
+  ) -> Data {
+    let skippedItem =
+      if let skippedEnclosure {
+        """
+        <item>
+          <title>Skipped</title>
+          <enclosure url="\(skippedEnclosure)" type="audio/mpeg"/>
+        </item>
+        """
+      } else {
+        ""
+      }
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0" version="2.0">
+        <channel>
+          <title>Content URLs</title>
+          <description>Feed with content URLs</description>
+          <link>\(podcastLink)</link>
+          <itunes:image href="\(podcastImage)"/>
+          <item>
+            <title>Episode</title>
+            <link>\(episodeLink)</link>
+            <enclosure url="\(enclosure)" type="audio/mpeg"/>
+            <itunes:image href="\(episodeImage)"/>
+            <podcast:transcript url="\(transcript)" type="text/vtt"/>
+          </item>
+          \(skippedItem)
         </channel>
       </rss>
       """
