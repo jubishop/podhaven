@@ -35,11 +35,12 @@ import UIKit
     alert: PodHaven.Alert,
     sheet: PodHaven.Sheet,
     state: ProbeState
-  ) throws -> UIWindow {
+  ) async throws -> UIWindow {
     let host = UIHostingController(rootView: ProbeRoot(alert: alert, sheet: sheet, state: state))
     let scene = try #require(
       UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
     )
+    try await keepTestSceneOnScreen(scene)
     let window = UIWindow(windowScene: scene)
     window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
     window.rootViewController = host
@@ -91,7 +92,7 @@ import UIKit
     let sheet = Container.shared.sheet()
     alert.config = nil
     sheet.config = nil
-    let window = try makeWindow(alert: alert, sheet: sheet, state: ProbeState())
+    let window = try await makeWindow(alert: alert, sheet: sheet, state: ProbeState())
     defer { cleanUpImmediately(window) }
 
     alert(title: "Root Probe", "root message") {
@@ -121,7 +122,7 @@ import UIKit
     let sheet = Container.shared.sheet()
     alert.config = nil
     sheet.config = nil
-    let window = try makeWindow(alert: alert, sheet: sheet, state: ProbeState())
+    let window = try await makeWindow(alert: alert, sheet: sheet, state: ProbeState())
     defer { cleanUpImmediately(window) }
 
     sheet(id: "probe") { Text("sheet content") }
@@ -152,7 +153,7 @@ import UIKit
     let sheet = Container.shared.sheet()
     alert.config = nil
     sheet.config = nil
-    let window = try makeWindow(alert: alert, sheet: sheet, state: ProbeState())
+    let window = try await makeWindow(alert: alert, sheet: sheet, state: ProbeState())
     defer { cleanUpImmediately(window) }
 
     sheet(id: "probe") { Text("sheet content") }
@@ -178,7 +179,7 @@ import UIKit
     let sheet = Container.shared.sheet()
     alert.config = nil
     sheet.config = nil
-    let window = try makeWindow(alert: alert, sheet: sheet, state: ProbeState())
+    let window = try await makeWindow(alert: alert, sheet: sheet, state: ProbeState())
     defer { cleanUpImmediately(window) }
 
     sheet(id: "probe") { Text("sheet content") }
@@ -207,7 +208,7 @@ import UIKit
     alert.config = nil
     sheet.config = nil
     let state = ProbeState()
-    let window = try makeWindow(alert: alert, sheet: sheet, state: state)
+    let window = try await makeWindow(alert: alert, sheet: sheet, state: state)
     defer { cleanUpImmediately(window) }
 
     sheet(id: "probe") { Text("sheet content") }
@@ -234,7 +235,7 @@ import UIKit
     alert.config = nil
     sheet.config = nil
     let state = ProbeState()
-    let window = try makeWindow(alert: alert, sheet: sheet, state: state)
+    let window = try await makeWindow(alert: alert, sheet: sheet, state: state)
     defer { cleanUpImmediately(window) }
 
     sheet(id: "first") {

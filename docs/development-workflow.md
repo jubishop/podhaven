@@ -179,6 +179,13 @@ Hosted view tests use `withHostedTestWindow` to perform their first layout
 inside the test's dependency context and await UIKit appearance and teardown.
 Keep views installed and preserve their rendered assertions.
 
+On My Mac, hiding the test host, such as with Hide Others from another app,
+or minimizing its window moves its scene to the background, where SwiftUI
+stops rendering hosted views. `withHostedTestWindow` therefore keeps the
+scene's window on screen while the app is hidden and brings back a window
+that already left, without activating the app. A test that builds its own
+window in that scene calls `keepTestSceneOnScreen` first.
+
 ### Current-revision Swift validation
 
 Use this full-suite procedure when the [validation policy](#checks-and-project-extensions)

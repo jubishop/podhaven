@@ -6,6 +6,22 @@ import UIKit
 
 @testable import PodHaven
 
+@Observable @MainActor private final class HostedText {
+  var value = ""
+}
+
+private struct HostedTextView: View {
+  let text: HostedText
+
+  var body: some View {
+    Text(text.value)
+      .font(.largeTitle)
+      .foregroundStyle(.black)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .background(.white)
+  }
+}
+
 @Suite("Hosted test window lifecycle", .container)
 @MainActor struct HostedTestWindowTests {
   @Test("window scopes finish appearance before inspection and disappearance before returning")
@@ -30,5 +46,46 @@ import UIKit
     }
     #expect(host.disappeared.isOpen)
     #expect(host.view.window == nil)
+  }
+
+  @Test(
+    "hiding the app keeps hosted windows on screen and rendering",
+    .enabled(if: ProcessInfo.processInfo.isiOSAppOnMac, "Only an app on a Mac can be hidden")
+  )
+  func hiddenAppKeepsRendering() async throws {
+    let text = HostedText()
+    let host = TestHostingController(rootView: HostedTextView(text: text))
+    try await withHostedTestWindow(host) { window in
+      let application = try #require(macApplication)
+      let sceneWindows = try macSceneWindows(of: application)
+      try #require(!sceneWindows.isEmpty)
+      let blankRendering = try Self.render(window)
+
+      application.perform(NSSelectorFromString("hide:"), with: nil)
+      defer { application.perform(NSSelectorFromString("unhideWithoutActivation")) }
+      try await Wait.until(
+        { @MainActor in application.value(forKey: "isHidden") as? Bool == true },
+        { "The app did not hide" }
+      )
+      #expect(
+        sceneWindows.allSatisfy { $0.value(forKey: "isVisible") as? Bool == true },
+        "Hiding the app took the hosted scene's window off screen"
+      )
+
+      text.value = "Rendered while hidden"
+      try await Wait.until(
+        { @MainActor in try Self.render(window) != blankRendering },
+        { "The hosted view did not render while the app was hidden" }
+      )
+      #expect(window.windowScene?.activationState == .foregroundActive)
+    }
+  }
+
+  private static func render(_ window: UIWindow) throws -> Data {
+    let image = UIGraphicsImageRenderer(bounds: window.bounds)
+      .image { _ in
+        window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+      }
+    return try #require(image.pngData())
   }
 }
