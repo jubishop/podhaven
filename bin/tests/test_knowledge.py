@@ -32,10 +32,10 @@ class KnowledgeTests(unittest.TestCase):
             shutil.copy2(SOURCE / name, self.repo / name)
         if (SOURCE / ".envrc").exists():
             shutil.copy2(SOURCE / ".envrc", self.repo / ".envrc")
-        # Copy only source files directly linked by the knowledge pages.
+        # Copy only source files directly linked by the copied pages, whose links the fixture's checks validate.
         sys.path.insert(0, str(SOURCE / "bin"))
         from _checks import link_targets, local_target
-        for page in (SOURCE / "docs").rglob("*.md"):
+        for page in [SOURCE / page.relative_to(self.repo) for page in self.repo.rglob("*.md")]:
             for target in link_targets(page.read_text()):
                 resolved, _ = local_target(page, target)
                 if resolved and resolved.is_file() and resolved.is_relative_to(SOURCE):

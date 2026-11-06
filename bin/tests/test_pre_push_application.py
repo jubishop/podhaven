@@ -84,13 +84,14 @@ class PrePushApplicationTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, result.stderr)
         self.assertIn("bin/check --full failed", result.stderr)
         self.assertEqual(self.remote_head(), accepted)
+        (self.repo / "bin/repaired").write_text("")
         repaired = self.commit("Repair the tooling")
         result = self.push("main")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.remote_head(), repaired)
         calls = self.check_calls()
-        # The repair restores the first pushed tree, so the hook reuses that tree's pass.
-        self.assertEqual(len(calls), 2)
+        # The repair is a new tree, so its own check passes before Git accepts it.
+        self.assertEqual(len(calls), 3)
         # Each check ran in a disposable checkout that the hook removed afterward.
         for call in calls:
             self.assertFalse(Path(call).exists(), call)
