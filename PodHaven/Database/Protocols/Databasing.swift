@@ -191,7 +191,7 @@ protocol Databasing: Sendable {
   func markSubscribed(_ podcastIDs: [Podcast.ID]) async throws -> Int
 
   @discardableResult
-  func markSubscribed(_ podcastID: Podcast.ID) async throws -> Bool
+  func markSubscribed(_ podcastID: Podcast.ID, level: Logger.Level) async throws -> Bool
 
   @discardableResult
   func markUnsubscribed(_ podcastIDs: [Podcast.ID]) async throws -> Int
@@ -219,5 +219,10 @@ extension Databasing {
     -> PodcastSeries
   {
     try await insertSeries(unsavedPodcastSeries, level: .debug)
+  }
+
+  @discardableResult
+  func markSubscribed(_ podcastID: Podcast.ID) async throws -> Bool {
+    try await markSubscribed(podcastID, level: .debug)
   }
 }
