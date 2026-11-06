@@ -218,6 +218,40 @@ import Testing
     #expect(captured.allSatisfy { $0.message.count < 500 })
   }
 
+  @Test("subscribeSelectedPodcasts keeps an already-subscribed podcast's subscription date")
+  func subscribeSelectedKeepsExistingSubscriptionDate() async throws {
+    let originalSubscriptionDate = 30.daysAgo
+    let alreadySubscribed = try await Create.podcast(
+      feedURL: FeedURL(URL(string: "https://example.com/already-subscribed.rss")!),
+      title: "Already Subscribed",
+      subscriptionDate: originalSubscriptionDate
+    )
+    let unsubscribed = try await Create.podcast(
+      feedURL: FeedURL(URL(string: "https://example.com/unsubscribed.rss")!),
+      title: "Unsubscribed"
+    )
+    let viewModel = PodcastsListViewModel(title: "Test")
+    try await loadEntries(
+      into: viewModel,
+      podcasts: try await observatory.listablePodcastsWithEpisodeMetadata().get()
+    )
+    viewModel.podcastList.selectAllEntries()
+
+    let subscriptionTime = Date()
+    viewModel.subscribeSelectedPodcasts()
+    try await Wait.until(
+      { [repo] in try await repo.podcastSeries(unsubscribed.id)?.podcast.subscribed == true },
+      { "\(unsubscribed.title) was never subscribed" }
+    )
+
+    let newlySubscribed = try #require(await repo.podcastSeries(unsubscribed.id)?.podcast)
+    let newDate = try #require(newlySubscribed.subscriptionDate)
+    #expect(newDate.approximatelyEquals(subscriptionTime))
+    let kept = try #require(await repo.podcastSeries(alreadySubscribed.id)?.podcast)
+    let keptDate = try #require(kept.subscriptionDate)
+    #expect(keptDate.approximatelyEquals(originalSubscriptionDate))
+  }
+
   @Test("subscribeSelectedPodcasts logs a failed subscribe")
   func subscribeSelectedLogsFailure() async throws {
     let setup = try await setupFourTaggedPodcasts()
