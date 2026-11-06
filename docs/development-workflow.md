@@ -384,8 +384,10 @@ Sentry. Never delete a Sentry issue; its history goes with it.
 material changes. The user requested this to avoid full app runs for changes
 that cannot affect functionality. Comments and formatting-only changes use
 relevant syntax or formatting checks, including before push or merge. Since
-2026-10-15, documentation needs no checks, as text under the
-[foundation policy](foundation/engineering-policy.md#kinds-of-change).
+2026-10-15, documentation is text under the
+[foundation policy](foundation/engineering-policy.md#kinds-of-change), and
+since 2026-11-05 it needs only `bin/check --documents-only` before it is
+pushed.
 
 Assess the complete change being delivered, not only the last commit. Changes
 to application behavior, data or migrations, dependencies, executable tooling,
@@ -401,7 +403,7 @@ Choose validation by the changed files and the stage of the work:
 | Work | Check |
 | --- | --- |
 | Discussion, planning, or read-only inspection | No checks. |
-| Documentation-only delivery | No checks. |
+| Documentation-only delivery | `bin/check --documents-only`. |
 | Comments or formatting only | Relevant syntax or formatting checks; no full app suite. |
 | Ordinary application changes | Focused Swift build and suite-level tests locally during development. |
 | Tooling edits during development | Focused tooling tests and `bin/check`. |

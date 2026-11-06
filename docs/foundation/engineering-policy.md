@@ -31,7 +31,7 @@ behavior. Use red-green TDD when practical:
 
 A test that passes both before and after the change does not demonstrate it.
 When testing first is impractical, say why, keep automated coverage, and
-report what was verified. Documentation-only edits need no tests, not
+report what was verified. Documentation-only edits need document checks, not
 new behavior tests.
 
 Test through external surfaces: user-visible outcomes, public interfaces, and
@@ -149,7 +149,8 @@ How a change reaches the default branch depends on what it touches:
 
 1. **Text** is not code: Markdown, including docs, memory, and agent
    instructions, and the prose of AI skills. Commit it directly on the default
-   branch and push it without checks or a pull request.
+   branch and push it without a pull request once
+   `bin/check --documents-only` passes. It needs no tests or other checks.
 2. **Development code** doesn't run in production: tests, CI workflows, hooks,
    check scripts, development and deploy tooling, scripts in AI skills, and the
    configuration they read. Run the [checks](#checks) it needs, then commit it
@@ -183,7 +184,11 @@ A project's `.shellcheckrc` configures ShellCheck, such as
 Choose checks by the change and its stage:
 
 - Discussion, planning, and read-only work: none.
-- Text, and Project Starter syncs: none.
+- Text: `bin/check --documents-only`, once per batch. The document checks
+  read every tracked Markdown file, so a broken link or missing index entry
+  that skips them fails the next unrelated change. A change of another kind
+  that touches Markdown runs them too; every `bin/check` mode includes them.
+- Project Starter syncs: none.
 - Development code: the checks that exercise it, such as the changed tests or
   the tool's own tests. Changes to tests as a whole, CI, hooks, or the checks
   themselves run `bin/check --full` locally.
@@ -209,7 +214,8 @@ regardless.
 
 CI runs `bin/check --full` for pull requests and pushes to the default
 branch. Its triggers set `paths-ignore: ['**.md']`, so a change to Markdown
-alone starts no hosted run and needs no local check. When
+alone starts no hosted run; the local `bin/check --documents-only` that
+[text](#kinds-of-change) passes before it is pushed checks it instead. When
 Markdown affects behavior, such as pages the application serves or tests
 read, use a `paths` filter instead: `'**'`, then `'!**.md'`, then those
 pages. A workflow skipped by a path filter reports no status, so do not make
