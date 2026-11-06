@@ -19,7 +19,6 @@ extension Container {
 @Observable @MainActor class OPMLViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
-  @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
   nonisolated private static let log = Log.as(LogSubsystem.SettingsView.opml)
@@ -119,46 +118,33 @@ extension Container {
       id: \.feedURL
     )
 
-    let counts = await withTaskGroup(of: FeedOutcome.self) { group in
-      for rssFeed in rssFeeds.feeds {
-        if let podcast = allPodcasts[id: rssFeed.feedURL] {
-          if !podcast.subscribed {
-            group.addTask { [weak self, podcast] in
-              guard let self else { return .finished }
-              do {
-                try await repo.markSubscribed(podcast.id)
-                if let podcast = try await repo.podcast(podcast.id) {
-                  try await refreshManager.refreshSeries(podcast: podcast)
-                }
-              } catch {
-                Self.log.caughtError(
-                  "downloadOPML: subscribe/refresh failed \(podcast.toString)",
-                  error
-                )
-              }
-              return .finished
-            }
-          }
-          opmlFile.finished.append(OPMLOutline(status: .finished, text: rssFeed.title))
-        } else {
-          opmlFile.waiting.append(
-            OPMLOutline(
-              status: .waiting,
-              feedURL: rssFeed.feedURL,
-              text: rssFeed.title
-            )
+    var unsubscribedIDs: [Podcast.ID] = []
+    for rssFeed in rssFeeds.feeds {
+      if let podcast = allPodcasts[id: rssFeed.feedURL] {
+        if !podcast.subscribed { unsubscribedIDs.append(podcast.id) }
+        opmlFile.finished.append(OPMLOutline(status: .finished, text: rssFeed.title))
+      } else {
+        opmlFile.waiting.append(
+          OPMLOutline(
+            status: .waiting,
+            feedURL: rssFeed.feedURL,
+            text: rssFeed.title
           )
-        }
+        )
       }
+    }
+    let resubscribedCount = try await repo.markSubscribed(unsubscribedIDs, level: .trace)
 
-      self.opmlFile = opmlFile
-      let newFeedCount = opmlFile.waiting.count
-      Self.log.debug(
-        """
-        downloadOPMLFile: downloading \(newFeedCount) new feeds; \
-        \(opmlFile.finished.count) already in the library
-        """
-      )
+    self.opmlFile = opmlFile
+    let newFeedCount = opmlFile.waiting.count
+    Self.log.debug(
+      """
+      downloadOPMLFile: downloading \(newFeedCount) new feeds; \
+      \(opmlFile.finished.count) already in the library, \(resubscribedCount) resubscribed
+      """
+    )
+
+    let counts = await withTaskGroup(of: FeedOutcome.self) { group in
       for outline in opmlFile.waiting {
         group.addTask { [weak self, opmlFile, outline] in
           guard let self = self else { return .cancelled }
