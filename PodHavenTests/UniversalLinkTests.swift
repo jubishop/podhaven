@@ -49,6 +49,7 @@ import Testing
     arguments: ["artisanalsoftware.com", "www.artisanalsoftware.com"]
   )
   func newPodcast(host: String) async throws {
+    Container.shared.fakeDate().freeze()
     let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
     let feedData = PreviewBundle.loadAsset(named: "lenny", in: .FeedRSS)
     let session = podcastFeedSession as! FakeDataFetchable

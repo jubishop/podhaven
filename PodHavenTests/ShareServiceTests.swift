@@ -23,6 +23,7 @@ import Testing
 
   @Test("that a new apple podcast URL is correctly imported")
   func newApplePodcastURLImportsSuccessfully() async throws {
+    Container.shared.fakeDate().freeze()
     #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
 
     let itunesData = PreviewBundle.loadAsset(named: "lenny", in: .iTunesResults)
@@ -280,6 +281,7 @@ import Testing
 
   @Test("that a plain feed URL is imported successfully")
   func plainFeedURLImportsSuccessfully() async throws {
+    Container.shared.fakeDate().freeze()
     let feedURL = URL(
       string: "https://changelog.com/podcast/feed"
     )!
@@ -301,6 +303,7 @@ import Testing
 
   @Test("that a new episode URL with feedURL and guid navigates to specific episode")
   func newEpisodeURLWithGUIDNavigatesToEpisode() async throws {
+    Container.shared.fakeDate().freeze()
     #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
 
     let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
@@ -377,6 +380,7 @@ import Testing
 
   @Test("that an episode URL with invalid guid falls back to podcast")
   func episodeURLWithInvalidGUIDFallsBackToPodcast() async throws {
+    Container.shared.fakeDate().freeze()
     let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
     let feedData = PreviewBundle.loadAsset(named: "lenny", in: .FeedRSS)
     await feedSession.respond(to: feedURL, data: feedData)
@@ -458,6 +462,7 @@ import Testing
 
   @Test("that a podcast URL with only feedURL (no guid) navigates to podcast")
   func podcastURLWithoutGUIDNavigatesToPodcast() async throws {
+    Container.shared.fakeDate().freeze()
     let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
     let feedData = PreviewBundle.loadAsset(named: "lenny", in: .FeedRSS)
     await feedSession.respond(to: feedURL, data: feedData)

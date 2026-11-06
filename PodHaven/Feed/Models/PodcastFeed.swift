@@ -188,12 +188,13 @@ struct PodcastFeed: Sendable, Stringable {
   }
 
   @concurrent static func parse(_ data: Data, from: FeedURL) async throws -> PodcastFeed {
+    let fetchDate = Container.shared.dateProvider().now
     log.trace("Parsing data of size \(data.count) from \(from)")
     guard XMLParser(data: data).parse() else {
       throw PodcastFeedError.notXML
     }
     let rssPodcast = try await PodcastRSS.parse(data)
-    return try PodcastFeed(rssPodcast: rssPodcast, from: from)
+    return try PodcastFeed(rssPodcast: rssPodcast, from: from, fetchDate: fetchDate)
   }
 
   // MARK: - Instance Definition
@@ -201,6 +202,7 @@ struct PodcastFeed: Sendable, Stringable {
   let feedURL: FeedURL
   let updatedFeedURL: FeedURL
 
+  private let fetchDate: Date
   private let rssPodcast: PodcastRSS.Podcast
   private let link: URL?
   private let image: URL
@@ -208,7 +210,8 @@ struct PodcastFeed: Sendable, Stringable {
 
   var episodeMediaGUIDs: [MediaGUID] { episodeFeeds.map(\.mediaGUID) }
 
-  private init(rssPodcast: PodcastRSS.Podcast, from: FeedURL) throws {
+  private init(rssPodcast: PodcastRSS.Podcast, from: FeedURL, fetchDate: Date) throws {
+    self.fetchDate = fetchDate
     self.rssPodcast = rssPodcast
     let feedURL = try Self.absoluteHTTPSURL(rssPodcast.feedURL) ?? from.convertToHTTPSURL()
     self.feedURL = feedURL
@@ -296,6 +299,7 @@ struct PodcastFeed: Sendable, Stringable {
       image: image,
       description: rssPodcast.description,
       link: link ?? podcast?.link,
+      lastUpdate: fetchDate,
       subscriptionDate: subscriptionDate,
       alwaysTranscribeNewEpisodes: podcast?.alwaysTranscribeNewEpisodes ?? false,
       freshnessCadence: podcast?.freshnessCadence
