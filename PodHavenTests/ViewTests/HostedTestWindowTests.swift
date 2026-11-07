@@ -22,6 +22,15 @@ private struct HostedTextView: View {
   }
 }
 
+@objc private final class WindowCommand: NSObject {
+  @objc let action: Selector?
+  @objc let tag = 0
+
+  init(_ action: String) {
+    self.action = NSSelectorFromString(action)
+  }
+}
+
 @Suite("Hosted test window lifecycle", .container)
 @MainActor struct HostedTestWindowTests {
   @Test("window scopes finish appearance before inspection and disappearance before returning")
@@ -78,6 +87,52 @@ private struct HostedTextView: View {
         { "The hosted view did not render while the app was hidden" }
       )
       #expect(window.windowScene?.activationState == .foregroundActive)
+    }
+  }
+
+  @Test(
+    "hosted scene windows join every Space and can't be minimized",
+    .enabled(
+      if: ProcessInfo.processInfo.isiOSAppOnMac,
+      "Only a Mac window has Spaces and minimizes"
+    )
+  )
+  func sceneWindowsStayOnActiveSpace() async throws {
+    let host = TestHostingController(rootView: Text("Scene window availability"))
+    try await withHostedTestWindow(host) { _ in
+      let sceneWindows = try macSceneWindows(of: try #require(macApplication))
+      try #require(!sceneWindows.isEmpty)
+      let buttonSelector = NSSelectorFromString("standardWindowButton:")
+      let validateSelector = NSSelectorFromString("validateUserInterfaceItem:")
+      let miniaturizeButton = 1
+      for sceneWindow in sceneWindows {
+        let behavior = try #require(sceneWindow.value(forKey: "collectionBehavior") as? UInt)
+        #expect(
+          behavior & canJoinAllSpaces != 0,
+          "Switching Spaces would leave the hosted scene's window behind"
+        )
+
+        let standardWindowButton = unsafeBitCast(
+          sceneWindow.method(for: buttonSelector),
+          to: (@convention(c) (NSObject, Selector, Int) -> NSObject?).self
+        )
+        let minimizeButton = try #require(
+          standardWindowButton(sceneWindow, buttonSelector, miniaturizeButton)
+        )
+        #expect(
+          minimizeButton.value(forKey: "enabled") as? Bool == false,
+          "The window's minimize button is enabled"
+        )
+
+        let validate = unsafeBitCast(
+          sceneWindow.method(for: validateSelector),
+          to: (@convention(c) (NSObject, Selector, AnyObject) -> Bool).self
+        )
+        #expect(
+          !validate(sceneWindow, validateSelector, WindowCommand("performMiniaturize:")),
+          "The window's Minimize command is enabled"
+        )
+      }
     }
   }
 

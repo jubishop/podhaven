@@ -22,6 +22,10 @@ final class TestHostingController<Content: View>: UIHostingController<Content> {
   }
 }
 
+// AppKit's NSWindow.CollectionBehavior.canJoinAllSpaces and NSWindow.StyleMask.miniaturizable.
+let canJoinAllSpaces: UInt = 1 << 0
+private let miniaturizable: UInt = 1 << 2
+
 // UIKit doesn't expose the AppKit application and windows that host an iOS app on a Mac.
 @MainActor
 var macApplication: NSObject? {
@@ -36,15 +40,20 @@ func macSceneWindows(of application: NSObject) throws -> [NSObject] {
   return windows.filter { $0.isKind(of: sceneWindowClass) }
 }
 
-// On a Mac, hiding the app or minimizing its window moves the scene to the background, where
-// SwiftUI stops updating hosted views. Keep the window on screen while the app is hidden, and
-// bring it back without activating the app if it already left.
+// On a Mac, hiding the app, minimizing its window, or switching to a Space without the window
+// moves the scene to the background, where SwiftUI stops updating hosted views. Keep the window
+// on screen while the app is hidden, on every Space, and unminimizable, and bring it back without
+// activating the app if it already left.
 @MainActor
 func keepTestSceneOnScreen(_ scene: UIWindowScene) async throws {
   guard let application = macApplication else { return }
   let windows = try macSceneWindows(of: application)
   for window in windows {
     window.setValue(false, forKey: "canHide")
+    let behavior = try #require(window.value(forKey: "collectionBehavior") as? UInt)
+    window.setValue(behavior | canJoinAllSpaces, forKey: "collectionBehavior")
+    let styleMask = try #require(window.value(forKey: "styleMask") as? UInt)
+    window.setValue(styleMask & ~miniaturizable, forKey: "styleMask")
   }
   guard scene.activationState == .background else { return }
   for window in windows {
