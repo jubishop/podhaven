@@ -183,13 +183,14 @@ On My Mac, hiding the test host, such as with Hide Others from another app,
 minimizing its window, or switching to a Space without its window moves its
 scene to the background, where SwiftUI stops rendering hosted views.
 `withHostedTestWindow` therefore keeps the scene's window on screen while the
-app is hidden, shows it on every desktop, and disables its minimize button and
-Minimize command. It also brings back a minimized or hidden window without
-activating the app, which covers a window minimized another way, such as with
-Minimize All. A test that builds its own window in that scene calls
-`keepTestSceneOnScreen` first. Joining every desktop doesn't put the window on
-another app's full-screen Space, so switching to one can still background the
-scene.
+app is hidden, shows it on every desktop and on other apps' full-screen
+Spaces, and disables its minimize button and Minimize command. Only an
+accessory app's windows can join another app's full-screen Space, so the test
+host becomes one, without a Dock icon or menu bar, and its window then appears
+over a full-screen app during a run. It also brings back a minimized or hidden
+window without activating the app, which covers a window minimized another
+way, such as with Minimize All. A test that builds its own window in that
+scene calls `keepTestSceneOnScreen` first.
 
 ### Current-revision Swift validation
 

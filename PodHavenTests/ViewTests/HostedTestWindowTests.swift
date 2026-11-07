@@ -91,7 +91,7 @@ private struct HostedTextView: View {
   }
 
   @Test(
-    "hosted scene windows join every Space and can't be minimized",
+    "hosted scene windows join every Space, even another app's full-screen one, and can't be minimized",
     .enabled(
       if: ProcessInfo.processInfo.isiOSAppOnMac,
       "Only a Mac window has Spaces and minimizes"
@@ -100,7 +100,12 @@ private struct HostedTextView: View {
   func sceneWindowsStayOnActiveSpace() async throws {
     let host = TestHostingController(rootView: Text("Scene window availability"))
     try await withHostedTestWindow(host) { _ in
-      let sceneWindows = try macSceneWindows(of: try #require(macApplication))
+      let application = try #require(macApplication)
+      #expect(
+        application.value(forKey: "activationPolicy") as? Int == accessoryActivationPolicy,
+        "Only an accessory app's windows can join another app's full-screen Space"
+      )
+      let sceneWindows = try macSceneWindows(of: application)
       try #require(!sceneWindows.isEmpty)
       let buttonSelector = NSSelectorFromString("standardWindowButton:")
       let validateSelector = NSSelectorFromString("validateUserInterfaceItem:")
@@ -110,6 +115,10 @@ private struct HostedTextView: View {
         #expect(
           behavior & canJoinAllSpaces != 0,
           "Switching Spaces would leave the hosted scene's window behind"
+        )
+        #expect(
+          behavior & canJoinAllApplications != 0,
+          "Switching to another app's full-screen Space would leave the hosted scene's window behind"
         )
 
         let standardWindowButton = unsafeBitCast(

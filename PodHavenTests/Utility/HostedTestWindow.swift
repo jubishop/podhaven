@@ -22,8 +22,11 @@ final class TestHostingController<Content: View>: UIHostingController<Content> {
   }
 }
 
-// AppKit's NSWindow.CollectionBehavior.canJoinAllSpaces and NSWindow.StyleMask.miniaturizable.
+// AppKit's NSApplication.ActivationPolicy.accessory, NSWindow.CollectionBehavior.canJoinAllSpaces
+// and .canJoinAllApplications, and NSWindow.StyleMask.miniaturizable.
+let accessoryActivationPolicy = 1
 let canJoinAllSpaces: UInt = 1 << 0
+let canJoinAllApplications: UInt = 1 << 18
 private let miniaturizable: UInt = 1 << 2
 
 // UIKit doesn't expose the AppKit application and windows that host an iOS app on a Mac.
@@ -42,16 +45,31 @@ func macSceneWindows(of application: NSObject) throws -> [NSObject] {
 
 // On a Mac, hiding the app, minimizing its window, or switching to a Space without the window
 // moves the scene to the background, where SwiftUI stops updating hosted views. Keep the window
-// on screen while the app is hidden, on every Space, and unminimizable, and bring it back without
+// on screen while the app is hidden, on every Space, including other apps' full-screen Spaces,
+// which only an accessory app's windows can join, and unminimizable, and bring it back without
 // activating the app if it already left.
 @MainActor
 func keepTestSceneOnScreen(_ scene: UIWindowScene) async throws {
   guard let application = macApplication else { return }
+  let setActivationPolicy = NSSelectorFromString("setActivationPolicy:")
+  let setPolicy = unsafeBitCast(
+    application.method(for: setActivationPolicy),
+    to: (@convention(c) (NSObject, Selector, Int) -> Bool).self
+  )
+  // It reports failure when the app is already an accessory, so check the policy instead.
+  _ = setPolicy(application, setActivationPolicy, accessoryActivationPolicy)
+  try #require(
+    application.value(forKey: "activationPolicy") as? Int == accessoryActivationPolicy,
+    "The test host did not become an accessory app"
+  )
   let windows = try macSceneWindows(of: application)
   for window in windows {
     window.setValue(false, forKey: "canHide")
     let behavior = try #require(window.value(forKey: "collectionBehavior") as? UInt)
-    window.setValue(behavior | canJoinAllSpaces, forKey: "collectionBehavior")
+    window.setValue(
+      behavior | canJoinAllSpaces | canJoinAllApplications,
+      forKey: "collectionBehavior"
+    )
     let styleMask = try #require(window.value(forKey: "styleMask") as? UInt)
     window.setValue(styleMask & ~miniaturizable, forKey: "styleMask")
   }
