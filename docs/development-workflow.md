@@ -433,7 +433,8 @@ needs verification.
 [shared check modes](foundation/engineering-policy.md#checks). Here,
 `bin/check-application` runs every repository tooling test: the suites in
 `bin/tests` together, then each Python skill and helper suite under `.agents`
-as its own script. It runs every suite even after one fails. Every mode also
+on its own through unittest, so a suite runs its tests even without a main
+block. It runs every suite even after one fails. Every mode also
 verifies the generated active-memory index. Keep the existing Swift build and
 test requirements for application changes; documentation-only delivery does
 not require building the Swift app.

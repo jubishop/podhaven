@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Run podhaven's repository tooling tests; bin/check --full calls this after foundation checks.
 
-The suites in bin/tests run together, then each skill and helper suite under .agents runs as its own script.
-Every suite runs even after one fails. Swift application validation stays separate; see
-docs/development-workflow.md."""
+The suites in bin/tests run together, then unittest runs each skill and helper suite under .agents on its own,
+so a suite without a main block still runs its tests. Every suite runs even after one fails. Swift application
+validation stays separate; see docs/development-workflow.md."""
 import os
 from pathlib import Path
 import subprocess
@@ -14,8 +14,9 @@ files = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-st
                        cwd=ROOT, check=True, capture_output=True).stdout
 suites = [("bin/tests", ["-m", "unittest", "discover", "-s", "bin/tests", "-p", "test_*.py", "-v"])]
 for name in sorted({os.fsdecode(name) for name in files.split(b"\0") if name}):
-    if Path(name).match("test_*.py") and (ROOT / name).is_file():
-        suites.append((name, [name, "--verbose"]))
+    path = Path(name)
+    if path.match("test_*.py") and (ROOT / path).is_file():
+        suites.append((name, ["-m", "unittest", "discover", "-s", str(path.parent), "-p", path.name, "-v"]))
 failed = []
 for label, arguments in suites:
     print("Running " + label, flush=True)
