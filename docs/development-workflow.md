@@ -431,14 +431,17 @@ needs verification.
 
 `bin/check --documents-only`, `bin/check`, and `bin/check --full` follow the
 [shared check modes](foundation/engineering-policy.md#checks). Here,
-`bin/check-application` runs all repository tooling tests in `bin/tests`, and
-every mode also verifies the generated active-memory index. Keep the existing
-Swift build and test requirements for application changes; documentation-only
-delivery does not require building the Swift app.
+`bin/check-application` runs every repository tooling test: the suites in
+`bin/tests` together, then each Python skill and helper suite under `.agents`
+as its own script. It runs every suite even after one fails. Every mode also
+verifies the generated active-memory index. Keep the existing Swift build and
+test requirements for application changes; documentation-only delivery does
+not require building the Swift app.
 
-`bin/test-all` includes the separate application, macro, and skill tests and
+`bin/test-all` includes the separate application and macro tests and
 `bin/check --full --no-reuse`, which reruns the tooling tests, including the
-shell tests in `bin/tests`, instead of reusing an earlier pass.
+skill tests and the shell tests in `bin/tests`, instead of reusing an earlier
+pass.
 `bin/check --full` alone is not a full test run.
 `bin/tests` covers the knowledge worker and cache ownership and artifact
 repair; Project Starter tests the shared memory audit. `bin/smoke-knowledge` checks real QMD retrieval and
@@ -467,10 +470,10 @@ its Xcode preparation runs from the project-owned `bin/setup-application`.
 Project Starter sync or direct tooling push can't leave them failing on `main`
 unnoticed. After the managed
 [document checks](foundation/engineering-policy.md#pre-push-hook),
-`bin/pre-push-application` runs `bin/check --full` on each pushed revision
-that changes tooling, in a disposable linked worktree, and Git refuses the
-push when it fails or cannot run. Uncommitted edits neither hide nor cause a
-failure.
+`bin/pre-push-application` runs `bin/check --full`, which includes the skill
+and helper tests under `.agents`, on each pushed revision that changes tooling,
+in a disposable linked worktree, and Git refuses the push when it fails or
+cannot run. Uncommitted edits neither hide nor cause a failure.
 
 Tooling is every path under `bin/` and `.agents/`, including pages, because
 tooling tests read skill prose, and every other non-Markdown path outside the

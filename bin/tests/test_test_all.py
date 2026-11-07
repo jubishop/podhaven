@@ -141,8 +141,9 @@ elif name == 'sample':
         os.kill(int(args[0]), signal.SIGTERM)
 elif name == 'check' and '--no-reuse' not in args and (base / 'check-passed').exists():
     print('Reused the application checks that passed earlier; bin/check --full --no-reuse runs them again.')
-elif name in ('check', 'lint-swift-format', 'test_skill.py', 'test_helper.py'):
-    print('Ran ' + os.environ.get('TEST_PYTHON_COUNT', '1') + ' test in 0.001s')
+elif name in ('check', 'lint-swift-format'):
+    for count in os.environ.get('TEST_PYTHON_COUNT', '1').split(','):
+        print('Ran ' + count + ' test in 0.001s')
     print('OK (skipped=1)' if os.environ.get('TEST_PYTHON_SKIPPED') else 'OK')
     if os.environ.get('TEST_FAIL_STAGE') == name: sys.exit(23)
     if name == 'check': (base / 'check-passed').touch()
@@ -224,10 +225,10 @@ class TestAllTests(unittest.TestCase):
         result = self.run_all()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
-        self.assertIn(["check", ["--full", "--no-reuse"]], events)
+        self.assertEqual([args for name, args in events if name == "check"], [["--full", "--no-reuse"]])
         self.assertTrue(any(name == "xcodebuild" and args[:1] == ["test"] for name, args in events))
-        self.assertTrue(any(name == "test_skill.py" for name, _ in events))
-        self.assertTrue(any(name == "test_helper.py" for name, _ in events))
+        # bin/check --full runs the skill and helper suites, so bin/test-all doesn't run them again.
+        self.assertFalse(any(name in ("test_skill.py", "test_helper.py") for name, _ in events))
         self.assertFalse((self.base / "shell-ran").exists())
         self.assertEqual(self.report()["checkout"]["revision"], self.git("rev-parse", "HEAD"))
         self.assertEqual(self.report()["checkout"]["status"], "")
@@ -423,9 +424,13 @@ class TestAllTests(unittest.TestCase):
                 self.assertEqual(self.report()["result"], "failed")
 
     def test_empty_python_suite_fails(self):
-        result = self.run_all(TEST_PYTHON_COUNT="0")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(self.report()["result"], "failed")
+        # The tooling log holds one count per suite, so an empty suite fails even before others that ran.
+        for counts in ("0", "0,1"):
+            with self.subTest(counts=counts):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
+                result = self.run_all(TEST_PYTHON_COUNT=counts)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.report()["result"], "failed")
 
     def test_missing_bundle_reports_launch_failure_without_result_inspection(self):
         result = self.run_all(TEST_MISSING_BUNDLE="1")
@@ -454,8 +459,8 @@ class TestAllTests(unittest.TestCase):
         result = self.run_all(SDKROOT="/wrong/MacOSX.sdk")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_skill_failure_stops_before_swift_build(self):
-        result = self.run_all(TEST_FAIL_STAGE="test_skill.py")
+    def test_tooling_failure_stops_before_swift_build(self):
+        result = self.run_all(TEST_FAIL_STAGE="check")
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.report()["result"], "failed")
         events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]

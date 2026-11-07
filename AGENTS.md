@@ -38,7 +38,7 @@ take precedence over this block and the foundation pages wherever they differ.
 - `docs/`: PR-reviewed design docs and research; update [`docs/README.md`](docs/README.md) when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
-`bin/check --full` runs the repository tooling tests in `bin/tests` through `bin/check-application`; run it after setup or tooling changes and before a tooling PR or release. The pre-push hook refuses a push that changes tooling until `bin/check --full` passes on the pushed revision; see the [tooling pre-push gate](docs/development-workflow.md#tooling-pre-push-gate). Use the existing Swift build and test checks for application changes. Read the [development workflow](docs/development-workflow.md) for cache cleanup and recovery.
+`bin/check --full` runs the repository tooling tests in `bin/tests` and `.agents` through `bin/check-application`; run it after setup or tooling changes and before a tooling PR or release. The pre-push hook refuses a push that changes tooling until `bin/check --full` passes on the pushed revision; see the [tooling pre-push gate](docs/development-workflow.md#tooling-pre-push-gate). Use the existing Swift build and test checks for application changes. Read the [development workflow](docs/development-workflow.md) for cache cleanup and recovery.
 
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.

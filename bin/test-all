@@ -141,7 +141,7 @@ def run(command, output, name, *, check=True, require_unittest=False, pass_fds=(
     if require_unittest:
         contents = log.read_text(errors="replace")
         counts = re.findall(r"^Ran (\d+) tests? in ", contents, re.M)
-        if not counts or int(counts[-1]) == 0 or re.search(r"\bskipped=[1-9]\d*", contents):
+        if not counts or not all(map(int, counts)) or re.search(r"\bskipped=[1-9]\d*", contents):
             raise RuntimeError(f"{name} has skipped or missing tests; see {log}")
     return returncode
 
@@ -274,14 +274,6 @@ def main():
         prune_evidence(cache, output)
 
         run([str(ROOT / "bin/check"), "--full", "--no-reuse"], output, "tooling", require_unittest=True)
-        files = subprocess.check_output(
-            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ".agents"],
-            cwd=ROOT, env=TEST_ENVIRONMENT)
-        tests = sorted({Path(os.fsdecode(name)) for name in files.split(b"\0") if name})
-        for path in tests:
-            if (ROOT / path).is_file() and path.match("test_*.py"):
-                run([sys.executable, "-B", str(path), "--verbose"], output,
-                    str(path).replace("/", "_"), require_unittest=True)
 
         run([str(ROOT / "bin/lint-swift-format")], output, "swift-lint")
         run(["xcrun", "swift", "test", "--package-path", "PodHavenMacros"], output, "macros")

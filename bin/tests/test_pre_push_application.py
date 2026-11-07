@@ -19,6 +19,21 @@ with open(os.environ["CHECK_CALLS"], "a") as calls:
     calls.write(os.getcwd() + "\\n")
 sys.exit(1 if pathlib.Path("bin/broken").exists() else 0)
 """
+# A skill script's test suite, run by the real bin/check-application; it records each run.
+SKILL_TEST = """import os, unittest
+import example
+
+
+class ExampleTests(unittest.TestCase):
+    def test_answer(self):
+        with open(os.environ["CHECK_CALLS"], "a") as calls:
+            calls.write(os.getcwd() + "\\n")
+        self.assertEqual(example.answer(), 42)
+
+
+if __name__ == "__main__":
+    unittest.main()
+"""
 
 
 class PrePushApplicationTests(unittest.TestCase):
@@ -96,6 +111,29 @@ class PrePushApplicationTests(unittest.TestCase):
         for call in calls:
             self.assertFalse(Path(call).exists(), call)
         self.assertEqual(self.git("worktree", "list", "--porcelain").count("worktree "), 1)
+
+    def test_refuses_a_push_that_leaves_a_skill_script_failing_its_tests(self):
+        shutil.copy2(ROOT / "bin/check-application", self.repo / "bin/check-application")
+        (self.repo / "bin/tests").mkdir()
+        (self.repo / "bin/tests/test_probe.py").write_text(
+            "import unittest\n\n\nclass ProbeTests(unittest.TestCase):\n"
+            "    def test_runs(self):\n        pass\n")
+        scripts = self.repo / ".agents/skills/example/scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "example.py").write_text("def answer():\n    return 42\n")
+        (scripts / "test_example.py").write_text(SKILL_TEST)
+        accepted = self.commit("Test the example skill script")
+        result = self.push("main")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.remote_head(), accepted)
+        (scripts / "example.py").write_text("def answer():\n    return 41\n")
+        self.commit("Break the example skill script")
+        result = self.push("main")
+        self.assertNotEqual(result.returncode, 0, "Git accepted a push whose skill tests fail\n" + result.stderr)
+        self.assertIn("bin/check --full failed", result.stderr)
+        self.assertEqual(self.remote_head(), accepted)
+        # Each gate ran the skill suite exactly once.
+        self.assertEqual(len(self.check_calls()), 2)
 
     def test_skips_pushes_that_change_only_application_code_or_pages(self):
         self.assertEqual(self.push("main").returncode, 0)
