@@ -43,6 +43,6 @@ struct ScriptedEmbeddable: Embeddable {
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
     if let error = errorFor(string) { throw error }
-    return FakeEmbeddingResult(vectors: [vectorFor(string)])
+    return FakeEmbeddingResult(text: string, vector: vectorFor(string))
   }
 }
