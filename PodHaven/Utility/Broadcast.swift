@@ -37,7 +37,9 @@ extension BroadcastDuplicatePolicy where T: Equatable {
 // SwiftUI observers synchronously (matching the standard Observation contract,
 // so List edits land within the gesture transaction); a write off the main
 // actor notifies on the next main-actor turn, since it can't reach the main
-// actor synchronously. `onChange` persistence always runs synchronously.
+// actor synchronously. `onChange` runs synchronously inside the write's
+// delivery section, so it sees writes in the order they apply; it must not
+// write to the same broadcast.
 //
 // Usage:
 // ```swift
@@ -62,7 +64,7 @@ extension BroadcastDuplicatePolicy where T: Equatable {
 final class Broadcast<T: Sendable>: Sendable, Observable {
   private let registrar = ObservationRegistrar()
   private let state: ThreadSafe<State>
-  // Orders yields across writers. Never yield under `state`: a stream's
+  // Orders yields and `onChange` across writers. Never yield under `state`: a stream's
   // termination handler takes it while holding the cancelled consumer's task
   // lock, which resuming that consumer also needs.
   private let delivery = ThreadSafe(())
@@ -124,7 +126,7 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
   // `.notifyAlways` broadcast keeps mutating in place without an extra copy.
   private func write(_ transform: (inout T) -> Void) {
     let isDuplicate = duplicatePolicy.isDuplicate
-    let broadcastValue: T? = delivery { _ in
+    let delivered: Bool = delivery { _ in
       let written: (value: T, continuations: [AsyncStream<T>.Continuation])? = state { state in
         if let isDuplicate {
           let previous = state.current
@@ -135,14 +137,15 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
         }
         return (state.current, Array(state.continuations.values))
       }
-      guard let written else { return nil }
+      guard let written else { return false }
       for continuation in written.continuations {
         continuation.yield(written.value)
       }
-      return written.value
+      onChange?(written.value)
+      return true
     }
-    guard let broadcastValue else { return }
-    notifyObservers(broadcastValue)
+    guard delivered else { return }
+    notifyObservers()
   }
 
   // Notify SwiftUI observers. A main-actor write notifies synchronously so the
@@ -151,8 +154,7 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
   // observe the bound collection inside the gesture transaction. An off-main
   // write can't synchronously touch the main actor, so it hops there on the
   // next turn.
-  private func notifyObservers(_ value: T) {
-    onChange?(value)
+  private func notifyObservers() {
     if Thread.isMainThread {
       MainActor.assumeIsolated {
         registrar.withMutation(of: self, keyPath: \.current) {}
