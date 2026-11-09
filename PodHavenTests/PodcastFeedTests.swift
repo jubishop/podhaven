@@ -364,6 +364,49 @@ struct PodcastFeedTests {
     #expect(Set(episodes.map(\.guid)) == [GUID("valid"), GUID("another-valid")])
   }
 
+  @Test(
+    "parsing a feed reads itunes:duration and keeps the stored duration when it's invalid",
+    arguments: [
+      ("2643", 2643),
+      ("2873.5", 2873.5),
+      ("45:00", 2700),
+      ("45:00.0", 2700),
+      ("1:02:03", 3723),
+      ("01:02:03.250", 3723.25),
+      ("1:00:00:00", nil),
+      ("abc", nil),
+      ("1:ab", nil),
+      ("45:", nil),
+      ("", nil),
+      ("-120", nil),
+      ("1:-30", nil),
+      ("nan", nil),
+      ("inf", nil),
+      ("1e400", nil),
+      ("3000000000000000:00:00", nil),
+    ] as [(String, Double?)]
+  )
+  func parseFeedWithDuration(duration: String, expectedSeconds: Double?) async throws {
+    let storedDuration = CMTime.seconds(1234)
+    let storedEpisode = FeedMergeEpisode(
+      id: Episode.ID(rawValue: 1),
+      from: try Create.unsavedEpisode(
+        guid: GUID("episode"),
+        mediaURL: MediaURL(URL(string: "https://example.com/episode.mp3")!),
+        duration: storedDuration
+      )
+    )
+    let feed = try await PodcastFeed.parse(
+      durationFeedData(duration: duration),
+      from: FeedURL(URL(string: "https://example.com/feed.xml")!)
+    )
+
+    let episode = try #require(feed.toUnsavedEpisodes(merging: [storedEpisode]).first)
+    let expectedDuration =
+      if let expectedSeconds { CMTime.seconds(expectedSeconds) } else { storedDuration }
+    #expect(episode.duration == expectedDuration)
+  }
+
   @Test("parsing the considerthis feed with items missing guids")
   func parseConsiderThisFeedWithMissingGuids() async throws {
     let data = PreviewBundle.loadAsset(named: "considerthis", in: .FeedRSS)
@@ -624,6 +667,26 @@ struct PodcastFeedTests {
             <title>Episode</title>
             <guid>episode</guid>
             <enclosure url="https://example.com/episode.mp3" type="audio/mpeg"/>
+          </item>
+        </channel>
+      </rss>
+      """
+    return Data(xml.utf8)
+  }
+
+  private func durationFeedData(duration: String) -> Data {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+        <channel>
+          <title>Durations</title>
+          <description>Feed with an episode duration</description>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Episode</title>
+            <guid>episode</guid>
+            <enclosure url="https://example.com/episode.mp3" type="audio/mpeg"/>
+            <itunes:duration>\(duration)</itunes:duration>
           </item>
         </channel>
       </rss>
