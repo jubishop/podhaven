@@ -38,6 +38,6 @@ final class MutableEmbeddable: Embeddable, @unchecked Sendable {
   }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
-    FakeEmbeddingResult(vectors: [vectorFor(string)])
+    FakeEmbeddingResult(text: string, vector: vectorFor(string))
   }
 }
