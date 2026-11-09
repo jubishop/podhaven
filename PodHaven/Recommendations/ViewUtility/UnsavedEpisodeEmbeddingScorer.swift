@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Logging
 import Tagged
 
 // Per-host helper that computes similarity scores for unsaved episodes
@@ -17,6 +18,8 @@ import Tagged
 final class UnsavedEpisodeEmbeddingScorer {
   @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
+
+  private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
   private struct Cache {
     let revision: Int
@@ -61,21 +64,32 @@ final class UnsavedEpisodeEmbeddingScorer {
         vector = cached.vector
       } else {
         let feedURL = episode.feedURL
-        let podcastVector: [Float]?
-        if let cached = podcastVectors[feedURL] {
-          podcastVector = cached
-        } else {
-          podcastVector = try await EmbeddingService.podcastContextVector(
-            for: episode.unsavedPodcast,
+        do {
+          let podcastVector: [Float]?
+          if let cached = podcastVectors[feedURL] {
+            podcastVector = cached
+          } else {
+            podcastVector = try await EmbeddingService.podcastContextVector(
+              for: episode.unsavedPodcast,
+              embedding: contextualEmbedding
+            )
+            podcastVectors[feedURL] = podcastVector
+          }
+          vector = try await EmbeddingService.episodeEmbeddingVector(
+            for: episode.unsavedEpisode,
+            podcastVector: podcastVector,
             embedding: contextualEmbedding
           )
-          podcastVectors[feedURL] = podcastVector
+        } catch let error as CancellationError {
+          throw error
+        } catch {
+          Self.log.caughtError(
+            "Embedding failed for \(episode.toString); skipping",
+            error,
+            level: .info
+          )
+          continue
         }
-        vector = try await EmbeddingService.episodeEmbeddingVector(
-          for: episode.unsavedEpisode,
-          podcastVector: podcastVector,
-          embedding: contextualEmbedding
-        )
         cachedVectors[mediaGUID] = (source: source, vector: vector)
       }
       orderedGUIDs.append(mediaGUID)

@@ -26,12 +26,21 @@ struct FakeEmbeddable: Embeddable {
       Double((hash / 100) % 100) / 100.0,
       Double((hash / 10000) % 100) / 100.0,
     ]
-    return FakeEmbeddingResult(vectors: [vector])
+    return FakeEmbeddingResult(text: string, vector: vector)
   }
 }
 
 struct FakeEmbeddingResult: EmbeddableResult {
   let vectors: [[Double]]
+
+  init(vectors: [[Double]]) {
+    self.vectors = vectors
+  }
+
+  // NLContextualEmbedding yields no token vectors for blank text.
+  init(text: String, vector: [Double]) {
+    vectors = text.allSatisfy(\.isWhitespace) ? [] : [vector]
+  }
 
   func enumerateTokenVectors(
     in range: Range<String.Index>,

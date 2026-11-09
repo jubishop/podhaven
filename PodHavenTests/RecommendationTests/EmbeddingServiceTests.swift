@@ -520,6 +520,43 @@ class EmbeddingServiceTests {
     #expect(try await recommendationRepo.embedding(for: good.id) != nil)
   }
 
+  @Test("episode whose cleaned title is empty embeds from its description")
+  func emptyCleanedTitleEmbedsFromDescription() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast(title: "POD", description: "POD")
+    let pes = try await repo.upsertPodcastEpisodes([
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: try Create.unsavedEpisode(
+          title: "https://example.com/episode",
+          description: "Description body"
+        )
+      ),
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: try Create.unsavedEpisode(title: "12:30")
+      ),
+    ])
+    let described = try #require(pes.first).episode
+    let blank = try #require(pes.last).episode
+    #expect(EmbeddingService.cleanText(described.title).isEmpty)
+    #expect(EmbeddingService.cleanText(blank.title).isEmpty)
+
+    let embedding = await makeContextualEmbedding(
+      ScriptedEmbeddable { text in text == "Description body" ? [0, 1, 0] : [0, 0, 1] }
+    )
+
+    let result = try await EmbeddingService.upsertEpisodeEmbeddings(
+      for: [described, blank],
+      embedding: embedding
+    )
+
+    #expect(result.failedEpisodeCount == 1)
+    let stored = try #require(try await recommendationRepo.embedding(for: described.id))
+      .floatVector
+    #expect(stored[1] > stored[2], "The description must drive the stored vector")
+    #expect(try await recommendationRepo.embedding(for: blank.id) == nil)
+  }
+
   @Test("cancellation during batch preserves completed episodes")
   func cancellationPreservesPartial() async throws {
     let unsavedPodcast = try Create.unsavedPodcast(description: "POD")

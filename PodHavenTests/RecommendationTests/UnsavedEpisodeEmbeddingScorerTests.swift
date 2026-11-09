@@ -154,7 +154,107 @@ import Testing
     )
   }
 
+  @Test("scores an episode whose cleaned title is empty from its description")
+  func scoresEmptyTitleEpisodeFromDescription() async throws {
+    try await primeEngine()
+
+    let podcast = try Create.unsavedPodcast(title: "Discovery", description: "Discovery")
+    let emptyTitle = UnsavedPodcastEpisode(
+      unsavedPodcast: podcast,
+      unsavedEpisode: try Create.unsavedEpisode(
+        title: "https://example.com/episode",
+        description: "Discovery body"
+      )
+    )
+    let titled = UnsavedPodcastEpisode(
+      unsavedPodcast: podcast,
+      unsavedEpisode: try Create.unsavedEpisode(title: "Titled", description: "Discovery body")
+    )
+    #expect(EmbeddingService.cleanText(emptyTitle.unsavedEpisode.title).isEmpty)
+
+    let (scores, cacheable) = try await UnsavedEpisodeEmbeddingScorer()
+      .similarityScores(for: [emptyTitle, titled])
+
+    #expect(cacheable)
+    #expect(scores[emptyTitle.mediaGUID] != nil)
+    #expect(scores[titled.mediaGUID] != nil)
+  }
+
+  @Test("skips an episode with no embeddable text and scores the rest of the batch")
+  func skipsUnembeddableEpisodeAndScoresRest() async throws {
+    try await primeEngine()
+
+    let podcast = try Create.unsavedPodcast(title: "Discovery", description: "Discovery")
+    let blank = UnsavedPodcastEpisode(
+      unsavedPodcast: podcast,
+      unsavedEpisode: try Create.unsavedEpisode(title: "12:30")
+    )
+    let titled = UnsavedPodcastEpisode(
+      unsavedPodcast: podcast,
+      unsavedEpisode: try Create.unsavedEpisode(title: "Titled", description: "Discovery body")
+    )
+    #expect(EmbeddingService.cleanText(blank.unsavedEpisode.title).isEmpty)
+
+    let (scores, cacheable) = try await UnsavedEpisodeEmbeddingScorer()
+      .similarityScores(for: [blank, titled])
+
+    #expect(cacheable)
+    #expect(scores[blank.mediaGUID] == nil)
+    #expect(scores[titled.mediaGUID] != nil)
+  }
+
+  @Test("rethrows cancellation from an episode's embedding")
+  func rethrowsEmbeddingCancellation() async throws {
+    registerContainerEmbedding(
+      ScriptedEmbeddable(
+        errorFor: { text in text.contains("CancelMe") ? CancellationError() : nil },
+        vectorFor: { _ in [1, 0, 0] }
+      )
+    )
+
+    let podcast = try Create.unsavedPodcast()
+    let cancelled = UnsavedPodcastEpisode(
+      unsavedPodcast: podcast,
+      unsavedEpisode: try Create.unsavedEpisode(title: "CancelMe")
+    )
+    let titled = UnsavedPodcastEpisode(
+      unsavedPodcast: podcast,
+      unsavedEpisode: try Create.unsavedEpisode(title: "Titled")
+    )
+    let scorer = UnsavedEpisodeEmbeddingScorer()
+
+    await #expect(throws: CancellationError.self) {
+      _ = try await scorer.similarityScores(for: [cancelled, titled])
+    }
+  }
+
   // MARK: - Helpers
+
+  // Builds a liked-signal centroid so unsaved vectors in the same coordinate
+  // system get non-nil similarity scores.
+  private func primeEngine() async throws {
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Discovery") { return [0.6, 0.8, 0] }
+      return [0, 0, 1]
+    }
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signals)
+    registerContainerEmbedding(embeddable)
+  }
+
+  private func registerContainerEmbedding(_ embeddable: ScriptedEmbeddable) {
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: embeddable) }
+      .scope(.cached)
+  }
 
   private func registerEmbeddable(
     assetsAvailable: Bool = true,
