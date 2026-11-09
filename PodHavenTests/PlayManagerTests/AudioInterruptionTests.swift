@@ -12,9 +12,11 @@ import Testing
 
 @Suite("of audio interruption tests", .container)
 @MainActor struct AudioInterruptionTests {
-  enum PlayingInterruption: CaseIterable { case reported, playerPausedFirst, reportedTwice }
+  enum PlayingInterruption: CaseIterable {
+    case reported, playerPausedFirst, reportedTwice, itemFailedDuring
+  }
   enum DeclinedResume: CaseIterable {
-    case pausedBefore, pausedDuring, toggledDuring, stoppedDuring, earlierEndDeclined
+    case pausedBefore, pausedDuring, toggledDuring, earlierEndDeclined
   }
   enum PendingPlayback: CaseIterable { case selection, advanceResolving, advanceLoading }
 
@@ -52,6 +54,18 @@ import Testing
     case .reportedTwice:
       try await beginInterruption()
       try await beginInterruption()
+    case .itemFailedDuring:
+      try await beginInterruption()
+      let failedItem = try #require(avPlayer.current as? FakeAVPlayerItem)
+      failedItem.setStatus(.failed)
+      try await Wait.until(
+        { @MainActor in
+          guard let item = avPlayer.current as? FakeAVPlayerItem else { return false }
+          return item !== failedItem
+        },
+        { "Expected recovery to reload the failed item" }
+      )
+      try await PlayHelpers.waitForOnDeck(podcastEpisode)
     }
     try await PlayHelpers.waitFor(.paused)
     try await PlayHelpers.waitForNowPlayingInfo(
@@ -88,10 +102,6 @@ import Testing
       try await beginInterruption()
       await playManager.toggle()
       await playManager.toggle()
-    case .stoppedDuring:
-      try await beginInterruption()
-      await playManager.stop()
-      try await playManager.load(podcastEpisode)
     case .earlierEndDeclined:
       try await beginInterruption()
       endInterruption(shouldResume: false)

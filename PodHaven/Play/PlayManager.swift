@@ -634,7 +634,6 @@ final class PlayManager {
   }
 
   func stop(requestID: UUID = UUID()) async {
-    interruptedPlayback = .none
     newPlaybackRequest(requestID)
     cancelWidgetRouteRecovery(reason: "userStop")
     pendingPlaybackRequest = .none
