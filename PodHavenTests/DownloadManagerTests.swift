@@ -733,6 +733,70 @@ struct DownloadManagerTests {
     #expect(task1 === task2)
   }
 
+  enum CancellationPath: CaseIterable {
+    case direct
+    case cancelAll
+  }
+
+  @Test(
+    "that a re-added URL stays tracked after its cancelled predecessor unwinds",
+    arguments: CancellationPath.allCases
+  )
+  func reAddedURLStaysTrackedAfterCancelledPredecessorUnwinds(
+    cancellationPath: CancellationPath
+  ) async throws {
+    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+
+    // The first fetch ignores cancellation, so it unwinds only when released.
+    let url = URL.valid()
+    let firstStarted = AsyncSemaphore(value: 0)
+    let firstUnwind = AsyncSemaphore(value: 0)
+    await session.respond(to: url) { url in
+      firstStarted.signal()
+      await firstUnwind.wait()
+      return (url.dataRepresentation, URL.response(url))
+    }
+    let firstTask = await downloadManager.addURL(url)
+    await firstStarted.wait()
+
+    let second = await session.releaseWaitRespond(to: url)
+    switch cancellationPath {
+    case .direct: await firstTask.cancel()
+    case .cancelAll: await downloadManager.cancelAllDownloads()
+    }
+
+    let secondTask = await downloadManager.addURL(url)
+    #expect(secondTask !== firstTask)
+    await second.started.wait()
+
+    let otherURL = URL.valid()
+    let otherTask = await downloadManager.addURL(otherURL)
+
+    firstUnwind.signal()
+    try await Wait.until(
+      { await session.activeRequests == 1 },
+      { "Expected only the re-added fetch active, got \(await session.activeRequests)" }
+    )
+    // Hop through the cancelled task so its unwinding reaches the manager first.
+    await #expect(throws: CancellationError.self) {
+      try await firstTask.downloadFinished()
+    }
+
+    #expect(await downloadManager.addURL(url) === secondTask)
+    #expect(await session.requests.filter { $0 == url }.count == 2)
+    #expect(!(await session.requests.contains(otherURL)))
+
+    await downloadManager.cancelAllDownloads()
+    try #require(await secondTask.finished)
+    await #expect(throws: CancellationError.self) {
+      try await secondTask.downloadFinished()
+    }
+    await #expect(throws: CancellationError.self) {
+      try await otherTask.downloadFinished()
+    }
+    #expect(!(await session.requests.contains(otherURL)))
+  }
+
   @Test("that delayed failure is properly handled")
   func delayedFailureIsHandled() async throws {
     let downloadManager = DownloadManager(session: session)
