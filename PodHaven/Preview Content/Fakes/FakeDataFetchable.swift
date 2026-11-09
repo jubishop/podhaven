@@ -8,12 +8,14 @@ import IdentifiedCollections
 
 actor FakeDataFetchable: DataFetchable {
   typealias DataHandler = @Sendable (URL) async throws -> (Data, URLResponse)
+  typealias RequestHandler = @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
   @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
 
   private var defaultHandler: DataHandler
-  private var fakeHandlers: [URL: DataHandler] = [:]
+  private var fakeHandlers: [URL: RequestHandler] = [:]
   private(set) var requests: [URL] = []
+  private(set) var sentRequests: [URLRequest] = []
   private(set) var cancelledRequests: [URL] = []
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
@@ -43,10 +45,11 @@ actor FakeDataFetchable: DataFetchable {
     defer { activeRequests -= 1 }
     maxActiveRequests = max(maxActiveRequests, activeRequests)
     requests.append(url)
+    sentRequests.append(urlRequest)
 
     do {
       if let handler = fakeHandlers[url] {
-        return try await handler(url)
+        return try await handler(urlRequest)
       }
       return try await defaultHandler(url)
     } catch is CancellationError {
@@ -90,6 +93,10 @@ actor FakeDataFetchable: DataFetchable {
   }
 
   func respond(to url: URL, with handler: @escaping DataHandler) {
+    fakeHandlers[url] = { _ in try await handler(url) }
+  }
+
+  func respond(toRequestsFor url: URL, with handler: @escaping RequestHandler) {
     fakeHandlers[url] = handler
   }
 

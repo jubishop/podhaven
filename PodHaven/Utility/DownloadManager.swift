@@ -9,6 +9,7 @@ typealias DownloadResult = Result<DownloadData, any Error>
 struct DownloadData: Equatable, Hashable {
   let url: URL
   let data: Data
+  let validators: HTTPValidators?
 }
 
 actor DownloadTask: Identifiable {
@@ -19,10 +20,11 @@ actor DownloadTask: Identifiable {
   let url: URL
   var finished: Bool { finishedLatch.isOpen }
 
+  private let request: URLRequest
   private let session: any DataFetchable
   private let beganLatch = AsyncLatch<Void>()
   private let finishedLatch = AsyncLatch<DownloadResult>()
-  private var fetchTask: Task<Data, any Error>?
+  private var fetchTask: Task<DownloadData, any Error>?
   private weak var owner: DownloadManager?
 
   func downloadBegan() async throws {
@@ -51,8 +53,18 @@ actor DownloadTask: Identifiable {
     return error is CancellationError
   }
 
-  fileprivate init(url: URL, session: any DataFetchable, owner: DownloadManager) {
+  fileprivate init(
+    url: URL,
+    validators: HTTPValidators?,
+    session: any DataFetchable,
+    owner: DownloadManager
+  ) {
     self.url = url
+    if let validators {
+      request = validators.conditionalRequest(for: url)
+    } else {
+      request = URLRequest(url: url)
+    }
     self.session = session
     self.owner = owner
   }
@@ -70,15 +82,15 @@ actor DownloadTask: Identifiable {
 
     beganLatch.open()
 
-    let fetchTask = Task { [session, url] () async throws -> Data in
-      try await session.validatedData(from: url)
+    let fetchTask = Task { [session, request, url] () async throws -> DownloadData in
+      let (data, response) = try await session.validatedResponse(for: request)
+      return DownloadData(url: url, data: data, validators: HTTPValidators(response))
     }
     self.fetchTask = fetchTask
     defer { self.fetchTask = nil }
 
     do {
-      let data = try await fetchTask.value
-      finishedLatch.open(.success(DownloadData(url: url, data: data)))
+      finishedLatch.open(.success(try await fetchTask.value))
     } catch {
       finishedLatch.open(.failure(error))
     }
@@ -112,7 +124,7 @@ actor DownloadManager {
     activeDownloads[url] != nil || pendingDownloads[id: url] != nil
   }
 
-  func addURL(_ url: URL) -> DownloadTask {
+  func addURL(_ url: URL, validators: HTTPValidators? = nil) -> DownloadTask {
     defer {
       Self.log.trace(
         """
@@ -133,7 +145,7 @@ actor DownloadManager {
       pendingDownloads.remove(id: url)
     }
 
-    let download = DownloadTask(url: url, session: session, owner: self)
+    let download = DownloadTask(url: url, validators: validators, session: session, owner: self)
     pendingDownloads.append(download)
 
     startNextDownload()

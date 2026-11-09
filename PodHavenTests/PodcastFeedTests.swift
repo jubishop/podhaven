@@ -443,6 +443,45 @@ struct PodcastFeedTests {
     }
   }
 
+  @Test("data that isn't XML fails as notXML")
+  func nonXMLDataFailsAsNotXML() async throws {
+    await #expect {
+      try await PodcastFeed.parse(Data("Not a podcast <".utf8), from: FeedURL(URL.valid()))
+    } throws: { error in
+      guard case PodcastFeedError.notXML = error else { return false }
+      return true
+    }
+  }
+
+  @Test("a feed nested past the XML parser's depth limit fails as notXML")
+  func deeplyNestedFeedFailsAsNotXML() async throws {
+    let depth = 300
+    let nested = String(repeating: "<x>", count: depth) + String(repeating: "</x>", count: depth)
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+        <channel>
+          <title>Nested</title>
+          <description>Nested past the parser's depth limit</description>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Episode</title>
+            <guid>episode</guid>
+            <enclosure url="https://example.com/episode.mp3" type="audio/mpeg"/>
+            \(nested)
+          </item>
+        </channel>
+      </rss>
+      """
+
+    await #expect {
+      try await PodcastFeed.parse(Data(xml.utf8), from: FeedURL(URL.valid()))
+    } throws: { error in
+      guard case PodcastFeedError.notXML = error else { return false }
+      return true
+    }
+  }
+
   @Test("unavailable HTTP feeds explain the failure")
   func unavailableHTTPFeedsExplainFailure() async throws {
     for statusCode in [404, 410] {
