@@ -13,7 +13,13 @@ extension Container {
 }
 
 struct RefreshManager {
+  enum Trigger: Sendable {
+    case scheduled
+    case user
+  }
+
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.dateProvider) private var dateProvider
   @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
   @DynamicInjected(\.publisherTranscriptProcessor) private var publisherTranscriptProcessor
   @DynamicInjected(\.queue) private var queue
@@ -26,10 +32,27 @@ struct RefreshManager {
 
   private static let log = Log.as(LogSubsystem.Feed.refreshManager)
 
+  // A scheduled refresh skips a failing feed for initialBackoff, doubling with
+  // each consecutive failure up to maximumBackoff.
+  private static let initialBackoff: Duration = .hours(1)
+  private static let maximumBackoff: Duration = .hours(24)
+  // Cancellation and lost connectivity say nothing about the feed.
+  private static let nonFeedURLErrorCodes: Set<URLError.Code> = [
+    .cancelled,
+    .notConnectedToInternet,
+    .networkConnectionLost,
+    .dataNotAllowed,
+    .internationalRoamingOff,
+    .callIsActive,
+  ]
+
   private let downloadManager: DownloadManager
   private let inFlight = ThreadSafe<Set<URL>>([])
-  // Feeds that fail to parse stay stale and retry every pass, so warn once per process.
+  // Feeds that fail to parse stay stale and keep retrying, so warn once per process.
   private let reportedUndecodableFeeds = ThreadSafe<Set<URL>>([])
+  // A feed whose new URL another podcast holds tries to move on every refresh,
+  // so warn once per process.
+  private let reportedFeedURLCollisions = ThreadSafe<Set<URL>>([])
 
   // MARK: - Initialization
 
@@ -43,6 +66,7 @@ struct RefreshManager {
   // MARK: - Refresh Management
 
   func performRefresh(
+    trigger: Trigger,
     stalenessThreshold: Duration,
     filter: SQLExpression = AppDB.noOp,
     limit: Int = Int.max
@@ -54,10 +78,21 @@ struct RefreshManager {
       """
     )
 
+    let now = dateProvider.now
+    let backoffFilter: SQLExpression
+    switch trigger {
+    case .scheduled:
+      backoffFilter =
+        Podcast.Columns.refreshBackoffUntil == nil || Podcast.Columns.refreshBackoffUntil <= now
+    case .user:
+      backoffFilter = AppDB.noOp
+    }
     let stalePodcasts = try await repo.allPodcasts(
-      Podcast.Columns.lastUpdate < Date.now.advanced(by: -stalenessThreshold.asTimeInterval)
+      Podcast.Columns.lastUpdate < now.advanced(by: -stalenessThreshold.asTimeInterval)
+        && backoffFilter
         && filter,
-      order: Podcast.Columns.lastUpdate.asc,
+      // Failing feeds go last so they can't take a healthy feed's slot.
+      order: [Podcast.Columns.refreshFailureCount.asc, Podcast.Columns.lastUpdate.asc],
       limit: limit
     )
     Self.log.debug(
@@ -92,21 +127,20 @@ struct RefreshManager {
     }
 
     if !collected.isEmpty {
-      let refreshes = collected.map { ($0.id, $0.lastUpdate, $0.feedValidators) }
       let urls = collected.map(\.url)
-      // Task to execute even inside cancellation: ensures the timestamps
+      // Task to execute even inside cancellation: ensures the results
       // collected for series that already finished refreshing get flushed
-      // before performRefresh returns, so the next cycle sees them as fresh.
-      // inFlight URLs stay claimed until the flush commits (or fails) so a
-      // racing refresh cannot re-fetch a series whose lastUpdate hasn't yet
-      // hit the DB.
+      // before performRefresh returns, so the next cycle sees them as fresh
+      // or backed off. inFlight URLs stay claimed until the flush commits (or
+      // fails) so a racing refresh cannot re-fetch a series whose result
+      // hasn't yet hit the DB.
       await Task {
         defer { inFlight { state in for url in urls { state.remove(url) } } }
         do {
-          try await repo.updateLastUpdates(refreshes)
+          try await flush(collected)
         } catch {
           Self.log.caughtError(
-            "performRefresh: failed to flush \(refreshes.count) lastUpdate timestamps",
+            "performRefresh: failed to flush \(collected.count) refresh results",
             error
           )
         }
@@ -129,25 +163,63 @@ struct RefreshManager {
     if let pending = try await performRefreshCycle(podcast: podcast) {
       defer { inFlight { $0.remove(pending.url) } }
       // Record the refresh even if the caller is cancelled after the feed write.
-      try await Task {
-        try await repo.updateLastUpdates([
-          (pending.id, pending.lastUpdate, pending.feedValidators)
-        ])
-      }
-      .value
+      try await Task { try await flush([pending]) }.value
     }
     await publisherTranscriptProcessor.makeForegroundProgress()
   }
 
   // MARK: - Private Helpers
 
-  private typealias PendingFlush = (
-    id: Podcast.ID, lastUpdate: Date, url: URL, feedValidators: HTTPValidators?
-  )
+  private enum RefreshResult {
+    case refreshed(lastUpdate: Date, feedValidators: HTTPValidators?)
+    case failed(failureCount: Int, backoffUntil: Date)
+  }
+
+  private typealias PendingFlush = (id: Podcast.ID, url: URL, result: RefreshResult)
+
+  private func flush(_ pendingFlushes: [PendingFlush]) async throws {
+    var refreshes: [(id: Podcast.ID, lastUpdate: Date, feedValidators: HTTPValidators?)] = []
+    var failures: [(id: Podcast.ID, failureCount: Int, backoffUntil: Date)] = []
+    for pending in pendingFlushes {
+      switch pending.result {
+      case .refreshed(let lastUpdate, let feedValidators):
+        refreshes.append((pending.id, lastUpdate, feedValidators))
+      case .failed(let failureCount, let backoffUntil):
+        failures.append((pending.id, failureCount, backoffUntil))
+      }
+    }
+    if !refreshes.isEmpty {
+      try await repo.updateLastUpdates(refreshes)
+    }
+    if !failures.isEmpty {
+      try await repo.recordRefreshFailures(failures)
+    }
+  }
+
+  private func failure(of podcast: Podcast) -> PendingFlush {
+    let failureCount = podcast.refreshFailureCount + 1
+    var backoff = Self.initialBackoff
+    var doublings = failureCount - 1
+    while doublings > 0, backoff < Self.maximumBackoff {
+      backoff *= 2
+      doublings -= 1
+    }
+    let backoffUntil = dateProvider.now.advanced(
+      by: min(backoff, Self.maximumBackoff).asTimeInterval
+    )
+    Self.log.debug(
+      "failure: \(podcast.toString) failed \(failureCount) times in a row, backing off until \(backoffUntil)"
+    )
+    return PendingFlush(
+      id: podcast.id,
+      url: podcast.feedURL.rawValue,
+      result: .failed(failureCount: failureCount, backoffUntil: backoffUntil)
+    )
+  }
 
   // When a PendingFlush is returned, the caller owns removing url from
-  // inFlight after the batched updateLastUpdates flush commits — otherwise a
-  // racing refresh of the still-stale row could slip through the gap.
+  // inFlight after the batched flush commits — otherwise a racing refresh of
+  // the still-stale row could slip through the gap.
   private func performRefreshCycle(
     podcast: Podcast
   ) async throws -> PendingFlush? {
@@ -176,9 +248,8 @@ struct RefreshManager {
       releaseOnExit = false
       return PendingFlush(
         id: podcast.id,
-        lastUpdate: Date(),
         url: url,
-        feedValidators: feedValidators
+        result: .refreshed(lastUpdate: dateProvider.now, feedValidators: feedValidators)
       )
     } catch {
       let level: Logger.Level
@@ -197,7 +268,12 @@ struct RefreshManager {
         error,
         level: level
       )
-      return nil
+      if Task.isCancelled || error is CancellationError { return nil }
+      if let urlError = error as? URLError, Self.nonFeedURLErrorCodes.contains(urlError.code) {
+        return nil
+      }
+      releaseOnExit = false
+      return failure(of: podcast)
     }
 
     let existingEpisodes = try await repo.feedMergeEpisodes(
@@ -205,28 +281,50 @@ struct RefreshManager {
       matching: podcastFeed.episodeMediaGUIDs
     )
 
+    var feedURL = podcastFeed.updatedFeedURL
+    if feedURL != podcast.feedURL,
+      !(try await repo.allPodcasts(Podcast.Columns.feedURL == feedURL).isEmpty)
+    {
+      if reportedFeedURLCollisions({ $0.insert(url).inserted }) {
+        Self.log.warning(
+          """
+          Feed moved to a URL another podcast holds, keeping its current URL
+            Podcast: \(podcast.toString)
+            MovedTo: \(feedURL)
+          """
+        )
+      }
+      feedURL = podcast.feedURL
+    }
+
     guard
       let lastUpdate = await applyParsedFeed(
         podcast: podcast,
         podcastFeed: podcastFeed,
+        feedURL: feedURL,
         existingEpisodes: existingEpisodes
       )
     else {
-      return nil
+      if Task.isCancelled { return nil }
+      releaseOnExit = false
+      return failure(of: podcast)
     }
     releaseOnExit = false
     return PendingFlush(
       id: podcast.id,
-      lastUpdate: lastUpdate,
       url: url,
-      // Validators from the old URL don't describe the feed at its new one.
-      feedValidators: podcastFeed.updatedFeedURL == podcast.feedURL ? downloadData.validators : nil
+      result: .refreshed(
+        lastUpdate: lastUpdate,
+        // Validators from the old URL don't describe the feed at its new one.
+        feedValidators: feedURL == podcast.feedURL ? downloadData.validators : nil
+      )
     )
   }
 
   private func applyParsedFeed(
     podcast: Podcast,
     podcastFeed: PodcastFeed,
+    feedURL: FeedURL,
     existingEpisodes: [FeedMergeEpisode]
   ) async -> Date? {
     Self.log.trace(
@@ -246,7 +344,7 @@ struct RefreshManager {
 
     let newUnsavedPodcast: UnsavedPodcast
     do {
-      newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcast)
+      newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcast, feedURL: feedURL)
     } catch {
       Self.log.caughtError(
         """
@@ -301,7 +399,7 @@ struct RefreshManager {
       """
     )
 
-    let now = Date()
+    let now = dateProvider.now
     let podcastToUpdate = podcast.rssEquals(newPodcast) ? nil : newPodcast
     if let podcastToUpdate,
       podcast.title != podcastToUpdate.title

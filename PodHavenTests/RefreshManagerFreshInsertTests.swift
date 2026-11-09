@@ -31,7 +31,7 @@ actor RefreshManagerFreshInsertTests {
     let insertRequests = await session.requests
     #expect(insertRequests == [fetched.feedURL.rawValue])
 
-    try await refreshManager.performRefresh(stalenessThreshold: .hours(1))
+    try await refreshManager.performRefresh(trigger: .user, stalenessThreshold: .hours(1))
 
     let refreshRequests = Array(await session.requests.dropFirst(insertRequests.count))
     #expect(refreshRequests == [neverFetched.podcast.feedURL.rawValue])

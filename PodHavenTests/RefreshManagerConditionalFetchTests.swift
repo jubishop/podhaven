@@ -160,7 +160,7 @@ actor RefreshManagerConditionalFetchTests {
     _ = try await appDB.unsafeTestDB.write { db in
       try Podcast.withID(podcastID).updateAll(db, Podcast.Columns.lastUpdate.set(to: 2.hoursAgo))
     }
-    try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+    try await refreshManager.performRefresh(trigger: .user, stalenessThreshold: .minutes(30))
   }
 
   private func podcast(_ podcastID: Podcast.ID) async throws -> Podcast {

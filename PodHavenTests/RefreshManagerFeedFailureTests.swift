@@ -29,8 +29,8 @@ actor RefreshManagerFeedFailureTests {
     await session.respond(to: notXMLURL, data: Data("Not a podcast <".utf8))
 
     let captured = try await LogCapture.withSink { sink in
-      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
-      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+      try await refreshManager.performRefresh(trigger: .user, stalenessThreshold: .minutes(30))
+      try await refreshManager.performRefresh(trigger: .user, stalenessThreshold: .minutes(30))
       return sink.captured()
     }
 
@@ -59,8 +59,8 @@ actor RefreshManagerFeedFailureTests {
     await session.respond(to: feedURL, data: Data(xml.utf8))
 
     let captured = try await LogCapture.withSink { sink in
-      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
-      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+      try await refreshManager.performRefresh(trigger: .user, stalenessThreshold: .minutes(30))
+      try await refreshManager.performRefresh(trigger: .user, stalenessThreshold: .minutes(30))
       return sink.captured()
     }
 
@@ -77,7 +77,7 @@ actor RefreshManagerFeedFailureTests {
     }
 
     let captured = try await LogCapture.withSink { sink in
-      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+      try await refreshManager.performRefresh(trigger: .user, stalenessThreshold: .minutes(30))
       return sink.captured()
     }
 
