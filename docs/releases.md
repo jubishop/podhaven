@@ -82,7 +82,11 @@ bin/shipit
 ```
 
 The command requires clean `main`; the existing `--force` option permits
-another clean branch. If the current version is an App Store version,
+another clean branch. Unless the run pushes a version change, the commit must
+already be on origin's copy of the branch, such as `origin/main`. The command
+fetches that branch and otherwise stops before notes, tests, or Apple requests,
+naming the `git push` to run. Every uploaded build then exists beyond this Mac.
+If the current version is an App Store version,
 `shipit` first commits, fully validates, and pushes the next TestFlight version:
 
 - `2.1` becomes `2.1.1`.
@@ -108,6 +112,16 @@ builds contain a fix, so an issue resolved in that fix's commit regresses only
 in builds that contain it. The command needs an authenticated `sentry` CLI
 and checks it before archiving. If the Sentry step fails after upload, retry
 the same command; it reuses the upload.
+
+After the Sentry step, the command pushes the build's tag to `origin` and
+creates its GitHub release with `gh release create --verify-tag`, which refuses
+to create a missing tag from the default branch's tip. Publication comes before
+TestFlight distribution and is the last step of an App Store upload. A failure
+stops the command with Git's or GitHub's error. Any failure after upload ends
+with the exact command that retries without another upload. When the newest
+build in testing for Everyone is already the tagged build at `HEAD`, the
+command publishes whichever of its tag and release is missing before reporting
+nothing to do.
 
 TestFlight processing is checked every 30 seconds for up to two hours. Set
 `PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS` to a positive whole number of seconds to

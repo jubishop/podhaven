@@ -112,8 +112,8 @@ bin/version 1.0.1
 This changes the app version (`MARKETING_VERSION`). The command rejects invalid
 or older versions. Use `bin/version --help` for usage.
 
-Commit your changes, then test, archive, upload, and distribute a build to the
-external Everyone group:
+Commit and push your changes, then test, archive, upload, and distribute a build
+to the external Everyone group:
 
 ```sh
 bin/shipit
@@ -123,7 +123,7 @@ Before any version change or build, the command writes TestFlight "What to Test"
 notes with `llm`: one or two plain sentences about the app changes since the
 newest build testers already have. In a terminal it shows the notes and lets
 you use them, edit them in your editor, or stop. If that newest build is the one this run would distribute,
-the command stops with nothing to do. Supply your own notes instead with:
+the command publishes its missing Git tag or GitHub release, if any, and stops. Supply your own notes instead with:
 
 ```sh
 bin/shipit --notes "Improved playback reliability."
@@ -141,9 +141,10 @@ receipt in Git's metadata directory supports retries; each new upload replaces i
 
 `bin/shipit` increments the build number automatically. If Apple closes a version
 for external beta review, use `bin/version` to set a higher app version, commit it,
-and upload a new build. Successful runs also publish the Git tag and GitHub
-release. The generated GitHub release summary remains separate from the
-TestFlight notes.
+and upload a new build. Each upload publishes its Git tag and GitHub release
+before distribution; after upload, a failure prints the exact command that
+retries without another upload. The generated GitHub release summary remains
+separate from the TestFlight notes.
 
 Other options:
 

@@ -36,8 +36,11 @@ if name == 'git':
         print('Generated release notes' if '--format=%(contents)' in args else state['tag'])
     elif args[:2] == ['tag', '-a']: state['tag'] = args[2]
     elif args[:2] == ['tag', '-d']: state['tag'] = 'v1.0b568'
-    elif args[0] == 'ls-remote': print('remote-tag' if state['remote'] else '')
-    elif args[0] == 'push': state['remote'] = True
+    elif args[0] in ('fetch', 'merge-base'): pass
+    elif args[0] == 'ls-remote': print('new\trefs/tags/' + state['tag'] if state['remote'] else '')
+    elif args[0] == 'push':
+        if os.environ.get('FAIL_TAG_PUSH'): sys.exit("error: failed to push some refs to 'origin'")
+        state['remote'] = True
     elif args[0] == 'diff': print('+Fixed playback')
     else: raise SystemExit('Unexpected git arguments: ' + repr(args))
     state_path.write_text(json.dumps(state))
@@ -72,7 +75,7 @@ elif name == 'llm':
     print('Generated release notes')
 elif name == 'xcbeautify': print(sys.stdin.read(), end='')
 elif name == 'mktemp':
-    if '-d' in args: print(tempfile.mkdtemp(dir=base))
+    if '-d' in args: print(tempfile.mkdtemp(dir=base, prefix='logs-'))
     else:
         descriptor, path = tempfile.mkstemp(dir=base)
         os.close(descriptor)
@@ -120,7 +123,13 @@ elif name == 'sentry':
                                      'features': ['symtab', 'unwind'] + (['debug'] if dwarf else [])}}])
         if cached: cache_path.write_text(json.dumps({**cache, args[1]: body}))
         print(body)
-elif name in ('gh', 'rm'): pass
+elif name == 'gh':
+    releases_path = base / 'releases'
+    releases = json.loads(releases_path.read_text()) if releases_path.exists() else []
+    if args[:2] == ['release', 'view'] and args[2] not in releases: sys.exit('release not found')
+    if args[:2] == ['release', 'create']:
+        if os.environ.get('FAIL_RELEASE'): sys.exit('HTTP 422: Validation Failed')
+        releases_path.write_text(json.dumps(releases + [args[2]]))
 else: raise SystemExit('Unexpected command: ' + name)
 '''
 
@@ -140,14 +149,15 @@ class DeployTests(unittest.TestCase):
             gate.chmod(0o755)
         self.commands = self.base / "commands"
         self.commands.mkdir()
-        for command in ("git", "xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "rm", "sentry",
-                        "dwarfdump"):
+        for command in ("git", "xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "sentry", "dwarfdump"):
             path = self.commands / command
             path.write_text(f"#!{sys.executable}\n" + FAKE)
             path.chmod(0o755)
         (self.base / "state").write_text(json.dumps({"tag": "v1.0b568", "remote": False}))
+        self.home = self.base / "home"
+        self.home.mkdir()
         self.env = {**os.environ, "PATH": str(self.commands) + os.pathsep + os.environ["PATH"],
-                    "DEPLOY_FIXTURE": str(self.base), "DEPLOY_DEBUG_IDS": json.dumps(DEBUG_IDS)}
+                    "DEPLOY_FIXTURE": str(self.base), "DEPLOY_DEBUG_IDS": json.dumps(DEBUG_IDS), "HOME": str(self.home)}
         for key in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID", "PODHAVEN_TESTFLIGHT_NOTES",
                     "SENTRY_ORG", "SENTRY_PROJECT", "SENTRY_NO_CACHE"):
             self.env.pop(key, None)
@@ -207,6 +217,39 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         pushes = [event[1][2:] for event in self.events("git") if event[1][2:3] == ["push"]]
         self.assertEqual(pushes, [["push", "origin", "v1.0.1b569"]])
+
+    def test_failed_publication_stops_before_distribution_with_a_working_retry_command(self):
+        for failure, error, message in (
+                ("FAIL_TAG_PUSH", "failed to push some refs", "Could not push v1.0.1b569 to origin"),
+                ("FAIL_RELEASE", "HTTP 422", "Could not create the v1.0.1b569 GitHub release")):
+            with self.subTest(failure=failure):
+                self.setUp()
+                result = self.run_deploy("--notes", "Fixed playback", **{failure: "1"})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(error, result.stderr)
+                self.assertIn(message, result.stderr)
+                self.assertEqual([call[1][1] for call in self.events("fastlane")], ["preflight:true", "prepare:true"])
+                retry = next(line.split("Retry with: ", 1)[1] for line in result.stderr.splitlines()
+                             if "Retry with: " in line)
+                result = subprocess.run(["/bin/bash", "-c", retry], env=self.env, text=True,
+                                        capture_output=True, timeout=15)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(sum("-exportArchive" in event[1] for event in self.events("xcodebuild")), 1)
+                self.assertTrue(json.loads((self.base / "state").read_text())["remote"])
+                self.assertEqual(json.loads((self.base / "releases").read_text()), ["v1.0.1b569"])
+                creates = [event[1] for event in self.events("gh") if event[1][:2] == ["release", "create"]]
+                self.assertTrue(all(args[2:4] == ["v1.0.1b569", "--verify-tag"] for args in creates))
+                distribution = self.events("fastlane")[-1]
+                self.assertEqual(distribution[1][1:], ["version:1.0.1", "build:569"])
+                self.assertEqual(distribution[2], "Fixed playback")
+
+    def test_success_keeps_organizer_archives_and_removes_its_own_logs(self):
+        organizer = self.home / "Library/Developer/Xcode/Archives/2026-11-08/PodHaven 11-8-26, 9.00 PM.xcarchive"
+        organizer.mkdir(parents=True)
+        result = self.run_deploy("--notes", "Fixes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(organizer.is_dir())
+        self.assertEqual(list(self.base.glob("logs-*")), [])
 
     def test_archive_supports_package_macros_without_interactive_approval(self):
         result = self.run_deploy(UNAPPROVED_MACROS="1")
@@ -380,7 +423,7 @@ class DeployTests(unittest.TestCase):
     def test_generated_notes_retry_distribution_without_another_upload(self):
         result = self.run_deploy(FAIL_TESTFLIGHT="distribute")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("again to retry distribution", result.stderr)
+        self.assertIn("v1.0.1b569 was uploaded. Retry with: ", result.stderr)
         result = self.run_deploy()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(sum('-exportArchive' in event[1] for event in self.events('xcodebuild')), 1)
@@ -419,13 +462,13 @@ class TaggedDeployTests(unittest.TestCase):
         gate.chmod(0o755)
         commands = self.base / "commands"
         commands.mkdir()
-        for name in ("xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "rm", "sentry", "dwarfdump"):
+        for name in ("xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "sentry", "dwarfdump"):
             path = commands / name
             path.write_text(f"#!{sys.executable}\n" + FAKE)
             path.chmod(0o755)
         self.env = {**os.environ, "PATH": str(commands) + os.pathsep + os.environ["PATH"],
                     "DEPLOY_FIXTURE": str(self.base), "DEPLOY_VERSION": "1.3.1", "TESTFLIGHT_BASE_BUILD": "575",
-                    "DEPLOY_DEBUG_IDS": json.dumps(DEBUG_IDS),
+                    "DEPLOY_DEBUG_IDS": json.dumps(DEBUG_IDS), "HOME": str(self.base),
                     "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
         for key in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID", "PODHAVEN_TESTFLIGHT_NOTES",
                     "SENTRY_ORG", "SENTRY_PROJECT", "SENTRY_NO_CACHE", "GIT_DIR", "GIT_WORK_TREE",
@@ -446,6 +489,7 @@ class TaggedDeployTests(unittest.TestCase):
         self.git("push", "-u", "origin", "main", "--tags")
         self.receipt = self.repo / ".git/podhaven-last-upload"
         self.receipt.write_text("v1.3.1b576\n")
+        (self.base / "releases").write_text(json.dumps(["v1.3b574", "v1.3.1b575", "v1.3.1b576"]))
 
     def git(self, *args):
         return subprocess.check_output(["git", "-C", str(self.repo), *args], env=self.env,
@@ -488,6 +532,63 @@ class TaggedDeployTests(unittest.TestCase):
                 self.assertFalse(any("archive" in event[1] or "-exportArchive" in event[1]
                                      for event in self.events("xcodebuild")))
 
+    def test_build_already_in_testing_publishes_its_missing_tag_and_release(self):
+        self.git("push", "origin", ":refs/tags/v1.3.1b576")
+        (self.base / "releases").write_text(json.dumps(["v1.3b574", "v1.3.1b575"]))
+        result = self.run_deploy("--reuse", TESTFLIGHT_BASE_BUILD="576")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.git("ls-remote", "--tags", "origin", "refs/tags/v1.3.1b576"), "")
+        self.assertFalse(self.events("gh"))
+        result = self.run_deploy(TESTFLIGHT_BASE_BUILD="576", FAIL_RELEASE="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("HTTP 422", result.stderr)
+        self.assertIn("Could not create the v1.3.1b576 GitHub release", result.stderr)
+        retry = next(line.split("Retry with: ", 1)[1] for line in result.stderr.splitlines() if "Retry with: " in line)
+        result = subprocess.run(["/bin/bash", "-c", retry], cwd=self.repo, env={**self.env, "TESTFLIGHT_BASE_BUILD": "576"},
+                                text=True, capture_output=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("576 is already in testing for Everyone", result.stdout)
+        self.assertEqual(self.git("ls-remote", "--tags", "origin", "refs/tags/v1.3.1b576"),
+                         self.git("rev-parse", "refs/tags/v1.3.1b576") + "\trefs/tags/v1.3.1b576")
+        self.assertEqual([event[1] for event in self.events("gh") if event[1][:2] == ["release", "create"]][-1],
+                         ["release", "create", "v1.3.1b576", "--verify-tag", "--title", "v1.3.1b576",
+                          "--notes", "Latest TestFlight build"])
+        self.assertEqual(json.loads((self.base / "releases").read_text())[-1], "v1.3.1b576")
+        self.assertEqual([event[1][1] for event in self.events("fastlane")], ["base:true"] * 3)
+
+    def test_unpushed_head_stops_before_notes_or_archive(self):
+        (self.repo / "change.txt").write_text("Local work")
+        self.git("add", "change.txt")
+        self.git("commit", "-m", "Local work")
+        tags = self.git("tag", "-l")
+        result = self.run_deploy()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("is not on origin/main", result.stderr)
+        self.assertIn("git push origin HEAD:main", result.stderr)
+        self.assertFalse(self.events("fastlane"))
+        self.assertFalse(any("archive" in event[1] for event in self.events("xcodebuild")))
+        self.assertEqual(self.git("tag", "-l"), tags)
+        self.git("push", "origin", "HEAD:main")
+        result = self.run_deploy("--notes", "Fixes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.git("ls-remote", "--tags", "origin", "refs/tags/v1.3.1b577"),
+                         self.git("rev-parse", "refs/tags/v1.3.1b577") + "\trefs/tags/v1.3.1b577")
+
+    def test_forced_branch_must_be_on_its_origin_branch(self):
+        self.git("checkout", "-b", "feature")
+        (self.repo / "change.txt").write_text("Feature work")
+        self.git("add", "change.txt")
+        self.git("commit", "-m", "Feature work")
+        result = self.run_deploy("--force", "--notes", "Fixes")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Could not fetch origin/feature", result.stderr)
+        self.assertIn("git push origin HEAD:feature", result.stderr)
+        self.assertFalse(self.events("fastlane"))
+        self.git("push", "-u", "origin", "feature")
+        result = self.run_deploy("--force", "--notes", "Fixes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("refs/tags/v1.3.1b577", self.git("ls-remote", "--tags", "origin"))
+
     def test_without_notes_distributes_a_completed_upload_with_generated_notes(self):
         result = self.run_deploy()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -526,6 +627,7 @@ class TaggedDeployTests(unittest.TestCase):
         (self.repo / "PodHaven/Player.swift").write_text("Fix CarPlay skipping")
         self.git("add", ".")
         self.git("commit", "-m", "Fix CarPlay skipping")
+        self.git("push")
         result = self.run_deploy(REVIEW_CONFLICT="preflight")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.receipt.read_text().strip(), "v1.3.2b577")
@@ -538,6 +640,7 @@ class TaggedDeployTests(unittest.TestCase):
         (self.repo / "change.txt").write_text("New work")
         self.git("add", "change.txt")
         self.git("commit", "-m", "New work")
+        self.git("push")
         result = self.run_deploy()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("(v1.3.1b576..HEAD)", result.stdout)
@@ -557,6 +660,7 @@ class TaggedDeployTests(unittest.TestCase):
             (self.repo / "change.txt").write_text("New work")
             self.git("add", "change.txt")
             self.git("commit", "-m", "New work")
+            self.git("push")
         notes = 'Fix "playback"\nKeep $HOME and `literal` text.'
         result = self.run_deploy("--notes", notes, REVIEW_CONFLICT=phase)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -572,8 +676,12 @@ class TaggedDeployTests(unittest.TestCase):
         self.assertIn("build:" + expected_build, calls[-1][1])
         self.assertTrue(any("--ensure" in event[1] for event in self.events("test-all")))
         self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assertEqual(list(self.base.glob("logs-*")), [])
+        published = self.git("ls-remote", "--tags", "origin")
+        self.assertIn("refs/tags/v1.3.2b" + expected_build, published)
         if phase == "distribute":
             self.assertIn("v1.3.1b577", self.git("tag", "-l"))
+            self.assertIn("refs/tags/v1.3.1b577", published)
 
     def test_active_review_before_upload_advances_patch(self):
         self.assert_review_conflict_advances_patch("preflight")
@@ -588,6 +696,7 @@ class TaggedDeployTests(unittest.TestCase):
         (self.repo / "change.txt").write_text("New work")
         self.git("add", "change.txt")
         self.git("commit", "-m", "New work")
+        self.git("push")
         result = self.run_deploy("--notes", "Fixes")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         events = self.events()
