@@ -2,27 +2,19 @@
 """Verify automatic slow Siri diagnostics and retained summaries on a real Simulator AppHang."""
 
 import argparse
-from importlib.machinery import SourceFileLoader
-from importlib.util import module_from_spec, spec_from_loader
 import json
 import os
 from pathlib import Path
 import subprocess
 import time
 
+from _sentry_smoke import api, command, load
+
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = "com.artisanalsoftware.PodHaven.sirismoke"
 
 
-def load(name, path):
-    loader = SourceFileLoader(name, str(path))
-    module = module_from_spec(spec_from_loader(name, loader))
-    loader.exec_module(module)
-    return module
-
-
 probe = load("hang_probe", ROOT / "bin/sentry-hang-smoke")
-command = probe.command
 
 
 def main():
@@ -77,7 +69,7 @@ def main():
                                          "--period", "1h", "--fresh", "--json"))
             for row in listing.get("data", []):
                 if row["id"] not in events:
-                    events[row["id"]] = probe.api(f"projects/artisanal-software/podhaven/events/{row['id']}/")
+                    events[row["id"]] = api(f"projects/artisanal-software/podhaven/events/{row['id']}/")
             slow = [key for key, event in events.items() if event.get("contexts", {}).get("siri_resolution")]
             hangs = [key for key, event in events.items() if any(
                 value.get("mechanism", {}).get("type", "").lower() == "apphang"
@@ -93,7 +85,7 @@ def main():
             event = events[event_id]
             (evidence / f"{kind}-event.json").write_text(json.dumps(event, indent=2) + "\n")
             base = f"projects/artisanal-software/podhaven/events/{event_id}/"
-            attachments = probe.api(base + "attachments/")
+            attachments = api(base + "attachments/")
             (evidence / f"{kind}-attachments.json").write_text(json.dumps(attachments, indent=2) + "\n")
             matches = [item for item in attachments if item["name"] == "siri-app-resolutions.json"]
             assert len(matches) == 1, "Missing or duplicate retained Siri history"

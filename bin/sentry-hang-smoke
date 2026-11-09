@@ -3,8 +3,6 @@
 
 import argparse
 import hashlib
-from importlib.machinery import SourceFileLoader
-from importlib.util import module_from_spec, spec_from_loader
 import json
 import os
 from pathlib import Path
@@ -15,14 +13,12 @@ import subprocess
 import time
 import uuid
 
+from _sentry_smoke import api, command, load
+
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = "com.artisanalsoftware.PodHaven.hangsmoke"
 RETAINED_RUNS = 3
 RUN_NAME = re.compile(r"[0-9a-f]{32}")
-
-
-def command(*args, **kwargs):
-    return subprocess.check_output(args, cwd=ROOT, text=True, **kwargs).strip()
 
 
 def prepare(output, *, bundle=BUNDLE, integration="sentry-hang"):
@@ -77,13 +73,6 @@ def start_run(output):
     return run, evidence
 
 
-def api(path):
-    response = json.loads(command("sentry", "api", path, "--json"))
-    if response["status"] != 200:
-        raise RuntimeError(f"Sentry API returned HTTP {response['status']} for {path}")
-    return response["body"]
-
-
 def source_state():
     digest = hashlib.sha256(command("git", "diff", "--binary", "HEAD").encode())
     untracked = subprocess.check_output(
@@ -124,9 +113,7 @@ def main():
                             "GIT_COMMIT_HASH=" + source["gitCommitHash"]], cwd=ROOT,
                            env={key: value for key, value in os.environ.items() if key != "SDKROOT"},
                            stdout=log, stderr=subprocess.STDOUT, check=True)
-    loader = SourceFileLoader("swift_results", str(ROOT / "bin/check-swift-results"))
-    gate = module_from_spec(spec_from_loader(loader.name, loader))
-    loader.exec_module(gate)
+    gate = load("swift_results", ROOT / "bin/check-swift-results")
     build = json.loads(command("xcrun", "xcresulttool", "get", "build-results", "--path", str(evidence / "build.xcresult")))
     assert build["errorCount"] == 0 and build["analyzerWarningCount"] == 0
     assert build["warningCount"] == len(build.get("warnings", []))
