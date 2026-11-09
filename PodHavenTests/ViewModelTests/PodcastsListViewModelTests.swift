@@ -252,7 +252,7 @@ import Testing
     #expect(keptDate.approximatelyEquals(originalSubscriptionDate))
   }
 
-  @Test("subscribeSelectedPodcasts logs a failed subscribe")
+  @Test("subscribeSelectedPodcasts logs and alerts a failed subscribe")
   func subscribeSelectedLogsFailure() async throws {
     let setup = try await setupFourTaggedPodcasts()
     let viewModel = PodcastsListViewModel(title: "Test")
@@ -274,8 +274,47 @@ import Testing
       $0.level == .error && $0.message.contains("subscribeSelectedPodcasts")
     }
     #expect(failures.count == 1, "\(captured.map(\.message))")
+    #expect(Container.shared.alert().config?.title == "Error")
     let podcasts = try await repo.allPodcasts(AppDB.noOp)
     #expect(podcasts.allSatisfy { !$0.subscribed })
+  }
+
+  @Test("subscribeSelectedPodcasts does not alert when the subscribe is cancelled")
+  func subscribeSelectedSkipsAlertOnCancellation() async throws {
+    let setup = try await setupFourTaggedPodcasts()
+    let viewModel = PodcastsListViewModel(title: "Test")
+    try await loadEntries(into: viewModel, podcasts: setup.entries)
+    viewModel.podcastList.selectAllEntries()
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.markSubscribedBulkError(CancellationError())
+
+    try await LogCapture.withSink { sink in
+      viewModel.subscribeSelectedPodcasts()
+      try await Wait.until(
+        { sink.captured().contains { $0.message.contains("subscribeSelectedPodcasts: failed") } },
+        { "no failure logged among \(sink.captured().map(\.message))" }
+      )
+    }
+
+    #expect(Container.shared.alert().config == nil)
+  }
+
+  @Test("applyTagToSelectedPodcasts alerts when tagging fails")
+  func applyTagToSelectedAlertsOnFailure() async throws {
+    let setup = try await setupFourTaggedPodcasts()
+    let viewModel = PodcastsListViewModel(title: "Test")
+    try await loadEntries(into: viewModel, podcasts: setup.entries)
+    viewModel.podcastList.selectAllEntries()
+    let deletedTag = try await repo.insertTag(UnsavedTag(name: "Deleted"))
+    try await repo.deleteTag(deletedTag.id)
+
+    viewModel.applyTagToSelectedPodcasts(deletedTag.id)
+
+    let alert = Container.shared.alert()
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Error" },
+      { "applyTagToSelectedPodcasts never alerted on the failed tag write" }
+    )
   }
 
   // MARK: - Helpers
