@@ -197,31 +197,34 @@ def prune_evidence(cache, current):
 
 
 def reusable_evidence(report):
-    cache = ROOT / ".cache/test-all"
+    """Return the newest retained run that passed for this checkout and toolchain, or None."""
     try:
-        output = max((path for path in cache.glob("*") if path.is_dir()),
-                     key=lambda path: path.stat().st_mtime_ns, default=None)
-        if output is None:
-            return None
-        saved = json.loads((output / "run.json").read_text())
-        if (saved.get("schema") != 1 or saved.get("result") != "passed"
-                or not saved.get("finished_at")
-                or any(saved.get(key) != report[key]
-                       for key in ("checkout", "destination", "xcode", "swift", "macos"))
-                or saved.get("checkout_after") != report["checkout"]):
-            return None
-        artifacts = saved.get("artifacts")
-        if (not isinstance(artifacts, dict)
-                or not {"tooling.log", "macros.log",
-                        *(f"{name}.log" for _, log, validation, _, _ in SWIFT_PHASES
-                          for name in (log, validation))} <= artifacts.keys()
-                or not all((output / f"{bundle}.xcresult").is_dir() for bundle, *_ in SWIFT_PHASES)
-                or evidence_files(output) != artifacts
-                or checkout_state() != report["checkout"]):
-            return None
-        return output
-    except (OSError, ValueError, AttributeError):
+        outputs = sorted((path for path in (ROOT / ".cache/test-all").glob("*") if path.is_dir()),
+                         key=lambda path: path.stat().st_mtime_ns, reverse=True)
+    except OSError:
         return None
+    for output in outputs:
+        try:
+            saved = json.loads((output / "run.json").read_text())
+            if (saved.get("schema") != 1 or saved.get("result") != "passed"
+                    or not saved.get("finished_at")
+                    or any(saved.get(key) != report[key]
+                           for key in ("checkout", "destination", "xcode", "swift", "macos"))
+                    or saved.get("checkout_after") != report["checkout"]):
+                continue
+            artifacts = saved.get("artifacts")
+            if (not isinstance(artifacts, dict)
+                    or not {"tooling.log", "macros.log",
+                            *(f"{name}.log" for _, log, validation, _, _ in SWIFT_PHASES
+                              for name in (log, validation))} <= artifacts.keys()
+                    or not all((output / f"{bundle}.xcresult").is_dir() for bundle, *_ in SWIFT_PHASES)
+                    or evidence_files(output) != artifacts
+                    or checkout_state() != report["checkout"]):
+                continue
+            return output
+        except (OSError, ValueError, AttributeError):
+            continue
+    return None
 
 
 def main():

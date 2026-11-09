@@ -516,13 +516,23 @@ class TestAllTests(unittest.TestCase):
         self.assertNotEqual(self.run_all("--verify", TEST_SWIFT_VERSION="6.5").returncode, 0)
         self.assertNotEqual(self.run_all("--verify", TEST_XCODE_VERSION="26.5").returncode, 0)
 
-    def test_latest_failure_does_not_reuse_an_older_success(self):
+    def test_reuse_finds_an_older_pass_behind_newer_runs_it_cannot_reuse(self):
+        cache = self.repo / ".cache/test-all"
         self.assertEqual(self.run_all().returncode, 0)
+        (passing,) = cache.iterdir()
         self.assertNotEqual(self.run_all(TEST_SKIPPED="1").returncode, 0)
-        self.assertNotEqual(self.run_all("--verify").returncode, 0)
-        latest = max((self.repo / ".cache/test-all").glob("*/run.json"),
-                     key=lambda path: path.stat().st_mtime_ns)
-        latest.unlink()
+        (self.repo / "source.txt").write_text("dirty")
+        self.assertEqual(self.run_all().returncode, 0)
+        (self.repo / "source.txt").write_text("original")
+        (cache / "29991231-235959-interrupted").mkdir()
+        self.assertEqual(len(list(cache.iterdir())), 4)
+        result = self.run_all("--verify")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(Path(result.stdout.split("evidence: ")[-1].strip()).name, passing.name)
+        result = self.run_all("--ensure", TEST_BUILD_FAILURE="1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(len(list(cache.iterdir())), 4)
+        (passing / "run.json").unlink()
         self.assertNotEqual(self.run_all("--verify").returncode, 0)
 
     def test_new_runs_prune_older_evidence_beyond_the_retention_count(self):

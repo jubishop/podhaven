@@ -1,27 +1,66 @@
 #!/usr/bin/env python3
-"""Run podhaven's repository tooling tests; bin/check --full calls this after foundation checks.
+"""Run podhaven's repository lint checks and tooling tests; bin/check --full calls this after foundation checks.
 
-The suites in bin/tests run together, then unittest runs each skill and helper suite under .agents on its own,
-so a suite without a main block still runs its tests. Every suite runs even after one fails. Swift application
-validation stays separate; see docs/development-workflow.md."""
+ShellCheck lints the shell scripts the foundation checks skip, following their sources; actionlint lints the GitHub
+workflows; and fish and Ruby check their scripts' syntax. The suites in bin/tests then run together, and unittest
+runs each skill and helper suite under .agents on its own, so a suite without a main block still runs its tests.
+Every check and suite runs even after one fails. Swift application validation stays separate; see
+docs/development-workflow.md."""
 import os
 from pathlib import Path
+import re
+import shutil
 import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-files = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ".agents"],
-                       cwd=ROOT, check=True, capture_output=True).stdout
-suites = [("bin/tests", ["-m", "unittest", "discover", "-s", "bin/tests", "-p", "test_*.py", "-v"])]
-for name in sorted({os.fsdecode(name) for name in files.split(b"\0") if name}):
-    path = Path(name)
-    if path.match("test_*.py") and (ROOT / path).is_file():
-        suites.append((name, ["-m", "unittest", "discover", "-s", str(path.parent), "-p", path.name, "-v"]))
+# The interpreter a shebang names, directly or through env, with or without flags.
+SHEBANG = re.compile(rb"#![ \t]*(?:\S*/)?(?:env[ \t]+(?:-\S*[ \t]+)*)?([\w.+-]+)")
+SHELLS = {"sh", "bash", "dash", "ksh"}
+
+
+def listed(*paths):
+    output = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", *paths],
+                            cwd=ROOT, check=True, capture_output=True).stdout
+    return sorted({Path(os.fsdecode(name)) for name in output.split(b"\0")
+                   if name and (ROOT / os.fsdecode(name)).is_file()})
+
+
+def interpreter(path):
+    with (ROOT / path).open("rb") as stream:
+        match = SHEBANG.match(stream.read(256))
+    return match[1].decode() if match else None
+
+
+files = [(path, interpreter(path)) for path in listed()]
+# The foundation checks lint .envrc and each bin/ script whose shebang names a shell.
+shell = [path for path, name in files
+         if (path.suffix == ".sh" or name in SHELLS)
+         and not (name in SHELLS and path.parts[0] == "bin") and path != Path(".envrc")]
+workflows = [path for path, _ in files if path.parent == Path(".github/workflows") and path.suffix in {".yml", ".yaml"}]
+checks = []
+if shell:
+    checks.append(("ShellCheck", ["shellcheck", "--external-sources", "--source-path=SCRIPTDIR", *shell]))
+if workflows:
+    checks.append(("actionlint", ["actionlint", *workflows]))
+checks += [("fish syntax " + str(path), ["fish", "--no-config", "--no-execute", path])
+           for path, name in files if path.suffix == ".fish" or name == "fish"]
+checks += [("Ruby syntax " + str(path), ["ruby", "-c", path])
+           for path, name in files if path.suffix == ".rb" or path.name == "Fastfile" or name == "ruby"]
+
+suites = [("bin/tests", [sys.executable, "-B", "-m", "unittest", "discover", "-s", "bin/tests", "-p", "test_*.py", "-v"])]
+for path in listed(".agents"):
+    if path.match("test_*.py"):
+        suites.append((str(path), [sys.executable, "-B", "-m", "unittest", "discover", "-s", str(path.parent),
+                                   "-p", path.name, "-v"]))
 failed = []
-for label, arguments in suites:
+for label, command in checks + suites:
     print("Running " + label, flush=True)
-    if subprocess.run([sys.executable, "-B", *arguments], cwd=ROOT).returncode:
+    if not shutil.which(command[0]):
+        print(command[0] + " is required for bin/check --full. Install it with your package manager.", file=sys.stderr)
+        failed.append(label)
+    elif subprocess.run([*map(str, command)], cwd=ROOT).returncode:
         failed.append(label)
 if failed:
-    print("Tooling tests failed: " + ", ".join(failed), file=sys.stderr)
+    print("Tooling checks failed: " + ", ".join(failed), file=sys.stderr)
 sys.exit(1 if failed else 0)
