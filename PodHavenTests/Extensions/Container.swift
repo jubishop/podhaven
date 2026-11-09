@@ -70,35 +70,7 @@ extension Container: @retroactive AutoRegistering {
     }
     .scope(.cached)
     loadEpisodeAsset.context(.test) { self.fakeEpisodeAssetLoader().loadEpisodeAsset }
-    configureAudioSession.context(.test) {
-      {
-        let fake = Container.shared.fakeAudioSession()
-        if let error = fake.configureError() {
-          await Container.shared.alert()(
-            title: "Couldn't start audio playback",
-            ErrorKit.message(for: error)
-          )
-          return false
-        }
-        Task {
-          do {
-            try await fake.configure()
-          } catch {
-            Issue.record(error)
-          }
-        }
-        return true
-      }
-    }
-    .scope(.cached)
-    setAudioSessionActive.context(.test) {
-      { active in
-        let audioSession = self.fakeAudioSession()
-        if active, let error = audioSession.activationError() { throw error }
-        Task { await audioSession.setActive(active) }
-      }
-    }
-    audioRouteOutputs.context(.test) { { self.fakeAudioSession().routeOutputs() } }
+    audioSession.context(.test) { self.fakeAudioSession() }
 
     nlContextualEmbedding.context(.test) { FakeEmbeddable() }.scope(.cached)
 

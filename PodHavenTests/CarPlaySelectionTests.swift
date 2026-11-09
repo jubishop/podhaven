@@ -192,13 +192,14 @@ import Testing
     let (coordinator, controller, rows) = try await connect([episode])
     defer { coordinator.disconnect(controller) }
     if refuseAudio {
-      Container.shared.fakeAudioSession().configureError(URLError(.cannotLoadFromNetwork))
+      PlayHelpers.failAudioSessionConfiguration(with: URLError(.cannotLoadFromNetwork))
     } else {
       await Container.shared.fakeEpisodeAssetLoader()
         .respond(to: episode.episode.mediaURL, error: URLError(.cannotLoadFromNetwork))
     }
     let count = ThreadSafe(0)
     rows[0].handler?(rows[0]) { count { $0 += 1 } }
+    if refuseAudio { try await PlayHelpers.advanceAudioSessionRetryBackoff() }
     try await Wait.until({ count() == 1 }, { "Failed selection must complete" })
     #expect(controller.alerts.count == 1)
     #expect(controller.pushed.isEmpty)

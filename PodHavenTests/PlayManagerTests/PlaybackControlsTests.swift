@@ -530,34 +530,33 @@ import Testing
     try await playManager.load(currentEpisode)
     let playCount = avPlayer.playCallCount
 
-    let phaseStarted = AsyncSemaphore(value: 0)
-    let finishPhase = AsyncSemaphore(value: 0)
+    let assetStarted = AsyncSemaphore(value: 0)
+    let finishAsset = AsyncSemaphore(value: 0)
     switch phase {
     case .audioSession:
-      Container.shared.configureAudioSession.context(.test) {
-        {
-          phaseStarted.signal()
-          await finishPhase.wait()
-          return true
-        }
-      }
-      Container.shared.configureAudioSession.reset(.scope)
+      PlayHelpers.failAudioSessionConfiguration()
     case .asset:
       await episodeAssetLoader.respond(to: incomingEpisode.episode.mediaURL) { _ in
-        phaseStarted.signal()
-        await finishPhase.wait()
+        assetStarted.signal()
+        await finishAsset.wait()
         return (true, .seconds(60))
       }
     }
     let incomingPlay = Task { try await playManager.play(incomingEpisode) }
     defer {
       incomingPlay.cancel()
-      finishPhase.signal()
+      finishAsset.signal()
     }
-    await phaseStarted.wait()
+    switch phase {
+    case .audioSession: try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
+    case .asset: await assetStarted.wait()
+    }
 
     await playManager.toggle()
-    finishPhase.signal()
+    switch phase {
+    case .audioSession: try await PlayHelpers.recoverAudioSessionConfiguration()
+    case .asset: finishAsset.signal()
+    }
 
     #expect(try await incomingPlay.value == .superseded)
     try await PlayHelpers.waitForOnDeck(incomingEpisode)

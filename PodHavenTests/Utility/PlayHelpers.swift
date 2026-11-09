@@ -22,6 +22,7 @@ enum PlayHelpers {
   private static var queue: any Queueing { Container.shared.queue() }
   private static var repo: any Databasing { Container.shared.repo() }
   private static var sharedState: SharedState { Container.shared.sharedState() }
+  private static var sleeper: FakeSleeper { Container.shared.sleeper() as! FakeSleeper }
 
   private static var avPlayer: FakeAVPlayer {
     Container.shared.avPlayer() as! FakeAVPlayer
@@ -51,6 +52,79 @@ enum PlayHelpers {
   static func pause() async throws {
     await playManager.pause()
     try await waitFor(.paused)
+  }
+
+  // MARK: - Audio Session Helpers
+
+  static let audioSessionRetryDelays: [Duration] = [
+    .milliseconds(250), .milliseconds(500), .seconds(1), .seconds(2),
+  ]
+
+  static func failAudioSessionConfiguration(
+    with error: any Error & Sendable = TestError.simulatedFailure
+  ) {
+    audioSession.configurationErrors(
+      Array(repeating: error, count: audioSessionRetryDelays.count + 1)
+    )
+  }
+
+  static func waitForFailedAudioSessionConfigurationAttempt() async throws {
+    let session = audioSession
+    let backoffCount = audioSessionRetryDelays.count
+    try await Wait.until(
+      { session.configurationErrors().count <= backoffCount },
+      { "Expected a scripted audio-session configuration attempt to fail" }
+    )
+  }
+
+  // Lets the configuration in backoff succeed on its next attempt.
+  static func recoverAudioSessionConfiguration() async throws {
+    let session = audioSession
+    let failedAttempts = session.configureCallCount
+    let backoffIndex = audioSessionRetryDelays.count - session.configurationErrors().count
+    try #require(audioSessionRetryDelays.indices.contains(backoffIndex))
+    session.configurationErrors([])
+    try await advanceAudioSessionBackoff(audioSessionRetryDelays[backoffIndex]) {
+      session.configureCallCount > failedAttempts
+    }
+  }
+
+  // Advances backoff until every scripted configuration failure is consumed.
+  static func advanceAudioSessionRetryBackoff() async throws {
+    let session = audioSession
+    for (index, delay) in audioSessionRetryDelays.enumerated() {
+      let remainingErrors = audioSessionRetryDelays.count - index - 1
+      try await advanceAudioSessionBackoff(delay) {
+        session.configurationErrors().count <= remainingErrors
+      }
+    }
+  }
+
+  @discardableResult
+  static func failingAudioSessionConfiguration<T: Sendable>(
+    _ operation: @escaping @Sendable () async throws -> T
+  ) async throws -> T {
+    failAudioSessionConfiguration()
+    let task = Task { try await operation() }
+    try await advanceAudioSessionRetryBackoff()
+    return try await task.value
+  }
+
+  // Other sleeps can share the backoff duration, so advance until the next
+  // configuration attempt runs rather than once per matching sleep.
+  private static func advanceAudioSessionBackoff(
+    _ delay: Duration,
+    until nextAttemptRan: @escaping @Sendable () -> Bool
+  ) async throws {
+    let sleeper = sleeper
+    while !nextAttemptRan() {
+      try await Wait.until(
+        { nextAttemptRan() || sleeper.pendingDurations().contains(delay) },
+        { "Expected audio-session configuration to back off for \(delay)" }
+      )
+      guard !nextAttemptRan() else { return }
+      await sleeper.advanceTime(by: delay)
+    }
   }
 
   // MARK: - Wait Helpers

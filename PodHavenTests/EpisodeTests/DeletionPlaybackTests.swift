@@ -68,28 +68,16 @@ import Testing
     try await playManager.play(target)
     try await PlayHelpers.waitFor(.playing)
 
-    let configurationStarted = AsyncSemaphore(value: 0)
-    let finishConfiguration = AsyncSemaphore(value: 0)
-    Container.shared.configureAudioSession.context(.test) {
-      {
-        configurationStarted.signal()
-        await finishConfiguration.wait()
-        return true
-      }
-    }
-    Container.shared.configureAudioSession.reset(.scope)
+    PlayHelpers.failAudioSessionConfiguration()
 
     let playManager = self.playManager
     let replacementPlay = Task { try await playManager.play(replacement) }
-    defer {
-      replacementPlay.cancel()
-      finishConfiguration.signal()
-    }
-    await configurationStarted.wait()
+    defer { replacementPlay.cancel() }
+    try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
     #expect(sharedState.currentEpisodeID == target.id)
 
     #expect(try await repo.deletePodcast(targetSeries.podcast.id))
-    finishConfiguration.signal()
+    try await PlayHelpers.recoverAudioSessionConfiguration()
     _ = try await replacementPlay.value
 
     try await PlayHelpers.waitForOnDeck(replacement)

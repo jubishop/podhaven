@@ -289,10 +289,9 @@ import Testing
   func staleForegroundLookupPreservesSameEpisodeRequest() async throws {
     PlayHelpers.setupCommandHandling()
     let episode = try await Create.podcastEpisode()
-    let audioSession = Container.shared.fakeAudioSession()
-    audioSession.configureError { $0 = TestError.simulatedFailure }
-    try await playManager.play(episode)
-    audioSession.configureError { $0 = nil }
+    try await PlayHelpers.failingAudioSessionConfiguration {
+      try await playManager.play(episode)
+    }
     repo.pendingPodcastEpisodeFetchSuspend(true)
     let restoring = Task {
       await LogCapture.withSink { sink in

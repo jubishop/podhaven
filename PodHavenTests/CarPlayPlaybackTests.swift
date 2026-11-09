@@ -33,7 +33,7 @@ import Testing
     #expect(
       Container.shared.sharedState().queuedPodcastEpisodes.map(\.id) == [first.id, second.id]
     )
-    #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)
+    #expect(Container.shared.fakeAudioSession().activeCalls.isEmpty)
     #expect(controller.roots.count == 1)
   }
 

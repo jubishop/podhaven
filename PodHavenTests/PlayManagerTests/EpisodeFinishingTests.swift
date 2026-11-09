@@ -245,27 +245,15 @@ import Testing
     try await playManager.load(currentEpisode)
     try await PlayHelpers.play()
 
-    let configurationStarted = AsyncSemaphore(value: 0)
-    let finishConfiguration = AsyncSemaphore(value: 0)
-    Container.shared.configureAudioSession.context(.test) {
-      {
-        configurationStarted.signal()
-        await finishConfiguration.wait()
-        return true
-      }
-    }
-    Container.shared.configureAudioSession.reset(.scope)
+    PlayHelpers.failAudioSessionConfiguration()
 
     let selectedPlay = Task { try await playManager.play(selectedEpisode) }
-    defer {
-      selectedPlay.cancel()
-      finishConfiguration.signal()
-    }
-    await configurationStarted.wait()
+    defer { selectedPlay.cancel() }
+    try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
     try await PlayHelpers.waitForOnDeck(currentEpisode)
 
     await playManager.finishEpisode(currentEpisode.id)
-    finishConfiguration.signal()
+    try await PlayHelpers.recoverAudioSessionConfiguration()
     _ = try await selectedPlay.value
 
     try await PlayHelpers.waitForOnDeck(selectedEpisode)
@@ -282,26 +270,14 @@ import Testing
     try await playManager.load(currentEpisode)
     try await PlayHelpers.play()
 
-    let configurationStarted = AsyncSemaphore(value: 0)
-    let finishConfiguration = AsyncSemaphore(value: 0)
-    Container.shared.configureAudioSession.context(.test) {
-      {
-        configurationStarted.signal()
-        await finishConfiguration.wait()
-        return false
-      }
-    }
-    Container.shared.configureAudioSession.reset(.scope)
+    PlayHelpers.failAudioSessionConfiguration()
 
     let selectedPlay = Task { try await playManager.play(selectedEpisode) }
-    defer {
-      selectedPlay.cancel()
-      finishConfiguration.signal()
-    }
-    await configurationStarted.wait()
+    defer { selectedPlay.cancel() }
+    try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
 
     await playManager.finishEpisode(currentEpisode.id)
-    finishConfiguration.signal()
+    try await PlayHelpers.advanceAudioSessionRetryBackoff()
     _ = try await selectedPlay.value
 
     #expect(sharedState.onDeck == nil)
@@ -427,27 +403,15 @@ import Testing
     await automaticCleanupStarted.wait()
     try await PlayHelpers.waitForOnDeck(automaticEpisode)
 
-    let selectedConfigurationStarted = AsyncSemaphore(value: 0)
-    let finishSelectedConfiguration = AsyncSemaphore(value: 0)
-    Container.shared.configureAudioSession.context(.test) {
-      {
-        selectedConfigurationStarted.signal()
-        await finishSelectedConfiguration.wait()
-        return true
-      }
-    }
-    Container.shared.configureAudioSession.reset(.scope)
+    PlayHelpers.failAudioSessionConfiguration()
 
     let selectedPlay = Task { try await playManager.play(selectedEpisode) }
-    defer {
-      selectedPlay.cancel()
-      finishSelectedConfiguration.signal()
-    }
-    await selectedConfigurationStarted.wait()
+    defer { selectedPlay.cancel() }
+    try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
 
     finishAutomaticCleanup.signal()
     await finalization.value
-    finishSelectedConfiguration.signal()
+    try await PlayHelpers.recoverAudioSessionConfiguration()
     _ = try await selectedPlay.value
 
     try await PlayHelpers.waitForOnDeck(selectedEpisode)
@@ -482,9 +446,9 @@ import Testing
     await automaticCleanupStarted.wait()
     try await PlayHelpers.waitForOnDeck(automaticEpisode)
 
-    audioSession.configureError { $0 = TestError.simulatedFailure }
-    try await playManager.play(selectedEpisode)
-    audioSession.configureError { $0 = nil }
+    try await PlayHelpers.failingAudioSessionConfiguration {
+      try await playManager.play(selectedEpisode)
+    }
 
     finishAutomaticCleanup.signal()
     await finalization.value
@@ -505,8 +469,9 @@ import Testing
     try await PlayHelpers.play()
     try await PlayHelpers.waitForAudioActive(true)
 
-    audioSession.configureError { $0 = TestError.simulatedFailure }
-    await playManager.finishEpisode(currentEpisode.id)
+    try await PlayHelpers.failingAudioSessionConfiguration {
+      await playManager.finishEpisode(currentEpisode.id)
+    }
 
     try await PlayHelpers.waitFor(.stopped)
     try await PlayHelpers.waitForAudioActive(false)
