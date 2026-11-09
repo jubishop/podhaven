@@ -536,16 +536,25 @@ import Testing
       try await PlayHelpers.load(podcastEpisode)
       try await PlayHelpers.pause()
       let initialAVPlayer = avPlayer
+      let currentItem = try #require(initialAVPlayer.current as? FakeAVPlayerItem)
+      await episodeAssetLoader.respond(
+        to: podcastEpisode.episode.mediaURL,
+        error: TestError.simulatedFailure
+      )
+
+      currentItem.setStatus(.failed)
+      try await Wait.until(
+        { await alert.config != nil },
+        { "Expected a playback failure alert" }
+      )
+      try await PlayHelpers.waitForOnDeck(nil)
+      try await PlayHelpers.waitFor(.stopped)
+      try await PlayHelpers.waitForQueue([podcastEpisode])
+      alert.config = nil
       let initialLoadCount = await episodeAssetLoader.responseCount(
         for: podcastEpisode.episode.mediaURL
       )
       let initialActivationCount = await audioSession.activeCalls.filter(\.self).count
-      let currentItem = try #require(initialAVPlayer.current as? FakeAVPlayerItem)
-
-      currentItem.setStatus(.failed)
-      try await PlayHelpers.waitForOnDeck(nil)
-      try await PlayHelpers.waitFor(.stopped)
-      try await PlayHelpers.waitForQueue([podcastEpisode])
 
       let initialConfigureCallCount = await audioSession.configureCallCount
       notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
