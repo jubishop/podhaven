@@ -64,12 +64,21 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let pendingPublisherTranscriptStoreAfterWriteSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedPublisherTranscriptStoreAfterWriteCount = ThreadSafe<Int>(0)
   private var publisherTranscriptStoreAfterWriteSuspensions: [CheckedContinuation<Void, Never>] = []
+  nonisolated let pendingSeriesFeedUpdateAfterWriteSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedSeriesFeedUpdateAfterWriteCount = ThreadSafe<Int>(0)
+  private var seriesFeedUpdateAfterWriteSuspensions: [CheckedContinuation<Void, Never>] = []
 
   // Same shape as pendingEpisodeFetchSuspend, but for updateLastUpdates so
   // tests can park the batched flush inside RefreshManager.performRefresh.
   nonisolated let pendingUpdateLastUpdatesSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedUpdateLastUpdatesCount = ThreadSafe<Int>(0)
   private var updateLastUpdatesSuspensions: [CheckedContinuation<Void, Never>] = []
+
+  // While true, every `updatePlayback` parks before writing, as if another
+  // transaction held the writer, until `releasePlaybackUpdates()`.
+  nonisolated let playbackUpdatesHeld = ThreadSafe<Bool>(false)
+  private nonisolated let suspendedPlaybackUpdateCount = ThreadSafe<Int>(0)
+  private var playbackUpdateSuspensions: [CheckedContinuation<Void, Never>] = []
 
   private let repo: Repo
 
@@ -374,7 +383,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     updatedPodcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [FeedMergeEpisode]
-  ) async throws -> [Episode] {
+  ) async throws -> NewEpisodeAutomation? {
     recordCall(
       methodName: "updateSeriesFromFeed",
       parameters: (
@@ -384,11 +393,33 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         existingEpisodes: existingEpisodes
       )
     )
-    return try await repo.updateSeriesFromFeed(
+    let result = try await repo.updateSeriesFromFeed(
       podcast: podcast,
       updatedPodcast: updatedPodcast,
       unsavedEpisodes: unsavedEpisodes,
       existingEpisodes: existingEpisodes
+    )
+    if pendingSeriesFeedUpdateAfterWriteSuspend() {
+      pendingSeriesFeedUpdateAfterWriteSuspend(false)
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        seriesFeedUpdateAfterWriteSuspensions.append(continuation)
+        suspendedSeriesFeedUpdateAfterWriteCount(seriesFeedUpdateAfterWriteSuspensions.count)
+      }
+    }
+    return result
+  }
+
+  func resumeAllSeriesFeedUpdateAfterWriteSuspensions() {
+    let toResume = seriesFeedUpdateAfterWriteSuspensions
+    seriesFeedUpdateAfterWriteSuspensions.removeAll()
+    suspendedSeriesFeedUpdateAfterWriteCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForSeriesFeedUpdateAfterWriteSuspended() async throws {
+    try await Wait.until(
+      { self.suspendedSeriesFeedUpdateAfterWriteCount() > 0 },
+      { "Expected the series feed update to suspend after writing" }
     )
   }
 
@@ -539,11 +570,37 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         episodeID: episodeID, currentTime: currentTime, playedFrom: playedFrom, now: now
       )
     )
+    if playbackUpdatesHeld() {
+      await withCheckedContinuation { continuation in
+        playbackUpdateSuspensions.append(continuation)
+        suspendedPlaybackUpdateCount(playbackUpdateSuspensions.count)
+      }
+    }
     return try await repo.updatePlayback(
       episodeID,
       currentTime: currentTime,
       playedFrom: playedFrom,
       now: now
+    )
+  }
+
+  func releasePlaybackUpdates() {
+    playbackUpdatesHeld(false)
+    let toResume = playbackUpdateSuspensions
+    playbackUpdateSuspensions.removeAll()
+    suspendedPlaybackUpdateCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForPlaybackUpdateSuspended(count: Int = 1) async throws {
+    try await Wait.until(
+      { self.suspendedPlaybackUpdateCount() >= count },
+      {
+        """
+        Expected at least \(count) suspended playback updates, \
+        got \(self.suspendedPlaybackUpdateCount())
+        """
+      }
     )
   }
 
