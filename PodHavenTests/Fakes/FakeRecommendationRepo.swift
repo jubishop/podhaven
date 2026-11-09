@@ -232,9 +232,13 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     return try await recommendationRepo.allScoringContextInputs()
   }
 
-  func whiteningTransform(principalComponentCount: Int) async throws -> WhiteningTransform? {
+  func whiteningTransform(
+    embeddingRevision: Int,
+    principalComponentCount: Int
+  ) async throws -> WhiteningTransform? {
     recordCall(methodName: "whiteningTransform", parameters: principalComponentCount)
     return try await recommendationRepo.whiteningTransform(
+      embeddingRevision: embeddingRevision,
       principalComponentCount: principalComponentCount
     )
   }
