@@ -105,6 +105,18 @@ class VersionTests(unittest.TestCase):
             self.assertEqual(self.project.read_text(), self.original)
             self.assertEqual(self.run_version().stdout.strip(), "1.0")
 
+    def test_missing_upstream_stops_with_guidance_before_changes(self):
+        for missing in (("--unset-all", "branch.main.remote"), ("--unset-all", "branch.main.merge")):
+            with self.subTest(missing=missing[1]):
+                self.git("branch", "--set-upstream-to=origin/main")
+                self.git("config", *missing)
+                result = self.run_version("1.1")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Configure the current branch's upstream", result.stderr)
+                self.assertNotIn("non-zero exit status", result.stderr)
+                self.assertEqual(self.project.read_text(), self.original)
+                self.assertEqual(self.git("rev-list", "--count", "HEAD"), "1")
+
     def test_failed_push_retries_without_a_duplicate_commit(self):
         hook = self.remote / "hooks/pre-receive"
         hook.write_text("#!/bin/sh\nexit 1\n")

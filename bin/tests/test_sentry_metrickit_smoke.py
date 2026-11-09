@@ -1,20 +1,19 @@
 """Check the MetricKit crash smoke fixture and its Sentry readback verification, including the killed launch's timeline."""
 
-import importlib.machinery
-import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 
 import service_guard
 
 ROOT = Path(__file__).resolve().parents[2]
-loader = importlib.machinery.SourceFileLoader("metrickit_smoke", str(ROOT / "bin/sentry-metrickit-smoke"))
-spec = importlib.util.spec_from_loader(loader.name, loader)
-smoke = importlib.util.module_from_spec(spec)
-loader.exec_module(smoke)
+sys.path.insert(0, str(ROOT / "bin"))
+from _sentry_smoke import load
+
+smoke = load("metrickit_smoke", ROOT / "bin/sentry-metrickit-smoke")
 
 BINARY_UUID = "791C1373-79E0-375C-BAD7-80FB93301058"
 OFFSETS = [0xC66508, 0xC82C58, 0xC75238]

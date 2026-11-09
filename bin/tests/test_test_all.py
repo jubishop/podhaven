@@ -152,6 +152,25 @@ else:
 '''
 
 TEST_HOST = "com.artisanalsoftware.PodHaven.debug"
+APP_RESOLVED = "PodHaven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+MACRO_RESOLVED = "PodHavenMacros/Package.resolved"
+
+
+def pin(identity, **state):
+    return {"identity": identity, "kind": "remoteSourceControl",
+            "location": f"https://example.invalid/{identity}", "state": state}
+
+
+MACRO_PINS = [pin("swift-syntax", branch="main", revision="a" * 40),
+              pin("swift-tagged", branch="main", revision="b" * 40)]
+APP_PINS = [pin("grdb.swift", branch="master", revision="c" * 40), *MACRO_PINS]
+
+
+def write_package_pins(repo, app_pins=APP_PINS, macro_pins=MACRO_PINS):
+    for name, pins in ((APP_RESOLVED, app_pins), (MACRO_RESOLVED, macro_pins)):
+        path = repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"originHash": name, "pins": pins, "version": 3}, indent=2) + "\n")
 
 
 def make_container(home, name, identifier=TEST_HOST):
@@ -187,6 +206,7 @@ class TestAllTests(unittest.TestCase):
             '#!/bin/bash\nprintf shell > "$TEST_ALL_FIXTURE/shell-ran"\n')
         (self.repo / ".gitignore").write_text('.cache/\n')
         (self.repo / "source.txt").write_text("original")
+        write_package_pins(self.repo)
         (self.base / "home").mkdir()
         self.host_temporary = make_container(self.base / "home", "2D1F")
         self.env = {**os.environ, "PATH": str(self.commands) + os.pathsep + os.environ["PATH"],
@@ -466,6 +486,33 @@ class TestAllTests(unittest.TestCase):
         events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
         self.assertFalse(any(name == "xcodebuild" and "test" in args for name, args in events))
 
+    def test_macro_package_pins_that_differ_from_the_app_stop_before_tests(self):
+        write_package_pins(self.repo, macro_pins=[
+            pin("swift-syntax", branch="main", revision="d" * 40), MACRO_PINS[1],
+            pin("swift-macro-only", version="1.0.0", revision="e" * 40)])
+        result = self.run_all()
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("swift-syntax (macros main dddddddddddd, app main aaaaaaaaaaaa)", result.stderr)
+        self.assertIn("swift-macro-only (macros 1.0.0 eeeeeeeeeeee, app none)", result.stderr)
+        self.assertNotIn("swift-tagged", result.stderr)
+        events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
+        self.assertFalse(any(name == "check" or "test" in args for name, args in events))
+        self.assertFalse((self.repo / ".cache").exists())
+
+    def test_unreadable_package_pins_stop_before_tests(self):
+        for name, contents in ((MACRO_RESOLVED, None), (APP_RESOLVED, "{}"), (MACRO_RESOLVED, "not json")):
+            with self.subTest(name=name, contents=contents):
+                write_package_pins(self.repo)
+                path = self.repo / name
+                if contents is None:
+                    path.unlink()
+                else:
+                    path.write_text(contents)
+                result = self.run_all()
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn(f"Could not read package pins from {name}", result.stderr)
+                self.assertFalse((self.repo / ".cache").exists())
+
     def test_ensure_reuses_only_intact_clean_full_evidence(self):
         result = self.run_all("--ensure")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -516,13 +563,23 @@ class TestAllTests(unittest.TestCase):
         self.assertNotEqual(self.run_all("--verify", TEST_SWIFT_VERSION="6.5").returncode, 0)
         self.assertNotEqual(self.run_all("--verify", TEST_XCODE_VERSION="26.5").returncode, 0)
 
-    def test_latest_failure_does_not_reuse_an_older_success(self):
+    def test_reuse_finds_an_older_pass_behind_newer_runs_it_cannot_reuse(self):
+        cache = self.repo / ".cache/test-all"
         self.assertEqual(self.run_all().returncode, 0)
+        (passing,) = cache.iterdir()
         self.assertNotEqual(self.run_all(TEST_SKIPPED="1").returncode, 0)
-        self.assertNotEqual(self.run_all("--verify").returncode, 0)
-        latest = max((self.repo / ".cache/test-all").glob("*/run.json"),
-                     key=lambda path: path.stat().st_mtime_ns)
-        latest.unlink()
+        (self.repo / "source.txt").write_text("dirty")
+        self.assertEqual(self.run_all().returncode, 0)
+        (self.repo / "source.txt").write_text("original")
+        (cache / "29991231-235959-interrupted").mkdir()
+        self.assertEqual(len(list(cache.iterdir())), 4)
+        result = self.run_all("--verify")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(Path(result.stdout.split("evidence: ")[-1].strip()).name, passing.name)
+        result = self.run_all("--ensure", TEST_BUILD_FAILURE="1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(len(list(cache.iterdir())), 4)
+        (passing / "run.json").unlink()
         self.assertNotEqual(self.run_all("--verify").returncode, 0)
 
     def test_new_runs_prune_older_evidence_beyond_the_retention_count(self):

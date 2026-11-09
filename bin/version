@@ -45,8 +45,10 @@ def main():
         branch = subprocess.check_output([*git, "branch", "--show-current"], text=True).strip()
         if not branch:
             raise ValueError("Check out a branch with a configured upstream before changing the version.")
-        remote = subprocess.check_output([*git, "config", "--get", f"branch.{branch}.remote"], text=True).strip()
-        destination = subprocess.check_output([*git, "config", "--get", f"branch.{branch}.merge"], text=True).strip()
+        remote = subprocess.check_output([*git, "config", "--default", "", "--get", f"branch.{branch}.remote"],
+                                         text=True).strip()
+        destination = subprocess.check_output([*git, "config", "--default", "", "--get", f"branch.{branch}.merge"],
+                                              text=True).strip()
         if not remote or not destination.startswith("refs/heads/"):
             raise ValueError("Configure the current branch's upstream before changing the version.")
         pending_push = Path(subprocess.check_output(
