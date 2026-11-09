@@ -289,7 +289,7 @@ class TagsTests {
     let tag = try await repo.insertTag(UnsavedTag(name: "Bookmark"))
 
     let updateCount = Counter()
-    let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+    let observation: SettledPlaybackObservation<[ListablePodcastEpisode]> =
       observatory.listablePodcastEpisodes(
         filter: Episode.Columns.id == episodeID
       )
