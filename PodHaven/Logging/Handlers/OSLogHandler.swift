@@ -14,7 +14,7 @@ extension Logging.Logger.Level {
     case .info:
       return .info
     case .notice:
-      return .info
+      return .default
     case .warning:
       return .error
     case .error:
