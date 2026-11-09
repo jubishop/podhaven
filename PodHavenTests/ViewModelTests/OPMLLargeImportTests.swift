@@ -38,8 +38,9 @@ import Testing
     try await withHostedTestWindow(host) { _ in
       let stopping = MainThreadMonitor()
       stopping.start()
-      let importTask = Task { await opmlViewModel.importOPMLFromURL(url: Self.opmlURL) }
-      let stoppedFile = try await Wait.forValue { await opmlViewModel.opmlFile }
+      await opmlViewModel.importOPMLFromURL(url: Self.opmlURL)
+      let stoppedFile = try #require(opmlViewModel.opmlFile)
+      let importTask = Task { await opmlViewModel.importFeeds() }
       try await Wait.until(
         { @MainActor in stoppedFile.finished.count == finishedBeforeStop },
         { @MainActor in
@@ -70,6 +71,7 @@ import Testing
       importing.start()
       let importStarted = ContinuousClock.now
       await opmlViewModel.importOPMLFromURL(url: Self.opmlURL)
+      await opmlViewModel.importFeeds()
       let importDuration = ContinuousClock.now - importStarted
       host.view.layoutIfNeeded()
       importing.stop()
