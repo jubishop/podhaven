@@ -78,6 +78,11 @@ struct PodAVPlayerPlaybackSnapshot {
     case remote
   }
 
+  private enum PlaybackTickSave {
+    case idle
+    case saving
+  }
+
   @DynamicInjected(\.avPlayer) var avPlayer
   @DynamicInjected(\.cacheFileStore) private var cacheFileStore
   @DynamicInjected(\.cacheManager) private var cacheManager
@@ -98,6 +103,7 @@ struct PodAVPlayerPlaybackSnapshot {
   var eventSource: PodAVPlayerEventSource?
   private(set) var playbackRequestID: UUID?
   var lastDatabaseUpdateTime: CMTime?
+  private var playbackTickSave = PlaybackTickSave.idle
   var latestSeekID: UUID?
   var silenceState = SilencePlaybackState()
   var selectedRate: Float = 1
@@ -671,18 +677,20 @@ struct PodAVPlayerPlaybackSnapshot {
     if await shortenSilenceIfNeeded() { return }
     guard isCurrent(source), latestSeekID == nil else { return }
 
-    // `abs` guards against any future path that moves time backward without
-    // routing through `seek(to:)` (which resets `lastDatabaseUpdateTime`).
-    if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds)
-      >= Double(Self.playbackTickSeconds)
-    {
-      await savePlaybackTick(currentTime, episodeID: source.episodeID)
-      guard isCurrent(source) else { return }
-    }
-
-    // Always yield to the stream for UI updates (250ms)
+    // Publish before saving so a busy database writer can't hold back time updates.
     Self.log.trace("handleCurrentTimeChange to: \(currentTime) for \(source.episodeID)")
     currentTimeContinuation.yield(PodAVPlayerEvent(source: source, value: currentTime))
+
+    // `abs` guards against any future path that moves time backward without
+    // routing through `seek(to:)` (which resets `lastDatabaseUpdateTime`).
+    guard playbackTickSave == .idle,
+      abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds)
+        >= Double(Self.playbackTickSeconds)
+    else { return }
+
+    playbackTickSave = .saving
+    await savePlaybackTick(currentTime, episodeID: source.episodeID)
+    playbackTickSave = .idle
   }
 
   // MARK: - Transient State Tracking
