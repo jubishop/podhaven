@@ -42,8 +42,12 @@ settings when adapting setup; remove an obsolete QMD-only file.
 
 Local development and tests require macOS 27 or later, Xcode 27 or later,
 and Swift 6.4 or later, as declared in the [README](../README.md#prerequisites).
-The app retains its existing iOS 26 deployment target. The macro package
-also declares its minimum Swift tools version in `PodHavenMacros/Package.swift`.
+The app and its extensions share one iOS 26 deployment target, since the
+system won't load an extension that targets a newer iOS than the device runs.
+New Xcode targets default to the newest SDK, so match theirs to the app's;
+`bin/tests/test_xcode_project.py` fails when any build configuration differs.
+The macro package also declares its minimum Swift tools version in
+`PodHavenMacros/Package.swift`.
 Keep development, CI, and release tools compatible with these requirements.
 Use the existing manifests and setup mechanisms instead of adding conflicting
 version declarations.
