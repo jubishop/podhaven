@@ -296,10 +296,15 @@ struct Repo: Databasing {
     updatedPodcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [FeedMergeEpisode]
-  ) async throws -> [Episode] {
+  ) async throws -> NewEpisodeAutomation? {
     let nextPublisherAttemptAt = Container.shared.dateProvider().now
     let result = try await writer.write { db in
-      var newEpisodes = [Episode](capacity: unsavedEpisodes.count)
+      let newestStoredPubDate =
+        try Episode
+        .filter(Episode.Columns.podcastId == podcast.id)
+        .select(max(Episode.Columns.pubDate), as: Date.self)
+        .fetchOne(db)
+      var insertedEpisodes = [Episode](capacity: unsavedEpisodes.count)
       var publisherTranscriptWorkCreated = false
 
       let lastUpdateAssignment = Podcast.Columns.lastUpdate.set(to: Date())
@@ -332,7 +337,7 @@ struct Repo: Databasing {
       for var unsavedEpisode in unsavedEpisodes {
         unsavedEpisode.podcastId = podcast.id
         let episode = try unsavedEpisode.insertAndFetch(db, as: Episode.self)
-        newEpisodes.append(episode)
+        insertedEpisodes.append(episode)
         if !episode.hasTranscript,
           episode.publisherTranscriptReferences.contains(where: { $0.format != nil })
         {
@@ -349,39 +354,78 @@ struct Repo: Databasing {
         try RecommendationRepo.updateInferredFreshnessCadence(db, podcastID: podcast.id)
       }
 
-      let queueMode = podcast.queueAllEpisodes
-      if queueMode != .never, !newEpisodes.isEmpty,
-        let autoQueueLimit = podcast.autoQueueLimit
-      {
-        // Keep only this podcast's `autoQueueLimit` newest episodes, evicting its
-        // own oldest queued episodes to make room for the surviving incoming ones.
-        let episodesToQueue = try queue.limitPodcast(
+      return (
+        automation: try automateNewEpisodes(
           db,
           podcastID: podcast.id,
-          incoming: newEpisodes,
-          to: autoQueueLimit
-        )
-        if !episodesToQueue.isEmpty {
-          if queueMode == .onTop {
-            try queue.unshift(db, episodesToQueue.map(\.id))
-          } else if queueMode == .onBottom {
-            try queue.append(db, episodesToQueue.map(\.id))
-          }
-        }
-      } else if queueMode == .onTop, !newEpisodes.isEmpty {
-        try queue.unshift(db, newEpisodes.map(\.id))
-      } else if queueMode == .onBottom, !newEpisodes.isEmpty {
-        try queue.append(db, newEpisodes.map(\.id))
-      }
-      return (
-        newEpisodes: newEpisodes,
+          insertedEpisodes: insertedEpisodes,
+          newestStoredPubDate: newestStoredPubDate
+        ),
         publisherTranscriptWorkCreated: publisherTranscriptWorkCreated
       )
     }
     if result.publisherTranscriptWorkCreated {
       publisherTranscriptProcessor.workBecameAvailable()
     }
-    return result.newEpisodes
+    return result.automation
+  }
+
+  // Only a subscribed podcast's episodes newer than all it stored before this
+  // refresh count as new; the rest are back catalog surfacing in the feed.
+  private func automateNewEpisodes(
+    _ db: Database,
+    podcastID: Podcast.ID,
+    insertedEpisodes: [Episode],
+    newestStoredPubDate: Date?
+  ) throws -> NewEpisodeAutomation? {
+    guard !insertedEpisodes.isEmpty,
+      let podcast = try Podcast.withID(podcastID).fetchOne(db),
+      podcast.subscribed
+    else { return nil }
+
+    let newEpisodes =
+      insertedEpisodes
+      .filter { episode in
+        guard let newestStoredPubDate else { return true }
+        return episode.pubDate > newestStoredPubDate
+      }
+      .sorted { $0.pubDate > $1.pubDate }
+    let backCatalogCount = insertedEpisodes.count - newEpisodes.count
+    if backCatalogCount > 0 {
+      Self.log.debug(
+        """
+        automateNewEpisodes: skipping \(backCatalogCount) inserted episodes older than \
+        podcast \(podcastID)'s newest stored episode
+        """
+      )
+    }
+    guard !newEpisodes.isEmpty else { return nil }
+
+    let queueMode = podcast.queueAllEpisodes
+    if queueMode != .never {
+      let episodesToQueue: [Episode]
+      if let autoQueueLimit = podcast.autoQueueLimit {
+        // Keep only this podcast's `autoQueueLimit` newest episodes, evicting its
+        // own oldest queued episodes to make room for the surviving incoming ones.
+        episodesToQueue = try queue.limitPodcast(
+          db,
+          podcastID: podcastID,
+          incoming: newEpisodes,
+          to: autoQueueLimit
+        )
+      } else {
+        episodesToQueue = Array(newEpisodes.prefix(PodcastSettings.defaultAutoQueueLimit))
+      }
+      // Newest first on top, oldest first on bottom, matching separate refreshes.
+      if !episodesToQueue.isEmpty {
+        if queueMode == .onTop {
+          try queue.unshift(db, episodesToQueue.map(\.id))
+        } else {
+          try queue.append(db, episodesToQueue.reversed().map(\.id))
+        }
+      }
+    }
+    return NewEpisodeAutomation(podcast: podcast, episodes: newEpisodes)
   }
 
   // MARK: - Podcast Writers
