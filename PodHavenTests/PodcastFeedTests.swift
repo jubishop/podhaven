@@ -391,6 +391,49 @@ struct PodcastFeedTests {
     )
   }
 
+  @Test("parsing a feed treats empty guids as missing")
+  func parseFeedWithEmptyGuids() async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+        <channel>
+          <title>Empty GUIDs</title>
+          <description>Feed with empty guids</description>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Empty</title>
+            <guid></guid>
+            <enclosure url="https://example.com/empty.mp3" type="audio/mpeg"/>
+          </item>
+          <item>
+            <title>Self-closing</title>
+            <guid isPermaLink="false"/>
+            <enclosure url="https://example.com/self-closing.mp3" type="audio/mpeg"/>
+          </item>
+          <item>
+            <title>Whitespace</title>
+            <guid>   </guid>
+            <enclosure url="https://example.com/whitespace.mp3" type="audio/mpeg"/>
+          </item>
+        </channel>
+      </rss>
+      """
+    let feed = try await PodcastFeed.parse(
+      Data(xml.utf8),
+      from: FeedURL(URL(string: "https://example.com/feed.xml")!)
+    )
+
+    let episodes = feed.toUnsavedEpisodes()
+    #expect(
+      Set(episodes.map(\.guid)) == [
+        GUID("https://example.com/empty.mp3"),
+        GUID("https://example.com/self-closing.mp3"),
+        GUID("https://example.com/whitespace.mp3"),
+      ]
+    )
+    #expect(Set(episodes.map(\.title)) == ["Empty", "Self-closing", "Whitespace"])
+  }
+
   @Test("parsing with invalid feedURL throws error")
   func parseWithInvalidFeedURL() async throws {
     let url = URL(string: "file://invalid.url")!
