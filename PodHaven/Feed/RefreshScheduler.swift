@@ -268,7 +268,8 @@ struct RefreshScheduler: Sendable {
   // MARK: - Refresh Helpers
 
   private func runRefresh(_ refreshPolicy: RefreshPolicy) async throws {
-    if connectionState.isConstrained {
+    let path = try await connectionState.currentPath()
+    if path.isConstrained {
       Self.log.debug("connection is constrained (low data mode)")
       return
     }
@@ -281,11 +282,11 @@ struct RefreshScheduler: Sendable {
     defer { finishRefresh() }
 
     try await refreshManager.performRefresh(
-      stalenessThreshold: connectionState.isExpensive
+      stalenessThreshold: path.isExpensive
         ? refreshPolicy.cellStalenessThreshold
         : refreshPolicy.wifiStalenessThreshold,
       filter: Podcast.subscribed,
-      limit: connectionState.isExpensive
+      limit: path.isExpensive
         ? refreshPolicy.cellLimit
         : refreshPolicy.wifiLimit
     )
