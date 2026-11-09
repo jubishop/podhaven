@@ -344,21 +344,15 @@ struct EpisodeDetailView: View {
   }
 
   private var descriptionText: some View {
-    DescriptionText(blocks: viewModel.descriptionBlocks)
-      .environment(
-        \.openURL,
-        OpenURLAction { url in
-          guard let timestamp = Timestamp.timestamp(fromURL: url) else { return .systemAction }
-          alert(
-            title: "Play from \(Timestamp.format(timestamp))?",
-            "Start playback from this point."
-          ) {
-            Button("Play") { viewModel.playAt(timestamp: timestamp) }
-            Button("Cancel", role: .cancel) {}
-          }
-          return .handled
-        }
-      )
+    DescriptionText(blocks: viewModel.descriptionBlocks) { timestamp in
+      alert(
+        title: "Play from \(Timestamp.format(timestamp))?",
+        "Start playback from this point."
+      ) {
+        Button("Play") { viewModel.playAt(timestamp: timestamp) }
+        Button("Cancel", role: .cancel) {}
+      }
+    }
   }
 
   private var transcriptionView: some View {
