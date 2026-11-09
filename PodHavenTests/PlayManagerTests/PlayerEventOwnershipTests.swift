@@ -12,6 +12,7 @@ import Testing
 @Suite("of Player event ownership tests", .container)
 @MainActor struct PlayerEventOwnershipTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
@@ -41,6 +42,10 @@ import Testing
 
     try await playManager.load(replacementEpisode)
     let replacementItem = try #require(avPlayer.current as? FakeAVPlayerItem)
+    await episodeAssetLoader.respond(
+      to: replacementEpisode.episode.mediaURL,
+      error: TestError.simulatedFailure
+    )
     let firstFailedEpisodeID = ThreadSafe<Episode.ID?>(nil)
     let failureHandled = AsyncSemaphore(value: 0)
     let replacementQueued = AsyncSemaphore(value: 0)
