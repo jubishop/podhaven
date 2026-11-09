@@ -176,13 +176,18 @@ The detector uses the peak absolute sample value across all channels in each
 10 ms window. Each window is compared with the three protection thresholds above. High retains
 the original 0.001 full-scale threshold (−60 dBFS). The detector keeps
 quiet candidates of at least 40 ms before preset filtering. An audible window
-splits candidates; missing timestamps do not join them. Invalid samples reject
+splits candidates; missing timestamps do not join them. The decoder can run past
+the duration AVFoundation estimates, so quiet candidates are clipped to that
+estimate, and those that end up shorter than 40 ms are dropped. Invalid samples reject
 analysis. The decoder reads interleaved float PCM without downmixing and bounds
 one sample buffer to 1 MiB. The complete three-level map is limited to 100,000 intervals in total and 8 MB
 of encoded data. Every level must be present; an empty level is complete analysis.
 The full map is published atomically. Failed analysis is attempted at most twice per file generation
 and detector version, on separate eligibility triggers. Cancellation does not
-publish a partial map or record a permanent failure.
+publish a partial map or record a permanent failure. Migration v88 clears failure
+counts recorded before clipping, so those files are analyzed again. Each scheduler
+pass reads stored analysis state and writes only to create, reset, remove, or
+update it.
 
 | Preset | Minimum source gap at 1× | Total source pause retained at 1× |
 | --- | --- | --- |
