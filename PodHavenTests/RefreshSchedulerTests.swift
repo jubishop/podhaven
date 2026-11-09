@@ -299,12 +299,11 @@ import UIKit
   func backgroundRefreshCachesNewlyQueuedEpisodes() async throws {
     let fakeBGTaskScheduler = fakeBGTaskScheduler
     let session = session
-    let podcastSeries = try await makeStaleSubscribedSeries(queueAllEpisodes: .onTop)
-    let responseData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
+    let podcastSeries = try await NewEpisodeFeed.insertSeries(
+      lastUpdate: 5.hoursAgo,
+      queueAllEpisodes: .onTop
     )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: responseData)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: NewEpisodeFeed.data)
     fakeApplication.applicationState = .background
     // Only the refresh's handoff, not the queue observation, can start downloads.
     fakeObservatory.holdNextQueuedPodcastEpisodesDelivery()
@@ -432,8 +431,7 @@ import UIKit
   private func makeStaleSubscribedSeries(
     feedData: Data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS),
     feedURL: URL = URL(string: "https://example.com/feed.rss")!,
-    lastUpdate: Date = 5.hoursAgo,
-    queueAllEpisodes: QueueAllEpisodes = .never
+    lastUpdate: Date = 5.hoursAgo
   ) async throws -> PodcastSeries {
     let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
     let basePodcast = try podcastFeed.toUnsavedPodcast()
@@ -444,8 +442,7 @@ import UIKit
       description: basePodcast.description,
       link: basePodcast.link,
       lastUpdate: lastUpdate,
-      subscriptionDate: Date(),
-      queueAllEpisodes: queueAllEpisodes
+      subscriptionDate: Date()
     )
 
     return try await repo.insertSeries(
