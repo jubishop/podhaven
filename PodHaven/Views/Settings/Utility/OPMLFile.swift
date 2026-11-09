@@ -4,9 +4,14 @@ import Foundation
 import OrderedCollections
 
 @Observable @MainActor class OPMLFile: Identifiable {
+  enum Phase {
+    case reviewing, importing
+  }
+
   let id = UUID()
   let title: String
   let skippedCount: Int
+  var phase: Phase = .reviewing
   var totalCount: Int {
     failed.count
       + waiting.count
