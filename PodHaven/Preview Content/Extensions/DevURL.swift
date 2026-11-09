@@ -8,12 +8,16 @@ extension URL {
     URL(string: "https://www.valid.com/\(String.random())")!
   }
 
-  static func response(_ url: URL, statusCode: Int = 200) -> HTTPURLResponse {
+  static func response(
+    _ url: URL,
+    statusCode: Int = 200,
+    headerFields: [String: String] = [:]
+  ) -> HTTPURLResponse {
     HTTPURLResponse(
       url: url,
       statusCode: statusCode,
       httpVersion: nil,
-      headerFields: [:]
+      headerFields: headerFields
     )!
   }
 }

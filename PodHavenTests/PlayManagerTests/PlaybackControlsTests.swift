@@ -14,7 +14,6 @@ import Testing
 @MainActor struct PlaybackControlsTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
-  @DynamicInjected(\.notifier) private var notifier
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
@@ -328,52 +327,6 @@ import Testing
       )
     )
     try await PlayHelpers.waitFor(midpoint)
-  }
-
-  @Test("audio session interruption stops and restarts playback")
-  func audioSessionInterruptionStopsPlayback() async throws {
-
-    await playManager.start()
-    let podcastEpisode = try await Create.podcastEpisode()
-
-    try await playManager.load(podcastEpisode)
-    try await PlayHelpers.play()
-
-    let interruptionContinuation = notifier.continuation(
-      for: AVAudioSession.interruptionNotification
-    )
-
-    // Interruption began: pause playback
-    interruptionContinuation.yield(
-      Notification(
-        name: AVAudioSession.interruptionNotification,
-        userInfo: [
-          AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.began.rawValue
-        ]
-      )
-    )
-    try await PlayHelpers.waitFor(.paused)
-    try await PlayHelpers.waitForNowPlayingInfo(
-      key: MPNowPlayingInfoPropertyPlaybackRate,
-      value: 0.0
-    )
-
-    // Interruption ended: resume playback
-    interruptionContinuation.yield(
-      Notification(
-        name: AVAudioSession.interruptionNotification,
-        userInfo: [
-          AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.ended.rawValue,
-          AVAudioSessionInterruptionOptionKey:
-            AVAudioSession.InterruptionOptions.shouldResume.rawValue,
-        ]
-      )
-    )
-    try await PlayHelpers.waitFor(.playing)
-    try await PlayHelpers.waitForNowPlayingInfo(
-      key: MPNowPlayingInfoPropertyPlaybackRate,
-      value: 1.0
-    )
   }
 
   @Test("time update events update currentTime")

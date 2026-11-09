@@ -6,6 +6,6 @@ import Foundation
 
 extension DownloadData {
   init(url: URL) {
-    self.init(url: url, data: url.dataRepresentation)
+    self.init(url: url, data: url.dataRepresentation, validators: nil)
   }
 }

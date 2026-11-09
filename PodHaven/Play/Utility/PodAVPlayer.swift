@@ -432,6 +432,10 @@ struct PodAVPlayerPlaybackSnapshot {
     return playbackRequestID
   }
 
+  func playRequested(by requestID: UUID) -> Bool {
+    playbackRequestID == requestID
+  }
+
   func isCurrent(_ source: PodAVPlayerEventSource) -> Bool {
     guard eventSource == source, let currentItem = avPlayer.current else { return false }
     return ObjectIdentifier(currentItem) == source.itemIdentity

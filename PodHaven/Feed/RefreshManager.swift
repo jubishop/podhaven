@@ -92,7 +92,7 @@ struct RefreshManager {
     }
 
     if !collected.isEmpty {
-      let pairs = collected.map { ($0.id, $0.lastUpdate) }
+      let refreshes = collected.map { ($0.id, $0.lastUpdate, $0.feedValidators) }
       let urls = collected.map(\.url)
       // Task to execute even inside cancellation: ensures the timestamps
       // collected for series that already finished refreshing get flushed
@@ -103,10 +103,10 @@ struct RefreshManager {
       await Task {
         defer { inFlight { state in for url in urls { state.remove(url) } } }
         do {
-          try await repo.updateLastUpdates(pairs)
+          try await repo.updateLastUpdates(refreshes)
         } catch {
           Self.log.caughtError(
-            "performRefresh: failed to flush \(pairs.count) lastUpdate timestamps",
+            "performRefresh: failed to flush \(refreshes.count) lastUpdate timestamps",
             error
           )
         }
@@ -128,14 +128,22 @@ struct RefreshManager {
 
     if let pending = try await performRefreshCycle(podcast: podcast) {
       defer { inFlight { $0.remove(pending.url) } }
-      try await repo.updateLastUpdates([(pending.id, pending.lastUpdate)])
+      // Record the refresh even if the caller is cancelled after the feed write.
+      try await Task {
+        try await repo.updateLastUpdates([
+          (pending.id, pending.lastUpdate, pending.feedValidators)
+        ])
+      }
+      .value
     }
     await publisherTranscriptProcessor.makeForegroundProgress()
   }
 
   // MARK: - Private Helpers
 
-  private typealias PendingFlush = (id: Podcast.ID, lastUpdate: Date, url: URL)
+  private typealias PendingFlush = (
+    id: Podcast.ID, lastUpdate: Date, url: URL, feedValidators: HTTPValidators?
+  )
 
   // When a PendingFlush is returned, the caller owns removing url from
   // inFlight after the batched updateLastUpdates flush commits — otherwise a
@@ -156,10 +164,22 @@ struct RefreshManager {
     var releaseOnExit = true
     defer { if releaseOnExit { inFlight { $0.remove(url) } } }
 
-    let downloadTask = await downloadManager.addURL(url)
+    let feedValidators = podcast.feedValidators
+    let downloadTask = await downloadManager.addURL(url, validators: feedValidators)
+    let downloadData: DownloadData
     let podcastFeed: PodcastFeed
     do {
-      podcastFeed = try await PodcastFeed.parse(downloadTask.downloadFinished())
+      downloadData = try await downloadTask.downloadFinished()
+      podcastFeed = try await PodcastFeed.parse(downloadData)
+    } catch let error as HTTPStatusError where error.statusCode == 304 && feedValidators != nil {
+      Self.log.trace("performRefreshCycle: \(podcast.toString) not modified")
+      releaseOnExit = false
+      return PendingFlush(
+        id: podcast.id,
+        lastUpdate: Date(),
+        url: url,
+        feedValidators: feedValidators
+      )
     } catch {
       let level: Logger.Level
       switch error {
@@ -186,7 +206,7 @@ struct RefreshManager {
     )
 
     guard
-      let pending = await applyParsedFeed(
+      let lastUpdate = await applyParsedFeed(
         podcast: podcast,
         podcastFeed: podcastFeed,
         existingEpisodes: existingEpisodes
@@ -195,14 +215,20 @@ struct RefreshManager {
       return nil
     }
     releaseOnExit = false
-    return PendingFlush(id: pending.id, lastUpdate: pending.lastUpdate, url: url)
+    return PendingFlush(
+      id: podcast.id,
+      lastUpdate: lastUpdate,
+      url: url,
+      // Validators from the old URL don't describe the feed at its new one.
+      feedValidators: podcastFeed.updatedFeedURL == podcast.feedURL ? downloadData.validators : nil
+    )
   }
 
   private func applyParsedFeed(
     podcast: Podcast,
     podcastFeed: PodcastFeed,
     existingEpisodes: [FeedMergeEpisode]
-  ) async -> (id: Podcast.ID, lastUpdate: Date)? {
+  ) async -> Date? {
     Self.log.trace(
       """
       applyParsedFeed
@@ -287,7 +313,7 @@ struct RefreshManager {
       podcastToUpdate != nil || !unsavedEpisodes.isEmpty || !updatedEpisodes.isEmpty
 
     if !hasChanges {
-      return (podcast.id, now)
+      return now
     }
 
     let newEpisodes: [Episode]
@@ -395,6 +421,6 @@ struct RefreshManager {
       }
     }
 
-    return nil
+    return now
   }
 }

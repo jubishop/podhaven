@@ -190,6 +190,9 @@ struct PodcastFeed: Sendable, Stringable {
   @concurrent static func parse(_ data: Data, from: FeedURL) async throws -> PodcastFeed {
     let fetchDate = Container.shared.dateProvider().now
     log.trace("Parsing data of size \(data.count) from \(from)")
+    // Without a delegate, XMLParser also rejects nesting past libxml2's depth
+    // limit. XMLCoder's delegate-driven parse has no such limit, and deep
+    // nesting overflows the stack of its recursive decoding.
     guard XMLParser(data: data).parse() else {
       throw PodcastFeedError.notXML
     }

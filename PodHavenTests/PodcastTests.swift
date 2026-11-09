@@ -311,8 +311,8 @@ class PodcastTests {
     let time1 = Date().addingTimeInterval(-10)
     let time2 = Date()
     try await repo.updateLastUpdates([
-      (podcastSeries1.podcast.id, time1),
-      (podcastSeries2.podcast.id, time2),
+      (podcastSeries1.podcast.id, time1, nil),
+      (podcastSeries2.podcast.id, time2, nil),
     ])
 
     let fetched1 = try await repo.podcastSeries(podcastSeries1.podcast.id)!

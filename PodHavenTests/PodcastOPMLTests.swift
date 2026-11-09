@@ -20,7 +20,8 @@ struct PodcastOPMLTests {
     #expect(opml.rssFeeds.skippedCount == 0)
     #expect(opml.rssFeeds.feeds.first!.title == "Chasing Life")
     #expect(
-      opml.rssFeeds.feeds.first!.feedURL.absoluteString == "https://feeds.megaphone.fm/WMHY6124370245"
+      opml.rssFeeds.feeds.first!.feedURL.absoluteString
+        == "https://feeds.megaphone.fm/WMHY6124370245"
     )
   }
 
@@ -102,6 +103,23 @@ struct PodcastOPMLTests {
     let data = PreviewBundle.loadAsset(named: "empty", in: .OPML)
     let opml = try await PodcastOPML.parse(data)
     #expect(opml.rssFeeds.feeds.isEmpty)
+  }
+
+  @Test("parsing OPML with nested folders keeps their feeds")
+  func parseOPMLWithNestedFolders() async throws {
+    let opml = try await PodcastOPML.parse(nestedOPML(folderDepth: 10))
+    #expect(opml.rssFeeds.feeds.map(\.title) == ["Hard Fork"])
+  }
+
+  @Test("parsing deeply nested OPML fails with a user-facing error")
+  func parseDeeplyNestedOPML() async throws {
+    let error = try #require(
+      await #expect(throws: PodcastOPMLError.self) {
+        try await PodcastOPML.parse(nestedOPML(folderDepth: 200))
+      }
+    )
+    #expect(error == .tooDeeplyNested)
+    #expect(ErrorKit.message(for: error) == "This OPML file has too many nested folders to import.")
   }
 
   @Test("exporting subscribed podcasts to OPML")
@@ -205,6 +223,24 @@ struct PodcastOPMLTests {
             <body />
         </opml>
         """
+    )
+  }
+
+  // MARK: - Helpers
+
+  private func nestedOPML(folderDepth: Int) -> Data {
+    let folders = (0..<folderDepth).map { #"<outline text="Folder \#($0)">"# }.joined()
+    let closings = String(repeating: "</outline>", count: folderDepth)
+    return Data(
+      """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <opml version="2.0">
+      <head><title>Nested</title></head>
+      <body>\(folders)<outline type="rss" text="Hard Fork" \
+      xmlUrl="https://feeds.simplecast.com/l2i9YnTd"/>\(closings)</body>
+      </opml>
+      """
+      .utf8
     )
   }
 }

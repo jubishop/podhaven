@@ -202,7 +202,9 @@ protocol Databasing: Sendable {
   @discardableResult
   func updateITunesID(_ podcastID: Podcast.ID, iTunesID: ITunesPodcastID) async throws -> Bool
 
-  func updateLastUpdates(_ pairs: [(Podcast.ID, Date)]) async throws
+  func updateLastUpdates(
+    _ refreshes: [(id: Podcast.ID, lastUpdate: Date, feedValidators: HTTPValidators?)]
+  ) async throws
 
   @discardableResult
   func updatePodcastSettings(_ podcastID: Podcast.ID, _ settings: PodcastSettings) async throws
