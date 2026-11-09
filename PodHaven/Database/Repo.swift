@@ -726,15 +726,25 @@ struct Repo: Databasing {
     } > 0
   }
 
-  func updateLastUpdates(_ pairs: [(Podcast.ID, Date)]) async throws {
-    guard !pairs.isEmpty else { return }
-    Self.log.trace("updateLastUpdates: \(pairs.count) podcasts")
+  func updateLastUpdates(
+    _ refreshes: [(id: Podcast.ID, lastUpdate: Date, feedValidators: HTTPValidators?)]
+  ) async throws {
+    guard !refreshes.isEmpty else { return }
+    Self.log.trace("updateLastUpdates: \(refreshes.count) podcasts")
 
     try await writer.write { db in
-      for (podcastID, lastUpdate) in pairs {
+      for (podcastID, lastUpdate, feedValidators) in refreshes {
+        let feedValidatorsBuild =
+          feedValidators == nil ? nil : UnsavedPodcast.currentFeedValidatorsBuild
         try Podcast
           .withID(podcastID)
-          .updateAll(db, Podcast.Columns.lastUpdate.set(to: lastUpdate))
+          .updateAll(
+            db,
+            Podcast.Columns.lastUpdate.set(to: lastUpdate),
+            Podcast.Columns.feedETag.set(to: feedValidators?.eTag),
+            Podcast.Columns.feedLastModified.set(to: feedValidators?.lastModified),
+            Podcast.Columns.feedValidatorsBuild.set(to: feedValidatorsBuild)
+          )
       }
     }
   }
