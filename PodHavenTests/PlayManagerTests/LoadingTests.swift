@@ -170,7 +170,7 @@ import Testing
     try await PlayHelpers.waitForAudioActive(false)
   }
 
-  @Test("episode failing makes audio session inactive")
+  @Test("episode failing after recovery makes audio session inactive")
   func episodeFailingMakesAudioSessionInactive() async throws {
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
@@ -180,8 +180,18 @@ import Testing
     try await PlayHelpers.waitForAudioActive(true)
 
     try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
-    let currentItem = avPlayer.current as! FakeAVPlayerItem
-    currentItem.setStatus(.failed)
+    let failedItem = avPlayer.current as! FakeAVPlayerItem
+    failedItem.setStatus(.failed)
+    let recoveredItem: FakeAVPlayerItem = try await Wait.forValue { @MainActor in
+      guard let item = avPlayer.current as? FakeAVPlayerItem, item !== failedItem,
+        sharedState.playbackStatus == .playing
+      else { return nil }
+      return item
+    }
+    try await PlayHelpers.waitForAudioActive(true)
+
+    recoveredItem.setStatus(.failed)
+    try await PlayHelpers.waitFor(.stopped)
     try await PlayHelpers.waitForAudioActive(false)
   }
 

@@ -22,6 +22,76 @@ import Testing
 
   // MARK: - Tests
 
+  @Test("opening OPML lists its feeds without subscribing to or fetching any")
+  func openingOPMLListsFeedsForReview() async throws {
+    let libraryFeedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
+    let librarySeries = try await insertPodcastSeries(
+      feedURL: libraryFeedURL,
+      assetName: "lenny",
+      subscribed: false
+    )
+    let newFeedURL = URL(string: "https://feeds.simplecast.com/l2i9YnTd")!
+    let opmlURL = createTestOPMLURL()
+    await setupOPMLResponse(
+      to: opmlURL,
+      feeds: [
+        (title: "Lenny's Podcast", url: libraryFeedURL.absoluteString),
+        (title: "Hard Fork", url: newFeedURL.absoluteString),
+      ]
+    )
+    await setupValidFeedResponse(to: newFeedURL, assetName: "hardfork_short")
+
+    let opmlFile = try await reviewOPML(from: opmlURL)
+
+    #expect(opmlFile.waiting.map(\.text) == ["Lenny's Podcast", "Hard Fork"])
+    #expect(opmlFile.finished.isEmpty)
+    #expect(await feedSession.requests.isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).count == 1)
+    #expect(try await repo.podcast(librarySeries.id)?.subscribed == false)
+
+    await opmlViewModel.importFeeds()
+
+    #expect(opmlFile.phase == .importing)
+    try await verifyOPMLFileState(totalCount: 2, finished: 2, failed: 0)
+    #expect(await feedSession.requests == [newFeedURL])
+    try await verifyPodcastsInRepo(
+      expectedCount: 2,
+      feedURLs: [libraryFeedURL.absoluteString, newFeedURL.absoluteString]
+    )
+  }
+
+  @Test("cancelling an OPML review subscribes to and fetches nothing")
+  func cancellingOPMLReviewImportsNothing() async throws {
+    let libraryFeedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
+    let librarySeries = try await insertPodcastSeries(
+      feedURL: libraryFeedURL,
+      assetName: "lenny",
+      subscribed: false
+    )
+    let newFeedURL = URL(string: "https://feeds.simplecast.com/l2i9YnTd")!
+    let opmlURL = createTestOPMLURL()
+    await setupOPMLResponse(
+      to: opmlURL,
+      feeds: [
+        (title: "Lenny's Podcast", url: libraryFeedURL.absoluteString),
+        (title: "Hard Fork", url: newFeedURL.absoluteString),
+      ]
+    )
+    await setupValidFeedResponse(to: newFeedURL, assetName: "hardfork_short")
+
+    try await reviewOPML(from: opmlURL)
+    opmlViewModel.stopDownloading()
+    try await Wait.until(
+      { @MainActor in self.opmlViewModel.opmlFile == nil },
+      { "Cancelling the review did not dismiss its sheet" }
+    )
+    await opmlViewModel.importFeeds()
+
+    #expect(await feedSession.requests.isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).count == 1)
+    #expect(try await repo.podcast(librarySeries.id)?.subscribed == false)
+  }
+
   @Test("importing OPML with all valid feeds")
   func importOPMLWithValidFeeds() async throws {
     // Setup: Create OPML with 3 valid feeds
@@ -297,8 +367,8 @@ import Testing
     }
 
     let captured = try await LogCapture.withSink { sink in
-      let importTask = Task { await opmlViewModel.importOPMLFromURL(url: opmlURL) }
-      let opmlFile = try await waitForOPMLFile()
+      let opmlFile = try await reviewOPML(from: opmlURL)
+      let importTask = Task { await opmlViewModel.importFeeds() }
       try await Wait.until(
         { @MainActor in !opmlFile.downloading.isEmpty },
         { "No feed started downloading" }
@@ -364,8 +434,8 @@ import Testing
       try await release.waitUnlessCancelled()
     }
 
-    Task { await opmlViewModel.importOPMLFromURL(url: opmlURL) }
-    let opmlFile = try await waitForOPMLFile()
+    let opmlFile = try await reviewOPML(from: opmlURL)
+    Task { await opmlViewModel.importFeeds() }
     try await waitForInProgressCount(feedCount)
     try await Wait.until(
       { @MainActor in !opmlFile.downloading.isEmpty },
@@ -408,10 +478,10 @@ import Testing
     let feed2Semaphore = await feedSession.waitRespond(to: feed2URL, data: feed2Data)
 
     // Execute
-    Task { await opmlViewModel.importOPMLFromURL(url: opmlURL) }
+    let opmlFile = try await reviewOPML(from: opmlURL)
+    Task { await opmlViewModel.importFeeds() }
 
-    // Wait for OPMLFile to be created and verify initial state
-    let opmlFile = try await waitForOPMLFile()
+    // Wait for both feeds to start downloading
     try await waitForDownloadingCount(2)
 
     // Verify no feeds are finished or failed yet
@@ -659,8 +729,17 @@ import Testing
 
   @discardableResult
   func importOPML(from url: URL) async throws -> OPMLFile {
+    let opmlFile = try await reviewOPML(from: url)
+    await opmlViewModel.importFeeds()
+    return opmlFile
+  }
+
+  @discardableResult
+  func reviewOPML(from url: URL) async throws -> OPMLFile {
     await opmlViewModel.importOPMLFromURL(url: url)
-    return try await waitForOPMLFile()
+    let opmlFile = try #require(opmlViewModel.opmlFile)
+    #expect(opmlFile.phase == .reviewing)
+    return opmlFile
   }
 
   // MARK: - Wait Helpers

@@ -78,10 +78,31 @@ extension Container {
       return
     }
 
+    let rssFeeds = opml.rssFeeds
+    if rssFeeds.skippedCount > 0 {
+      Self.log.info(
+        "importOPMLFromURL: skipped \(rssFeeds.skippedCount) outlines without a usable feed URL"
+      )
+    }
+
+    let opmlFile = OPMLFile(
+      title: opml.title ?? "Podcast Subscriptions",
+      skippedCount: rssFeeds.skippedCount
+    )
+    opmlFile.waiting = OrderedSet(
+      rssFeeds.feeds.map { OPMLOutline(status: .waiting, feedURL: $0.feedURL, text: $0.title) }
+    )
+    self.opmlFile = opmlFile
+  }
+
+  func importFeeds() async {
+    guard let opmlFile, opmlFile.phase == .reviewing else { return }
+    opmlFile.phase = .importing
+
     do {
-      try await downloadOPMLFile(opml)
+      try await downloadOPMLFile(opmlFile)
     } catch {
-      Self.log.caughtError("importOPMLFromURL: failed to download OPML feeds from \(url)", error)
+      Self.log.caughtError("importFeeds: failed to import feeds from '\(opmlFile.title)'", error)
       guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.message(for: error))
     }
@@ -102,51 +123,38 @@ extension Container {
 
   // MARK: - Private Helpers
 
-  private func downloadOPMLFile(_ opml: PodcastOPML) async throws {
-    let rssFeeds = opml.rssFeeds
-    if rssFeeds.skippedCount > 0 {
-      Self.log.info(
-        "downloadOPMLFile: skipped \(rssFeeds.skippedCount) outlines without a usable feed URL"
-      )
-    }
-
-    let opmlFile = OPMLFile(
-      title: opml.title ?? "Podcast Subscriptions",
-      skippedCount: rssFeeds.skippedCount
-    )
+  private func downloadOPMLFile(_ opmlFile: OPMLFile) async throws {
     let allPodcasts = IdentifiedArray(
       uniqueElements: try await repo.allPodcasts(AppDB.noOp),
       id: \.feedURL
     )
 
     var unsubscribedIDs: [Podcast.ID] = []
-    for rssFeed in rssFeeds.feeds {
-      if let podcast = allPodcasts[id: rssFeed.feedURL] {
+    var libraryOutlines: [OPMLOutline] = []
+    var newOutlines: OrderedSet<OPMLOutline> = []
+    for outline in opmlFile.waiting {
+      if let podcast = allPodcasts[id: outline.feedURL] {
         if !podcast.subscribed { unsubscribedIDs.append(podcast.id) }
-        opmlFile.finished.append(OPMLOutline(status: .finished, text: rssFeed.title))
+        libraryOutlines.append(outline)
       } else {
-        opmlFile.waiting.append(
-          OPMLOutline(
-            status: .waiting,
-            feedURL: rssFeed.feedURL,
-            text: rssFeed.title
-          )
-        )
+        newOutlines.append(outline)
       }
     }
     let resubscribedCount = try await repo.markSubscribed(unsubscribedIDs, level: .trace)
 
-    self.opmlFile = opmlFile
-    let newFeedCount = opmlFile.waiting.count
+    for outline in libraryOutlines { outline.status = .finished }
+    opmlFile.waiting = newOutlines
+    opmlFile.finished.append(contentsOf: libraryOutlines)
+    let newFeedCount = newOutlines.count
     Self.log.debug(
       """
       downloadOPMLFile: downloading \(newFeedCount) new feeds; \
-      \(opmlFile.finished.count) already in the library, \(resubscribedCount) resubscribed
+      \(libraryOutlines.count) already in the library, \(resubscribedCount) resubscribed
       """
     )
 
     let counts = await withTaskGroup(of: FeedOutcome.self) { group in
-      for outline in opmlFile.waiting {
+      for outline in newOutlines {
         group.addTask { [weak self, opmlFile, outline] in
           guard let self = self else { return .cancelled }
 

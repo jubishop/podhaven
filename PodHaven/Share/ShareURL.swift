@@ -25,11 +25,8 @@ enum ShareURL {
 
     let feedItems = items.filter { $0.name == "feedURL" }
     guard feedItems.count == 1,
-      let feedValue = feedItems.first?.value, feedValue.count <= 2048,
-      let feedURL = URL(string: feedValue),
-      let feedScheme = feedURL.scheme?.lowercased(),
-      ["http", "https"].contains(feedScheme),
-      let feedHost = feedURL.host, !feedHost.isEmpty
+      let feedValue = feedItems.first?.value,
+      let feedURL = validatedFeedURL(feedValue)
     else { return nil }
 
     var guid: GUID?
@@ -49,7 +46,18 @@ enum ShareURL {
     {
       startTime = seconds
     }
-    return (FeedURL(feedURL), guid, startTime)
+    return (feedURL, guid, startTime)
+  }
+
+  static func validatedFeedURL(_ value: String) -> FeedURL? {
+    guard value.count <= 2048,
+      let feedURL = URL(string: value),
+      let feedScheme = feedURL.scheme?.lowercased(),
+      ["http", "https"].contains(feedScheme),
+      let feedHost = feedURL.host, !feedHost.isEmpty
+    else { return nil }
+
+    return FeedURL(feedURL)
   }
 
   static func podcast(feedURL: FeedURL) -> URL? {

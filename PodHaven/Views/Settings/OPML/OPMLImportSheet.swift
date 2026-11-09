@@ -31,32 +31,62 @@ struct OPMLImportSheet: View {
       .padding([.horizontal])
     }
 
-    HStack {
-      Group {
-        if opmlFile.inProgressCount == 0 {
-          Button("Lets Go") {
-            viewModel.finishedDownloading()
-          }
-        } else {
-          Button(opmlFile.finished.count > 0 ? "Stop" : "Cancel") {
-            viewModel.stopDownloading()
+    switch opmlFile.phase {
+    case .reviewing:
+      Text(
+        """
+        Importing subscribes you to \(opmlFile.waiting.count) \
+        \(opmlFile.waiting.count == 1 ? "podcast" : "podcasts") from this list.
+        """
+      )
+      .font(.subheadline)
+      .multilineTextAlignment(.center)
+      .padding([.horizontal])
+
+      HStack {
+        Button("Cancel") {
+          viewModel.stopDownloading()
+        }
+        .buttonStyle(.bordered)
+        .frame(maxWidth: .infinity)
+
+        Button("Import") {
+          Task { await viewModel.importFeeds() }
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(opmlFile.waiting.isEmpty)
+        .frame(maxWidth: .infinity)
+      }
+      .padding([.horizontal])
+
+    case .importing:
+      HStack {
+        Group {
+          if opmlFile.inProgressCount == 0 {
+            Button("Lets Go") {
+              viewModel.finishedDownloading()
+            }
+          } else {
+            Button(opmlFile.finished.count > 0 ? "Stop" : "Cancel") {
+              viewModel.stopDownloading()
+            }
           }
         }
-      }
-      .buttonStyle(.bordered)
-      .frame(maxWidth: .infinity)
+        .buttonStyle(.bordered)
+        .frame(maxWidth: .infinity)
 
-      CircularProgressView(
-        totalAmount: Double(opmlFile.totalCount),
-        colorAmounts: [
-          .green: Double(opmlFile.finished.count),
-          .blue: Double(opmlFile.downloading.count),
-          .red: Double(opmlFile.failed.count),
-        ]
-      )
-      .frame(maxWidth: .infinity)
+        CircularProgressView(
+          totalAmount: Double(opmlFile.totalCount),
+          colorAmounts: [
+            .green: Double(opmlFile.finished.count),
+            .blue: Double(opmlFile.downloading.count),
+            .red: Double(opmlFile.failed.count),
+          ]
+        )
+        .frame(maxWidth: .infinity)
+      }
+      .padding([.horizontal])
     }
-    .padding([.horizontal])
 
     List {
       OPMLImportSheetSection(outlines: opmlFile.downloading.elements)
@@ -104,9 +134,27 @@ func importOPMLFile(_ viewModel: OPMLViewModel, _ resource: String) {
   }
 }
 
+#Preview("Review") {
+  @Previewable @State var opmlFile: OPMLFile? = {
+    let opmlFile = OPMLFile(title: "Podcast Subscriptions", skippedCount: 2)
+    opmlFile.waiting = [
+      OPMLOutline(status: .waiting, text: "Hard Fork"),
+      OPMLOutline(status: .waiting, text: "Lenny's Podcast"),
+    ]
+    return opmlFile
+  }()
+
+  Form {}
+    .preview()
+    .sheet(item: $opmlFile) { opmlFile in
+      OPMLImportSheet(viewModel: Container.shared.opmlViewModel(), opmlFile: opmlFile)
+    }
+}
+
 #Preview("Skipped entries") {
   @Previewable @State var opmlFile: OPMLFile? = {
     let opmlFile = OPMLFile(title: "Podcast Subscriptions", skippedCount: 3)
+    opmlFile.phase = .importing
     opmlFile.finished = [OPMLOutline(status: .finished, text: "Hard Fork")]
     opmlFile.failed = [OPMLOutline(status: .failed, text: "Unreachable Podcast")]
     return opmlFile

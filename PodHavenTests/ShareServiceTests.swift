@@ -243,40 +243,173 @@ import Testing
     )
   }
 
-  @Test("that shared OPML file navigates to import view and imports podcasts")
-  func sharedOPMLFileImportsSuccessfully() async throws {
+  @Test("that a shared OPML file opens a review and deletes the shared copy")
+  func sharedOPMLFileOpensReview() async throws {
     let feedURL = URL(
       string: "https://feeds.soundcloud.com/users/soundcloud:users:122508048/sounds.rss"
     )!
     let feedData = PreviewBundle.loadAsset(named: "techdirt", in: .FeedRSS)
     await feedSession.respond(to: feedURL, data: feedData)
 
-    // Create OPML file URL and data
-    let opmlURL = URL(fileURLWithPath: "/tmp/techdirt.OPML")
-    let opmlData = PreviewBundle.loadAsset(named: "techdirt", in: .OPML)
-
-    // Set up the fake OPML session to respond to the file URL
-    await opmlSession.respond(to: opmlURL, data: opmlData)
-
-    // Write the OPML data to the fake file manager
     let fakeFileManager = Container.shared.fileManager() as! FakeFileManager
+    let opmlURL = try sharedContainerURL()
+      .appendingPathComponent("shared_file_\(UUID().uuidString).OPML")
+    let opmlData = PreviewBundle.loadAsset(named: "techdirt", in: .OPML)
+    await opmlSession.respond(to: opmlURL, data: opmlData)
     try await fakeFileManager.writeData(opmlData, to: opmlURL)
-
-    let shareURL = ShareHelpers.shareURL(with: opmlURL)
     #expect(opmlViewModel.opmlFile == nil)
 
-    try await shareService.handleIncomingURL(shareURL)
+    try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: opmlURL))
 
     #expect(navigation.currentTab == .settings)
     #expect(navigation.settings.path == [.settingsSection(.opml)])
+    #expect(fakeFileManager.removeItemCallCount(for: opmlURL) == 1)
 
-    // The import must run on the injected view model OPMLView renders, so its
-    // progress sheet presents rather than nothing.
-    #expect(opmlViewModel.opmlFile != nil)
+    // The review must present on the injected view model OPMLView renders.
+    let opmlFile = try #require(opmlViewModel.opmlFile)
+    #expect(opmlFile.phase == .reviewing)
+    #expect(opmlFile.waiting.map(\.text) == ["Techdirt"])
+    #expect(await feedSession.requests.isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
+
+    await opmlViewModel.importFeeds()
 
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))
     #expect(podcastSeries?.podcast.title == "Techdirt")
     #expect(podcastSeries?.podcast.subscriptionDate != nil)
+  }
+
+  @Test("that a remote OPML share URL is rejected without fetching or subscribing")
+  func remoteOPMLShareURLIsRejected() async throws {
+    let libraryFeedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
+    let libraryPodcast =
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: Create.unsavedPodcast(
+            feedURL: FeedURL(libraryFeedURL),
+            subscriptionDate: nil
+          )
+        )
+      )
+      .podcast
+    let newFeedURL = URL(string: "https://feeds.simplecast.com/l2i9YnTd")!
+    let newFeedData = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    await feedSession.respond(to: newFeedURL, data: newFeedData)
+    let opmlURL = URL(string: "https://attacker.example/list.opml")!
+    await opmlSession.respond(
+      to: opmlURL,
+      data: Data(
+        """
+        <?xml version="1.0"?>
+        <opml version="1.0">
+        <head><title>Planted</title></head>
+        <body>
+          <outline type="rss" text="Lenny" xmlUrl="\(libraryFeedURL.absoluteString)"/>
+          <outline type="rss" text="Hard Fork" xmlUrl="\(newFeedURL.absoluteString)"/>
+        </body>
+        </opml>
+        """
+        .utf8
+      )
+    )
+
+    await #expect(throws: URLError.self) {
+      try await self.shareService.handleIncomingURL(ShareHelpers.shareURL(with: opmlURL))
+    }
+
+    #expect(await opmlSession.requests.isEmpty)
+    #expect(await feedSession.requests.isEmpty)
+    #expect(opmlViewModel.opmlFile == nil)
+    #expect(try await repo.allPodcasts(AppDB.noOp).map(\.id) == [libraryPodcast.id])
+    #expect(try await repo.podcast(libraryPodcast.id)?.subscribed == false)
+  }
+
+  enum ForeignOPMLPath: CaseIterable, Sendable {
+    case outsideContainer, unprefixedName, subdirectory, parentTraversal
+
+    func url(in container: URL) -> URL {
+      switch self {
+      case .outsideContainer:
+        container.deletingLastPathComponent().appendingPathComponent("shared_file_outside.opml")
+      case .unprefixedName:
+        container.appendingPathComponent("library.opml")
+      case .subdirectory:
+        container.appendingPathComponent("Library/shared_file_nested.opml")
+      case .parentTraversal:
+        URL(string: container.absoluteString + "/../shared_file_escape.opml")!
+      }
+    }
+  }
+
+  @Test(
+    "that an OPML file that is not the share extension's copy is neither imported nor deleted",
+    arguments: ForeignOPMLPath.allCases
+  )
+  func foreignOPMLFileIsRejected(path: ForeignOPMLPath) async throws {
+    let fakeFileManager = Container.shared.fileManager() as! FakeFileManager
+    let fileURL = path.url(in: try sharedContainerURL())
+    let opmlData = PreviewBundle.loadAsset(named: "techdirt", in: .OPML)
+    try await fakeFileManager.writeData(opmlData, to: fileURL)
+    await opmlSession.respond(to: fileURL, data: opmlData)
+
+    await #expect(throws: URLError.self) {
+      try await self.shareService.handleIncomingURL(ShareHelpers.shareURL(with: fileURL))
+    }
+
+    #expect(fakeFileManager.removeItemCallCount(for: fileURL) == 0)
+    #expect(fakeFileManager.removeItemCallCount(for: fileURL.standardizedFileURL) == 0)
+    #expect(try await fakeFileManager.readData(from: fileURL) == opmlData)
+    #expect(await opmlSession.requests.isEmpty)
+    #expect(opmlViewModel.opmlFile == nil)
+    #expect(navigation.settings.path.isEmpty)
+  }
+
+  @Test(
+    "that a share URL with an invalid feed URL is rejected without fetching it",
+    arguments: [
+      "file:///var/mobile/feed.xml",
+      "ftp://example.com/feed.xml",
+      "https://artisanalsoftware.com/podhaven/podcast?feedURL=file:///var/mobile/feed.xml",
+      "https://www.artisanalsoftware.com/podhaven/episode?feedURL=ftp://example.com/feed.xml&guid=a",
+      "https://attacker.example/podhaven/podcast?feedURL=https://example.com/feed.xml",
+    ]
+  )
+  func invalidFeedURLIsRejected(value: String) async throws {
+    let feedData = PreviewBundle.loadAsset(named: "changelog", in: .FeedRSS)
+    for feedURL in ["file:///var/mobile/feed.xml", "ftp://example.com/feed.xml"] {
+      await feedSession.respond(to: URL(string: feedURL)!, data: feedData)
+    }
+
+    await #expect(throws: URLError.self) {
+      try await self.shareService.handleIncomingURL(
+        ShareHelpers.shareURL(with: URL(string: value)!)
+      )
+    }
+
+    #expect(await feedSession.requests.isEmpty)
+    #expect(navigation.search.path.isEmpty)
+    #expect(navigation.podcasts.path.isEmpty)
+  }
+
+  @Test(
+    "that a shared HTTP feed URL is fetched over HTTPS",
+    arguments: [false, true]  // wrapped in a PodHaven share link
+  )
+  func httpFeedURLIsFetchedOverHTTPS(wrapped: Bool) async throws {
+    Container.shared.fakeDate().freeze()
+    let feedURL = URL(string: "https://changelog.com/podcast/feed")!
+    let feedData = PreviewBundle.loadAsset(named: "changelog", in: .FeedRSS)
+    await feedSession.respond(to: feedURL, data: feedData)
+    let httpFeedURL = "http://changelog.com/podcast/feed"
+    let sharedURL =
+      wrapped ? ShareHelpers.podcastURL(feedURL: httpFeedURL) : URL(string: httpFeedURL)!
+
+    try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: sharedURL))
+
+    #expect(await feedSession.requests == [feedURL])
+    let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
+    #expect(navigation.currentTab == .search)
+    #expect(navigation.search.path == [.unsavedPodcastSeries(try podcastFeed.toUnsavedSeries())])
   }
 
   @Test("that a plain feed URL is imported successfully")
@@ -480,5 +613,14 @@ import Testing
     // Verify navigation goes to search tab with unsaved podcast
     #expect(navigation.currentTab == .search)
     #expect(navigation.search.path == [.unsavedPodcastSeries(try podcastFeed.toUnsavedSeries())])
+  }
+
+  // MARK: - Helpers
+
+  private func sharedContainerURL() throws -> URL {
+    try #require(
+      Container.shared.fileManager()
+        .containerURL(forSecurityApplicationGroupIdentifier: AppInfo.appGroupID)
+    )
   }
 }
