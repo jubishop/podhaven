@@ -18,11 +18,10 @@ extension Container {
   }
 }
 
-@Observable
-final class UserNotificationManager {
-  @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
-  @ObservationIgnored private var fileManager: any FileManaging { Container.shared.fileManager() }
-  @ObservationIgnored private var notificationCenter: any NotifyingCenter {
+final class UserNotificationManager: Sendable {
+  private var imagePipeline: ImagePipeline { Container.shared.imagePipeline() }
+  private var fileManager: any FileManaging { Container.shared.fileManager() }
+  private var notificationCenter: any NotifyingCenter {
     Container.shared.userNotificationCenter()
   }
 
@@ -30,7 +29,10 @@ final class UserNotificationManager {
 
   // MARK: - State
 
-  private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
+  private let status = Broadcast<UNAuthorizationStatus>(.notDetermined)
+
+  // Reading registers SwiftUI observation through the Broadcast registrar.
+  var authorizationStatus: UNAuthorizationStatus { status.current }
 
   var isAuthorized: Bool {
     switch authorizationStatus {
@@ -68,7 +70,8 @@ final class UserNotificationManager {
   }
 
   func refreshAuthorizationStatus() async {
-    authorizationStatus = await notificationCenter.authorizationStatus()
+    let authorizationStatus = await notificationCenter.authorizationStatus()
+    status.new(authorizationStatus)
     Self.log.debug("Authorization status: \(String(describing: authorizationStatus))")
   }
 
