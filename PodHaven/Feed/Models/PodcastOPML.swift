@@ -10,7 +10,13 @@ import XMLCoder
 
 extension Container {
   var podcastOPMLSession: Factory<any DataFetchable> {
-    Factory(self) { URLSession.shared }
+    Factory(self) {
+      let configuration = URLSessionConfiguration.default
+      configuration.timeoutIntervalForRequest = Double(10)
+      configuration.timeoutIntervalForResource = Double(30)
+      return URLSession(configuration: configuration)
+    }
+    .scope(.cached)
   }
 }
 
@@ -29,12 +35,14 @@ struct PodcastOPML: Codable, Sendable {
   private static let log = Log.as(LogSubsystem.Feed.opml)
 
   static let contentType = UTType(importedAs: "public.opml", conformingTo: .xml)
+  static let downloadByteLimit = 4 * 1024 * 1024
 
   // MARK: - Import Methods
 
   static func parse(_ url: URL) async throws -> PodcastOPML {
     log.debug("Parsing url: \(url)")
-    let data = try await Container.shared.podcastOPMLSession().validatedData(from: url)
+    let data = try await Container.shared.podcastOPMLSession()
+      .validatedData(from: url, byteLimit: downloadByteLimit)
     do {
       return try await parse(data)
     } catch {

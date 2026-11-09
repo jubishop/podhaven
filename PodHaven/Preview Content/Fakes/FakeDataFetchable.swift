@@ -12,6 +12,8 @@ actor FakeDataFetchable: DataFetchable {
 
   @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
 
+  private static let chunkSize = 64 * 1024
+
   private var defaultHandler: DataHandler
   private var fakeHandlers: [URL: RequestHandler] = [:]
   private(set) var requests: [URL] = []
@@ -60,6 +62,30 @@ actor FakeDataFetchable: DataFetchable {
 
   func data(from url: URL) async throws -> (Data, URLResponse) {
     try await data(for: URLRequest(url: url))
+  }
+
+  nonisolated func dataTaskEvents(for request: URLRequest)
+    -> AsyncThrowingStream<DataTaskEvent, any Error>
+  {
+    let (events, continuation) = AsyncThrowingStream.makeStream(of: DataTaskEvent.self)
+    let task = Task {
+      do {
+        let (data, response) = try await data(for: request)
+        continuation.yield(.response(response))
+        var start = data.startIndex
+        while start < data.endIndex {
+          let end =
+            data.index(start, offsetBy: Self.chunkSize, limitedBy: data.endIndex) ?? data.endIndex
+          continuation.yield(.data(data[start..<end]))
+          start = end
+        }
+        continuation.finish()
+      } catch {
+        continuation.finish(throwing: error)
+      }
+    }
+    continuation.onTermination = { _ in task.cancel() }
+    return events
   }
 
   var allCreatedTasks: IdentifiedArray<URLSessionDownloadTask.ID, any DownloadingTask> {
