@@ -504,11 +504,12 @@ struct PodAVPlayerPlaybackSnapshot {
       silenceState.replacementIntent ?? PlaybackStatus(avPlayer.timeControlStatus)
     Self.log.debug("toggle: executing (current status: \(currentStatus))")
 
-    if currentStatus == .paused {
+    switch currentStatus {
+    case .paused:
       play(requestID: requestID)
-    } else if currentStatus == .playing {
+    case .playing, .waiting:
       await pause()
-    } else {
+    case .loading, .stopped:
       Self.log.warning("Calling toggle when current status is: \(currentStatus)")
     }
   }

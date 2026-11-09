@@ -5,6 +5,7 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import MediaPlayer
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -12,6 +13,7 @@ import Testing
 @Suite("of Playback controls tests", .container)
 @MainActor struct PlaybackControlsTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.notifier) private var notifier
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.repo) private var repo
@@ -504,5 +506,80 @@ import Testing
     try await PlayHelpers.waitForOnDeck(nil)
 
     #expect(sharedState.currentEpisodeID == nil)
+  }
+
+  // MARK: - Toggle
+
+  @Test("toggle pauses a buffering stream")
+  func togglePausesBufferingStream() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+    avPlayer.waitingToPlay(waitingReason: .toMinimizeStalls)
+    try await PlayHelpers.waitFor(.waiting)
+
+    await playManager.toggle()
+
+    try await PlayHelpers.waitFor(.paused)
+    #expect(avPlayer.timeControlStatus == .paused)
+  }
+
+  enum LoadPhase: CaseIterable { case audioSession, asset }
+
+  @Test("toggle during a load cancels its pending playback", arguments: LoadPhase.allCases)
+  func toggleDuringLoadCancelsPendingPlayback(phase: LoadPhase) async throws {
+    await playManager.start()
+    let (currentEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+    try await playManager.load(currentEpisode)
+    let playCount = avPlayer.playCallCount
+
+    let phaseStarted = AsyncSemaphore(value: 0)
+    let finishPhase = AsyncSemaphore(value: 0)
+    switch phase {
+    case .audioSession:
+      Container.shared.configureAudioSession.context(.test) {
+        {
+          phaseStarted.signal()
+          await finishPhase.wait()
+          return true
+        }
+      }
+      Container.shared.configureAudioSession.reset(.scope)
+    case .asset:
+      await episodeAssetLoader.respond(to: incomingEpisode.episode.mediaURL) { _ in
+        phaseStarted.signal()
+        await finishPhase.wait()
+        return (true, .seconds(60))
+      }
+    }
+    let incomingPlay = Task { try await playManager.play(incomingEpisode) }
+    defer {
+      incomingPlay.cancel()
+      finishPhase.signal()
+    }
+    await phaseStarted.wait()
+
+    await playManager.toggle()
+    finishPhase.signal()
+
+    #expect(try await incomingPlay.value == .superseded)
+    try await PlayHelpers.waitForOnDeck(incomingEpisode)
+    try await PlayHelpers.waitFor(.paused)
+    #expect(avPlayer.timeControlStatus == .paused)
+    #expect(avPlayer.playCallCount == playCount)
+  }
+
+  @Test("toggle with nothing loaded leaves the next load paused")
+  func toggleWithNothingLoadedLeavesNextLoadPaused() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    await playManager.toggle()
+    try await playManager.load(podcastEpisode)
+
+    #expect(sharedState.playbackStatus == .paused)
+    #expect(avPlayer.timeControlStatus == .paused)
+    #expect(avPlayer.playCallCount == 0)
   }
 }

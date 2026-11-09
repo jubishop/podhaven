@@ -32,10 +32,16 @@ final class PlayManager {
     case establishedPlayback(Episode.ID)
   }
 
+  private enum LoadTransitionPlayback {
+    case automatic
+    case paused
+  }
+
   private final class LoadTransition {
     var establishedPlayback: (episodeID: Episode.ID, ownerID: UUID)?
     var id: UUID
     var loadingEpisodeID: Episode.ID?
+    var playback = LoadTransitionPlayback.automatic
     var state = LoadTransitionState.preservingPlayback
     var finishedIDs: Set<Episode.ID> = []
     init(id: UUID) { self.id = id }
@@ -576,6 +582,7 @@ final class PlayManager {
   func play(origin: PlaybackRequestOrigin = .application, requestID: UUID = UUID()) async {
     newPlaybackRequest(requestID)
     cancelWidgetRouteRecovery(reason: "newPlay")
+    loadTransition?.playback = .automatic
     guard let episodeID = sharedState.onDeck?.id ?? sharedState.currentEpisodeID else {
       pendingPlaybackRequest = .none
       Self.log.warning("play: nothing to play")
@@ -602,6 +609,7 @@ final class PlayManager {
     newPlaybackRequest(UUID())
     cancelWidgetRouteRecovery(reason: "userPause")
     pendingPlaybackRequest = .none
+    loadTransition?.playback = .paused
     await podAVPlayer.pause()
   }
 
@@ -652,11 +660,17 @@ final class PlayManager {
     await finishLoadTransition(cleanupID, outcome: .didNotLoad)
   }
 
+  // AVPlayer's status reflects neither pending playback nor an empty deck, so
+  // app state decides those toggles.
   func toggle() async {
     guard mediaServicesRecoveryEpisodeID == nil else { return await play() }
+    guard loadTransition == nil, case .none = pendingPlaybackRequest else {
+      Self.log.debug("toggle: pausing pending playback")
+      return await pause()
+    }
+    guard sharedState.onDeck != nil else { return await play() }
     let requestID = UUID()
     newPlaybackRequest(requestID)
-    pendingPlaybackRequest = .none
     cancelWidgetRouteRecovery(reason: "userToggle")
     await podAVPlayer.toggle(requestID: requestID)
   }
@@ -742,7 +756,12 @@ final class PlayManager {
 
   private func advance(to replacement: PodcastEpisode, autoAdvanceID: UUID?) async throws {
     setAutoAdvancePhase(autoAdvanceID, to: .loading(replacement.id))
+    let transition = loadTransition
     guard try await load(replacement), settledOnDeckID == replacement.id else { return }
+    if case .paused = transition?.playback {
+      Self.log.debug("advance: leaving \(replacement.toString) paused after a pause request")
+      return
+    }
     let requestID = UUID()
     setAutoAdvancePhase(autoAdvanceID, to: .awaitingPlayback(requestID))
     // A player that kept its rate starts the replacement while it loads.
