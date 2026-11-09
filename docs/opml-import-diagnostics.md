@@ -9,6 +9,13 @@ parse failure to Sentry after the download passes session validation. Download
 failures are outside this path. The error is rethrown unchanged, so the import
 alert and `OPMLViewModel` behave as before.
 
+Before decoding, `parse(_:)` rejects a file whose elements nest deeper than
+`maximumNestingDepth` with `PodcastOPMLError.tooDeeplyNested`. XMLCoder decodes
+the recursive outline model recursively, so a deeply nested file would
+otherwise overflow the stack and crash the app. Those rejections are reported
+here like any other parse failure, which shows whether real files reach the
+limit.
+
 Each capture sends one error event with fingerprint `opml-import-parse-failure`.
 Its `opml_import` context holds the file's last path component, total and
 attached byte counts, a truncation flag, and the ErrorKit-rendered error. The
