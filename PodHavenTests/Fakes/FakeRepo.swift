@@ -71,6 +71,12 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let suspendedUpdateLastUpdatesCount = ThreadSafe<Int>(0)
   private var updateLastUpdatesSuspensions: [CheckedContinuation<Void, Never>] = []
 
+  // While true, every `updatePlayback` parks before writing, as if another
+  // transaction held the writer, until `releasePlaybackUpdates()`.
+  nonisolated let playbackUpdatesHeld = ThreadSafe<Bool>(false)
+  private nonisolated let suspendedPlaybackUpdateCount = ThreadSafe<Int>(0)
+  private var playbackUpdateSuspensions: [CheckedContinuation<Void, Never>] = []
+
   private let repo: Repo
 
   init(_ repo: Repo) {
@@ -539,11 +545,37 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         episodeID: episodeID, currentTime: currentTime, playedFrom: playedFrom, now: now
       )
     )
+    if playbackUpdatesHeld() {
+      await withCheckedContinuation { continuation in
+        playbackUpdateSuspensions.append(continuation)
+        suspendedPlaybackUpdateCount(playbackUpdateSuspensions.count)
+      }
+    }
     return try await repo.updatePlayback(
       episodeID,
       currentTime: currentTime,
       playedFrom: playedFrom,
       now: now
+    )
+  }
+
+  func releasePlaybackUpdates() {
+    playbackUpdatesHeld(false)
+    let toResume = playbackUpdateSuspensions
+    playbackUpdateSuspensions.removeAll()
+    suspendedPlaybackUpdateCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForPlaybackUpdateSuspended(count: Int = 1) async throws {
+    try await Wait.until(
+      { self.suspendedPlaybackUpdateCount() >= count },
+      {
+        """
+        Expected at least \(count) suspended playback updates, \
+        got \(self.suspendedPlaybackUpdateCount())
+        """
+      }
     )
   }
 
