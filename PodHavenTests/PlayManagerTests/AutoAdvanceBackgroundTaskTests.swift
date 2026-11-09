@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
+import Semaphore
 import Testing
 import UIKit
 
@@ -155,6 +156,57 @@ import UIKit
 
     try await waitForEnd(of: identifier)
     #expect(application.taskIdentifiers(named: Self.taskName) == [identifier])
+  }
+
+  enum PauseRequest: CaseIterable { case pause, toggle }
+  enum AdvancePhase: CaseIterable { case resolvingReplacement, loading }
+
+  @Test(
+    "a pause before the next episode plays leaves it paused and ends the background task",
+    arguments: PauseRequest.allCases,
+    AdvancePhase.allCases
+  )
+  func pauseBeforeNextEpisodePlaysCancelsPlayback(
+    request: PauseRequest,
+    phase: AdvancePhase
+  ) async throws {
+    let (currentEpisode, nextEpisode) = try await Create.twoPodcastEpisodes()
+    let fakeQueue = try #require(queue as? FakeQueue)
+    try await queue.unshift(nextEpisode.id)
+    try await startPlaying(currentEpisode)
+    let playCount = avPlayer.playCallCount
+
+    let phaseStarted = AsyncSemaphore(value: 0)
+    let finishPhase = AsyncSemaphore(value: 0)
+    switch phase {
+    case .resolvingReplacement:
+      fakeQueue.beforeNextEpisode {
+        phaseStarted.signal()
+        await finishPhase.wait()
+      }
+    case .loading:
+      await episodeAssetLoader.respond(to: nextEpisode.episode.mediaURL) { _ in
+        phaseStarted.signal()
+        await finishPhase.wait()
+        return (true, CMTime.seconds(30))
+      }
+    }
+    defer { finishPhase.signal() }
+
+    avPlayer.finishEpisode()
+    await phaseStarted.wait()
+    let identifier = try autoAdvanceTask()
+    switch request {
+    case .pause: await playManager.pause()
+    case .toggle: await playManager.toggle()
+    }
+    finishPhase.signal()
+
+    try await PlayHelpers.waitForOnDeck(nextEpisode)
+    try await waitForEnd(of: identifier)
+    #expect(sharedState.playbackStatus == .paused)
+    #expect(avPlayer.timeControlStatus == .paused)
+    #expect(avPlayer.playCallCount == playCount)
   }
 
   @Test("a newer automatic advancement replaces the background task of one still buffering")
