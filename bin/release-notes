@@ -14,6 +14,8 @@ import tempfile
 
 
 APP_PATHS = ("PodHaven", "PodHavenShare", "PodHavenWidget", "PodHavenIntents", "PodHavenMacros")
+DEPENDENCIES = "PodHaven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+PROJECT = "PodHaven.xcodeproj/project.pbxproj"
 EXCLUSIONS = ("Leave out code names, file and type names, issue or pull request numbers, and purely internal work "
               "such as logging, diagnostics, telemetry, tests, and refactors.")
 AUDIENCES = {
@@ -41,6 +43,7 @@ UNTESTED_PROMPT = (
     'of at most 25 words starting with "- ", with no nested lists or Markdown emphasis. Group related commits, '
     "name the affected subsystems, and put the riskiest changes first. Reply with only the bullets.")
 TRAILER = re.compile(r"[A-Za-z-]+-by: ", re.IGNORECASE)
+VERSION_SETTING = re.compile(r"[ \t]*MARKETING_VERSION[ \t]*=")
 
 
 def git(root, *args):
@@ -78,15 +81,29 @@ def release_tags(root, build):
     return [tag for tag in git(root, "tag", "-l", "v*b" + build).split() if pattern.fullmatch(tag)]
 
 
+def app_commits(root, *revisions):
+    changed = set(git(root, "log", "--format=%H", *revisions, "--", *APP_PATHS, DEPENDENCIES).split())
+    patches = git(root, "log", "--format=%x1e%H", "--patch", "--unified=0", "--no-color", "--no-textconv",
+                  *revisions, "--", PROJECT)
+    for entry in patches.split("\x1e")[1:]:
+        commit, _, patch = entry.partition("\n")
+        _, _, hunks = patch.partition("\n@@")
+        if any(line.startswith(("+", "-")) and not VERSION_SETTING.match(line[1:]) for line in hunks.splitlines()):
+            changed.add(commit)
+    return changed
+
+
 def report_untested(root, base, end, pending):
-    commits = []
-    for entry in git(root, "log", "--reverse", "--format=%h%x1f%at%x1f%B%x1e", f"{base}..{end}", "--", *APP_PATHS).split("\x1e"):
+    changed = app_commits(root, f"{base}..{end}")
+    landed, commits = [], []
+    for entry in git(root, "log", "--reverse", "--format=%H%x1f%h%x1f%at%x1f%B%x1e", f"{base}..{end}").split("\x1e"):
         if entry.strip():
-            short, stamp, message = entry.strip().split("\x1f", 2)
-            commits.append((short, moment(stamp), message.strip()))
+            commit, short, stamp, message = entry.strip().split("\x1f", 3)
+            landed.append(moment(stamp))
+            if commit in changed:
+                commits.append((short, moment(stamp), message.strip()))
     if not commits:
         return
-    landed = [moment(stamp) for stamp in git(root, "log", "--format=%at", f"{base}..{end}").split()]
     shipped = moment(git(root, "for-each-ref", "--format=%(creatordate:unix)", f"refs/tags/{base}").strip())
     first, last = min(landed), max(landed)
     span = f"on {day(first)}" if first.date() == last.date() else f"between {day(first)} and {day(last)}"
@@ -103,7 +120,7 @@ def report_untested(root, base, end, pending):
             lines.append(f"It was submitted for review {timing(submitted)}.")
         tags = release_tags(root, pending["build"])
         if len(tags) == 1:
-            missing = len(git(root, "log", "--format=%h", end, f"^{base}", f"^{tags[0]}", "--", *APP_PATHS).split())
+            missing = len(app_commits(root, end, f"^{base}", f"^{tags[0]}"))
             included = len(commits) - missing
             lines.append("It includes every app commit below." if missing == 0
                          else "It includes none of the app commits below." if included == 0

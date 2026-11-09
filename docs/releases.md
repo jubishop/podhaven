@@ -192,7 +192,11 @@ characters and are copied unchanged to every existing App Store listing language
 
 Before a new release changes anything, the command finds the newest iOS build in
 testing for Everyone, the same starting point `testflight` uses. If the release
-revision has app commits that build lacks, it reports:
+revision has app commits that build lacks, it reports them. App commits here
+are those the [generated notes](#generated-release-notes) read, plus any that
+update dependencies in the workspace's `Package.resolved` or change
+`PodHaven.xcodeproj/project.pbxproj`. A project change that only sets
+`MARKETING_VERSION`, as `bin/version` does, doesn't count. The report shows:
 
 - when that build's tag was created and how long ago;
 - how many commits landed since, over which dates, and how many change the app;
@@ -267,8 +271,10 @@ upload mode does not distribute to external TestFlight testers.
 `bin/release-notes` writes plain-language notes with `llm` from the messages of
 commits that change app code, in `PodHaven`, `PodHavenShare`, `PodHavenWidget`,
 `PodHavenIntents`, or `PodHavenMacros`. Tooling, documentation, and test-only
-commits are left out. It starts at the release tag of a build that people
-already have:
+commits are left out, and so are dependency updates and Xcode project changes:
+a release with only those gets the fixed line about stability improvements,
+which describes them generically. It starts at the release tag of a build that
+people already have:
 
 - TestFlight starts at the newest iOS build in the Everyone group that App Store
   Connect reports as in testing. Builds that expired while waiting for beta
