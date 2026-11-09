@@ -8,6 +8,8 @@ final class FakeFileManager: FileManaging, Sendable {
   // MARK: - State
 
   private let inMemoryFiles = ThreadSafe<[URL: Data]>([:])
+  private let createdDirectories = ThreadSafe<Set<URL>>([])
+  private let backupExclusions = ThreadSafe<Set<URL>>([])
   private let removeItemActions = ThreadSafe<[URL: @Sendable () throws -> Void]>([:])
   private let removeItemCallCounts = ThreadSafe<[URL: Int]>([:])
   private let removeItemErrors = ThreadSafe<[URL: any Error & Sendable]>([:])
@@ -94,6 +96,10 @@ final class FakeFileManager: FileManaging, Sendable {
         files.removeValue(forKey: key)
       }
     }
+    backupExclusions { exclusions in
+      let urlString = url.absoluteString
+      exclusions = exclusions.filter { !$0.absoluteString.hasPrefix(urlString) }
+    }
   }
 
   func moveItem(at sourceURL: URL, to destinationURL: URL) throws {
@@ -104,13 +110,22 @@ final class FakeFileManager: FileManaging, Sendable {
       files[destinationURL] = data
       files.removeValue(forKey: sourceURL)
     }
+    backupExclusions { exclusions in
+      if exclusions.remove(sourceURL) != nil {
+        exclusions.insert(destinationURL)
+      } else {
+        exclusions.remove(destinationURL)
+      }
+    }
   }
 
   func createDirectory(
     at url: URL,
     withIntermediateDirectories createIntermediates: Bool,
     attributes: [FileAttributeKey: Any]?
-  ) throws {}
+  ) throws {
+    createdDirectories { $0.insert(url) }
+  }
 
   // MARK: - File Attribute Operations
 
@@ -138,6 +153,23 @@ final class FakeFileManager: FileManaging, Sendable {
         return !remainingPath.isEmpty && !remainingPath.dropFirst().contains("/")
       }
       .sorted { $0.absoluteString < $1.absoluteString }
+  }
+
+  // MARK: - Backup Exclusion
+
+  func isExcludedFromBackup(_ url: URL) throws -> Bool {
+    try requireItem(at: url)
+    return backupExclusions().contains(url)
+  }
+
+  func excludeFromBackup(_ url: URL) throws {
+    try requireItem(at: url)
+    backupExclusions { $0.insert(url) }
+  }
+
+  private func requireItem(at url: URL) throws {
+    guard fileExists(at: url) || createdDirectories().contains(url)
+    else { throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: url.path]) }
   }
 
   func containerURL(forSecurityApplicationGroupIdentifier groupIdentifier: String) -> URL? {
