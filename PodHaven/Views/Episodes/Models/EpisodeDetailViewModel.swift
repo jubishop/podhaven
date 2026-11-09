@@ -233,7 +233,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
     return score
   }
 
-  private let startTime: Int?
+  @ObservationIgnored private var startTime: Int?
 
   // MARK: - Initialization
 
@@ -346,7 +346,15 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
       Self.log.debug("Auto-playing from startTime: \(startTime)s")
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try Task.checkCancellation()
-      try await loadAndPlay(podcastEpisode, seekTo: startTime)
+      // Claim the start time before playback so an overlapping appear can't
+      // seek again; restore it on failure so a later appear retries.
+      self.startTime = nil
+      do {
+        try await loadAndPlay(podcastEpisode, seekTo: startTime)
+      } catch {
+        self.startTime = startTime
+        throw error
+      }
     }
   }
 
