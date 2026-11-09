@@ -11,17 +11,17 @@ struct V88MigrationTests {
   private let appDB = AppDB.inMemory(migrate: false)
   private let migrator = Schema.makeMigrator()
 
-  @Test("v88 starts existing podcasts with no refresh failures or backoff")
-  func addsRefreshBackoffColumns() async throws {
+  @Test("v88 clears recorded silence analysis failures and keeps published analysis")
+  func clearsFailures() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v87")
     try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
-          INSERT INTO podcast (id, feedURL, title, image, description)
-          VALUES (
-            880, 'https://example.com/v88.xml', 'Backoff Show',
-            'https://example.com/v88.jpg', 'Description'
-          )
+          INSERT INTO cachedAudioContent (filename, generation, detectorVersion, analysis, failureCount)
+          VALUES
+            ('failed.mp3', 'failed', 2, NULL, 2),
+            ('retrying.mp3', 'retrying', 2, NULL, 1),
+            ('analyzed.mp3', 'analyzed', 2, X'7B7D', 0)
           """
       )
     }
@@ -29,33 +29,20 @@ struct V88MigrationTests {
     try migrator.migrate(appDB.unsafeTestDB)
 
     try await appDB.unsafeTestDB.write { db in
-      let row = try #require(
-        try Row.fetchOne(
-          db,
-          sql: "SELECT refreshFailureCount, refreshBackoffUntil FROM podcast WHERE id = 880"
-        )
-      )
-      #expect(row["refreshFailureCount"] as Int? == 0)
-      #expect(row["refreshBackoffUntil"] as Date? == nil)
-
-      try db.execute(
+      let rows = try Row.fetchAll(
+        db,
         sql: """
-          INSERT INTO podcast (id, feedURL, title, image, description)
-          VALUES (
-            881, 'https://example.com/v88-new.xml', 'New Show',
-            'https://example.com/v88-new.jpg', 'Description'
-          )
+          SELECT filename, generation, detectorVersion, analysis, failureCount
+          FROM cachedAudioContent ORDER BY filename
           """
       )
       #expect(
-        try Int.fetchOne(db, sql: "SELECT refreshFailureCount FROM podcast WHERE id = 881") == 0
+        rows.map { $0["filename"] as String } == ["analyzed.mp3", "failed.mp3", "retrying.mp3"]
       )
-      #expect(
-        throws: DatabaseError.self,
-        performing: {
-          try db.execute(sql: "UPDATE podcast SET refreshFailureCount = NULL WHERE id = 881")
-        }
-      )
+      #expect(rows.map { $0["generation"] as String } == ["analyzed", "failed", "retrying"])
+      #expect(rows.map { $0["detectorVersion"] as Int } == [2, 2, 2])
+      #expect(rows.map { $0["failureCount"] as Int } == [0, 0, 0])
+      #expect(rows.map { $0["analysis"] as Data? } == [Data("{}".utf8), nil, nil])
     }
   }
 }
