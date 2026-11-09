@@ -1,3 +1,15 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__apple-docs__*",
+      "mcp__xcode__XcodeListWindows",
+      "mcp__xcode__BuildProject",
+      "mcp__xcode__RunSomeTests",
+      "mcp__xcode__GetTestList",
+      "mcp__xcode__GetBuildLog",
+      "mcp__xcode__RenderPreview",
+      "Bash(gh run *)"
+    ]
+  },
   "enabledPlugins": {}
 }

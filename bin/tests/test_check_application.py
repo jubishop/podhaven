@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -43,7 +44,53 @@ class CheckApplicationTests(unittest.TestCase):
                 result = subprocess.run([str(self.repo / "bin/check-application")], cwd=self.repo, env=self.env,
                                         text=True, capture_output=True, timeout=120)
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-                self.assertIn("Tooling tests failed: " + SKILL_SUITE + "\n", result.stderr)
+                self.assertIn("Tooling checks failed: " + SKILL_SUITE + "\n", result.stderr)
+
+    def run_checks(self, **env):
+        return subprocess.run([sys.executable, str(self.repo / "bin/check-application")], cwd=self.repo,
+                              env={**self.env, **env}, text=True, capture_output=True, timeout=120)
+
+    def test_scripts_and_workflows_outside_foundation_checks_are_linted(self):
+        cases = {
+            "ShellCheck": (".agents/scripts/example/run.sh",
+                           '#!/bin/bash\n# shellcheck source=lib.sh\nsource "$(dirname "$0")/lib.sh"\necho "$name"\n',
+                           "#!/bin/bash\nif true; then\n"),
+            "actionlint": (".github/workflows/example.yml",
+                           "on: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n",
+                           "on: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n"),
+            "fish syntax bin/example": ("bin/example", "#!/usr/bin/env fish\nif true\n    echo ok\nend\n",
+                                        "#!/usr/bin/env fish\nif true\n"),
+            "Ruby syntax fastlane/Fastfile": ("fastlane/Fastfile", "lane :example do\nend\n", "lane :example do\n"),
+        }
+        (self.repo / ".agents/scripts/example").mkdir(parents=True)
+        (self.repo / ".agents/scripts/example/lib.sh").write_text("#!/bin/bash\nexport name=example\n")
+        for path, valid, _ in cases.values():
+            (self.repo / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.repo / path).write_text(valid)
+        result = self.run_checks()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for label, (path, valid, broken) in cases.items():
+            with self.subTest(label):
+                self.assertIn("Running " + label + "\n", result.stdout)
+                (self.repo / path).write_text(broken)
+                failed = self.run_checks()
+                (self.repo / path).write_text(valid)
+                self.assertEqual(failed.returncode, 1, failed.stdout + failed.stderr)
+                self.assertIn("Tooling checks failed: " + label + "\n", failed.stderr)
+                self.assertIn("Running bin/tests\n", failed.stdout)
+
+    def test_a_missing_linter_fails_its_check_clearly(self):
+        (self.repo / ".github/workflows").mkdir(parents=True)
+        (self.repo / ".github/workflows/example.yml").write_text(
+            "on: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n")
+        temporary = tempfile.TemporaryDirectory(prefix="podhaven check-application commands ")
+        self.addCleanup(temporary.cleanup)
+        commands = Path(temporary.name)
+        (commands / "git").symlink_to(shutil.which("git"))
+        result = self.run_checks(PATH=str(commands))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("actionlint is required for bin/check --full", result.stderr)
+        self.assertIn("Tooling checks failed: actionlint\n", result.stderr)
 
 
 if __name__ == "__main__":
