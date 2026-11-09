@@ -297,11 +297,13 @@ struct Repo: Databasing {
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [FeedMergeEpisode]
   ) async throws -> NewEpisodeAutomation? {
-    let nextPublisherAttemptAt = Container.shared.dateProvider().now
+    let now = Container.shared.dateProvider().now
     let result = try await writer.write { db in
+      // Future-dated episodes, such as pinned trailers, would hide newer releases.
       let newestStoredPubDate =
         try Episode
         .filter(Episode.Columns.podcastId == podcast.id)
+        .filter(Episode.Columns.pubDate <= now)
         .select(max(Episode.Columns.pubDate), as: Date.self)
         .fetchOne(db)
       var insertedEpisodes = [Episode](capacity: unsavedEpisodes.count)
@@ -343,7 +345,7 @@ struct Repo: Databasing {
         {
           try PublisherTranscriptImportStore.insert(
             episode.id,
-            nextAttemptAt: nextPublisherAttemptAt,
+            nextAttemptAt: now,
             in: db
           )
           publisherTranscriptWorkCreated = true
@@ -370,8 +372,8 @@ struct Repo: Databasing {
     return result.automation
   }
 
-  // Only a subscribed podcast's episodes newer than all it stored before this
-  // refresh count as new; the rest are back catalog surfacing in the feed.
+  // Only a subscribed podcast's episodes newer than the newest already-published
+  // one it stored before this refresh count as new; the rest are back catalog.
   private func automateNewEpisodes(
     _ db: Database,
     podcastID: Podcast.ID,

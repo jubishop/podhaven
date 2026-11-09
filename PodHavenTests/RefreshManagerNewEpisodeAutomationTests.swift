@@ -60,22 +60,7 @@ actor RefreshManagerNewEpisodeAutomationTests {
 
     let feedURL = FeedURL(URL(string: "https://example.com/back-catalog.rss")!)
     let stored = Item(guid: "stored", daysAgo: 7)
-    let storedFeed = try await PodcastFeed.parse(Self.feed([stored]), from: feedURL)
-    let basePodcast = try storedFeed.toUnsavedPodcast()
-    let series = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(
-          feedURL: basePodcast.feedURL,
-          title: basePodcast.title,
-          image: basePodcast.image,
-          description: basePodcast.description,
-          subscriptionDate: Date(),
-          queueAllEpisodes: .onTop,
-          notifyNewEpisodes: true
-        ),
-        unsavedEpisodes: storedFeed.toUnsavedEpisodes()
-      )
-    )
+    let series = try await insertSeriesQueuingOnTop([stored], at: feedURL)
     let fresh = Item(guid: "fresh", daysAgo: 1)
     let backCatalog = (0..<10).map { Item(guid: "back-\($0)", daysAgo: 30 + $0) }
     fakeUserNotificationCenter.clearAllCalls()
@@ -90,6 +75,25 @@ actor RefreshManagerNewEpisodeAutomationTests {
     #expect(refreshed.episodes.count == 12)
     let freshEpisode = try #require(refreshed.episodes.first { $0.guid == GUID(fresh.guid) })
     #expect(try await PlayHelpers.queuedEpisodeIDs == [freshEpisode.id] + otherEpisodeIDs)
+    #expect(fakeUserNotificationCenter.addedRequests.count == 1)
+    #expect(fakeUserNotificationCenter.addedRequests.first?.body == freshEpisode.title)
+  }
+
+  @Test("a stored future-dated episode doesn't stop automating newer published episodes")
+  func futureDatedStoredEpisodeDoesNotBlockNewEpisodes() async throws {
+    Container.shared.fakeDate().freeze(at: Item.referenceDate)
+    let feedURL = FeedURL(URL(string: "https://example.com/future-dated.rss")!)
+    let stored = [Item(guid: "pinned", daysAgo: -365), Item(guid: "stored", daysAgo: 7)]
+    let series = try await insertSeriesQueuingOnTop(stored, at: feedURL)
+    let fresh = Item(guid: "fresh", daysAgo: 1)
+    fakeUserNotificationCenter.clearAllCalls()
+    await session.respond(to: feedURL.rawValue, data: Self.feed([fresh] + stored))
+
+    try await refreshManager.refreshSeries(podcast: series.podcast)
+
+    let freshEpisode = try await Self.insertedEpisode(in: series)
+    #expect(freshEpisode.guid == GUID(fresh.guid))
+    #expect(try await PlayHelpers.queuedEpisodeIDs == [freshEpisode.id])
     #expect(fakeUserNotificationCenter.addedRequests.count == 1)
     #expect(fakeUserNotificationCenter.addedRequests.first?.body == freshEpisode.title)
   }
@@ -117,12 +121,36 @@ actor RefreshManagerNewEpisodeAutomationTests {
   // MARK: - Helpers
 
   private struct Item {
+    static let referenceDate = Date(timeIntervalSince1970: 1_767_268_800)
+
     let guid: String
     let daysAgo: Int
 
     var pubDate: Date {
-      Date(timeIntervalSince1970: 1_767_268_800).addingTimeInterval(-daysAgo.days.asTimeInterval)
+      Self.referenceDate.addingTimeInterval(-daysAgo.days.asTimeInterval)
     }
+  }
+
+  private func insertSeriesQueuingOnTop(
+    _ items: [Item],
+    at feedURL: FeedURL
+  ) async throws -> PodcastSeries {
+    let storedFeed = try await PodcastFeed.parse(Self.feed(items), from: feedURL)
+    let basePodcast = try storedFeed.toUnsavedPodcast()
+    return try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: basePodcast.feedURL,
+          title: basePodcast.title,
+          image: basePodcast.image,
+          description: basePodcast.description,
+          subscriptionDate: Date(),
+          queueAllEpisodes: .onTop,
+          notifyNewEpisodes: true
+        ),
+        unsavedEpisodes: storedFeed.toUnsavedEpisodes()
+      )
+    )
   }
 
   private static func insertedEpisode(in series: PodcastSeries) async throws -> Episode {
