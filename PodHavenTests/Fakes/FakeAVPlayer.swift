@@ -152,7 +152,9 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
 
   private var _defaultRate: Float = 1.0
   var defaultRate: Float { _defaultRate }
+  private(set) var defaultRateRequests: [Float] = []
   func setDefaultRate(_ defaultRate: Float) {
+    defaultRateRequests.append(defaultRate)
     _defaultRate = defaultRate
   }
   private var _rate: Float = 0.0

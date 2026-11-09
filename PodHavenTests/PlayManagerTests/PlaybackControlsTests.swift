@@ -422,6 +422,23 @@ import Testing
     try await PlayHelpers.waitFor(.waiting)
   }
 
+  @Test("an unknown time control status is ignored")
+  func unknownTimeControlStatusIsIgnored() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.waitFor(.paused)
+
+    let unknownStatus = try #require(AVPlayer.TimeControlStatus(rawValue: 99))
+    avPlayer.queuePlayStatuses([unknownStatus])
+    await playManager.play()
+    await playManager.toggle()
+    #expect(sharedState.playbackStatus == .paused)
+
+    avPlayer.resumePlayback()
+    try await PlayHelpers.waitFor(.playing)
+  }
+
   @Test("pause saves current position to database immediately")
   func pauseSavesCurrentPositionToDatabaseImmediately() async throws {
     await playManager.start()

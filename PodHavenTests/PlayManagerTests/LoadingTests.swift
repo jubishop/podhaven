@@ -845,6 +845,20 @@ import Testing
     #expect(sharedState.currentEpisodeID == podcastEpisode.id)
   }
 
+  @Test("episode intent reports a failed load")
+  func episodeIntentReportsFailedLoad() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      error: TestError.assetLoadFailure(podcastEpisode)
+    )
+
+    await #expect(throws: (any Error).self) {
+      let result = try await PlayEpisodeIntent(episodeID: podcastEpisode.id.rawValue).perform()
+      withExtendedLifetime(result) {}
+    }
+  }
+
   @Test("episode intent recovers its selected target instead of the prior episode")
   func episodeIntentRecoversSelectedTargetInsteadOfPriorEpisode() async throws {
     let (priorEpisode, selectedEpisode) = try await Create.twoPodcastEpisodes()

@@ -92,10 +92,10 @@ extension Container: @retroactive AutoRegistering {
     }
     .scope(.cached)
     setAudioSessionActive.context(.test) {
-      { active in
+      { active, options in
         let audioSession = self.fakeAudioSession()
         if active, let error = audioSession.activationError() { throw error }
-        Task { await audioSession.setActive(active) }
+        Task { await audioSession.setActive(active, options: options) }
       }
     }
     audioRouteOutputs.context(.test) { { self.fakeAudioSession().routeOutputs() } }

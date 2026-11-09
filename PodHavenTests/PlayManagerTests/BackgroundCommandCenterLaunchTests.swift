@@ -50,6 +50,24 @@ import Testing
     )
   }
 
+  @Test("remote commands reach playback in the order they arrive")
+  func remoteCommandsReachPlaybackInOrder() async throws {
+    let avPlayer = Container.shared.avPlayer() as! FakeAVPlayer
+    registerRemoteCommandHandlers()
+    let rates: [Float] = [0.8, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
+    let commandRates = rates + rates.reversed() + rates + rates.reversed()
+
+    for rate in commandRates {
+      mpRemoteCommandCenter.fireChangePlaybackRate(rate)
+    }
+
+    try await Wait.until(
+      { @MainActor in avPlayer.defaultRateRequests.filter(rates.contains).count == commandRates.count },
+      { @MainActor in "Applied rates: \(avPlayer.defaultRateRequests)" }
+    )
+    #expect(avPlayer.defaultRateRequests.filter(rates.contains) == commandRates)
+  }
+
   @Test("first skip command prepares playback before seeking")
   func firstSkipCommandPreparesPlaybackBeforeSeeking() async throws {
     let podcastEpisode = try await Create.podcastEpisode(

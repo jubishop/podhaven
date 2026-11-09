@@ -128,7 +128,7 @@ extension PlayManager {
 
   func activateAudioSessionForLoad() throws -> Bool {
     do {
-      try Container.shared.setAudioSessionActive()(true)
+      try Container.shared.setAudioSessionActive()(true, [])
       return true
     } catch {
       let nsError = error as NSError

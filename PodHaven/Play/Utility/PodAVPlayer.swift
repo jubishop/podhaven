@@ -68,7 +68,7 @@ struct PodAVPlayerPlaybackSnapshot {
   let isFromCache: Bool
   let itemStatus: AVPlayerItem.Status?
   let source: PodAVPlayerEventSource?
-  let status: PlaybackStatus
+  let status: PlaybackStatus?
   let waitingReason: String?
 }
 
@@ -405,7 +405,7 @@ struct PodAVPlayerPlaybackSnapshot {
     avPlayer.currentTime()
   }
 
-  func playbackStatus() -> PlaybackStatus {
+  func playbackStatus() -> PlaybackStatus? {
     PlaybackStatus(avPlayer.timeControlStatus)
   }
 
@@ -546,8 +546,15 @@ struct PodAVPlayerPlaybackSnapshot {
   }
 
   func toggle(requestID: UUID) async {
-    let currentStatus =
-      silenceState.replacementIntent ?? PlaybackStatus(avPlayer.timeControlStatus)
+    guard
+      let currentStatus = silenceState.replacementIntent
+        ?? PlaybackStatus(avPlayer.timeControlStatus)
+    else {
+      Self.log.warning(
+        "toggle: ignoring unknown time control status \(avPlayer.timeControlStatus.rawValue)"
+      )
+      return
+    }
     Self.log.debug("toggle: executing (current status: \(currentStatus))")
 
     switch currentStatus {
@@ -774,8 +781,12 @@ struct PodAVPlayerPlaybackSnapshot {
     timeControlStatusObserver = avPlayer.observeTimeControlStatus(options: [.initial, .new]) {
       [weak self, eventSource] status in
       guard let self else { return }
+      guard let playbackStatus = PlaybackStatus(status) else {
+        Self.log.warning("Ignoring unknown time control status \(status.rawValue)")
+        return
+      }
       controlStatusContinuation.yield(
-        PodAVPlayerEvent(source: eventSource, value: PlaybackStatus(status))
+        PodAVPlayerEvent(source: eventSource, value: playbackStatus)
       )
 
       Task { @MainActor [weak self, eventSource] in
@@ -784,7 +795,7 @@ struct PodAVPlayerPlaybackSnapshot {
         Self.log.debug(
           """
           event=playerTimeControlStatus episodeID=\(eventSource.episodeID) \
-          playerGeneration=\(eventSource.generation) status=\(PlaybackStatus(status)) \
+          playerGeneration=\(eventSource.generation) status=\(playbackStatus) \
           currentTime=\(snapshot.currentTime) itemStatus=\(String(describing: snapshot.itemStatus)) \
           cached=\(snapshot.isFromCache) \
           waitingReason=\(String(describing: snapshot.waitingReason))
@@ -885,7 +896,7 @@ struct PodAVPlayerPlaybackSnapshot {
 // MARK: - PlaybackStatus + AVPlayer
 
 extension PlaybackStatus {
-  init(_ timeControlStatus: AVPlayer.TimeControlStatus) {
+  init?(_ timeControlStatus: AVPlayer.TimeControlStatus) {
     switch timeControlStatus {
     case .paused:
       self = .paused
@@ -894,7 +905,7 @@ extension PlaybackStatus {
     case .waitingToPlayAtSpecifiedRate:
       self = .waiting
     @unknown default:
-      Assert.fatal("Unknown time control status: \(timeControlStatus)")
+      return nil
     }
   }
 }

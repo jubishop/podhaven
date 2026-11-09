@@ -63,6 +63,40 @@ import Testing
     #expect(await PlayHelpers.nowPlayingProgress == rewindTime.seconds / duration.seconds)
   }
 
+  @Test("skipping past either end of the episode clamps the seek")
+  func skippingPastEitherEndClampsSeek() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    let duration = CMTime.seconds(240)
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, duration)
+    )
+    try await playManager.load(podcastEpisode)
+
+    await playManager.seek(to: .seconds(230))
+    try await PlayHelpers.waitFor(.seconds(230))
+    await playManager.seekForward(30)
+    try await PlayHelpers.waitFor(duration)
+    #expect(avPlayer.seekRequests.last == duration)
+    #expect(sharedState.onDeck?.maxPlaybackTime == duration)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == duration)
+    #expect(await PlayHelpers.nowPlayingProgress == 1.0)
+
+    await playManager.seek(to: .seconds(10))
+    try await PlayHelpers.waitFor(.seconds(10))
+    await playManager.seekBackward(30)
+    try await PlayHelpers.waitFor(.zero)
+    #expect(avPlayer.seekRequests.last == .zero)
+    #expect(await PlayHelpers.nowPlayingCurrentTime == .zero)
+    #expect(await PlayHelpers.nowPlayingProgress == 0.0)
+
+    let seekCount = avPlayer.seekRequests.count
+    await playManager.seek(to: .invalid)
+    #expect(avPlayer.seekRequests.count == seekCount)
+  }
+
   @Test("failed seeks restore observation and pending seeks suppress time updates")
   func timeUpdateEventsAreIgnoredWhileSeeking() async throws {
     await playManager.start()
@@ -177,6 +211,10 @@ import Testing
       let podcastEpisode = try await Create.podcastEpisode()
       let originalTime = CMTime.seconds(20)
       let soughtTime = CMTime.seconds(50)
+      await episodeAssetLoader.respond(
+        to: podcastEpisode.episode.mediaURL,
+        data: (true, .seconds(60))
+      )
 
       try await playManager.load(podcastEpisode)
       try await PlayHelpers.play()
@@ -262,6 +300,10 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
     let olderTime = CMTime.seconds(20)
     let newerTime = CMTime.seconds(50)
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(60))
+    )
 
     try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
