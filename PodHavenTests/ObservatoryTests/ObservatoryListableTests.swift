@@ -100,7 +100,7 @@ actor ObservatoryListableTests {
 
     Task {
       do {
-        let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+        let observation: SettledPlaybackObservation<[ListablePodcastEpisode]> =
           observatory.listablePodcastEpisodes(
             filter: Episode.Columns.id == episodeID
           )
@@ -145,7 +145,7 @@ actor ObservatoryListableTests {
 
     Task {
       do {
-        let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+        let observation: SettledPlaybackObservation<[ListablePodcastEpisode]> =
           observatory.listablePodcastEpisodes(
             filter: Episode.Columns.id == episodeID
           )

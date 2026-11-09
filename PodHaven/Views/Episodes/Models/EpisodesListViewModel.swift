@@ -239,7 +239,7 @@ class EpisodesListViewModel:
     cancelRecommendationWork()
 
     do {
-      let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+      let observation: SettledPlaybackObservation<[ListablePodcastEpisode]> =
         observatory.listablePodcastEpisodes(
           filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
           order: currentSortMethod.sqlOrdering,
@@ -296,7 +296,7 @@ class EpisodesListViewModel:
     recommendationHydrationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
       do {
-        let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+        let observation: SettledPlaybackObservation<[ListablePodcastEpisode]> =
           self.observatory.listablePodcastEpisodes(
             filter: topIDs.contains(Episode.Columns.id),
             limit: Self.displayLimit

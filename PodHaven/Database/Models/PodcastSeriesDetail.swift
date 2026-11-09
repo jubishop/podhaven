@@ -36,9 +36,7 @@ struct PodcastSeriesDetail: Equatable, Hashable, Identifiable, Sendable, Stringa
   // Single source of truth for the three-query detail fetch — used by
   // both `Repo.podcastSeriesDetail(_:)` (one-shot read) and
   // `Observatory.podcastSeriesDetail(_:)` (live ValueObservation).
-  // ValueObservation auto-tracks every table referenced here, so
-  // observers wake on changes to `podcast`, `episode`, `episodeTag`, or
-  // `podcastTag`.
+  // The observation tracks `observedRegions`, which mirror these queries.
   static func fetchOne(_ podcastID: Podcast.ID, in db: Database) throws
     -> PodcastSeriesDetail?
   {
@@ -47,21 +45,36 @@ struct PodcastSeriesDetail: Equatable, Hashable, Identifiable, Sendable, Stringa
   }
 
   static func fetchOne(podcast: Podcast, in db: Database) throws -> PodcastSeriesDetail {
-    let episodes =
-      try ListableEpisode
-      .filter(Episode.Columns.podcastId == podcast.id)
-      .order(Episode.Columns.pubDate.desc)
-      .fetchAll(db)
-    let tags =
-      try Tag
-      .joining(required: Tag.podcastTags.filter(PodcastTag.Columns.podcastId == podcast.id))
-      .orderedByName()
-      .fetchAll(db)
+    let episodes = try episodesRequest(podcast.id).fetchAll(db)
+    let tags = try tagsRequest(podcast.id).fetchAll(db)
     return PodcastSeriesDetail(
       podcast: podcast,
       episodes: IdentifiedArrayOf(uniqueElements: episodes),
       tags: IdentifiedArrayOf(uniqueElements: tags)
     )
+  }
+
+  // What `fetchOne` reads, minus episode playback progress.
+  static func observedRegions(_ podcastID: Podcast.ID) -> [any DatabaseRegionConvertible] {
+    [
+      Podcast.withID(podcastID),
+      episodesRequest(podcastID).select(ListableEpisode.observedSelection),
+      tagsRequest(podcastID),
+    ]
+  }
+
+  private static func episodesRequest(_ podcastID: Podcast.ID)
+    -> QueryInterfaceRequest<ListableEpisode>
+  {
+    ListableEpisode
+      .filter(Episode.Columns.podcastId == podcastID)
+      .order(Episode.Columns.pubDate.desc)
+  }
+
+  private static func tagsRequest(_ podcastID: Podcast.ID) -> QueryInterfaceRequest<Tag> {
+    Tag
+      .joining(required: Tag.podcastTags.filter(PodcastTag.Columns.podcastId == podcastID))
+      .orderedByName()
   }
 
   // MARK: - Stringable
