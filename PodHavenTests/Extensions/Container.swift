@@ -138,6 +138,8 @@ extension Container: @retroactive AutoRegistering {
 
     bgTaskScheduler.context(.test) { FakeBGTaskScheduler() }.scope(.cached)
 
+    networkPathMonitor.context(.test) { FakeNetworkPathMonitor() }.scope(.cached)
+
     audioFileProvider.context(.test) { self.fakeAudioFileProvider() }.scope(.cached)
 
     audioFileHasher.context(.test) { FakeAudioFileHasher() }.scope(.cached)
