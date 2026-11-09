@@ -208,6 +208,57 @@ struct BroadcastTests {
     }
     #expect(received == Array(0...writes))
   }
+
+  @Test("concurrent writes persist in the order they were applied")
+  func concurrentWritesPersistInOrder() async throws {
+    let writes = 1000
+    let store = OrderRecordingStore()
+    let persisted = PersistedBroadcast(wrappedValue: 0, "broadcast-tests-order", store: store)
+    let (finished, finish) = AsyncStream<Void>.makeStream()
+
+    DispatchQueue.global()
+      .async {
+        DispatchQueue.concurrentPerform(iterations: writes) { _ in
+          persisted.projectedValue.update { $0 += 1 }
+        }
+        finish.finish()
+      }
+    for await _ in finished {}
+
+    #expect(store.storedValues() == Array(1...writes))
+    #expect(Int.load(from: store, forKey: "broadcast-tests-order") == persisted.wrappedValue)
+  }
+}
+
+// Records each value as it is stored, in the order the stores happen.
+private final class OrderRecordingStore: KeyValueStore {
+  private let backing = FakeKeyValueStore()
+  private let stored = ThreadSafe<[Int]>([])
+
+  var allKeys: [String] { backing.allKeys }
+
+  func storedValues() -> [Int] { stored() }
+
+  func data(forKey defaultName: String) -> Data? {
+    backing.data(forKey: defaultName)
+  }
+
+  func string(forKey defaultName: String) -> String? {
+    backing.string(forKey: defaultName)
+  }
+
+  func set(_ value: Any?, forKey defaultName: String) {
+    stored { stored in
+      backing.set(value, forKey: defaultName)
+      if let value = Int.load(from: backing, forKey: defaultName) {
+        stored.append(value)
+      }
+    }
+  }
+
+  func removeObject(forKey defaultName: String) {
+    backing.removeObject(forKey: defaultName)
+  }
 }
 
 // Verifies the @Broadcasted property wrapper resolves to the

@@ -654,7 +654,7 @@ struct RecommendationEngine: Sendable {
     let stripCount = principalComponentStripCount(for: deconeMode)
 
     // Size the accumulators from the first available embedding; signals
-    // without embeddings are skipped by the passes below anyway.
+    // without embeddings, or with another dimension, are skipped below.
     let dim: Int? = {
       for signal in ratedSignals {
         if let cached = embeddings[id: signal.id] { return cached.dimension }
@@ -681,6 +681,7 @@ struct RecommendationEngine: Sendable {
             into target: UnsafeMutableBufferPointer<Float>
           ) {
             unsafe embedding.withFloatBuffer { vec in
+              guard vec.count == target.count else { return }
               if let whiteningTransform {
                 unsafe whiteningTransform.apply(
                   vec,
@@ -754,6 +755,7 @@ struct RecommendationEngine: Sendable {
     positive: [Float],
     negative: [Float]?
   ) -> Float {
+    guard vector.count == positive.count else { return 0 }
     var similarity = positive.withUnsafeBufferPointer { posPtr in
       unsafe VectorMath.dotProduct(vector, posPtr)
     }
@@ -910,6 +912,7 @@ struct RecommendationEngine: Sendable {
     let computeStart = continuousClockNow()
     guard
       let fresh = try await recommendationRepo.whiteningTransform(
+        embeddingRevision: currentRevision,
         principalComponentCount: principalComponentCount
       )
     else { return nil }
