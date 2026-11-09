@@ -12,6 +12,7 @@ extension Container {
 }
 
 struct ShareService {
+  @DynamicInjected(\.fileManager) private var fileManager
   @DynamicInjected(\.iTunesService) private var iTunesService
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.refreshManager) private var refreshManager
@@ -19,6 +20,7 @@ struct ShareService {
   private var navigation: Navigation { get async { await Container.shared.navigation() } }
 
   private static let log = Log.as(LogSubsystem.ShareService.main)
+  private static let sharedFilePrefix = "shared_file_"
 
   // MARK: - URL Analysis
 
@@ -47,22 +49,29 @@ struct ShareService {
     }
     Self.log.debug("extracted URL is: \(extractedURL)")
 
+    let queryItems = URLComponents(url: extractedURL, resolvingAgainstBaseURL: false)?.queryItems
     if extractedURL.pathExtension.lowercased() == "opml" {
       try await handleOPMLURL(extractedURL)
-    } else if let feedURL = extractFeedURLParameter(from: extractedURL) {
+    } else if queryItems?.contains(where: { $0.name == "feedURL" }) == true {
+      guard let destination = ShareURL.universalLinkDestination(extractedURL)
+      else { throw URLError(.unsupportedURL) }
+
       try await handlePodcastURL(
-        feedURL,
-        guid: extractGUIDParameter(from: extractedURL),
-        startTime: extractStartTimeParameter(from: extractedURL)
+        destination.feedURL,
+        guid: destination.guid,
+        startTime: destination.startTime
       )
     } else if let feedURL = try await fetchFeedURL(from: extractedURL) {
       try await handlePodcastURL(feedURL)
+    } else if let feedURL = ShareURL.validatedFeedURL(extractedURL.absoluteString) {
+      try await handlePodcastURL(feedURL)
     } else {
-      try await handlePodcastURL(FeedURL(extractedURL))
+      throw URLError(.unsupportedURL)
     }
   }
 
   func handlePodcastURL(_ feedURL: FeedURL, guid: GUID? = nil, startTime: Int? = nil) async throws {
+    let feedURL = try feedURL.convertToHTTPSURL()
     Self.log.debug(
       """
       handlePodcastURL: \(feedURL), \
@@ -122,18 +131,35 @@ struct ShareService {
   private func handleOPMLURL(_ url: URL) async throws {
     Self.log.debug("handleOPMLURL: \(url)")
 
+    guard let fileURL = sharedFileURL(url) else { throw URLError(.unsupportedURL) }
+
     let navigation = await self.navigation
     await navigation.showOPMLImport()
 
     let opmlViewModel = await Container.shared.opmlViewModel()
-    await opmlViewModel.importOPMLFromURL(url: url)
+    await opmlViewModel.importOPMLFromURL(url: fileURL)
 
     do {
-      try Container.shared.fileManager().removeItem(at: url)
-      Self.log.debug("Cleaned up shared OPML file: \(url)")
+      try fileManager.removeItem(at: fileURL)
+      Self.log.debug("Cleaned up shared OPML file: \(fileURL)")
     } catch {
-      Self.log.caughtError("handleOPMLURL: failed to clean up shared OPML file \(url)", error)
+      Self.log.caughtError("handleOPMLURL: failed to clean up shared OPML file \(fileURL)", error)
     }
+  }
+
+  private func sharedFileURL(_ url: URL) -> URL? {
+    guard url.isFileURL,
+      let container = fileManager.containerURL(
+        forSecurityApplicationGroupIdentifier: AppInfo.appGroupID
+      )
+    else { return nil }
+
+    let fileURL = URL(filePath: url.path(percentEncoded: false))
+    guard fileURL.lastPathComponent.hasPrefix(Self.sharedFilePrefix),
+      fileURL.deletingLastPathComponent().pathComponents == container.pathComponents
+    else { return nil }
+
+    return fileURL
   }
 
   // MARK: - Private URL Analysis
@@ -149,36 +175,6 @@ struct ShareService {
     }
 
     return extractedURL
-  }
-
-  private func extractFeedURLParameter(from url: URL) -> FeedURL? {
-    guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-      let queryItems = components.queryItems,
-      let feedURLString = queryItems.first(where: { $0.name == "feedURL" })?.value,
-      let feedURL = URL(string: feedURLString)
-    else { return nil }
-
-    return FeedURL(feedURL)
-  }
-
-  private func extractGUIDParameter(from url: URL) -> GUID? {
-    guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-      let queryItems = components.queryItems,
-      let guidString = queryItems.first(where: { $0.name == "guid" })?.value
-    else { return nil }
-
-    return GUID(guidString)
-  }
-
-  private func extractStartTimeParameter(from url: URL) -> Int? {
-    guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-      let queryItems = components.queryItems,
-      let startTimeString = queryItems.first(where: { $0.name == "startTime" })?.value,
-      let startTime = Int(startTimeString),
-      startTime > 0
-    else { return nil }
-
-    return startTime
   }
 
   // MARK: - Private Data Fetching
