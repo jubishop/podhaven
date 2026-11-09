@@ -94,6 +94,19 @@ struct SilenceCacheTests {
     #expect(try await store.content(for: url.lastPathComponent) == nil)
   }
 
+  @Test("failures recorded from one snapshot each count")
+  func failureCount() async throws {
+    let episode = try await Create.podcastEpisode()
+    let task = try await CacheHelpers.downloadToCache(episode.id)
+    try await CacheHelpers.simulateBackgroundFinish(task)
+    let url = try await CacheHelpers.waitForCached(episode.id)
+    let store = Container.shared.silenceStore()
+    let content = try #require(try await store.content(for: url.lastPathComponent))
+    try await store.recordFailure(for: content)
+    try await store.recordFailure(for: content)
+    #expect(try await store.content(for: url.lastPathComponent)?.failureCount == 2)
+  }
+
   @Test("startup removes metadata whose media no longer exists")
   func orphanCleanup() async throws {
     try await Container.shared.appDB().unsafeTestDB
