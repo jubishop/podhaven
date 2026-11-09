@@ -373,26 +373,7 @@ actor RefreshManagerTests {
 
   @Test("refreshSeries queues new episodes on top when queueAllEpisodes is .onTop")
   func testRefreshSeriesQueuesNewEpisodesOnTop() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
-    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
-
-    // Create podcast with queueAllEpisodes set to .onTop
-    let basePodcast = try podcastFeed.toUnsavedPodcast()
-    let unsavedPodcast = try UnsavedPodcast(
-      feedURL: basePodcast.feedURL,
-      title: basePodcast.title,
-      image: basePodcast.image,
-      description: basePodcast.description,
-      link: basePodcast.link,
-      queueAllEpisodes: .onTop
-    )
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-      )
-    )
+    let podcastSeries = try await NewEpisodeFeed.insertSeries(queueAllEpisodes: .onTop)
 
     // Add existing episodes to queue
     let existingEpisodeIDs = podcastSeries.episodes.map(\.id)
@@ -403,11 +384,7 @@ actor RefreshManagerTests {
     #expect(queuedIDs == existingEpisodeIDs)
 
     // Set up updated feed with a new episode
-    let updatedData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
-    )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: NewEpisodeFeed.data)
     try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Wait for new episodes to be queued on top
@@ -430,26 +407,7 @@ actor RefreshManagerTests {
 
   @Test("refreshSeries queues new episodes on bottom when queueAllEpisodes is .onBottom")
   func testRefreshSeriesQueuesNewEpisodesOnBottom() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
-    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
-
-    // Create podcast with queueAllEpisodes set to .onBottom
-    let basePodcast = try podcastFeed.toUnsavedPodcast()
-    let unsavedPodcast = try UnsavedPodcast(
-      feedURL: basePodcast.feedURL,
-      title: basePodcast.title,
-      image: basePodcast.image,
-      description: basePodcast.description,
-      link: basePodcast.link,
-      queueAllEpisodes: .onBottom
-    )
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-      )
-    )
+    let podcastSeries = try await NewEpisodeFeed.insertSeries(queueAllEpisodes: .onBottom)
 
     // Add existing episodes to queue
     let existingEpisodeIDs = podcastSeries.episodes.map(\.id)
@@ -460,11 +418,7 @@ actor RefreshManagerTests {
     #expect(queuedIDs == existingEpisodeIDs)
 
     // Set up updated feed with a new episode
-    let updatedData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
-    )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: NewEpisodeFeed.data)
     try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Wait for new episodes to be queued on bottom
@@ -487,26 +441,7 @@ actor RefreshManagerTests {
 
   @Test("refreshSeries does not queue new episodes when queueAllEpisodes is .never")
   func testRefreshSeriesDoesNotQueueNewEpisodesWhenNever() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
-    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
-
-    // Create podcast with queueAllEpisodes set to .never (default)
-    let basePodcast = try podcastFeed.toUnsavedPodcast()
-    let unsavedPodcast = try UnsavedPodcast(
-      feedURL: basePodcast.feedURL,
-      title: basePodcast.title,
-      image: basePodcast.image,
-      description: basePodcast.description,
-      link: basePodcast.link,
-      queueAllEpisodes: .never
-    )
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-      )
-    )
+    let podcastSeries = try await NewEpisodeFeed.insertSeries(queueAllEpisodes: .never)
 
     // Add existing episodes to queue
     let existingEpisodeIDs = podcastSeries.episodes.map(\.id)
@@ -517,11 +452,7 @@ actor RefreshManagerTests {
     #expect(queuedIDs == existingEpisodeIDs)
 
     // Set up updated feed with a new episode
-    let updatedData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
-    )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: NewEpisodeFeed.data)
     try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Verify series was updated with new episode
@@ -536,35 +467,12 @@ actor RefreshManagerTests {
 
   @Test("refreshSeries schedules new episode notifications when notifyNewEpisodes is true")
   func testRefreshSeriesSchedulesNewEpisodeNotifications() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
-    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
-
-    // Create podcast with notifyNewEpisodes set to true
-    let basePodcast = try podcastFeed.toUnsavedPodcast()
-    let unsavedPodcast = try UnsavedPodcast(
-      feedURL: basePodcast.feedURL,
-      title: basePodcast.title,
-      image: basePodcast.image,
-      description: basePodcast.description,
-      link: basePodcast.link,
-      notifyNewEpisodes: true  // Crucial for this test
-    )
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-      )
-    )
+    let podcastSeries = try await NewEpisodeFeed.insertSeries(notifyNewEpisodes: true)
 
     fakeUserNotificationCenter.clearAllCalls()
 
     // Set up updated feed with a new episode
-    let updatedData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
-    )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: NewEpisodeFeed.data)
     try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Get the updated series to find the new episode
@@ -583,36 +491,13 @@ actor RefreshManagerTests {
 
   @Test("refreshSeries caches new episodes when cacheAllEpisodes is .cache")
   func testRefreshSeriesCachesNewEpisodesWhenEnabled() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
-    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
-
-    // Create podcast with cacheAllEpisodes set to .cache
-    let basePodcast = try podcastFeed.toUnsavedPodcast()
-    let unsavedPodcast = try UnsavedPodcast(
-      feedURL: basePodcast.feedURL,
-      title: basePodcast.title,
-      image: basePodcast.image,
-      description: basePodcast.description,
-      link: basePodcast.link,
-      cacheAllEpisodes: .cache
-    )
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-      )
-    )
+    let podcastSeries = try await NewEpisodeFeed.insertSeries(cacheAllEpisodes: .cache)
 
     // Verify initial state - no episodes are cached
     #expect(podcastSeries.episodes.allSatisfy { $0.cacheStatus != .cached })
 
     // Set up updated feed with a new episode
-    let updatedData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
-    )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: NewEpisodeFeed.data)
     try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Get the updated series to find the new episode
@@ -633,36 +518,13 @@ actor RefreshManagerTests {
 
   @Test("refreshSeries does not cache new episodes when cacheAllEpisodes is .never")
   func testRefreshSeriesDoesNotCacheNewEpisodesWhenDisabled() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
-    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
-
-    // Create podcast with cacheAllEpisodes set to .never (default)
-    let basePodcast = try podcastFeed.toUnsavedPodcast()
-    let unsavedPodcast = try UnsavedPodcast(
-      feedURL: basePodcast.feedURL,
-      title: basePodcast.title,
-      image: basePodcast.image,
-      description: basePodcast.description,
-      link: basePodcast.link,
-      cacheAllEpisodes: .never
-    )
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-      )
-    )
+    let podcastSeries = try await NewEpisodeFeed.insertSeries(cacheAllEpisodes: .never)
 
     // Verify initial state - no episodes are cached
     #expect(podcastSeries.episodes.allSatisfy { $0.cacheStatus != .cached })
 
     // Set up updated feed with a new episode
-    let updatedData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
-    )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: NewEpisodeFeed.data)
     try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Verify series was updated with new episode
@@ -777,37 +639,14 @@ actor RefreshManagerTests {
 
   @Test("refreshSeries caches and saves new episodes when cacheAllEpisodes is .save")
   func testRefreshSeriesCachesAndSavesNewEpisodesWhenSaveEnabled() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
-    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
-
-    // Create podcast with cacheAllEpisodes set to .save
-    let basePodcast = try podcastFeed.toUnsavedPodcast()
-    let unsavedPodcast = try UnsavedPodcast(
-      feedURL: basePodcast.feedURL,
-      title: basePodcast.title,
-      image: basePodcast.image,
-      description: basePodcast.description,
-      link: basePodcast.link,
-      cacheAllEpisodes: .save
-    )
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-      )
-    )
+    let podcastSeries = try await NewEpisodeFeed.insertSeries(cacheAllEpisodes: .save)
 
     // Verify initial state - no episodes are cached and saveInCache is false
     #expect(podcastSeries.episodes.allSatisfy { $0.cacheStatus != .cached })
     #expect(podcastSeries.episodes.allSatisfy { $0.saveInCache == false })
 
     // Set up updated feed with a new episode
-    let updatedData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
-    )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: NewEpisodeFeed.data)
     try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Get the updated series to find the new episode
