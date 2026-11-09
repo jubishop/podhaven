@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import CoreMedia
 import FactoryKit
 import Foundation
 import IdentifiedCollections
@@ -124,6 +125,15 @@ struct SharedState: Sendable {
   func isOnDeck(_ episode: any EpisodeFoundational) -> Bool {
     guard let episodeID = episode.episodeID else { return false }
     return currentEpisodeID == episodeID
+  }
+
+  // Live position for the on-deck episode, stored position otherwise. Only the
+  // on-deck row reads `onDeck`, so other rows skip its per-tick updates.
+  func playbackPosition(of episode: any EpisodeFoundational) -> CMTime {
+    guard isOnDeck(episode), let onDeck, onDeck.id == episode.episodeID else {
+      return episode.currentTime
+    }
+    return onDeck.currentTime
   }
 
   func isEpisodePlaying(_ episode: any EpisodeFoundational) -> Bool {
