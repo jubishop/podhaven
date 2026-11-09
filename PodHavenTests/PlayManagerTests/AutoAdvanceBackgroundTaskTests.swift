@@ -209,6 +209,45 @@ import UIKit
     #expect(avPlayer.playCallCount == playCount)
   }
 
+  @Test(
+    "a play after a pause before the next episode plays resumes it",
+    arguments: AdvancePhase.allCases
+  )
+  func playAfterPauseBeforeNextEpisodePlaysResumesIt(phase: AdvancePhase) async throws {
+    let (currentEpisode, nextEpisode) = try await Create.twoPodcastEpisodes()
+    let fakeQueue = try #require(queue as? FakeQueue)
+    try await queue.unshift(nextEpisode.id)
+    try await startPlaying(currentEpisode)
+
+    let phaseStarted = AsyncSemaphore(value: 0)
+    let finishPhase = AsyncSemaphore(value: 0)
+    switch phase {
+    case .resolvingReplacement:
+      fakeQueue.beforeNextEpisode {
+        phaseStarted.signal()
+        await finishPhase.wait()
+      }
+    case .loading:
+      await episodeAssetLoader.respond(to: nextEpisode.episode.mediaURL) { _ in
+        phaseStarted.signal()
+        await finishPhase.wait()
+        return (true, CMTime.seconds(30))
+      }
+    }
+    defer { finishPhase.signal() }
+
+    avPlayer.finishEpisode()
+    await phaseStarted.wait()
+    let identifier = try autoAdvanceTask()
+    await playManager.pause()
+    await playManager.play()
+    finishPhase.signal()
+
+    try await PlayHelpers.waitForOnDeck(nextEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    try await waitForEnd(of: identifier)
+  }
+
   @Test("a newer automatic advancement replaces the background task of one still buffering")
   func newerAdvancementReplacesBufferingTask() async throws {
     let (currentEpisode, nextEpisode) = try await Create.twoPodcastEpisodes()

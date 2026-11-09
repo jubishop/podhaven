@@ -582,6 +582,7 @@ final class PlayManager {
   func play(origin: PlaybackRequestOrigin = .application, requestID: UUID = UUID()) async {
     newPlaybackRequest(requestID)
     cancelWidgetRouteRecovery(reason: "newPlay")
+    loadTransition?.playback = .automatic
     guard let episodeID = sharedState.onDeck?.id ?? sharedState.currentEpisodeID else {
       pendingPlaybackRequest = .none
       Self.log.warning("play: nothing to play")
