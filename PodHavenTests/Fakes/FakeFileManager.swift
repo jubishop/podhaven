@@ -8,8 +8,9 @@ final class FakeFileManager: FileManaging, Sendable {
   // MARK: - State
 
   private let inMemoryFiles = ThreadSafe<[URL: Data]>([:])
-  private let createdDirectories = ThreadSafe<Set<URL>>([])
-  private let backupExclusions = ThreadSafe<Set<URL>>([])
+  // Paths, not URLs: a directory URL may or may not end in a slash.
+  private let createdDirectoryPaths = ThreadSafe<Set<String>>([])
+  private let backupExcludedPaths = ThreadSafe<Set<String>>([])
   private let removeItemActions = ThreadSafe<[URL: @Sendable () throws -> Void]>([:])
   private let removeItemCallCounts = ThreadSafe<[URL: Int]>([:])
   private let removeItemErrors = ThreadSafe<[URL: any Error & Sendable]>([:])
@@ -96,9 +97,9 @@ final class FakeFileManager: FileManaging, Sendable {
         files.removeValue(forKey: key)
       }
     }
-    backupExclusions { exclusions in
-      let urlString = url.absoluteString
-      exclusions = exclusions.filter { !$0.absoluteString.hasPrefix(urlString) }
+    let removedPath = Self.itemPath(url)
+    backupExcludedPaths { paths in
+      paths = paths.filter { $0 != removedPath && !$0.hasPrefix(removedPath + "/") }
     }
   }
 
@@ -110,11 +111,12 @@ final class FakeFileManager: FileManaging, Sendable {
       files[destinationURL] = data
       files.removeValue(forKey: sourceURL)
     }
-    backupExclusions { exclusions in
-      if exclusions.remove(sourceURL) != nil {
-        exclusions.insert(destinationURL)
+    let destinationPath = Self.itemPath(destinationURL)
+    backupExcludedPaths { paths in
+      if paths.remove(Self.itemPath(sourceURL)) != nil {
+        paths.insert(destinationPath)
       } else {
-        exclusions.remove(destinationURL)
+        paths.remove(destinationPath)
       }
     }
   }
@@ -124,7 +126,7 @@ final class FakeFileManager: FileManaging, Sendable {
     withIntermediateDirectories createIntermediates: Bool,
     attributes: [FileAttributeKey: Any]?
   ) throws {
-    createdDirectories { $0.insert(url) }
+    createdDirectoryPaths { $0.insert(Self.itemPath(url)) }
   }
 
   // MARK: - File Attribute Operations
@@ -159,17 +161,21 @@ final class FakeFileManager: FileManaging, Sendable {
 
   func isExcludedFromBackup(_ url: URL) throws -> Bool {
     try requireItem(at: url)
-    return backupExclusions().contains(url)
+    return backupExcludedPaths().contains(Self.itemPath(url))
   }
 
   func excludeFromBackup(_ url: URL) throws {
     try requireItem(at: url)
-    backupExclusions { $0.insert(url) }
+    backupExcludedPaths { $0.insert(Self.itemPath(url)) }
   }
 
   private func requireItem(at url: URL) throws {
-    guard fileExists(at: url) || createdDirectories().contains(url)
+    guard fileExists(at: url) || createdDirectoryPaths().contains(Self.itemPath(url))
     else { throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: url.path]) }
+  }
+
+  private static func itemPath(_ url: URL) -> String {
+    url.standardizedFileURL.path
   }
 
   func containerURL(forSecurityApplicationGroupIdentifier groupIdentifier: String) -> URL? {

@@ -29,6 +29,17 @@ import Testing
     #expect(try fileManager.isExcludedFromBackup(existingFileURL))
   }
 
+  @Test("the cache directory reads as excluded through its trailing-slash URL")
+  func cacheDirectoryExclusionReadsThroughTrailingSlashURL() async throws {
+    stateManager.start()
+    cacheManager.start()
+    try await waitForCacheDirectoryExcluded()
+
+    // cacheDirectory gains a trailing slash once the directory exists on disk.
+    let directoryURL = URL(filePath: CacheManager.cacheDirectory.path, directoryHint: .isDirectory)
+    #expect(try fileManager.isExcludedFromBackup(directoryURL))
+  }
+
   @Test("a newly cached episode file is excluded from backup")
   func newlyCachedEpisodeFileIsExcludedFromBackup() async throws {
     stateManager.start()
