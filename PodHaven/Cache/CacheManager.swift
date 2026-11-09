@@ -291,7 +291,7 @@ struct CacheManager {
     at sourceURL: URL,
     for attempt: CacheDownloadAttempt,
     cachedFilename: String,
-    duration: CMTime
+    duration: CMTime?
   ) async throws -> CacheFileStorage? {
     try await downloadStateLock.waitForClaim()
     defer { downloadStateLock.release() }
