@@ -97,6 +97,32 @@ import Testing
     #expect(avPlayer.seekRequests.count == seekCount)
   }
 
+  @Test("skipping after playback passes the estimated duration still moves forward")
+  func skippingAfterPlaybackPassesEstimatedDurationMovesForward() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    let estimatedDuration = CMTime.seconds(240)
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, estimatedDuration)
+    )
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+
+    let overrunTime = CMTime.seconds(300)
+    avPlayer.advanceTime(to: overrunTime)
+    try await PlayHelpers.waitFor(overrunTime)
+
+    await playManager.seekForward(30)
+    try await PlayHelpers.waitFor(.seconds(330))
+    #expect(avPlayer.seekRequests.last == .seconds(330))
+
+    await playManager.seekBackward(15)
+    try await PlayHelpers.waitFor(.seconds(315))
+    #expect(avPlayer.seekRequests.last == .seconds(315))
+  }
+
   @Test("failed seeks restore observation and pending seeks suppress time updates")
   func timeUpdateEventsAreIgnoredWhileSeeking() async throws {
     await playManager.start()

@@ -25,8 +25,12 @@ extension PlayManager {
       return
     }
     cancelWidgetRouteRecovery(reason: "userSeek")
+    let currentTime = await podAVPlayer.currentTime().safe
     let duration = sharedState.onDeck?.duration.safe ?? .zero
-    let target = duration > .zero ? time.clamped(to: .zero...duration) : max(time, .zero)
+    // The duration is an estimate, so it stops capping seeks once playback runs past it.
+    let target =
+      duration > .zero && currentTime <= duration
+      ? time.clamped(to: .zero...duration) : max(time, .zero)
     NowPlayingInfo.setCurrentTime(target)
     await podAVPlayer.seek(to: target)
   }
