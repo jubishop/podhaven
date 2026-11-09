@@ -136,7 +136,7 @@ struct PhoneSceneView: View {
       await notificationService.handleIncomingURL(url)
     } else {
       Self.log.warning("Incoming URL: \(url) is not supported")
-      alert("Incoming URL: \(url) is not supported")
+      alert("PodHaven can't open this link.")
     }
   }
 }

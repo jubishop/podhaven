@@ -66,16 +66,18 @@ extension PlayManager {
         "event=mediaServicesResetItemFailure outcome=preservingPlayback episodeID=\(episodeID)"
       )
     case .failed(.other):
-      Self.log.warning("status is failed for \(episodeID), clearing on deck and unshifting")
-      await stop()
-      do {
-        try await queue.unshift(episodeID)
-      } catch {
-        Self.log.caughtError(
-          "handleItemStatusChange: failed to unshift episode \(episodeID) after status failure",
-          error
-        )
+      let intent: PlaybackFailureIntent
+      if case .play(let pendingEpisodeID) = pendingPlaybackRequest, pendingEpisodeID == episodeID {
+        intent = .play
+      } else if await podAVPlayer.playbackRequestID == playbackRequestRevision {
+        intent = .play
+      } else {
+        intent = .pause
       }
+      Self.log.warning(
+        "handleItemStatusChange: item failed for \(episodeID), recovering with intent: \(intent.rawValue)"
+      )
+      await handlePlaybackFailure(intent: intent)
     case .readyToPlay, .unknown:
       break
     }
@@ -204,7 +206,7 @@ extension PlayManager {
 
     let previousPlaybackStatus = sharedState.playbackStatus
     let interruptedEpisodeID =
-      sharedState.onDeck?.id ?? sharedState.currentEpisodeID ?? mediaServicesRecoveryEpisodeID
+      sharedState.onDeck?.id ?? sharedState.currentEpisodeID ?? onDeckRecoveryEpisodeID
 
     await cancelLoadForMediaServicesReset()
 
