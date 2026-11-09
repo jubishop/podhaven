@@ -8,30 +8,37 @@ extension Container {
   var connectionState: Factory<ConnectionState> {
     Factory(self) { ConnectionState() }.scope(.cached)
   }
+
+  var networkPathMonitor: Factory<any NetworkPathMonitoring> {
+    Factory(self) { NWPathMonitor() }
+  }
 }
 
 struct ConnectionState: Sendable {
-  var currentPath: NWPath { _currentPath() }
+  struct Path: Sendable {
+    let isConstrained: Bool
+    let isExpensive: Bool
+  }
 
-  private let _currentPath: ThreadSafe<NWPath>
+  private let monitor: any NetworkPathMonitoring
+  private let latestPath = AsyncLatch<Path>()
 
   fileprivate init() {
-    let monitor = NWPathMonitor()
-
-    _currentPath = ThreadSafe<NWPath>(monitor.currentPath)
-
-    monitor.pathUpdateHandler = { [_currentPath] path in
-      _currentPath(path)
+    monitor = Container.shared.networkPathMonitor()
+    monitor.start(queue: DispatchQueue(label: "podhaven.connection.state")) {
+      [latestPath] path in
+      latestPath.close()
+      latestPath.open(
+        Path(
+          isConstrained: path.isConstrained || path.isUltraConstrained,
+          isExpensive: path.isExpensive
+        )
+      )
     }
-
-    monitor.start(queue: DispatchQueue(label: "podhaven.connection.state"))
   }
 
-  var isConstrained: Bool {
-    currentPath.isConstrained || currentPath.isUltraConstrained
-  }
-
-  var isExpensive: Bool {
-    currentPath.isExpensive
+  // The path is unknown until the monitor's first update.
+  func currentPath() async throws -> Path {
+    try await latestPath.wait()
   }
 }
