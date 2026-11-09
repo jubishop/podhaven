@@ -6,6 +6,7 @@ import SwiftUI
 import Tagged
 
 struct EpisodeListView<Episode: EpisodeListable>: View {
+  @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.userSettings) private var userSettings
 
   private let imageSize: CGFloat = 64
@@ -77,7 +78,7 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
 
   private var durationText: String {
     userSettings.showTimeRemainingInEpisodeLists
-      ? (episode.duration.safe - episode.currentTime.safe).shortDescription
+      ? (episode.duration.safe - sharedState.playbackPosition(of: episode).safe).shortDescription
       : episode.duration.safe.shortDescription
   }
 
@@ -383,6 +384,26 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
         DisplayedEpisode(try await repo.podcastEpisode(waitingEpisode.id)!),
       ])
 
+      // On deck: progress follows the live position, not the stored 5m
+      let onDeckEpisode = try await repo.upsertPodcastEpisode(
+        UnsavedPodcastEpisode(
+          unsavedPodcast: try Create.unsavedPodcast(
+            title: "Changelog",
+            image: allThumbnails.randomElement()!.value.url
+          ),
+          unsavedEpisode: try Create.unsavedEpisode(
+            title: "15b. On Deck: live progress past the stored position",
+            pubDate: Date().addingTimeInterval(-3600 * 24 * 15),
+            duration: CMTime.seconds(2400),
+            image: allThumbnails.randomElement()!.value.url,
+            currentTime: CMTime.seconds(300)
+          )
+        )
+      )
+      Container.shared.stateManager().setOnDeck(onDeckEpisode)
+      Container.shared.stateManager().setCurrentTime(CMTime.seconds(1800))
+      episodes.append(DisplayedEpisode(onDeckEpisode))
+
       // Combined States - UnsavedPodcastEpisodes
       episodes.append(contentsOf: [
         DisplayedEpisode(
@@ -462,8 +483,8 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
       // Set some episodes as selected for demonstration
       selectedStates[2] = true  // Finished episode
       selectedStates[3] = true  // Started + finished
-      selectedStates[15] = true  // Everything episode
-      selectedStates[18] = true  // Long title episode
+      selectedStates[16] = true  // Everything episode
+      selectedStates[19] = true  // Long title episode
 
     } catch {
       print("Error creating preview episodes: \(error)")
