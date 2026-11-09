@@ -316,9 +316,9 @@ struct RefreshManager {
       return now
     }
 
-    let newEpisodes: [Episode]
+    let newEpisodeAutomation: NewEpisodeAutomation?
     do {
-      newEpisodes = try await repo.updateSeriesFromFeed(
+      newEpisodeAutomation = try await repo.updateSeriesFromFeed(
         podcast: podcast,
         updatedPodcast: podcastToUpdate,
         unsavedEpisodes: unsavedEpisodes,
@@ -348,40 +348,47 @@ struct RefreshManager {
       embeddingProcessor.workBecameAvailable()
     }
 
-    if podcast.alwaysTranscribeNewEpisodes, !newEpisodes.isEmpty {
+    if let newEpisodeAutomation {
+      // Finish after the feed transaction commits, even if the refresh caller is
+      // cancelled: later refreshes no longer see these episodes as new.
+      await Task { await automate(newEpisodeAutomation) }.value
+    }
+
+    return now
+  }
+
+  private func automate(_ automation: NewEpisodeAutomation) async {
+    let podcast = automation.podcast
+    let newEpisodes = automation.episodes
+
+    if podcast.alwaysTranscribeNewEpisodes {
       let episodeIDs = newEpisodes.map(\.id)
-      let transcriptionProcessor = transcriptionProcessor
-      // Finish the durable queue handoff after the feed transaction commits,
-      // even if the refresh caller is cancelled.
-      await Task {
-        do {
-          try await transcriptionProcessor.enqueue(episodeIDs)
-        } catch let error as TranscriptionQueueError {
-          Self.log.caughtError(
-            """
-            applyParsedFeed: dropped automatic transcription for \
-            \(episodeIDs.count) new episodes from podcast \(podcast.id)
-            """,
-            error,
-            level: .notice
-          )
-        } catch {
-          Self.log.caughtError(
-            """
-            applyParsedFeed: failed to enqueue automatic transcription for \
-            \(episodeIDs.count) new episodes from podcast \(podcast.id)
-            """,
-            error
-          )
-        }
+      do {
+        try await transcriptionProcessor.enqueue(episodeIDs)
+      } catch let error as TranscriptionQueueError {
+        Self.log.caughtError(
+          """
+          automate: dropped automatic transcription for \
+          \(episodeIDs.count) new episodes from podcast \(podcast.id)
+          """,
+          error,
+          level: .notice
+        )
+      } catch {
+        Self.log.caughtError(
+          """
+          automate: failed to enqueue automatic transcription for \
+          \(episodeIDs.count) new episodes from podcast \(podcast.id)
+          """,
+          error
+        )
       }
-      .value
     }
 
     if podcast.notifyNewEpisodes {
       await userNotificationManager.scheduleNewEpisodeNotification(
         podcast: podcast,
-        episodes: newEpisodes  // Ignored if newEpisodes.isEmpty
+        episodes: newEpisodes
       )
     }
 
@@ -393,10 +400,7 @@ struct RefreshManager {
         do {
           try await cacheManager.downloadToCache(for: newEpisode.id)
         } catch {
-          Self.log.caughtError(
-            "applyParsedFeed: failed to cache episode \(newEpisode.id)",
-            error
-          )
+          Self.log.caughtError("automate: failed to cache episode \(newEpisode.id)", error)
         }
       }
     case .save:
@@ -405,7 +409,7 @@ struct RefreshManager {
           try await repo.updateSaveInCache(newEpisode.id, saveInCache: true)
         } catch {
           Self.log.caughtError(
-            "applyParsedFeed: failed to set saveInCache for episode \(newEpisode.id)",
+            "automate: failed to set saveInCache for episode \(newEpisode.id)",
             error
           )
           continue
@@ -413,14 +417,9 @@ struct RefreshManager {
         do {
           try await cacheManager.downloadToCache(for: newEpisode.id)
         } catch {
-          Self.log.caughtError(
-            "applyParsedFeed: failed to cache episode \(newEpisode.id)",
-            error
-          )
+          Self.log.caughtError("automate: failed to cache episode \(newEpisode.id)", error)
         }
       }
     }
-
-    return now
   }
 }
