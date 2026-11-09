@@ -26,7 +26,7 @@ Its tests use fake services and do not make model requests.
 QMD and direnv are optional. Missing optional tools produce clear notices; an installed but
 failing QMD returns an error. Install QMD using its
 [official instructions](https://github.com/tobi/qmd#installation).
-The starter records its tested QMD version in `.project-starter.json`.
+`bin/doctor` reports the installed QMD version.
 
 Setup validates configuration, activates bundled hooks when no existing
 integration would be displaced, prepares caches, and waits for the initial
@@ -70,10 +70,10 @@ and Swift because they do not use those tools.
 Shared worktree, model, and recovery rules are in
 [knowledge search](foundation/knowledge-search.md#worktrees-and-models).
 
-Use `ghdw <name>` for normal removal. It verifies the merge lifecycle before
-removing a worktree, then calls this repository's `bin/post-worktree-remove`.
-`ghm` gets the same cleanup because it uses `ghdw`. Direct Git removals are
-covered by the next preparation or hourly sweep.
+After removing a worktree, run `bin/post-worktree-remove` from the primary
+checkout. It runs `bin/prune-worktree-caches --apply`, which deletes the
+DerivedData of removed checkouts. A removal not followed by it is covered by
+the next preparation or hourly sweep.
 
 ## Xcode caches and automatic cleanup
 
@@ -88,7 +88,8 @@ Independent package directories are preserved for inspection.
 
 `bin/install-cleanup-agent` installs an idempotent macOS LaunchAgent from the
 primary checkout. It runs at login/load and once each hour while the user is
-logged in. Cleanup also runs during `bin/prep-worktree` and after `ghdw` removal.
+logged in. Cleanup also runs during `bin/prep-worktree` and from
+`bin/post-worktree-remove`.
 There is no routine maintenance command to remember. Reinstall the agent after
 moving the primary checkout. Its plist is
 `~/Library/LaunchAgents/com.jubi.podhaven.worktree-cleanup.plist`. The agent
@@ -340,8 +341,9 @@ lock.
 Run `bin/snfeedback` to select unresolved user feedback, or `bin/snissue` to
 select an unresolved issue that is not feedback. Both show the newest items
 first, with activity within the last 365 days. They use `fzf` when installed
-and a numbered prompt otherwise. Listing requires authenticated `sentry` and
-`gh` commands plus `jq`; analysis requires Claude Code (`claude`).
+and a numbered prompt otherwise. Both are fish scripts, so they require fish.
+Listing requires authenticated `sentry` and `gh` commands plus `jq`; analysis
+requires Claude Code (`claude`).
 
 `bin/snissue` shows severity, available event and user counts, and the state
 of the GitHub issue that tracks the Sentry issue. It accepts a Sentry issue
@@ -440,10 +442,9 @@ needs verification.
 `bin/check-application` runs every repository tooling test: the suites in
 `bin/tests` together, then each Python skill and helper suite under `.agents`
 on its own through unittest, so a suite runs its tests even without a main
-block. It runs every suite even after one fails. Every mode also
-verifies the generated active-memory index. Keep the existing Swift build and
-test requirements for application changes; documentation-only delivery does
-not require building the Swift app.
+block. It runs every suite even after one fails. Keep the existing Swift
+build and test requirements for application changes; documentation-only
+delivery does not require building the Swift app.
 
 `bin/test-all` includes the separate application and macro tests and
 `bin/check --full --no-reuse`, which reruns the tooling tests, including the
