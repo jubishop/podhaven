@@ -20,7 +20,8 @@ bin/check --full
 ```
 
 Setup requires Git and Python 3.9 or later. Checks also require ShellCheck,
-available through the operating system's package manager. The local memory
+available through the operating system's package manager; `bin/check --full`
+also requires actionlint, fish, and Ruby. The local memory
 audit also requires Claude Code, GitHub CLI, QMD, ripgrep, and QMD's Node.js or Bun runtime.
 Its tests use fake services and do not make model requests.
 QMD and direnv are optional. Missing optional tools produce clear notices; an installed but
@@ -90,6 +91,15 @@ package's own. Before running tests, `bin/test-all` fails when a macro
 package pin differs from or is missing in the app's file. After updating
 packages, copy the app's new pins for those dependencies into
 `PodHavenMacros/Package.resolved`.
+
+The agent configurations in `.mcp.json`, `.cursor/mcp.json`, and
+`.codex/config.toml` pin the Apple documentation MCP server,
+`@kimsungwhee/apple-docs-mcp`, to one exact version. It is a single-maintainer
+package that runs with the user's full privileges on the Mac that holds the
+release credentials, so a new release must not run unreviewed. Bump it only
+after reviewing the release's changes, in all three files at once;
+`bin/tests/test_mcp_config.py` requires every npx-launched server to name one
+exact version everywhere.
 
 ## Worktrees
 
@@ -235,9 +245,11 @@ bin/test-all --ensure --revision <sha>
 ```
 
 Replace `<sha>` with the full commit hash being validated. The command requires
-a clean checkout at that revision. It reuses the latest retained passing report
-only when the revision, checkout contents, toolchain, macOS version, destination,
-and evidence artifacts still match. Otherwise, it runs the complete suite. A new commit or
+a clean checkout at that revision. It searches the retained reports newest
+first and reuses the first passing one whose revision, checkout contents,
+toolchain, macOS version, destination, and evidence artifacts still match, so a
+newer failed, interrupted, or other-checkout run does not hide it. Otherwise,
+it runs the complete suite. A new commit or
 change to the integration base requires a fresh full run.
 `bin/test-all --verify --revision <sha>` checks existing evidence without running
 tests and fails when it cannot reuse that evidence. Plain `bin/test-all` always
@@ -472,12 +484,16 @@ needs verification.
 
 `bin/check --documents-only`, `bin/check`, and `bin/check --full` follow the
 [shared check modes](foundation/engineering-policy.md#checks). Here,
-`bin/check-application` runs every repository tooling test: the suites in
-`bin/tests` together, then each Python skill and helper suite under `.agents`
-on its own through unittest, so a suite runs its tests even without a main
-block. It runs every suite even after one fails. Keep the existing Swift
-build and test requirements for application changes; documentation-only
-delivery does not require building the Swift app.
+`bin/check-application` lints what the foundation checks skip, then runs
+every repository tooling test. ShellCheck lints every other shell script, such
+as the Sentry helpers under `.agents`, and follows the files they source;
+actionlint lints the GitHub workflows; and fish and Ruby check the syntax of
+their scripts, including fastlane's. It then runs the suites in `bin/tests`
+together, then each Python skill and helper suite under `.agents` on its own
+through unittest, so a suite runs its tests even without a main block. It runs
+every check and suite even after one fails. Keep the existing Swift build
+and test requirements for application changes; documentation-only delivery
+does not require building the Swift app.
 
 `bin/test-all` includes the separate application and macro tests and
 `bin/check --full --no-reuse`, which reruns the tooling tests, including the

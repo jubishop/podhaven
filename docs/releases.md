@@ -51,7 +51,7 @@ run tests or builds.
 
 Before a version push or fresh archive, the commands use `bin/test-all --ensure`.
 It requires a clean checkout and either runs the complete local suite or reuses
-its latest retained report. Reuse requires the exact commit, tracked and
+the newest retained passing report that still matches. Reuse requires the exact commit, tracked and
 untracked file digest, unchanged toolchain and macOS version, My Mac destination,
 and successful full-suite evidence. Both recorded checkout states must match
 the current clean checkout. Logs and result-bundle files must still match their

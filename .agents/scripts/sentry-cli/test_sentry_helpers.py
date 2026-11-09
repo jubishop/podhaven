@@ -121,6 +121,11 @@ if args and args[0] == "api":
     print(json.dumps(response))
     raise SystemExit(0)
 
+if args and args[0] == "explore" and "errors" in args:
+    print(json.dumps({"data": [{"issue": "PODHAVEN-ABC", "title": "Example failure",
+                                "timestamp": "2025-01-03T03:04:05Z", "user.id": "user-1"}]}))
+    raise SystemExit(0)
+
 if args and args[0] == "explore":
     print('{"data": [{"severity": "error", "message": "failed", "count()": 1}], "hasMore": false}')
     raise SystemExit(0)
@@ -478,6 +483,29 @@ raise SystemExit(2)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("sentry CLI is required", result.stderr)
         self.assertNotIn("npx", result.stderr)
+
+    def test_related_error_search_saves_and_summarizes_matching_events(self) -> None:
+        output = self.root / "search.json"
+        result = self.run_script(
+            "search_related_errors.sh", "--period", "90d", "--query", "user.id:user-1",
+            "--out", str(output), "--limit", "3",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(output.read_text())["data"][0]["issue"], "PODHAVEN-ABC")
+        self.assertIn("Matched 1 events", result.stdout)
+        self.assertIn("PODHAVEN-ABC  Example failure  user.id=user-1", result.stdout)
+        explore = next(call for call in self.calls() if call[:1] == ["explore"])
+        self.assertEqual(explore[1:4], ["artisanal-software/podhaven", "--dataset", "errors"])
+        for option, value in (("--query", "user.id:user-1"), ("--period", "90d"), ("--limit", "3")):
+            self.assertEqual(explore[explore.index(option) + 1], value)
+
+    def test_related_error_search_requires_a_period_before_requests(self) -> None:
+        result = self.run_script("search_related_errors.sh", "--query", "user.id:user-1")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Usage: search_related_errors.sh", result.stderr)
+        self.assertFalse(self.call_log.exists())
 
     def test_structured_log_window_is_a_total_duration(self) -> None:
         spec = importlib.util.spec_from_file_location(
