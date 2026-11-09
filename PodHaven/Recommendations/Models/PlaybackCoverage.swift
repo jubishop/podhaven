@@ -9,6 +9,9 @@ import Foundation
 // `PodAVPlayer.playbackTickSeconds` so each tick lands on a chunk boundary.
 struct PlaybackCoverage: Equatable, Sendable {
   static let bitWidthSeconds: Int = PodAVPlayer.playbackTickSeconds
+  // Longer durations are implausible, so they get no bitmap rather than one
+  // sized from a bad value.
+  static let maxDurationSeconds: Int = 7 * 24 * 60 * 60
 
   let durationSeconds: Int
   private(set) var bytes: [UInt8]
@@ -92,7 +95,7 @@ struct PlaybackCoverage: Equatable, Sendable {
   // MARK: - Helpers
 
   private static func bitCount(forDurationSeconds duration: Int) -> Int {
-    guard duration > 0 else { return 0 }
+    guard duration > 0, duration <= maxDurationSeconds else { return 0 }
     return (duration + bitWidthSeconds - 1) / bitWidthSeconds
   }
 }
