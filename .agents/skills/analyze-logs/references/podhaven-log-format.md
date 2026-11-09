@@ -47,13 +47,13 @@ The same entries are mirrored to the OS unified log via `OSLogHandler` (capture 
 | trace | 0 | Debug |
 | debug | 1 | Debug |
 | info | 2 | Info |
-| notice | 3 | Info |
+| notice | 3 | Default |
 | warning | 4 | Error |
 | error | 5 | Error |
 | critical | 6 | Fault |
 
 - Unified-log **subsystem** = the entry's `subsystem` (a bare module name like `Feed`, `Database`, or `PodHaven`); **category** = `category`. Filter by **process** (`PodHaven`) — subsystems share no common prefix.
-- `log show` omits Debug/Info unless `--info --debug` is passed; most entries are Debug.
+- `log show` omits Debug/Info unless `--info --debug` is passed; most entries are Debug. Default (notice) and higher persist and appear without those flags.
 - Only `message` is emitted to os_log (with `privacy: .public`, so never redacted). `source`, `file`, `function`, `line`, and `metadata` exist **only** in the NDJSON file.
 - The unified log adds thread IDs and interleaved system/framework events the NDJSON does not capture.
 
