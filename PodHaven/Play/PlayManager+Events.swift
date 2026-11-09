@@ -206,7 +206,7 @@ extension PlayManager {
 
     let previousPlaybackStatus = sharedState.playbackStatus
     let interruptedEpisodeID =
-      sharedState.onDeck?.id ?? sharedState.currentEpisodeID ?? mediaServicesRecoveryEpisodeID
+      sharedState.onDeck?.id ?? sharedState.currentEpisodeID ?? onDeckRecoveryEpisodeID
 
     await cancelLoadForMediaServicesReset()
 
@@ -345,10 +345,10 @@ extension PlayManager {
         )
 
         switch parsedNotification {
-        case .pause:
-          await pause()
-        case .resume:
-          await play()
+        case .began:
+          await beginAudioInterruption()
+        case .ended(let shouldResume):
+          await endAudioInterruption(shouldResume: shouldResume)
         case .ignore:
           break
         }

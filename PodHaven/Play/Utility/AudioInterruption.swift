@@ -7,7 +7,9 @@ import Logging
 enum AudioInterruption {
   private static let log = Log.as("AudioInterruption")
 
-  case pause, resume, ignore
+  case began
+  case ended(shouldResume: Bool)
+  case ignore
 
   static func parse(_ notification: Notification) -> AudioInterruption {
     guard notification.name == AVAudioSession.interruptionNotification,
@@ -18,18 +20,16 @@ enum AudioInterruption {
 
     switch type {
     case .began:
-      return .pause
+      return .began
     case .ended:
       guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt
       else { Assert.fatal("Interruption options: \(userInfo) is invalid") }
 
       let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-      if options.contains(.shouldResume) { return .resume }
-      log.debug("Ended notification but no .shouldResume option in: \(userInfo)")
+      return .ended(shouldResume: options.contains(.shouldResume))
     @unknown default:
       log.warning("Unknown notification type: \(type)")
-      break
+      return .ignore
     }
-    return .ignore
   }
 }

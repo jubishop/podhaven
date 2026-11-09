@@ -37,6 +37,11 @@ final class PlayManager {
     case paused
   }
 
+  private enum InterruptedPlayback {
+    case none
+    case resumable
+  }
+
   private final class LoadTransition {
     var establishedPlayback: (episodeID: Episode.ID, ownerID: UUID)?
     var id: UUID
@@ -109,11 +114,12 @@ final class PlayManager {
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
   private(set) var ignoreRemoteScrubCommands = false
+  private var interruptedPlayback = InterruptedPlayback.none
   private var restartScrubCommandsTask: Task<Void, any Error>?
   var onDeckBecameCurrentAt: Date?
   private var lastLoggedTime = Date.distantPast
   private var lastNowPlayingElapsedWrite: CMTime?
-  var mediaServicesRecoveryState = MediaServicesRecoveryState.none
+  var onDeckRecoveryState = OnDeckRecoveryState.none
   var pendingPlaybackRequest = PendingPlaybackRequest.none
   var widgetRouteRecovery: WidgetRouteRecovery?
   var widgetRouteRecoveryTask: Task<Void, Never>?
@@ -152,7 +158,9 @@ final class PlayManager {
     }
     let acceptedRevision = playbackRequestRevision
     cancelWidgetRouteRecovery(reason: "newLoad")
-    let recoveryEpisode = try await mediaServicesRecoveryEpisode(whenLoading: podcastEpisode)
+    let restoresPersistedEpisode =
+      sharedState.onDeck == nil && sharedState.currentEpisodeID == podcastEpisode.id
+    let recoveryEpisode = try await onDeckRecoveryEpisode(whenLoading: podcastEpisode)
     guard playbackRequestRevision == acceptedRevision else { throw CancellationError() }
     let loadID = claimLoadTransition(for: podcastEpisode.id)
 
@@ -177,8 +185,13 @@ final class PlayManager {
     do {
       return try await task.value
     } catch {
-      if let recoveryEpisode, playbackRequestRevision == acceptedRevision {
-        await restoreMediaServicesRecoveryPresentation(recoveryEpisode)
+      guard playbackRequestRevision == acceptedRevision else { throw error }
+      if let recoveryEpisode {
+        await restoreOnDeckRecoveryPresentation(recoveryEpisode)
+      } else if restoresPersistedEpisode, !task.isCancelled, sharedState.onDeck == nil,
+        case .none = onDeckRecoveryState
+      {
+        await beginFailedRestoreRecovery(podcastEpisode)
       }
       throw error
     }
@@ -216,9 +229,11 @@ final class PlayManager {
   private func performLoad(_ incoming: PodcastEpisode, loadID: UUID) async throws -> Bool {
     let transition = loadTransition
     let outgoing = sharedState.onDeck
-    let isMediaServicesRecovery = mediaServicesRecoveryEpisodeID == incoming.id
+    let isOnDeckRecovery = onDeckRecoveryEpisodeID == incoming.id
+    let isMediaServicesRecovery =
+      onDeckRecoveryState == .awaitingUserAction(incoming.id, .mediaServicesReset)
 
-    if let outgoing, outgoing.id == incoming.id, !isMediaServicesRecovery {
+    if let outgoing, outgoing.id == incoming.id, !isOnDeckRecovery {
       try requireLoadTransitionOwnership(loadID)
       Self.log.debug("performLoad: ignoring \(incoming.toString), already loaded")
       return false
@@ -370,7 +385,7 @@ final class PlayManager {
       phaseStart = Date()
       Self.log.debug("performLoad: setting onDeck")
       try await setOnDeck(loaded, loadID: loadID)
-      completeMediaServicesRecovery()
+      completeOnDeckRecovery()
       guard try shouldFinishEstablishedLoad(loadID) else { return true }
       Self.log.debug("performLoad: set onDeck in \(Date().timeIntervalSince(phaseStart)) seconds")
 
@@ -545,7 +560,7 @@ final class PlayManager {
       guard playbackRequestRevision == revision else { return .superseded }
     }
     newPlaybackRequest(requestID)
-    let isMediaServicesRecovery = mediaServicesRecoveryEpisodeID == podcastEpisode.id
+    let isOnDeckRecovery = onDeckRecoveryEpisodeID == podcastEpisode.id
     pendingPlaybackRequest = .play(podcastEpisode.id)
     let loaded: Bool
     do {
@@ -559,7 +574,7 @@ final class PlayManager {
       return .superseded
     }
     guard playbackRequestRevision == requestID else { return .superseded }
-    if isMediaServicesRecovery, !loaded {
+    if isOnDeckRecovery, !loaded {
       pendingPlaybackRequest = .none
       return .unavailable
     }
@@ -590,7 +605,7 @@ final class PlayManager {
     }
     pendingPlaybackRequest = .play(episodeID)
 
-    guard await reloadMediaServicesRecoveryIfNeeded(for: episodeID, preserving: requestID),
+    guard await reloadOnDeckRecoveryIfNeeded(for: episodeID, preserving: requestID),
       playbackRequestRevision == requestID
     else { return }
 
@@ -606,6 +621,11 @@ final class PlayManager {
   }
 
   func pause() async {
+    interruptedPlayback = .none
+    await pausePlayback()
+  }
+
+  private func pausePlayback() async {
     newPlaybackRequest(UUID())
     cancelWidgetRouteRecovery(reason: "userPause")
     pendingPlaybackRequest = .none
@@ -623,7 +643,7 @@ final class PlayManager {
     sharedState.$silenceOverride.new(nil)
     sharedState.$quietAudioProtectionOverride.new(nil)
     sharedState.$silenceSourceRejection.new(nil)
-    clearMediaServicesRecovery()
+    clearOnDeckRecovery()
     await Task { await finishLoadTransition(stopID, outcome: .didNotLoad) }.value
     if let previousLoad, case .failure(let error) = await previousLoad.result {
       Self.log.caughtError("stop: previous load settled", error, level: .debug)
@@ -632,7 +652,7 @@ final class PlayManager {
 
   func removeDeletedEpisodes(_ episodeIDs: Set<Episode.ID>) async {
     guard !episodeIDs.isEmpty else { return }
-    clearMediaServicesRecoveryIfDeleted(episodeIDs)
+    clearOnDeckRecoveryIfDeleted(episodeIDs)
     if case .play(let episodeID) = pendingPlaybackRequest,
       episodeIDs.contains(episodeID)
     {
@@ -663,7 +683,8 @@ final class PlayManager {
   // AVPlayer's status reflects neither pending playback nor an empty deck, so
   // app state decides those toggles.
   func toggle() async {
-    guard mediaServicesRecoveryEpisodeID == nil else { return await play() }
+    interruptedPlayback = .none
+    guard onDeckRecoveryEpisodeID == nil else { return await play() }
     guard loadTransition == nil, case .none = pendingPlaybackRequest else {
       Self.log.debug("toggle: pausing pending playback")
       return await pause()
@@ -675,11 +696,37 @@ final class PlayManager {
     await podAVPlayer.toggle(requestID: requestID)
   }
 
+  // AVPlayer pauses itself for an interruption, possibly before its notification
+  // arrives, so playback requests rather than player status decide whether to resume.
+  func beginAudioInterruption() async {
+    let revision = playbackRequestRevision
+    let playRequested = await podAVPlayer.playRequested(by: revision)
+    let pendingPlayback =
+      switch pendingPlaybackRequest {
+      case .play: true
+      case .none: autoAdvance != nil && loadTransition?.playback != .paused
+      }
+    let resumable =
+      interruptedPlayback == .resumable || pendingPlayback
+      || (playRequested && playbackRequestRevision == revision)
+    interruptedPlayback = resumable ? .resumable : .none
+    Self.log.info("event=audioInterruptionBegan resumable=\(resumable)")
+    await pausePlayback()
+  }
+
+  func endAudioInterruption(shouldResume: Bool) async {
+    let resuming = shouldResume && interruptedPlayback == .resumable
+    interruptedPlayback = .none
+    Self.log.info("event=audioInterruptionEnded shouldResume=\(shouldResume) resuming=\(resuming)")
+    guard resuming else { return }
+    await play()
+  }
+
   func finishEpisode(_ episodeID: Episode.ID? = nil) async {
     let onDeckID = sharedState.onDeck?.id
     let episodeID = episodeID ?? onDeckID
     guard let episodeID else { return }
-    clearMediaServicesRecovery(for: episodeID)
+    clearOnDeckRecovery(for: episodeID)
     Self.log.debug("finishEpisode: \(episodeID) (onDeckID: \(String(describing: onDeckID)))")
     let finalizationID = claimFinalization(of: episodeID, onDeckID: onDeckID)
     if finalizationID != nil,
