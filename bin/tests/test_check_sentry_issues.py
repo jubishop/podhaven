@@ -12,6 +12,7 @@ import service_guard
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "bin/check-sentry-issues"
+FEEDBACK_SCRIPT = ROOT / "bin/check-sentry-feedback"
 PERMALINK = "https://artisanal-software.sentry.io/issues/"
 FINDINGS = "<!-- analyze-sentry-issue-findings:start -->\n<!-- analyze-sentry-issue-findings:end -->"
 
@@ -91,9 +92,9 @@ else:
 ''')
         path.chmod(0o755)
 
-    def run_check(self, **environment):
+    def run_check(self, script=SCRIPT, **environment):
         return subprocess.run(
-            ["/bin/bash", str(SCRIPT)], cwd=ROOT, env={**self.env, **environment},
+            ["/bin/bash", str(script)], cwd=ROOT, env={**self.env, **environment},
             text=True, capture_output=True, timeout=30,
         )
 
@@ -201,6 +202,29 @@ else:
         self.assertIn("<!-- fix-issue-prerequisite: analyze-sentry-issue 7006 -->", comment["body"])
         self.assertIn("created 1 recurrence issue(s)", result.stdout)
 
+    def test_closed_feedback_tracking_issue_stays_tracked_for_good(self):
+        link = "https://artisanal-software.sentry.io/issues/feedback/?feedbackSlug=podhaven%3A"
+        self.write("sentry.json", {"data": [
+            {"id": "7010", "shortId": "PODHAVEN-B1", "permalink": link + "7010"},
+            {"id": "7011", "shortId": "PODHAVEN-B2", "permalink": link + "7011"},
+        ], "hasMore": False})
+        self.write("issues.json", [[
+            {"number": 70, "state": "closed", "labels": [{"name": "sentry-feedback"}],
+             "body": "<!-- sentry-feedback:podhaven:7010 -->\n"
+                     "<!-- analyze-sentry-feedback-findings:start -->\n<!-- analyze-sentry-feedback-findings:end -->"},
+            {"number": 71, "state": "closed", "labels": [{"name": "sentry-feedback"}],
+             "body": "<!-- sentry-feedback:podhaven:7011 -->"},
+        ]])
+        self.write("comments.json", [[{"body": "<!-- sfeedback:podhaven:7011 -->"}]])
+
+        result = self.run_check(FEEDBACK_SCRIPT)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual([write["kind"] for write in self.writes()], ["comments-read"])
+        self.assertIn("Already analyzed: podhaven:7010 in issue #70", result.stdout)
+        self.assertIn("Already tracked: podhaven:7011 in issue #71", result.stdout)
+        self.assertIn("created 0 issue(s), found 2 already tracked", result.stdout)
+
     def test_dry_run_writes_nothing(self):
         self.write("sentry.json", {"data": [
             sentry_issue("7007", "PODHAVEN-A7"),
@@ -248,18 +272,20 @@ else:
         self.assertIn("<!-- fix-issue-trusted-marker-author: github-actions[bot] -->", skill)
         self.assertIn("<!-- fix-issue-prerequisite: analyze-sentry-issue <numeric-id> -->", skill)
 
-    def test_partial_and_invalid_sentry_lists_are_rejected(self):
+    def test_partial_and_invalid_sentry_lists_are_rejected_by_both_checkers(self):
         self.write("issues.json", [[]])
-        for payload in (
-            {"data": [sentry_issue("7009", "PODHAVEN-A9")], "hasMore": True},
-            {"data": [{"id": "unsafe", "shortId": "PODHAVEN-A9", "permalink": PERMALINK}]},
-            {"data": {}},
-        ):
-            with self.subTest(payload=payload):
-                self.write("sentry.json", payload)
-                result = self.run_check()
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(self.writes(), [])
+        for script in (SCRIPT, FEEDBACK_SCRIPT):
+            for payload in (
+                {"data": [sentry_issue("7009", "PODHAVEN-A9")], "hasMore": True},
+                {"data": [{"id": "unsafe", "shortId": "PODHAVEN-A9", "permalink": PERMALINK}]},
+                {"data": {}},
+            ):
+                with self.subTest(script=script.name, payload=payload):
+                    (self.directory / "writes.json").unlink(missing_ok=True)
+                    self.write("sentry.json", payload)
+                    result = self.run_check(script)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(self.writes(), [])
 
 
 if __name__ == "__main__":

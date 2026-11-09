@@ -77,8 +77,10 @@ the next preparation or hourly sweep.
 
 ## Xcode caches and automatic cleanup
 
-`bin/setup-application` prepares Xcode caches. `bin/setup`, `bin/prep-worktree`,
-and the Git hook that sets up each new worktree all run it.
+`bin/setup-application` prepares Xcode caches, after setting the SSH keepalive
+that the [tooling pre-push gate](#tooling-pre-push-gate) relies on.
+`bin/setup`, `bin/prep-worktree`, and the Git hook that sets up each new
+worktree all run it.
 
 Each checkout gets private DerivedData at Xcode's default path. Its
 `SourcePackages` link points to the shared `~/Library/Developer/SharedSourcePackages/PodHaven`
@@ -361,7 +363,12 @@ covers error issues. Each creates an intake issue with a body marker, its
 label, and an instruction comment declaring its analysis skill as a
 `fix-issue` prerequisite. When an error issue recurs after all its tracking
 issues closed, the checker opens a recurrence intake issue that links them
-instead of reopening shipped work.
+instead of reopening shipped work. Feedback never recurs: each Sentry feedback
+issue is one user's submission, and new feedback arrives under a new slug with
+its own tracking issue. A feedback item's tracking issue, open or closed,
+therefore stays its record for good, and the checker reports it as already
+tracked. Both checkers share `bin/_sentry_intake.sh` and fail rather than
+check a partial Sentry list.
 
 | | Feedback | Error issues |
 | --- | --- | --- |
@@ -494,6 +501,26 @@ The gate reuses a recent passing `bin/check --full` for the same tree, so
 running `bin/check --full` on the final clean commit before pushing makes the
 gate nearly instant. Rebasing changes the tree, so the gate runs the tooling
 tests again, which takes several minutes.
+
+**Decision — 2026-11-08:** Git opens an SSH connection and reads the remote's
+refs before it runs the hook, then leaves that connection idle until the hook
+finishes. GitHub can close it during a full run, so the push used to fail
+after the checks passed, with exit status 141 and no other message. Smart
+HTTPS remotes don't hold a connection across the hook. Two measures keep a
+gated SSH push from failing that way:
+
+- **Keepalive:** `bin/setup-application`, which `bin/setup`, `bin/prep-worktree`,
+  and each new worktree run, sets the repository's `core.sshCommand` to
+  `ssh -o ServerAliveInterval=30`. It leaves an SSH command that is already
+  configured alone: `GIT_SSH_COMMAND`, `GIT_SSH`, or `core.sshCommand` in any
+  scope.
+- **Fallback:** when the gate runs the tooling tests in full for an SSH
+  remote whose SSH command has no positive `ServerAliveInterval`, it lets
+  them record their pass and then refuses the push, saying the checks passed
+  and to push again. Git can still exit with status 141 after that message,
+  because it writes to the closed connection as it disconnects. The retry
+  reuses that pass at once. A keepalive set only in `~/.ssh/config` isn't
+  detected, so such a push takes the retry.
 
 ## Scheduled memory audit
 
