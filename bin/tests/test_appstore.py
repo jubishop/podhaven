@@ -82,6 +82,12 @@ elif name == 'mktemp':
     path.mkdir(exist_ok=True)
     print(path)
 elif name == 'gh':
+    releases = base / 'releases'
+    created = releases.read_text().split() if releases.exists() else []
+    if args[:2] == ['release', 'view'] and args[2] not in created:
+        sys.exit('release not found')
+    if args[:2] == ['release', 'create']:
+        releases.write_text(' '.join(created + [args[2]]))
     if args[:2] == ['release', 'create'] and os.environ.get('CORRUPT_RECEIPT'):
         (base / 'repo/.git/podhaven-last-upload').write_text('v9.9b999\n')
 elif name == 'rm':
@@ -177,6 +183,7 @@ class AppStoreCommandTests(unittest.TestCase):
         (self.repo / "change.txt").write_text("New release work")
         self.git("add", "change.txt")
         self.git("commit", "-m", "New work")
+        self.git("push")
         result = subprocess.run([str(self.repo / "bin/shipit")], cwd=self.repo,
                                 env={**self.env, "TEST_MACRO_WARNING": "1"},
                                 text=True, capture_output=True, timeout=20)

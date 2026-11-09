@@ -39,11 +39,12 @@ Tests, archives, uploads, and distributes the build to the external Everyone gro
 TestFlight uploads require a current app version with exactly two dots, such as 2.1.1.
 Release versions advance automatically: 2.1 becomes 2.1.1, and 2 becomes 2.0.1.
 The version change is committed, fully tested locally, and pushed before deployment.
+Without a version change, the commit must already be on origin's copy of the branch.
 Fresh archives and uploads require valid full local test evidence for the clean commit.
 Fresh archives send their debug files to Sentry and stop before upload if any app binary lacks DWARF there.
 Without --notes, llm summarizes the app changes since the newest build in testing for Everyone,
 before any version change. In a terminal, it asks to use them, edit them in $VISUAL or $EDITOR, or stop.
-If that build is already the one to distribute, the command stops with nothing to do.
+If that build is already the one to distribute, the command publishes its missing tag or release and stops.
 --notes TEXT: use these "What to Test" notes instead.
 Distribution waits for processing and submits for beta review when needed.
 Repeating the command retries distribution of the same uploaded commit.
@@ -63,7 +64,8 @@ Processing is checked every 30 seconds for up to two hours. Apple beta review ma
 PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS overrides this wait with a positive whole number of seconds.
 If processing times out, the upload is preserved. Check Build Uploads in App Store Connect,
 then rerun the command; no new upload is needed.
-Successful uploads publish a Git tag and GitHub release.
+Each upload publishes its Git tag and GitHub release before distribution.
+After upload, a failure prints the command that retries without another upload.
 bin/shipit and bin/deploy.sh accept the same options.
 App Store uploads use bin/appstore instead.
 HELP
@@ -190,6 +192,9 @@ restart_testflight_if_needed() {
   fi
   trap - EXIT
   rm -f "$NEXT_TESTFLIGHT_VERSION_PATH"
+  if [[ -n "${LOG_DIR:-}" ]]; then
+    rm -rf "$LOG_DIR"
+  fi
   "$SCRIPT_DIR/version" "$next_version"
   export PODHAVEN_TESTFLIGHT_PATCH_RETRY=true
   local args=("${ORIGINAL_ARGS[@]+"${ORIGINAL_ARGS[@]}"}")
@@ -199,9 +204,45 @@ restart_testflight_if_needed() {
   exec "$SCRIPT_DIR/deploy.sh" "${args[@]}"
 }
 
+print_upload_retry() {
+  if [[ -n "$APPSTORE_RELEASE" ]]; then
+    echo "error: ${1} was uploaded. Repeat the bin/appstore command to retry without another upload." >&2
+  else
+    local retry
+    printf -v retry '%q ' "$0" "${ORIGINAL_ARGS[@]+"${ORIGINAL_ARGS[@]}"}"
+    echo "error: ${1} was uploaded. Retry with: ${retry% }" >&2
+  fi
+}
+
+# Publish an uploaded build's tag and GitHub release, skipping whichever already exists.
+publish_release() {
+  local release_tag="$1" local_tag remote_tag message
+  if ! local_tag=$(git -C "$PROJECT_DIR" rev-parse "refs/tags/${release_tag}") \
+      || ! remote_tag=$(git -C "$PROJECT_DIR" ls-remote --tags origin "refs/tags/${release_tag}"); then
+    echo "error: Could not compare ${release_tag} with origin." >&2
+    return 1
+  fi
+  if [[ "$remote_tag" != "$local_tag"$'\t'"refs/tags/${release_tag}" ]]; then
+    echo "==> Pushing ${release_tag} to origin..."
+    if ! git -C "$PROJECT_DIR" push origin "$release_tag"; then
+      echo "error: Could not push ${release_tag} to origin." >&2
+      return 1
+    fi
+  fi
+  if (cd "$PROJECT_DIR" && gh release view "$release_tag" &>/dev/null); then
+    return 0
+  fi
+  echo "==> Creating the ${release_tag} GitHub release..."
+  message=$(git -C "$PROJECT_DIR" tag -l --format='%(contents)' "$release_tag")
+  if ! (cd "$PROJECT_DIR" && gh release create "$release_tag" --verify-tag --title "$release_tag" --notes "$message"); then
+    echo "error: Could not create the ${release_tag} GitHub release." >&2
+    return 1
+  fi
+}
+
 # Summarize app changes since the newest build testers have, unless that build is the one to distribute.
 generate_testflight_notes() {
-  local current_build="$1" end="$2" base_build
+  local current_build="$1" end="$2" uploaded_tag="${3:-}" base_build
   TESTFLIGHT_BASE_PATH=$(mktemp "/tmp/podhaven-testflight-base.XXXXXX")
   if ! run_testflight base:true; then
     rm -f "$TESTFLIGHT_BASE_PATH"
@@ -215,6 +256,10 @@ generate_testflight_notes() {
     exit 1
   fi
   if [[ "$base_build" == "$current_build" ]]; then
+    if [[ -n "$uploaded_tag" ]] && ! publish_release "$uploaded_tag"; then
+      print_upload_retry "$uploaded_tag"
+      exit 1
+    fi
     echo "==> Build ${current_build} is already in testing for Everyone. Nothing to do."
     exit 0
   fi
@@ -336,12 +381,30 @@ elif [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; 
   exit 1
 fi
 
-if [[ -z "$APPSTORE_RELEASE" && -z "$TESTFLIGHT_NOTES" ]]; then
-  uploaded_build=""
-  if [[ -n "$prev_tag" && "$(git -C "$PROJECT_DIR" rev-parse "${prev_tag}^{commit}")" == "$(git -C "$PROJECT_DIR" rev-parse HEAD)" ]]; then
-    uploaded_build="${prev_tag##*b}"
+pending_version_push=$(git -C "$PROJECT_DIR" rev-parse --path-format=absolute --git-path podhaven-version-push)
+# A version change below pushes HEAD; otherwise other clones and the release tag need it on origin already.
+if [[ -z "${next_version:-}" && ! -f "$pending_version_push" ]]; then
+  remote_branch="$branch"
+  if [[ "$branch" == HEAD ]]; then
+    remote_branch=main
   fi
-  generate_testflight_notes "$uploaded_build" HEAD
+  if ! git -C "$PROJECT_DIR" fetch --quiet origin "+refs/heads/${remote_branch}:refs/remotes/origin/${remote_branch}"; then
+    echo "error: Could not fetch origin/${remote_branch} to confirm that it has ${commit}." >&2
+    echo "error: If origin lacks it, push it with: git push origin HEAD:${remote_branch}" >&2
+    exit 1
+  fi
+  if ! git -C "$PROJECT_DIR" merge-base --is-ancestor HEAD "refs/remotes/origin/${remote_branch}"; then
+    echo "error: ${commit} is not on origin/${remote_branch}. Push it with: git push origin HEAD:${remote_branch}" >&2
+    exit 1
+  fi
+fi
+
+if [[ -z "$APPSTORE_RELEASE" && -z "$TESTFLIGHT_NOTES" ]]; then
+  uploaded_tag=""
+  if [[ -n "$prev_tag" && "$(git -C "$PROJECT_DIR" rev-parse "${prev_tag}^{commit}")" == "$(git -C "$PROJECT_DIR" rev-parse HEAD)" ]]; then
+    uploaded_tag="$prev_tag"
+  fi
+  generate_testflight_notes "${uploaded_tag##*b}" HEAD "$uploaded_tag"
 fi
 
 if [[ -n "${next_version:-}" ]]; then
@@ -351,7 +414,6 @@ if [[ -n "${next_version:-}" ]]; then
   commit=$(git -C "$PROJECT_DIR" rev-parse --short HEAD)
 fi
 
-pending_version_push=$(git -C "$PROJECT_DIR" rev-parse --path-format=absolute --git-path podhaven-version-push)
 if [[ -f "$pending_version_push" ]]; then
   echo "==> Retrying the version push before deployment..."
   "$SCRIPT_DIR/version" "$version"
@@ -383,16 +445,13 @@ if [[ -n "$prev_tag" && "$prev_tag_commit" == "$head_commit" ]]; then
     UPLOAD_SUCCEEDED=true
   fi
 
-  if [[ -z "$TESTFLIGHT_NOTES" && "$remote_exists" == true ]] && gh release view "$prev_tag" &>/dev/null; then
-    echo "==> ${prev_tag} is already fully deployed. Nothing to do."
-    exit 0
-  fi
-
+  # App Store uploads publish last, so a pushed tag leaves at most its GitHub release to finish.
   if [[ -z "$TESTFLIGHT_NOTES" && "$remote_exists" == true ]]; then
-    tag_message=$(git -C "$PROJECT_DIR" tag -l --format='%(contents)' "$prev_tag")
-    echo "==> ${prev_tag} was pushed but has no GitHub release. Creating..."
-    gh release create "$prev_tag" --title "$prev_tag" --notes "$tag_message"
-    echo "==> Done."
+    if ! publish_release "$prev_tag"; then
+      print_upload_retry "$prev_tag"
+      exit 1
+    fi
+    echo "==> ${prev_tag} is fully deployed. Nothing else to do."
     exit 0
   fi
 
@@ -401,7 +460,6 @@ if [[ -n "$prev_tag" && "$prev_tag_commit" == "$head_commit" ]]; then
   build="${prev_tag##*b}"
   version="${prev_tag#v}"
   version="${version%b*}"
-  tag_message=$(git -C "$PROJECT_DIR" tag -l --format='%(contents)' "$prev_tag")
   echo "==> Reusing ${tag}..."
 else
   "$SCRIPT_DIR/test-all" --ensure --revision "$head_commit"
@@ -443,7 +501,7 @@ LOG_DIR=$(mktemp -d "/tmp/podhaven-deploy.XXXXXX")
 ARCHIVE_PATH="$LOG_DIR/PodHaven.xcarchive"
 echo "==> Logs and archive: $LOG_DIR"
 
-# On exit: clean up on failure, finalize on success.
+# On exit: report a failure and roll back an unuploaded tag, or remove this run's logs on success.
 DEPLOY_SUCCEEDED=false
 CURRENT_PHASE=""
 CURRENT_LOG=""
@@ -467,7 +525,7 @@ on_exit() {
         echo "==> All logs and artifacts: ${LOG_DIR}"
       fi
       if [[ "$UPLOAD_SUCCEEDED" == true ]]; then
-        echo "error: ${tag} was uploaded. Run bin/shipit again to retry distribution."
+        print_upload_retry "$tag"
       else
         echo "error: Rolling back local tag ${tag}..."
       fi
@@ -477,11 +535,8 @@ on_exit() {
     fi
     # Leave $LOG_DIR in place so the log above can be re-read after the script exits.
   else
-    git -C "$PROJECT_DIR" push origin "$tag" 2>/dev/null || true
-    gh release create "$tag" --title "$tag" --notes "$tag_message" 2>/dev/null || true
     echo "==> Done. Tagged ${commit} as ${tag}"
     rm -rf "$LOG_DIR"
-    rm -rf ~/Library/Developer/Xcode/Archives/*/"PodHaven "*
   fi
 }
 trap on_exit EXIT
@@ -589,6 +644,9 @@ if [[ -n "$release_base" ]]; then
 else
   sentry release set-commits "$sentry_release" --local
 fi
+
+CURRENT_PHASE="release publication"
+publish_release "$tag" || exit 1
 
 if [[ -n "$TESTFLIGHT_NOTES" ]]; then
   CURRENT_PHASE="TestFlight distribution"
