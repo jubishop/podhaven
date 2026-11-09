@@ -48,7 +48,7 @@ protocol Observing: Sendable {
     filter: SQLExpression,
     order: SQLOrdering?,
     limit: Int
-  ) -> AsyncValueObservation<[ListablePodcastEpisode]>
+  ) -> SettledPlaybackObservation<[ListablePodcastEpisode]>
 
   // MARK: - Episodes
 
@@ -56,7 +56,7 @@ protocol Observing: Sendable {
 
   // MARK: - Queue
 
-  func queuedPodcastEpisodes(limit: Int) -> AsyncValueObservation<[ListablePodcastEpisode]>
+  func queuedPodcastEpisodes(limit: Int) -> SettledPlaybackObservation<[ListablePodcastEpisode]>
 
   // MARK: - Tags
 
@@ -77,9 +77,9 @@ protocol Observing: Sendable {
   // MARK: - Singular Observations
 
   func podcastSeriesDetail(_ podcastID: Podcast.ID)
-    -> AsyncValueObservation<PodcastSeriesDetail?>
+    -> SettledPlaybackObservation<PodcastSeriesDetail?>
   func podcastEpisodeWithTags(_ episodeID: Episode.ID)
-    -> AsyncValueObservation<PodcastEpisodeWithTags?>
+    -> SettledPlaybackObservation<PodcastEpisodeWithTags?>
   func transcript(_ episodeID: Episode.ID) -> AsyncValueObservation<Transcript?>
   func transcriptionCheckpoint(_ episodeID: Episode.ID)
     -> AsyncValueObservation<TranscriptionCheckpoint?>
@@ -187,27 +187,27 @@ extension Observing {
 
   func listablePodcastEpisodes(
     filter: SQLExpression
-  ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
+  ) -> SettledPlaybackObservation<[ListablePodcastEpisode]> {
     listablePodcastEpisodes(filter: filter, order: nil, limit: Int.max)
   }
 
   func listablePodcastEpisodes(
     filter: SQLExpression,
     order: SQLOrdering?
-  ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
+  ) -> SettledPlaybackObservation<[ListablePodcastEpisode]> {
     listablePodcastEpisodes(filter: filter, order: order, limit: Int.max)
   }
 
   func listablePodcastEpisodes(
     filter: SQLExpression,
     limit: Int
-  ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
+  ) -> SettledPlaybackObservation<[ListablePodcastEpisode]> {
     listablePodcastEpisodes(filter: filter, order: nil, limit: limit)
   }
 
   // Queue
 
-  func queuedPodcastEpisodes() -> AsyncValueObservation<[ListablePodcastEpisode]> {
+  func queuedPodcastEpisodes() -> SettledPlaybackObservation<[ListablePodcastEpisode]> {
     queuedPodcastEpisodes(limit: Int.max)
   }
 }

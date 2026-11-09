@@ -22,6 +22,12 @@ struct ListableEpisode:
 {
   static let databaseTableName: String = Episode.databaseTableName
   static var databaseSelection: [any SQLSelectable] {
+    observedSelection + [Episode.Columns.currentTime]
+  }
+
+  // Every selected column except playback progress: observations track this,
+  // so playback checkpoints don't wake them.
+  static var observedSelection: [any SQLSelectable] {
     [
       Episode.Columns.id,
       Episode.Columns.guid,
@@ -31,7 +37,6 @@ struct ListableEpisode:
       Episode.Columns.duration,
       Episode.Columns.image,
       Episode.Columns.finishDate,
-      Episode.Columns.currentTime,
       Episode.Columns.queueOrder,
       Episode.Columns.saveInCache,
       Episode.Columns.cachedFilename,

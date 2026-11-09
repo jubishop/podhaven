@@ -29,13 +29,14 @@ struct CarPlayEpisodeRow: Equatable {
     finished = episode.finished
   }
 
+  // Whole seconds, so sub-second playback ticks leave the row unchanged.
   init(_ episode: OnDeck) {
     id = episode.id
     title = episode.title
     podcast = episode.podcastTitle
     image = episode.image
     duration = episode.duration
-    currentTime = episode.currentTime
+    currentTime = .seconds(episode.currentTime.safe.seconds.rounded(.down))
     downloaded = episode.cacheStatus == .cached
     finished = episode.finished
   }
@@ -60,9 +61,22 @@ struct CarPlayEpisodeRow: Equatable {
 
 @MainActor
 final class CarPlayEpisodeList {
-  struct Section {
+  struct Section: Equatable {
     let title: String
     let episodes: [CarPlayEpisodeRow]
+  }
+
+  // Everything an update renders. Paging and artwork re-render directly.
+  private struct Content: Equatable {
+    let sections: [Section]
+    let restricted: Bool
+    let leading: [ObjectIdentifier]
+    let emptyTitle: String
+    let emptySubtitle: String
+    let currentEpisodeID: Episode.ID?
+    let playing: Bool
+    let remaining: Bool
+    let limits: CarPlayListLimits
   }
 
   @DynamicInjected(\.imagePipeline) private var imagePipeline
@@ -74,6 +88,7 @@ final class CarPlayEpisodeList {
   private let selection: CarPlaySelection
   private let artwork: CarPlayArtwork
   private var sections: [Section] = []
+  private var content: Content?
   private var page = 0
   private var restricted = false
   private var rows: [Episode.ID: CPListItem] = [:]
@@ -107,6 +122,19 @@ final class CarPlayEpisodeList {
     emptyTitle: String = "Your queue is empty",
     emptySubtitle: String = "Add episodes to Up Next in PodHaven."
   ) {
+    let content = Content(
+      sections: sections,
+      restricted: restricted,
+      leading: leading.map(ObjectIdentifier.init),
+      emptyTitle: emptyTitle,
+      emptySubtitle: emptySubtitle,
+      currentEpisodeID: sharedState.currentEpisodeID,
+      playing: sharedState.playbackStatus.playing,
+      remaining: userSettings.showTimeRemainingInEpisodeLists,
+      limits: limits()
+    )
+    guard content != self.content else { return }
+    self.content = content
     for item in leadingItems where !leading.contains(where: { $0 === item }) { item.handler = nil }
     leadingItems = leading
     self.emptyTitle = emptyTitle
@@ -236,7 +264,10 @@ final class CarPlayEpisodeList {
     imageURLs = [:]
   }
 
-  func resetPage() { page = 0 }
+  func resetPage() {
+    page = 0
+    content = nil
+  }
 
   func stop() {
     cancelArtwork()
@@ -246,6 +277,7 @@ final class CarPlayEpisodeList {
     rows = [:]
     navigationRows = []
     leadingItems = []
+    content = nil
   }
 }
 

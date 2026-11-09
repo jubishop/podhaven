@@ -126,6 +126,9 @@ struct AppDB {
   // MARK: - Initialization
 
   private let db: any DatabaseWriter
+  // Pulses after a write settles a stored playback position, for observations
+  // whose tracked region leaves playback progress out.
+  private let settledPlaybackPositions = Broadcast<Void>(())
   private let siriCatalogPublication = ThreadSafe<AsyncLatch<Void>?>(nil)
   private let siriCatalogPublisher = ThreadSafe<SiriCatalogPublisher?>(nil)
   private init(_ db: some DatabaseWriter, migrate: Bool = true) {
@@ -209,6 +212,26 @@ struct AppDB {
         .removeDuplicates(by: predicate)
         .values(in: appDB.db)
     }
+
+    // Wakes for `regions` rather than everything `fetch` reads, so `fetch` may
+    // select playback progress without playback checkpoints re-running it.
+    // Settled positions and `refreshes` re-run it instead.
+    func observe<Value: Equatable & Sendable>(
+      regions: [any DatabaseRegionConvertible],
+      refreshes: @escaping @Sendable () -> any AsyncSequence<Void, Never> & Sendable,
+      fetch: @escaping @Sendable (Database) throws -> Value
+    ) -> SettledPlaybackObservation<Value> {
+      let db = appDB.db
+      let settled = appDB.settledPlaybackPositions
+      return SettledPlaybackObservation(
+        observe: {
+          ValueObservation.tracking(regions: regions, fetch: fetch)
+            .removeDuplicates()
+            .values(in: db)
+        },
+        refreshes: { [settled.stream().dropFirst(), refreshes()] }
+      )
+    }
   }
 
   struct Writer: Sendable {
@@ -256,6 +279,12 @@ struct AppDB {
         AppDB.log.log(level: level, "db write failed: \(label) after \(now() - requestedAt)")
         throw error
       }
+    }
+
+    // Call after the write that settled a position commits, so refreshed
+    // observations read it.
+    func notifySettledPlaybackPosition() {
+      appDB.settledPlaybackPositions.new(())
     }
   }
 
