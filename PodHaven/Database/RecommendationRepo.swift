@@ -170,17 +170,23 @@ struct RecommendationRepo: Recommending {
   // identity `Cov = outerSum/N - μμᵀ`. Skips the outer-product accumulation
   // when `principalComponentCount` is 0. Peak memory is O(d²) regardless of
   // corpus size. Top-k eigenvectors come from power iteration with deflation.
+  // The first row sets the dimension; rows of any other dimension are skipped.
   func whiteningTransform(
+    embeddingRevision: Int,
     principalComponentCount: Int
   ) async throws -> WhiteningTransform? {
-    try await reader.read { db in
+    let (transform, skippedCount): (WhiteningTransform?, Int) = try await reader.read { db in
       var sum: [Float] = []
       var outerSum: [Float] = []
       var outerScratch: [Float] = []
       var count = 0
-      let cursor = try EpisodeEmbedding.fetchCursor(db)
+      var skippedCount = 0
+      let cursor =
+        try EpisodeEmbedding
+        .filter(EpisodeEmbedding.Columns.embeddingRevision == embeddingRevision)
+        .fetchCursor(db)
       while let embedding = try cursor.next() {
-        unsafe embedding.withFloatBuffer { vec in
+        let accepted = unsafe embedding.withFloatBuffer { vec -> Bool in
           let dim = vec.count
           if sum.isEmpty {
             sum = [Float](repeating: 0, count: dim)
@@ -189,10 +195,11 @@ struct RecommendationRepo: Recommending {
               outerScratch = [Float](repeating: 0, count: dim * dim)
             }
           }
+          guard dim == sum.count else { return false }
           sum.withUnsafeMutableBufferPointer { sumPtr in
             unsafe VectorMath.addInPlace(vec, into: sumPtr)
           }
-          guard principalComponentCount > 0 else { return }
+          guard principalComponentCount > 0 else { return true }
           outerSum.withUnsafeMutableBufferPointer { outerPtr in
             outerScratch.withUnsafeMutableBufferPointer { scratchPtr in
               unsafe VectorMath.accumulateScaledOuterProduct(
@@ -204,15 +211,20 @@ struct RecommendationRepo: Recommending {
               )
             }
           }
+          return true
         }
-        count += 1
+        if accepted {
+          count += 1
+        } else {
+          skippedCount += 1
+        }
       }
-      guard count > 0 else { return nil }
+      guard count > 0 else { return (nil, skippedCount) }
       let mean = vDSP.divide(sum, Float(count))
       let dim = mean.count
 
       guard principalComponentCount > 0 else {
-        return WhiteningTransform(mean: mean, principalComponents: [])
+        return (WhiteningTransform(mean: mean, principalComponents: []), skippedCount)
       }
 
       // covariance = outerSum/N - μ⊗μᵀ, accumulated in `outerSum` in place.
@@ -237,8 +249,20 @@ struct RecommendationRepo: Recommending {
         dim: dim,
         k: principalComponentCount
       )
-      return WhiteningTransform(mean: mean, principalComponents: principalComponents)
+      return (
+        WhiteningTransform(mean: mean, principalComponents: principalComponents),
+        skippedCount
+      )
     }
+    if skippedCount > 0 {
+      Self.log.warning(
+        """
+        whiteningTransform skipped \(skippedCount) revision \(embeddingRevision) \
+        embeddings whose dimension differs from the corpus
+        """
+      )
+    }
+    return transform
   }
 
   // Power iteration with rank-1 deflation. Reuses `scratch` (a d² buffer)
