@@ -2,8 +2,6 @@
 """Kill a Simulator probe launch, forward a controlled MetricKit crash diagnostic naming it, and verify both in Sentry."""
 
 import argparse
-from importlib.machinery import SourceFileLoader
-from importlib.util import module_from_spec, spec_from_loader
 import json
 import os
 from pathlib import Path
@@ -13,6 +11,8 @@ import signal
 import subprocess
 import sys
 import time
+
+from _sentry_smoke import api, command, load
 
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = "com.artisanalsoftware.PodHaven.metrickitsmoke"
@@ -49,22 +49,7 @@ LAUNCH_MILESTONES = ["loggingStarted", "logsOpened", "sentryStarted"]
 LAUNCH_READY = "controlled launch timeline recorded run="
 
 
-def load(name, path):
-    loader = SourceFileLoader(name, str(path))
-    module = module_from_spec(spec_from_loader(name, loader))
-    loader.exec_module(module)
-    return module
-
-
 probe = load("hang_probe", ROOT / "bin/sentry-hang-smoke")
-command = probe.command
-
-
-def api(path):
-    response = json.loads(command("sentry", "api", path, "--json"))
-    if response["status"] != 200:
-        raise RuntimeError(f"Sentry API returned HTTP {response['status']} for {path}")
-    return response["body"]
 
 
 def in_app_offsets(binary):

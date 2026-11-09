@@ -1,10 +1,9 @@
 """Preserve Siri smoke validation failures when the probe already exited."""
 
-import importlib.machinery
-import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -12,10 +11,10 @@ from unittest.mock import patch
 import service_guard
 
 ROOT = Path(__file__).resolve().parents[2]
-loader = importlib.machinery.SourceFileLoader("siri_smoke", str(ROOT / "bin/sentry-siri-smoke"))
-spec = importlib.util.spec_from_loader(loader.name, loader)
-smoke = importlib.util.module_from_spec(spec)
-loader.exec_module(smoke)
+sys.path.insert(0, str(ROOT / "bin"))
+from _sentry_smoke import load
+
+smoke = load("siri_smoke", ROOT / "bin/sentry-siri-smoke")
 
 
 class SiriSmokeTests(unittest.TestCase):

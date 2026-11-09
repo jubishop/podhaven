@@ -1,19 +1,17 @@
 """Check the Siri catalog publication smoke verifier against controlled log rows."""
 
 import copy
-import importlib.machinery
-import importlib.util
 from pathlib import Path
+import sys
 import unittest
 
 import service_guard
 
 ROOT = Path(__file__).resolve().parents[2]
-loader = importlib.machinery.SourceFileLoader(
-    "siri_publication_smoke", str(ROOT / "bin/sentry-siri-publication-smoke"))
-spec = importlib.util.spec_from_loader(loader.name, loader)
-smoke = importlib.util.module_from_spec(spec)
-loader.exec_module(smoke)
+sys.path.insert(0, str(ROOT / "bin"))
+from _sentry_smoke import load
+
+smoke = load("siri_publication_smoke", ROOT / "bin/sentry-siri-publication-smoke")
 
 SOURCE = {"gitCommitHash": "abc1234"}
 RUN = "0123456789abcdef"
