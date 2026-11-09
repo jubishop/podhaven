@@ -652,16 +652,22 @@ enum EmbeddingService {
     embedding: ContextualEmbedding,
     podcastVector: [Float]?
   ) async throws -> [Float] {
-    let titleVector = try await embedding.vector(for: cleanedTitle)
-    let descriptionText = cleanedDescription.isEmpty ? cleanedTitle : cleanedDescription
-    let descriptionVector = try await embedding.vector(for: descriptionText)
-
-    var episodeVector = VectorMath.weightedAverage(
-      titleVector,
-      weight1: titleWeight,
-      descriptionVector,
-      weight2: descriptionWeight
-    )
+    var episodeVector: [Float]
+    switch (cleanedTitle.isEmpty, cleanedDescription.isEmpty) {
+    case (true, true):
+      throw EmbeddingError.noResult
+    case (false, true):
+      episodeVector = try await embedding.vector(for: cleanedTitle)
+    case (true, false):
+      episodeVector = try await embedding.vector(for: cleanedDescription)
+    case (false, false):
+      episodeVector = VectorMath.weightedAverage(
+        try await embedding.vector(for: cleanedTitle),
+        weight1: titleWeight,
+        try await embedding.vector(for: cleanedDescription),
+        weight2: descriptionWeight
+      )
+    }
 
     if let podcastVector {
       episodeVector = VectorMath.weightedAverage(
