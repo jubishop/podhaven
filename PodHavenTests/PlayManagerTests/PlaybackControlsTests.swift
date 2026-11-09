@@ -410,6 +410,49 @@ import Testing
     )
   }
 
+  @Test("time updates keep publishing while a playback save waits for the writer")
+  func timeUpdatesKeepPublishingWhilePlaybackSaveWaits() async throws {
+    typealias PlaybackUpdate = MethodCall<
+      (episodeID: Episode.ID, currentTime: CMTime, playedFrom: CMTime, now: Date)
+    >
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let fakeRepo = try #require(repo as? FakeRepo)
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+    fakeRepo.clearAllCalls()
+    fakeRepo.playbackUpdatesHeld(true)
+
+    avPlayer.advanceTime(to: .seconds(3))
+    try await fakeRepo.waitForPlaybackUpdateSuspended()
+    try await PlayHelpers.waitFor(.seconds(3))
+    for second in 4...7 {
+      avPlayer.advanceTime(to: .seconds(Double(second)))
+      try await PlayHelpers.waitFor(.seconds(Double(second)))
+    }
+    #expect(fakeRepo.calls(of: PlaybackUpdate.self).map(\.parameters.currentTime) == [.seconds(3)])
+
+    await fakeRepo.releasePlaybackUpdates()
+    try await Wait.until(
+      { try await Container.shared.repo().episode(podcastEpisode.id)?.currentTime == .seconds(3) },
+      { "Expected the held save to store 3 seconds" }
+    )
+    // Keep ticking, as playback does, until a tick after the held save finishes saves again.
+    let avPlayer = avPlayer
+    try await Wait.until(
+      { @MainActor in
+        avPlayer.advanceTime(to: .seconds(8))
+        return try await Container.shared.repo().episode(podcastEpisode.id)?.currentTime
+          == .seconds(8)
+      },
+      { "Expected a later tick to store 8 seconds" }
+    )
+    let updates = fakeRepo.calls(of: PlaybackUpdate.self).map(\.parameters)
+    #expect(updates.map(\.currentTime) == [.seconds(3), .seconds(8)])
+    #expect(updates.map(\.playedFrom) == [.zero, .seconds(3)])
+  }
+
   @Test("waiting to play time control status updates playstate")
   func waitingToPlayTimeControlStatusUpdatesPlaystate() async throws {
     await playManager.start()
