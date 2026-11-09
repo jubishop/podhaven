@@ -889,8 +889,10 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.updateITunesID(podcastID, iTunesID: iTunesID)
   }
 
-  func updateLastUpdates(_ pairs: [(Podcast.ID, Date)]) async throws {
-    recordCall(methodName: "updateLastUpdates", parameters: pairs)
+  func updateLastUpdates(
+    _ refreshes: [(id: Podcast.ID, lastUpdate: Date, feedValidators: HTTPValidators?)]
+  ) async throws {
+    recordCall(methodName: "updateLastUpdates", parameters: refreshes)
     if pendingUpdateLastUpdatesSuspend() {
       pendingUpdateLastUpdatesSuspend(false)
       await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
@@ -898,7 +900,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         suspendedUpdateLastUpdatesCount(updateLastUpdatesSuspensions.count)
       }
     }
-    try await repo.updateLastUpdates(pairs)
+    try await repo.updateLastUpdates(refreshes)
   }
 
   func resumeAllUpdateLastUpdatesSuspensions() {

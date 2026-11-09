@@ -21,13 +21,19 @@ extension DataFetchable {
   }
 
   func validatedData(for request: URLRequest) async throws -> Data {
+    try await validatedResponse(for: request).data
+  }
+
+  func validatedResponse(for request: URLRequest) async throws -> (
+    data: Data, response: URLResponse
+  ) {
     guard let requestURL = request.url
     else { Assert.fatal("No URL in URLRequest: \(request)") }
 
     let (data, response) = try await data(for: request)
     guard let httpResponse = response as? HTTPURLResponse,
       !(200...299).contains(httpResponse.statusCode)
-    else { return data }
+    else { return (data, response) }
 
     throw HTTPStatusError(
       statusCode: httpResponse.statusCode,

@@ -45,6 +45,15 @@ struct UnsavedPodcast:
   let notifyNewEpisodes: Bool
   let freshnessCadence: FreshnessCadence?
 
+  // Refresh
+  private let feedETag: String?
+  private let feedLastModified: String?
+  private let feedValidatorsBuild: String?
+
+  // Validators stored by another build are ignored, so feed parsing changes
+  // reach feeds that haven't changed since.
+  static let currentFeedValidatorsBuild = "\(AppInfo.version) (\(AppInfo.gitCommitHash))"
+
   private static let log = Log.as(LogSubsystem.Database.podcast)
 
   init(
@@ -96,6 +105,9 @@ struct UnsavedPodcast:
     self.alwaysTranscribeNewEpisodes = alwaysTranscribeNewEpisodes
     self.notifyNewEpisodes = notifyNewEpisodes
     self.freshnessCadence = freshnessCadence
+    self.feedETag = nil
+    self.feedLastModified = nil
+    self.feedValidatorsBuild = nil
   }
 
   // MARK: - Savable
@@ -117,6 +129,13 @@ struct UnsavedPodcast:
       notifyNewEpisodes: notifyNewEpisodes,
       freshnessCadence: freshnessCadence
     )
+  }
+
+  // MARK: - Refresh
+
+  var feedValidators: HTTPValidators? {
+    guard feedValidatorsBuild == Self.currentFeedValidatorsBuild else { return nil }
+    return HTTPValidators(eTag: feedETag, lastModified: feedLastModified)
   }
 
   // MARK: - RSSUpdatable
@@ -250,6 +269,9 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
     static let freshnessCadence = Column("freshnessCadence")
     static let inferredFreshnessCadence = Column("inferredFreshnessCadence")
     static let contentUpdatedAt = Column("contentUpdatedAt")
+    static let feedETag = Column("feedETag")
+    static let feedLastModified = Column("feedLastModified")
+    static let feedValidatorsBuild = Column("feedValidatorsBuild")
   }
 
   // MARK: - RSSUpdatable

@@ -615,7 +615,7 @@ actor ObservatoryScoringContextInputsTests {
       _ = try await repo.updatePodcastSettings(podcastID, noisySettings)
     }
     try await repo.updateLastUpdates(
-      [manualPodcast.id, autoPodcastA.id, autoPodcastB.id].map { ($0, now) }
+      [manualPodcast.id, autoPodcastA.id, autoPodcastB.id].map { ($0, now, nil) }
     )
 
     try await Wait.until(

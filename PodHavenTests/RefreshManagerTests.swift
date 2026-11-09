@@ -48,7 +48,7 @@ actor RefreshManagerTests {
         unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
       )
     )
-    try await repo.updateLastUpdates([(series.podcast.id, 2.hoursAgo)])
+    try await repo.updateLastUpdates([(series.podcast.id, 2.hoursAgo, nil)])
     let updatedData = PreviewBundle.loadAsset(
       named: "hardfork_short_updated",
       in: .FeedRSS
@@ -88,7 +88,7 @@ actor RefreshManagerTests {
         unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
       )
     )
-    try await repo.updateLastUpdates([(series.podcast.id, 2.hoursAgo)])
+    try await repo.updateLastUpdates([(series.podcast.id, 2.hoursAgo, nil)])
     await session.respond(to: series.podcast.feedURL.rawValue, data: data)
     let submissionCount = fakeBGTaskScheduler.submissions.count
 
@@ -218,7 +218,11 @@ actor RefreshManagerTests {
     #expect(call.parameters.updatedPodcast != nil)
     #expect(call.parameters.unsavedEpisodes.count == 1)
     #expect(call.parameters.existingEpisodes.count == 2)
-    try fakeRepo.expectNoCall(methodName: "updateLastUpdates")
+    let flush = try fakeRepo.expectCall(
+      methodName: "updateLastUpdates",
+      parameters: [(id: Podcast.ID, lastUpdate: Date, feedValidators: HTTPValidators?)].self
+    )
+    #expect(flush.parameters.map(\.id) == [podcastSeries.podcast.id])
   }
 
   @Test("that new episodes with duplicate MediaURLs are deduped")
@@ -297,10 +301,10 @@ actor RefreshManagerTests {
     try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
     let flush = try fakeRepo.expectCall(
       methodName: "updateLastUpdates",
-      parameters: [(Podcast.ID, Date)].self
+      parameters: [(id: Podcast.ID, lastUpdate: Date, feedValidators: HTTPValidators?)].self
     )
     #expect(flush.parameters.count == 1)
-    #expect(flush.parameters.first?.0 == podcastSeries.podcast.id)
+    #expect(flush.parameters.first?.id == podcastSeries.podcast.id)
   }
 
   // This is invalid behavior by a feed but sadly dumb dumbs still do it.
@@ -853,7 +857,7 @@ actor RefreshManagerTests {
     }
 
     // Backdate lastUpdate so the staleness filter picks them all up.
-    try await repo.updateLastUpdates(podcastIDs.map { ($0, 2.hoursAgo) })
+    try await repo.updateLastUpdates(podcastIDs.map { ($0, 2.hoursAgo, nil) })
 
     fakeRepo.clearAllCalls()
 
@@ -862,9 +866,9 @@ actor RefreshManagerTests {
     try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
     let flush = try fakeRepo.expectCall(
       methodName: "updateLastUpdates",
-      parameters: [(Podcast.ID, Date)].self
+      parameters: [(id: Podcast.ID, lastUpdate: Date, feedValidators: HTTPValidators?)].self
     )
-    #expect(Set(flush.parameters.map(\.0)) == Set(podcastIDs))
+    #expect(Set(flush.parameters.map(\.id)) == Set(podcastIDs))
 
     for podcastID in podcastIDs {
       let refreshed = try await repo.podcastSeries(podcastID)!
@@ -894,7 +898,7 @@ actor RefreshManagerTests {
         unsavedEpisodes: feedEpisodes + backCatalog
       )
     )
-    try await repo.updateLastUpdates([(series.podcast.id, 2.hoursAgo)])
+    try await repo.updateLastUpdates([(series.podcast.id, 2.hoursAgo, nil)])
 
     let (started, finish) = await session.releaseWaitRespond(
       to: series.podcast.feedURL.rawValue,
@@ -963,7 +967,7 @@ actor RefreshManagerTests {
         unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
       )
     )
-    try await repo.updateLastUpdates([(podcastSeries.podcast.id, 2.hoursAgo)])
+    try await repo.updateLastUpdates([(podcastSeries.podcast.id, 2.hoursAgo, nil)])
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: data)
 
     fakeRepo.clearAllCalls()
