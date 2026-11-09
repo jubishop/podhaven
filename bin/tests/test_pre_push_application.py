@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -33,6 +34,13 @@ class ExampleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+"""
+# Stands in for ssh as Git's simple SSH variant runs it: it skips the -o options and the host, then runs Git's
+# remote command on this machine, so the disposable remote is reached over an SSH URL.
+SSH = """#!/bin/sh
+while [ "$1" = -o ]; do shift 2; done
+shift
+exec sh -c "$1"
 """
 
 
@@ -76,9 +84,18 @@ class PrePushApplicationTests(unittest.TestCase):
         self.git("commit", "--quiet", "--message", message)
         return self.git("rev-parse", "HEAD")
 
-    def push(self, *refs):
-        return subprocess.run(["git", "push", "origin", *refs], cwd=self.repo, env=self.env, text=True,
-                              capture_output=True, timeout=120)
+    def push(self, *refs, remote="origin", options=(), env=None):
+        return subprocess.run(["git", *options, "push", remote, *refs], cwd=self.repo,
+                              env={**self.env, **(env or {})}, text=True, capture_output=True, timeout=120)
+
+    def ssh_remote(self):
+        """Add a remote that reaches the disposable remote over an SSH URL; return the stand-in ssh command."""
+        ssh = self.base / "fake ssh"
+        ssh.write_text(SSH)
+        ssh.chmod(0o755)
+        self.git("remote", "add", "ssh", "localhost:" + str(self.remote))
+        self.git("config", "ssh.variant", "simple")
+        return shlex.quote(str(ssh))
 
     def remote_head(self, branch="main"):
         return self.git("rev-parse", "--verify", "--quiet", "refs/heads/" + branch, cwd=self.remote)
@@ -165,6 +182,43 @@ class PrePushApplicationTests(unittest.TestCase):
         result = self.push("main")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(self.check_calls()), 1)
+
+    def test_refuses_an_ssh_push_without_a_keepalive_after_running_its_checks_until_it_is_retried(self):
+        self.git("config", "core.sshCommand", self.ssh_remote())
+        commit = self.git("rev-parse", "HEAD")
+        result = self.push("main", remote="ssh")
+        # The remote can close the SSH connection Git left idle while the checks ran, so the gate keeps their
+        # pass and asks for a retry instead of letting Git fail on the closed connection.
+        self.assertNotEqual(result.returncode, 0, result.stderr)
+        self.assertIn("bin/check --full passed for " + commit[:12], result.stderr)
+        self.assertIn("Push again", result.stderr)
+        self.assertEqual(self.git("for-each-ref", cwd=self.remote), "")
+        self.assertEqual(len(self.check_calls()), 1)
+        result = self.push("main", remote="ssh")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.remote_head(), commit)
+        # The retry reused the recorded pass instead of running the checks again.
+        self.assertEqual(len(self.check_calls()), 1)
+
+    def test_accepts_an_ssh_push_with_a_keepalive_once_its_checks_pass(self):
+        ssh = self.ssh_remote()
+        keepalive = ssh + " -o ServerAliveInterval=30"
+
+        def push_new_tooling(name, **options):
+            (self.repo / "bin" / name).write_text("")
+            commit = self.commit("Add " + name)
+            result = self.push("main", remote="ssh", **options)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(self.remote_head(), commit)
+
+        # Git takes its SSH command from GIT_SSH_COMMAND, then from -c options and repository settings.
+        self.git("config", "core.sshCommand", keepalive)
+        push_new_tooling("setting")
+        self.git("config", "core.sshCommand", ssh)
+        push_new_tooling("option", options=("-c", "core.sshCommand=" + keepalive))
+        push_new_tooling("environment", env={"GIT_SSH_COMMAND": keepalive})
+        # Each new tree's checks ran once, during its only push.
+        self.assertEqual(len(self.check_calls()), 3)
 
 
 if __name__ == "__main__":

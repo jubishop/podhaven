@@ -2,14 +2,14 @@
 """Verify the automatic slow Siri catalog publication log from a real Simulator launch."""
 
 import argparse
-from importlib.machinery import SourceFileLoader
-from importlib.util import module_from_spec, spec_from_loader
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
 import time
+
+from _sentry_smoke import command, load
 
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = "com.artisanalsoftware.PodHaven.publicationsmoke"
@@ -20,15 +20,7 @@ KEYS = ["trigger", "skipped", "checkMs", "publishMs", "fetchMs", "writeMs", "pod
 PRIVATE = ["Private Sentinel", "private-sentinel"]
 
 
-def load(name, path):
-    loader = SourceFileLoader(name, str(path))
-    module = module_from_spec(spec_from_loader(name, loader))
-    loader.exec_module(module)
-    return module
-
-
 probe = load("hang_probe", ROOT / "bin/sentry-hang-smoke")
-command = probe.command
 
 
 def fetch_logs(run):
