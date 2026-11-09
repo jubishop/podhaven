@@ -20,13 +20,14 @@ bin/check --full
 ```
 
 Setup requires Git and Python 3.9 or later. Checks also require ShellCheck,
-available through the operating system's package manager. The local memory
+available through the operating system's package manager; `bin/check --full`
+also requires actionlint, fish, and Ruby. The local memory
 audit also requires Claude Code, GitHub CLI, QMD, ripgrep, and QMD's Node.js or Bun runtime.
 Its tests use fake services and do not make model requests.
 QMD and direnv are optional. Missing optional tools produce clear notices; an installed but
 failing QMD returns an error. Install QMD using its
 [official instructions](https://github.com/tobi/qmd#installation).
-The starter records its tested QMD version in `.project-starter.json`.
+`bin/doctor` reports the installed QMD version.
 
 Setup validates configuration, activates bundled hooks when no existing
 integration would be displaced, prepares caches, and waits for the initial
@@ -48,10 +49,6 @@ Keep development, CI, and release tools compatible with these requirements.
 Use the existing manifests and setup mechanisms instead of adding conflicting
 version declarations.
 
-Swift Collections uses release 1.6.0. Its development branch introduced a
-Swift runtime symbol that prevented the app from launching on OS 26. Keep
-dependency runtime requirements compatible with the app's deployment target.
-
 When changing application commands, reject unsupported toolchains before
 installation, tests, builds, or release work. Report the detected version,
 the supported versions, and how to select a compatible toolchain. Check the
@@ -59,26 +56,67 @@ selected tools with `xcodebuild -hideShellScriptEnvironment -version` and
 `xcrun swift --version`. Use `DEVELOPER_DIR` to select a different installed
 Xcode for a command.
 
-Prefer maintained releases and coordinate upgrades across development, CI,
-and deployment after dependency and behavior checks. Review automatic version
-selectors when changing the supported major versions; do not silently widen
-that policy. Document and foundation checks must remain independent of Xcode
-and Swift because they do not use those tools.
+Coordinate toolchain upgrades across development, CI, and deployment after
+dependency and behavior checks. Review automatic version selectors when
+changing the supported major versions; do not silently widen that policy.
+Document and foundation checks must remain independent of Xcode and Swift
+because they do not use those tools.
+
+## Package dependencies
+
+The app's Swift package requirements, and the macro package's swift-syntax
+and swift-tagged, deliberately track each project's development branch,
+`main` or GRDB's `master`, instead of release versions. Fixes and support for
+new toolchains, such as Swift 6.4 and Xcode 27, arrive as soon as they land
+rather than with the next release. Version ranges from the newest releases and
+exact release pins were considered and rejected. Two app requirements differ:
+Swift Collections has the exact pin described below, and
+swift-concurrency-extras uses a version range.
+
+These safeguards make branch tracking safe:
+
+- `Package.resolved` records each package's exact revision, so builds stay
+  reproducible until someone updates packages.
+- Every package update is a reviewed change that passes `bin/test-all`.
+- A package whose development branch breaks the app's deployment target gets
+  an exact release pin. Swift Collections uses release 1.6.0 because its
+  development branch introduced a Swift runtime symbol that prevented the app
+  from launching on OS 26. Keep dependency runtime requirements compatible
+  with the app's deployment target.
+
+The app's `Package.resolved` and `PodHavenMacros/Package.resolved` pin the
+macro package's dependencies separately. Xcode builds the macros from the
+app's pins, while `bin/test-all` tests them with `swift test` from the macro
+package's own. Before running tests, `bin/test-all` fails when a macro
+package pin differs from or is missing in the app's file. After updating
+packages, copy the app's new pins for those dependencies into
+`PodHavenMacros/Package.resolved`.
+
+The agent configurations in `.mcp.json`, `.cursor/mcp.json`, and
+`.codex/config.toml` pin the Apple documentation MCP server,
+`@kimsungwhee/apple-docs-mcp`, to one exact version. It is a single-maintainer
+package that runs with the user's full privileges on the Mac that holds the
+release credentials, so a new release must not run unreviewed. Bump it only
+after reviewing the release's changes, in all three files at once;
+`bin/tests/test_mcp_config.py` requires every npx-launched server to name one
+exact version everywhere.
 
 ## Worktrees
 
 Shared worktree, model, and recovery rules are in
 [knowledge search](foundation/knowledge-search.md#worktrees-and-models).
 
-Use `ghdw <name>` for normal removal. It verifies the merge lifecycle before
-removing a worktree, then calls this repository's `bin/post-worktree-remove`.
-`ghm` gets the same cleanup because it uses `ghdw`. Direct Git removals are
-covered by the next preparation or hourly sweep.
+After removing a worktree, run `bin/post-worktree-remove` from the primary
+checkout. It runs `bin/prune-worktree-caches --apply`, which deletes the
+DerivedData of removed checkouts. A removal not followed by it is covered by
+the next preparation or hourly sweep.
 
 ## Xcode caches and automatic cleanup
 
-`bin/setup-application` prepares Xcode caches. `bin/setup`, `bin/prep-worktree`,
-and the Git hook that sets up each new worktree all run it.
+`bin/setup-application` prepares Xcode caches, after setting the SSH keepalive
+that the [tooling pre-push gate](#tooling-pre-push-gate) relies on.
+`bin/setup`, `bin/prep-worktree`, and the Git hook that sets up each new
+worktree all run it.
 
 Each checkout gets private DerivedData at Xcode's default path. Its
 `SourcePackages` link points to the shared `~/Library/Developer/SharedSourcePackages/PodHaven`
@@ -88,7 +126,8 @@ Independent package directories are preserved for inspection.
 
 `bin/install-cleanup-agent` installs an idempotent macOS LaunchAgent from the
 primary checkout. It runs at login/load and once each hour while the user is
-logged in. Cleanup also runs during `bin/prep-worktree` and after `ghdw` removal.
+logged in. Cleanup also runs during `bin/prep-worktree` and from
+`bin/post-worktree-remove`.
 There is no routine maintenance command to remember. Reinstall the agent after
 moving the primary checkout. Its plist is
 `~/Library/LaunchAgents/com.jubi.podhaven.worktree-cleanup.plist`. The agent
@@ -206,9 +245,11 @@ bin/test-all --ensure --revision <sha>
 ```
 
 Replace `<sha>` with the full commit hash being validated. The command requires
-a clean checkout at that revision. It reuses the latest retained passing report
-only when the revision, checkout contents, toolchain, macOS version, destination,
-and evidence artifacts still match. Otherwise, it runs the complete suite. A new commit or
+a clean checkout at that revision. It searches the retained reports newest
+first and reuses the first passing one whose revision, checkout contents,
+toolchain, macOS version, destination, and evidence artifacts still match, so a
+newer failed, interrupted, or other-checkout run does not hide it. Otherwise,
+it runs the complete suite. A new commit or
 change to the integration base requires a fresh full run.
 `bin/test-all --verify --revision <sha>` checks existing evidence without running
 tests and fails when it cannot reuse that evidence. Plain `bin/test-all` always
@@ -340,8 +381,9 @@ lock.
 Run `bin/snfeedback` to select unresolved user feedback, or `bin/snissue` to
 select an unresolved issue that is not feedback. Both show the newest items
 first, with activity within the last 365 days. They use `fzf` when installed
-and a numbered prompt otherwise. Listing requires authenticated `sentry` and
-`gh` commands plus `jq`; analysis requires Claude Code (`claude`).
+and a numbered prompt otherwise. Both are fish scripts, so they require fish.
+Listing requires authenticated `sentry` and `gh` commands plus `jq`; analysis
+requires Claude Code (`claude`).
 
 `bin/snissue` shows severity, available event and user counts, and the state
 of the GitHub issue that tracks the Sentry issue. It accepts a Sentry issue
@@ -359,7 +401,12 @@ covers error issues. Each creates an intake issue with a body marker, its
 label, and an instruction comment declaring its analysis skill as a
 `fix-issue` prerequisite. When an error issue recurs after all its tracking
 issues closed, the checker opens a recurrence intake issue that links them
-instead of reopening shipped work.
+instead of reopening shipped work. Feedback never recurs: each Sentry feedback
+issue is one user's submission, and new feedback arrives under a new slug with
+its own tracking issue. A feedback item's tracking issue, open or closed,
+therefore stays its record for good, and the checker reports it as already
+tracked. Both checkers share `bin/_sentry_intake.sh` and fail rather than
+check a partial Sentry list.
 
 | | Feedback | Error issues |
 | --- | --- | --- |
@@ -437,13 +484,16 @@ needs verification.
 
 `bin/check --documents-only`, `bin/check`, and `bin/check --full` follow the
 [shared check modes](foundation/engineering-policy.md#checks). Here,
-`bin/check-application` runs every repository tooling test: the suites in
-`bin/tests` together, then each Python skill and helper suite under `.agents`
-on its own through unittest, so a suite runs its tests even without a main
-block. It runs every suite even after one fails. Every mode also
-verifies the generated active-memory index. Keep the existing Swift build and
-test requirements for application changes; documentation-only delivery does
-not require building the Swift app.
+`bin/check-application` lints what the foundation checks skip, then runs
+every repository tooling test. ShellCheck lints every other shell script, such
+as the Sentry helpers under `.agents`, and follows the files they source;
+actionlint lints the GitHub workflows; and fish and Ruby check the syntax of
+their scripts, including fastlane's. It then runs the suites in `bin/tests`
+together, then each Python skill and helper suite under `.agents` on its own
+through unittest, so a suite runs its tests even without a main block. It runs
+every check and suite even after one fails. Keep the existing Swift build
+and test requirements for application changes; documentation-only delivery
+does not require building the Swift app.
 
 `bin/test-all` includes the separate application and macro tests and
 `bin/check --full --no-reuse`, which reruns the tooling tests, including the
@@ -493,6 +543,26 @@ The gate reuses a recent passing `bin/check --full` for the same tree, so
 running `bin/check --full` on the final clean commit before pushing makes the
 gate nearly instant. Rebasing changes the tree, so the gate runs the tooling
 tests again, which takes several minutes.
+
+**Decision — 2026-11-08:** Git opens an SSH connection and reads the remote's
+refs before it runs the hook, then leaves that connection idle until the hook
+finishes. GitHub can close it during a full run, so the push used to fail
+after the checks passed, with exit status 141 and no other message. Smart
+HTTPS remotes don't hold a connection across the hook. Two measures keep a
+gated SSH push from failing that way:
+
+- **Keepalive:** `bin/setup-application`, which `bin/setup`, `bin/prep-worktree`,
+  and each new worktree run, sets the repository's `core.sshCommand` to
+  `ssh -o ServerAliveInterval=30`. It leaves an SSH command that is already
+  configured alone: `GIT_SSH_COMMAND`, `GIT_SSH`, or `core.sshCommand` in any
+  scope.
+- **Fallback:** when the gate runs the tooling tests in full for an SSH
+  remote whose SSH command has no positive `ServerAliveInterval`, it lets
+  them record their pass and then refuses the push, saying the checks passed
+  and to push again. Git can still exit with status 141 after that message,
+  because it writes to the closed connection as it disconnects. The retry
+  reuses that pass at once. A keepalive set only in `~/.ssh/config` isn't
+  detected, so such a push takes the retry.
 
 ## Scheduled memory audit
 
