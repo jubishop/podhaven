@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -36,9 +37,14 @@ except ValueError:
     print("<unknown>: error: Unable to read configuration: The given data was not valid JSON.", file=sys.stderr)
     sys.exit(1)
 sys.stderr.write(os.environ["FAKE_OUTPUT"].replace("{root}", os.getcwd()))
-sys.exit(int(os.environ["FAKE_STATUS"]))
+sys.stderr.flush()
+status = int(os.environ["FAKE_STATUS"])
+if status < 0:
+    os.kill(os.getpid(), -status)
+sys.exit(status)
 """
 PREVIEW_RULE = "{root}/PodHaven/Views/Card.swift:5:1: error: [NeverForceUnwrap] do not force unwrap 'x'\n"
+PREVIEW_NOTE = "{root}/PodHaven/Views/Card.swift:1:1: note: ambiguous overload 'g(b:)' is here\n"
 
 
 class LintSwiftFormatTests(unittest.TestCase):
@@ -108,6 +114,19 @@ class LintSwiftFormatTests(unittest.TestCase):
 
     def test_other_output_fails_a_nonzero_exit_despite_preview_findings(self):
         self.assertFails(self.lint(PREVIEW_RULE + "Stack dump:\n", status=1), "Stack dump:", "exited with status 1")
+
+    def test_signal_fails_despite_preview_findings(self):
+        self.assertFails(self.lint(PREVIEW_RULE, status=-signal.SIGKILL), "do not force unwrap", "exited with status -9")
+
+    def test_notes_follow_their_findings(self):
+        result = self.lint(PREVIEW_RULE + PREVIEW_NOTE, status=1)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("lint passed", result.stdout)
+        finding = "PodHavenShare/Share.swift:1:1: error: [FullyIndirectEnum] declare enum 'E' itself as indirect"
+        note = "PodHavenShare/Share.swift:2:3: note: remove 'indirect' here"
+        result = self.lint(PREVIEW_RULE + PREVIEW_NOTE + f"{{root}}/{finding}\n{{root}}/{note}\n", status=1)
+        self.assertFails(result, f"{finding}\n{self.repo}/{note}\n", "1 issue(s)")
+        self.assertNotIn("ambiguous overload", result.stderr)
 
 
 if __name__ == "__main__":
