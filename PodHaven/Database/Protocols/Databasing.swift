@@ -61,7 +61,7 @@ protocol Databasing: Sendable {
     updatedPodcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [FeedMergeEpisode]
-  ) async throws -> [Episode]
+  ) async throws -> NewEpisodeAutomation?
 
   // MARK: - Podcast Writers
 

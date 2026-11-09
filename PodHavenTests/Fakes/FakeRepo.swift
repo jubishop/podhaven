@@ -64,6 +64,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let pendingPublisherTranscriptStoreAfterWriteSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedPublisherTranscriptStoreAfterWriteCount = ThreadSafe<Int>(0)
   private var publisherTranscriptStoreAfterWriteSuspensions: [CheckedContinuation<Void, Never>] = []
+  nonisolated let pendingSeriesFeedUpdateAfterWriteSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedSeriesFeedUpdateAfterWriteCount = ThreadSafe<Int>(0)
+  private var seriesFeedUpdateAfterWriteSuspensions: [CheckedContinuation<Void, Never>] = []
 
   // Same shape as pendingEpisodeFetchSuspend, but for updateLastUpdates so
   // tests can park the batched flush inside RefreshManager.performRefresh.
@@ -380,7 +383,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     updatedPodcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [FeedMergeEpisode]
-  ) async throws -> [Episode] {
+  ) async throws -> NewEpisodeAutomation? {
     recordCall(
       methodName: "updateSeriesFromFeed",
       parameters: (
@@ -390,11 +393,33 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         existingEpisodes: existingEpisodes
       )
     )
-    return try await repo.updateSeriesFromFeed(
+    let result = try await repo.updateSeriesFromFeed(
       podcast: podcast,
       updatedPodcast: updatedPodcast,
       unsavedEpisodes: unsavedEpisodes,
       existingEpisodes: existingEpisodes
+    )
+    if pendingSeriesFeedUpdateAfterWriteSuspend() {
+      pendingSeriesFeedUpdateAfterWriteSuspend(false)
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        seriesFeedUpdateAfterWriteSuspensions.append(continuation)
+        suspendedSeriesFeedUpdateAfterWriteCount(seriesFeedUpdateAfterWriteSuspensions.count)
+      }
+    }
+    return result
+  }
+
+  func resumeAllSeriesFeedUpdateAfterWriteSuspensions() {
+    let toResume = seriesFeedUpdateAfterWriteSuspensions
+    seriesFeedUpdateAfterWriteSuspensions.removeAll()
+    suspendedSeriesFeedUpdateAfterWriteCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForSeriesFeedUpdateAfterWriteSuspended() async throws {
+    try await Wait.until(
+      { self.suspendedSeriesFeedUpdateAfterWriteCount() > 0 },
+      { "Expected the series feed update to suspend after writing" }
     )
   }
 
