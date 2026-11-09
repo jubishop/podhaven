@@ -96,7 +96,7 @@ struct PodAVPlayerPlaybackSnapshot {
 
   var episodeID: Episode.ID?
   var eventSource: PodAVPlayerEventSource?
-  private var playbackRequestID: UUID?
+  private(set) var playbackRequestID: UUID?
   var lastDatabaseUpdateTime: CMTime?
   var latestSeekID: UUID?
   var silenceState = SilencePlaybackState()
@@ -263,6 +263,12 @@ struct PodAVPlayerPlaybackSnapshot {
         episodeID: podcastEpisode.id,
         mediaServicesResetElapsed: mediaServicesResetElapsed
       )
+      guard loaded.isPlayable else {
+        throw PodAVPlayerError.notPlayable(
+          podcastEpisode.id,
+          details: "CachedURL: \(cachedURL)"
+        )
+      }
       if let content {
         do {
           if try await Container.shared.silenceStore().isCurrent(content) {
@@ -282,29 +288,39 @@ struct PodAVPlayerPlaybackSnapshot {
       throw CancellationError()
     } catch {
       try Task.checkCancellation()
-      Self.log.caughtError(
-        "performLoadAsset: cache load failed, discarding invalid cache and falling back to remote",
-        error,
-        level: .warning
-      )
-      do {
-        try await cacheFileStore.discardInvalidFile(
-          for: podcastEpisode.id,
-          cachedFilename: cachedURL.lastPathComponent
-        )
-      } catch {
+      if Self.isBadCachedContent(error) {
         Self.log.caughtError(
-          "performLoadAsset: failed to discard invalid cache for \(podcastEpisode.toString)",
-          error
+          "performLoadAsset: cached file is unplayable, discarding it and falling back to remote",
+          error,
+          level: .warning
         )
-      }
-      do {
-        try await cacheManager.downloadToCache(for: podcastEpisode.id)
-        Self.log.info("performLoadAsset: re-queued cache download for \(podcastEpisode.toString)")
-      } catch {
+        do {
+          try await cacheFileStore.discardInvalidFile(
+            for: podcastEpisode.id,
+            cachedFilename: cachedURL.lastPathComponent
+          )
+        } catch {
+          Self.log.caughtError(
+            "performLoadAsset: failed to discard invalid cache for \(podcastEpisode.toString)",
+            error
+          )
+        }
+        do {
+          try await cacheManager.downloadToCache(for: podcastEpisode.id)
+          Self.log.info(
+            "performLoadAsset: re-queued cache download for \(podcastEpisode.toString)"
+          )
+        } catch {
+          Self.log.caughtError(
+            "performLoadAsset: failed to re-queue cache download for \(podcastEpisode.toString)",
+            error
+          )
+        }
+      } else {
         Self.log.caughtError(
-          "performLoadAsset: failed to re-queue cache download for \(podcastEpisode.toString)",
-          error
+          "performLoadAsset: cache load failed, keeping cached file and falling back to remote",
+          error,
+          level: .warning
         )
       }
       return try await performEpisodeAssetLoad(
@@ -314,6 +330,32 @@ struct PodAVPlayerPlaybackSnapshot {
         mediaServicesResetElapsed: mediaServicesResetElapsed
       )
     }
+  }
+
+  private static let badContentErrorCodes: Set<Int> = [
+    AVError.Code.decodeFailed.rawValue,
+    AVError.Code.failedToParse.rawValue,
+    AVError.Code.fileFailedToParse.rawValue,
+    AVError.Code.fileFormatNotRecognized.rawValue,
+    AVError.Code.undecodableMediaData.rawValue,
+  ]
+
+  private static func isBadCachedContent(_ error: any Error) -> Bool {
+    if case PodAVPlayerError.notPlayable = error { return true }
+    if ErrorKit.isMissingFile(error) { return true }
+
+    let nsError = error as NSError
+    if nsError.domain == NSURLErrorDomain, nsError.code == URLError.Code.fileDoesNotExist.rawValue {
+      return true
+    }
+    if nsError.domain == AVFoundationErrorDomain, badContentErrorCodes.contains(nsError.code) {
+      return true
+    }
+
+    guard let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? any Error else {
+      return false
+    }
+    return isBadCachedContent(underlying)
   }
 
   private func performEpisodeAssetLoad(
