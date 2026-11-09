@@ -12,11 +12,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / ".swift-format"
-LINT_ROOTS = [ROOT / "PodHaven", ROOT / "PodHavenIntents", ROOT / "PodHavenMacros" / "Sources"]
+LINT_ROOTS = [
+  ROOT / "PodHaven",
+  ROOT / "PodHavenIntents",
+  ROOT / "PodHavenMacros" / "Sources",
+  ROOT / "PodHavenShare",
+  ROOT / "PodHavenWidget",
+]
 PREVIEW_MARK_RE = re.compile(r"^// MARK: - Preview")
 DIAG_RE = re.compile(
-    r"^(?P<path>[^:]+):(?P<line>\d+):\d+:\s+(?P<level>warning|error):\s+\[(?P<rule>\w+)\]"
+    r"^(?P<path>[^:]+):(?P<line>\d+):\d+:\s+(?:warning|error):\s+"
+    r"(?:\[(?P<rule>\w+)\]\s*)?(?P<message>.*)$"
 )
+NOTE_RE = re.compile(r"^[^:]+:\d+:\d+:\s+note:\s")
+LEVEL_RE = re.compile(r"(?:^|\s)(?:warning|error):")
 
 
 def is_excluded(path: Path) -> bool:
@@ -92,51 +101,84 @@ def main() -> int:
 
   swift_format = swift_format_executable()
 
-  result = subprocess.run(
-    [
-      swift_format,
-      "lint",
-      "--configuration",
-      str(CONFIG),
-      "--strict",
-      "--parallel",
-      *[str(path) for path in files],
-    ],
-    cwd=ROOT,
-    capture_output=True,
-    text=True,
-  )
+  try:
+    result = subprocess.run(
+      [
+        swift_format,
+        "lint",
+        "--configuration",
+        str(CONFIG),
+        "--strict",
+        "--parallel",
+        *[str(path) for path in files],
+      ],
+      cwd=ROOT,
+      capture_output=True,
+      text=True,
+    )
+  except OSError as error:
+    print(f"error: could not run swift-format at {swift_format}: {error}", file=sys.stderr)
+    return 1
 
+  output = result.stdout + result.stderr
   diagnostics: list[str] = []
+  report: list[str] = []
+  other_output: list[str] = []
   seen: set[tuple[str, int, str]] = set()
+  preview_findings = 0
+  reporting_notes = False
 
-  for line in (result.stdout + result.stderr).splitlines():
-    match = DIAG_RE.match(line)
-    if not match:
+  for line in output.splitlines():
+    if not line.strip():
       continue
 
-    path = Path(match.group("path"))
-    if not path.is_absolute():
-      path = ROOT / path
+    if NOTE_RE.match(line):
+      if reporting_notes:
+        report.append(line)
+      continue
+    reporting_notes = False
 
-    line_number = int(match.group("line"))
-    rule = match.group("rule")
-    preview_line = preview_starts.get(path)
-    if preview_line is not None and line_number >= preview_line:
+    if match := DIAG_RE.match(line):
+      path = Path(match.group("path"))
+      if not path.is_absolute():
+        path = ROOT / path
+
+      line_number = int(match.group("line"))
+      rule = match.group("rule")
+      preview_line = preview_starts.get(path)
+      if rule and preview_line is not None and line_number >= preview_line:
+        preview_findings += 1
+        continue
+
+      key = (str(path), line_number, rule or match.group("message"))
+    elif LEVEL_RE.search(line):
+      key = ("", 0, line)
+    else:
+      other_output.append(line)
       continue
 
-    key = (str(path), line_number, rule)
     if key in seen:
       continue
     seen.add(key)
     diagnostics.append(line)
-
-  for line in diagnostics:
-    print(line, file=sys.stderr)
+    report.append(line)
+    reporting_notes = True
 
   if diagnostics:
+    for line in [*report, *other_output]:
+      print(line, file=sys.stderr)
     print(
       f"swift-format lint failed with {len(diagnostics)} issue(s) in production code",
+      file=sys.stderr,
+    )
+    return 1
+
+  preview_findings_explain_exit = result.returncode == 1 and preview_findings and not other_output
+  if result.returncode != 0 and not preview_findings_explain_exit:
+    sys.stderr.write(output)
+    print(
+      f"error: swift-format lint exited with status {result.returncode}"
+      " without reporting a production-code issue",
       file=sys.stderr,
     )
     return 1
