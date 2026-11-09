@@ -233,10 +233,12 @@ enum AppInfo {
     Bundle.main.infoDictionary?["GitCommitHash"] as? String ?? "Unknown"
   }
 
-  static var buildDate: Date {
+  // Computed once: Sentry forwards every warning with this value. Failures log
+  // below the Sentry handler's level so reading it never re-enters that handler.
+  static let buildDate: Date = {
     guard let infoPath = Bundle.main.path(forResource: "Info", ofType: "plist")
     else {
-      log.warning("Info.plist not found, returning current date as buildDate")
+      log.info("Info.plist not found, returning current date as buildDate")
       return Date()
     }
 
@@ -245,7 +247,7 @@ enum AppInfo {
       if let infoDate = infoAttr[FileAttributeKey.creationDate] as? Date {
         return infoDate
       }
-      log.warning("Info.plist has no creationDate attribute, returning current date as buildDate")
+      log.info("Info.plist has no creationDate attribute, returning current date as buildDate")
       return Date()
     } catch {
       log.caughtError(
@@ -255,7 +257,7 @@ enum AppInfo {
       )
       return Date()
     }
-  }
+  }()
 
   // MARK: - Data Storage
 
