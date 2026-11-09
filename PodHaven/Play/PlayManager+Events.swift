@@ -204,7 +204,7 @@ extension PlayManager {
 
     let previousPlaybackStatus = sharedState.playbackStatus
     let interruptedEpisodeID =
-      sharedState.onDeck?.id ?? sharedState.currentEpisodeID ?? mediaServicesRecoveryEpisodeID
+      sharedState.onDeck?.id ?? sharedState.currentEpisodeID ?? onDeckRecoveryEpisodeID
 
     await cancelLoadForMediaServicesReset()
 

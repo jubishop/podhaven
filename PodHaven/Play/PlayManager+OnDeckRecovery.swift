@@ -3,21 +3,26 @@
 import Foundation
 import Logging
 
-enum MediaServicesRecoveryState: Equatable {
+enum OnDeckRecoveryState: Equatable {
+  enum Cause {
+    case failedRestore
+    case mediaServicesReset
+  }
+
   case none
-  case awaitingUserAction(Episode.ID)
+  case awaitingUserAction(Episode.ID, Cause)
 }
 
 extension PlayManager {
-  var mediaServicesRecoveryEpisodeID: Episode.ID? {
-    guard case .awaitingUserAction(let episodeID) = mediaServicesRecoveryState else { return nil }
+  var onDeckRecoveryEpisodeID: Episode.ID? {
+    guard case .awaitingUserAction(let episodeID, _) = onDeckRecoveryState else { return nil }
     return episodeID
   }
 
-  func mediaServicesRecoveryEpisode(
+  func onDeckRecoveryEpisode(
     whenLoading podcastEpisode: PodcastEpisode
   ) async throws -> PodcastEpisode? {
-    guard let recoveryEpisodeID = mediaServicesRecoveryEpisodeID else { return nil }
+    guard let recoveryEpisodeID = onDeckRecoveryEpisodeID else { return nil }
     guard recoveryEpisodeID != podcastEpisode.id else { return podcastEpisode }
     return try await repo.podcastEpisode(recoveryEpisodeID)
   }
@@ -28,18 +33,24 @@ extension PlayManager {
     onDeckBecameCurrentAt = nil
 
     if let interruptedEpisodeID {
-      mediaServicesRecoveryState = .awaitingUserAction(interruptedEpisodeID)
+      onDeckRecoveryState = .awaitingUserAction(interruptedEpisodeID, .mediaServicesReset)
     } else {
-      mediaServicesRecoveryState = .none
+      onDeckRecoveryState = .none
       stateManager.clearOnDeck()
     }
     setStatus(sharedState.onDeck == nil ? .stopped : .paused)
     Task { @MainActor in CommandCenter.updateNextTrack() }
   }
 
-  func restoreMediaServicesRecoveryPresentation(_ podcastEpisode: PodcastEpisode) async {
-    guard mediaServicesRecoveryEpisodeID == podcastEpisode.id else { return }
+  func beginFailedRestoreRecovery(_ podcastEpisode: PodcastEpisode) async {
+    onDeckRecoveryState = .awaitingUserAction(podcastEpisode.id, .failedRestore)
+    await restoreOnDeckRecoveryPresentation(podcastEpisode)
+  }
+
+  func restoreOnDeckRecoveryPresentation(_ podcastEpisode: PodcastEpisode) async {
+    guard onDeckRecoveryEpisodeID == podcastEpisode.id else { return }
     stateManager.setOnDeck(podcastEpisode)
+    fetchImage(for: podcastEpisode)
     onDeckBecameCurrentAt = nil
     setStatus(.paused)
     Task { @MainActor in CommandCenter.updateNextTrack() }
@@ -48,28 +59,28 @@ extension PlayManager {
       try await queue.dequeue(podcastEpisode.id)
     } catch {
       Self.log.caughtError(
-        "restoreMediaServicesRecoveryPresentation: failed to dequeue episode \(podcastEpisode.id)",
+        "restoreOnDeckRecoveryPresentation: failed to dequeue episode \(podcastEpisode.id)",
         error
       )
     }
   }
 
-  func completeMediaServicesRecovery() {
-    mediaServicesRecoveryState = .none
+  func completeOnDeckRecovery() {
+    onDeckRecoveryState = .none
   }
 
-  func reloadMediaServicesRecoveryIfNeeded(for episodeID: Episode.ID, preserving requestID: UUID)
+  func reloadOnDeckRecoveryIfNeeded(for episodeID: Episode.ID, preserving requestID: UUID)
     async -> Bool
   {
     guard playbackRequestRevision == requestID else { return false }
-    guard mediaServicesRecoveryEpisodeID == episodeID else { return true }
+    guard onDeckRecoveryEpisodeID == episodeID else { return true }
 
     do {
       let podcastEpisode = try await repo.podcastEpisode(episodeID)
       guard playbackRequestRevision == requestID else { return false }
       guard let podcastEpisode else {
-        Self.log.warning("Media-services recovery episode \(episodeID) not found in database")
-        mediaServicesRecoveryState = .none
+        Self.log.warning("On-deck recovery episode \(episodeID) not found in database")
+        onDeckRecoveryState = .none
         pendingPlaybackRequest = .none
         stateManager.clearOnDeck()
         setStatus(.stopped)
@@ -84,7 +95,7 @@ extension PlayManager {
       return true
     } catch {
       Self.log.caughtError(
-        "play: failed to restore episode \(episodeID) after media-services reset",
+        "play: failed to reload on-deck recovery episode \(episodeID)",
         error
       )
       guard playbackRequestRevision == requestID else { return false }
@@ -94,19 +105,19 @@ extension PlayManager {
     }
   }
 
-  func clearMediaServicesRecoveryIfDeleted(_ episodeIDs: Set<Episode.ID>) {
-    guard let episodeID = mediaServicesRecoveryEpisodeID, episodeIDs.contains(episodeID) else {
+  func clearOnDeckRecoveryIfDeleted(_ episodeIDs: Set<Episode.ID>) {
+    guard let episodeID = onDeckRecoveryEpisodeID, episodeIDs.contains(episodeID) else {
       return
     }
-    mediaServicesRecoveryState = .none
+    onDeckRecoveryState = .none
   }
 
-  func clearMediaServicesRecovery(for episodeID: Episode.ID) {
-    guard mediaServicesRecoveryEpisodeID == episodeID else { return }
-    mediaServicesRecoveryState = .none
+  func clearOnDeckRecovery(for episodeID: Episode.ID) {
+    guard onDeckRecoveryEpisodeID == episodeID else { return }
+    onDeckRecoveryState = .none
   }
 
-  func clearMediaServicesRecovery() {
-    mediaServicesRecoveryState = .none
+  func clearOnDeckRecovery() {
+    onDeckRecoveryState = .none
   }
 }
