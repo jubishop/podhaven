@@ -51,6 +51,22 @@ import Testing
     #expect(!sharedState.isOnDeck(unsavedEpisode))
   }
 
+  @Test("playbackPosition is live for the on-deck episode and stored for other rows")
+  func playbackPositionIsLiveOnlyOnDeck() async throws {
+    let (playing, other) = try await Create.twoPodcastEpisodes(
+      Create.unsavedEpisode(currentTime: .seconds(10)),
+      Create.unsavedEpisode(currentTime: .seconds(20))
+    )
+    #expect(sharedState.playbackPosition(of: playing).seconds == 10)
+
+    sharedState.currentEpisodeID = playing.id
+    sharedState.$onDeck.new(OnDeck(from: playing))
+    Container.shared.stateManager().setCurrentTime(.seconds(95))
+
+    #expect(sharedState.playbackPosition(of: playing).seconds == 95)
+    #expect(sharedState.playbackPosition(of: other).seconds == 20)
+  }
+
   // Regression: identity checks must not subscribe to the `onDeck` broadcast,
   // which playback rewrites as `currentTime` advances. Reading
   // `onDeck` for an identity-only check pulled every tick into the tracked
