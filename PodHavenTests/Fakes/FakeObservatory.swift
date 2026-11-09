@@ -180,7 +180,7 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     filter: SQLExpression,
     order: SQLOrdering?,
     limit: Int
-  ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
+  ) -> SettledPlaybackObservation<[ListablePodcastEpisode]> {
     recordCall(methodName: "listablePodcastEpisodes(filter:order:limit:)", parameters: limit)
     if let queue = heldListablePodcastEpisodes.takeArmedQueue() {
       return listablePodcastEpisodes(filter: filter, order: order, limit: limit, deliveredOn: queue)
@@ -201,15 +201,21 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     order: SQLOrdering?,
     limit: Int,
     deliveredOn queue: DispatchQueue
-  ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
-    ValueObservation
-      .tracking { db in
-        try ListablePodcastEpisode
-          .request(filter: filter, order: order, limit: limit)
-          .fetchAll(db)
-      }
-      .removeDuplicates()
-      .values(in: Container.shared.appDB().unsafeTestDB, scheduling: .async(onQueue: queue))
+  ) -> SettledPlaybackObservation<[ListablePodcastEpisode]> {
+    let db = Container.shared.appDB().unsafeTestDB
+    return SettledPlaybackObservation(
+      observe: {
+        ValueObservation
+          .tracking { db in
+            try ListablePodcastEpisode
+              .request(filter: filter, order: order, limit: limit)
+              .fetchAll(db)
+          }
+          .removeDuplicates()
+          .values(in: db, scheduling: .async(onQueue: queue))
+      },
+      refreshes: { [] }
+    )
   }
 
   // MARK: - Episodes
@@ -221,7 +227,7 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
 
   // MARK: - Queue
 
-  func queuedPodcastEpisodes(limit: Int) -> AsyncValueObservation<[ListablePodcastEpisode]> {
+  func queuedPodcastEpisodes(limit: Int) -> SettledPlaybackObservation<[ListablePodcastEpisode]> {
     recordCall(methodName: "queuedPodcastEpisodes", parameters: limit)
     if let queue = heldQueuedPodcastEpisodes.takeArmedQueue() {
       return listablePodcastEpisodes(
@@ -286,27 +292,27 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
   // MARK: - Singular Observations
 
   func podcastSeriesDetail(_ podcastID: Podcast.ID)
-    -> AsyncValueObservation<PodcastSeriesDetail?>
+    -> SettledPlaybackObservation<PodcastSeriesDetail?>
   {
     recordCall(methodName: "podcastSeriesDetail", parameters: podcastID)
     var script = podcastSeriesDetailScript()
     if let next = script.first {
       script.removeFirst()
       podcastSeriesDetailScript(script)
-      return next(podcastID)
+      return SettledPlaybackObservation(observe: { next(podcastID) }, refreshes: { [] })
     }
     return observatory.podcastSeriesDetail(podcastID)
   }
 
   func podcastEpisodeWithTags(_ episodeID: Episode.ID)
-    -> AsyncValueObservation<PodcastEpisodeWithTags?>
+    -> SettledPlaybackObservation<PodcastEpisodeWithTags?>
   {
     recordCall(methodName: "podcastEpisodeWithTags", parameters: episodeID)
     var script = podcastEpisodeWithTagsScript()
     if let next = script.first {
       script.removeFirst()
       podcastEpisodeWithTagsScript(script)
-      return next(episodeID)
+      return SettledPlaybackObservation(observe: { next(episodeID) }, refreshes: { [] })
     }
     return observatory.podcastEpisodeWithTags(episodeID)
   }

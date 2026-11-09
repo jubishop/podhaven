@@ -14,6 +14,8 @@ extension Container {
 }
 
 struct Observatory: Observing {
+  @DynamicInjected(\.sharedState) private var sharedState
+
   private static let log = Log.as(LogSubsystem.Database.observatory)
 
   // MARK: - Initialization
@@ -146,12 +148,12 @@ struct Observatory: Observing {
     filter: SQLExpression,
     order: SQLOrdering? = nil,
     limit: Int = Int.max
-  ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
-    reader.observe { db in
-      try ListablePodcastEpisode
-        .request(filter: filter, order: order, limit: limit)
-        .fetchAll(db)
-    }
+  ) -> SettledPlaybackObservation<[ListablePodcastEpisode]> {
+    let request = ListablePodcastEpisode.request(filter: filter, order: order, limit: limit)
+    return observeSettledPlayback(
+      regions: [request.select(ListableEpisode.observedSelection)],
+      fetch: { db in try request.fetchAll(db) }
+    )
   }
 
   // MARK: - Episodes
@@ -169,7 +171,7 @@ struct Observatory: Observing {
 
   // MARK: - Queue
 
-  func queuedPodcastEpisodes(limit: Int = Int.max) -> AsyncValueObservation<
+  func queuedPodcastEpisodes(limit: Int = Int.max) -> SettledPlaybackObservation<
     [ListablePodcastEpisode]
   > {
     listablePodcastEpisodes(
@@ -255,24 +257,30 @@ struct Observatory: Observing {
   // MARK: - Singular Observations
 
   func podcastSeriesDetail(_ podcastID: Podcast.ID)
-    -> AsyncValueObservation<PodcastSeriesDetail?>
+    -> SettledPlaybackObservation<PodcastSeriesDetail?>
   {
-    reader.observe { db in
-      try PodcastSeriesDetail.fetchOne(podcastID, in: db)
-    }
+    observeSettledPlayback(
+      regions: PodcastSeriesDetail.observedRegions(podcastID),
+      fetch: { db in try PodcastSeriesDetail.fetchOne(podcastID, in: db) }
+    )
   }
 
   func podcastEpisodeWithTags(_ episodeID: Episode.ID)
-    -> AsyncValueObservation<PodcastEpisodeWithTags?>
+    -> SettledPlaybackObservation<PodcastEpisodeWithTags?>
   {
-    reader.observe { db in
-      try Episode
-        .withID(episodeID)
-        .including(required: Episode.podcast)
-        .including(all: Episode.tags.order { $0.name.collating(.nocase) })
-        .asRequest(of: PodcastEpisodeWithTags.self)
-        .fetchOne(db)
-    }
+    let request =
+      Episode
+      .withID(episodeID)
+      .including(required: Episode.podcast)
+      .including(all: Episode.tags.order { $0.name.collating(.nocase) })
+    return observeSettledPlayback(
+      regions: [
+        AnyDatabaseRegionConvertible { db in
+          try request.select(Episode.observedColumns(db)).databaseRegion(db)
+        }
+      ],
+      fetch: { db in try request.asRequest(of: PodcastEpisodeWithTags.self).fetchOne(db) }
+    )
   }
 
   func transcript(_ episodeID: Episode.ID) -> AsyncValueObservation<Transcript?> {
@@ -369,6 +377,20 @@ struct Observatory: Observing {
   }
 
   // MARK: - Private Helpers
+
+  // The on-deck row shows live progress from `SharedState.onDeck`; once the
+  // current episode changes, the outgoing row needs its stored position.
+  private func observeSettledPlayback<Value: Equatable & Sendable>(
+    regions: [any DatabaseRegionConvertible],
+    fetch: @escaping @Sendable (Database) throws -> Value
+  ) -> SettledPlaybackObservation<Value> {
+    let currentEpisodeID = sharedState.$currentEpisodeID
+    return reader.observe(
+      regions: regions,
+      refreshes: { currentEpisodeID.stream().dropFirst().map { _ in } },
+      fetch: fetch
+    )
+  }
 
   private static let countKey = "count"
 
