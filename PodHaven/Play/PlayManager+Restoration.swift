@@ -8,7 +8,7 @@ extension PlayManager {
     guard playbackRequestRevision == requestID else { return }
     guard sharedState.onDeck == nil else { return }
     guard let currentEpisodeID = sharedState.currentEpisodeID else { return }
-    guard case .none = mediaServicesRecoveryState else { return }
+    guard case .none = onDeckRecoveryState else { return }
 
     Self.log.info("Loading persisted episode \(currentEpisodeID)")
     do {
@@ -16,7 +16,7 @@ extension PlayManager {
       guard playbackRequestRevision == requestID,
         sharedState.onDeck == nil,
         sharedState.currentEpisodeID == currentEpisodeID,
-        case .none = mediaServicesRecoveryState
+        case .none = onDeckRecoveryState
       else { return }
       guard let podcastEpisode else {
         Self.log.warning("Persisted episode \(currentEpisodeID) not found in database")

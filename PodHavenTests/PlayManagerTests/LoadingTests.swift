@@ -170,7 +170,7 @@ import Testing
     try await PlayHelpers.waitForAudioActive(false)
   }
 
-  @Test("episode failing makes audio session inactive")
+  @Test("episode failing after recovery makes audio session inactive")
   func episodeFailingMakesAudioSessionInactive() async throws {
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
@@ -180,8 +180,18 @@ import Testing
     try await PlayHelpers.waitForAudioActive(true)
 
     try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
-    let currentItem = avPlayer.current as! FakeAVPlayerItem
-    currentItem.setStatus(.failed)
+    let failedItem = avPlayer.current as! FakeAVPlayerItem
+    failedItem.setStatus(.failed)
+    let recoveredItem: FakeAVPlayerItem = try await Wait.forValue { @MainActor in
+      guard let item = avPlayer.current as? FakeAVPlayerItem, item !== failedItem,
+        sharedState.playbackStatus == .playing
+      else { return nil }
+      return item
+    }
+    try await PlayHelpers.waitForAudioActive(true)
+
+    recoveredItem.setStatus(.failed)
+    try await PlayHelpers.waitFor(.stopped)
     try await PlayHelpers.waitForAudioActive(false)
   }
 
@@ -680,6 +690,81 @@ import Testing
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
     try await PlayHelpers.waitFor(.playing)
     #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+    try await PlayHelpers.waitForQueue([])
+  }
+
+  @Test("asset failure during persisted restore keeps the episode on deck and out of Up Next")
+  func assetFailureDuringPersistedRestoreKeepsEpisodeOnDeckAndOutOfUpNext() async throws {
+    dataLoader.setDefaultHandler { url in
+      FakeDataLoader.create(url).pngData()!
+    }
+    let (podcastEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes(
+      Create.unsavedEpisode(image: URL.valid())
+    )
+    try await queue.unshift(queuedEpisode.id)
+    sharedState.currentEpisodeID = podcastEpisode.id
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      error: TestError.assetLoadFailure(podcastEpisode)
+    )
+
+    await playManager.start()
+
+    try await PlayHelpers.waitForLoadResponse(for: podcastEpisode.episode.mediaURL)
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.paused)
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+    try await PlayHelpers.waitForQueue([queuedEpisode])
+    try await Wait.until(
+      { @MainActor in sharedState.onDeck?.artwork != nil },
+      { @MainActor in "Expected the restored episode's artwork in the play bar" }
+    )
+
+    await episodeAssetLoader.clearCustomHandler(for: podcastEpisode.episode)
+    await playManager.toggle()
+
+    try await PlayHelpers.waitForLoadResponse(for: podcastEpisode.episode.mediaURL, count: 2)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
+    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitForQueue([queuedEpisode])
+  }
+
+  @Test("retrying a failed persisted restore reloads it as a fresh restore")
+  func retryingFailedPersistedRestoreReloadsItAsFreshRestore() async throws {
+    let podcastRate: Double = 1.5
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(defaultPlaybackRate: podcastRate),
+        unsavedEpisode: try Create.unsavedEpisode()
+      )
+    )
+    sharedState.currentEpisodeID = podcastEpisode.id
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      error: TestError.assetLoadFailure(podcastEpisode)
+    )
+    await playManager.start()
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+
+    await playManager.play()
+
+    try await PlayHelpers.waitForLoadResponse(for: podcastEpisode.episode.mediaURL, count: 2)
+    try await Wait.until(
+      { @MainActor in alert.config != nil },
+      { @MainActor in "Expected an alert after the retried restore failed" }
+    )
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.paused)
+    try await PlayHelpers.waitForQueue([])
+
+    await episodeAssetLoader.clearCustomHandler(for: podcastEpisode.episode)
+    await playManager.play()
+
+    try await PlayHelpers.waitForLoadResponse(for: podcastEpisode.episode.mediaURL, count: 3)
+    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.waitForPlayRate(Float(podcastRate))
+    #expect(avPlayer.rate == Float(podcastRate))
     try await PlayHelpers.waitForQueue([])
   }
 

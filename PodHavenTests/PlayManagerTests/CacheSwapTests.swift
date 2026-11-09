@@ -48,7 +48,7 @@ import Testing
       let loader = Container.shared.fakeEpisodeAssetLoader()
       let cachedLoads = await loader.responseCount(for: cachedURL)
       let remoteLoads = await loader.responseCount(for: episode.episode.mediaURL)
-      await loader.respond(to: cachedURL, error: TestError.assetLoadFailure(episode))
+      await loader.respond(to: cachedURL, error: AVError(.fileFormatNotRecognized))
 
       switch trigger {
       case .pause:

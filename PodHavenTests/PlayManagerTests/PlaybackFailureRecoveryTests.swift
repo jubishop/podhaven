@@ -225,6 +225,53 @@ import Testing
     #expect(alert.config == nil)
   }
 
+  @Test("item failure during playback recovers once, then returns the episode to Up Next")
+  func itemFailureDuringPlayback() async throws {
+    let failed = try await Create.podcastEpisode()
+    PlayHelpers.setupCommandHandling()
+    try await playManager.play(failed)
+    let originalItem = try #require(avPlayer.current as? FakeAVPlayerItem)
+
+    originalItem.setStatus(.failed)
+    let recoveredItem = try await waitForRecoveredItem(replacing: originalItem, status: .playing)
+    #expect(sharedState.onDeck?.id == failed.id)
+    #expect(avPlayer.playCallCount == 2)
+    #expect(try await PlayHelpers.queuedEpisodeIDs.isEmpty)
+    #expect(alert.config == nil)
+
+    recoveredItem.setStatus(.failed)
+    try await Wait.until({ await alert.config != nil }, { "Expected a playback failure alert" })
+    #expect(sharedState.onDeck == nil)
+    #expect(avPlayer.current == nil)
+    #expect(avPlayer.playCallCount == 2)
+    #expect(try await PlayHelpers.queuedEpisodeIDs == [failed.id])
+  }
+
+  @Test("item failure while paused reloads the episode without resuming playback")
+  func itemFailureWhilePaused() async throws {
+    let failed = try await Create.podcastEpisode()
+    PlayHelpers.setupCommandHandling()
+    try await playManager.play(failed)
+    await playManager.pause()
+    let originalItem = try #require(avPlayer.current as? FakeAVPlayerItem)
+    let playCount = avPlayer.playCallCount
+
+    originalItem.setStatus(.failed)
+    let recoveredItem = try await waitForRecoveredItem(replacing: originalItem, status: .paused)
+    #expect(sharedState.onDeck?.id == failed.id)
+    #expect(avPlayer.timeControlStatus == .paused)
+    #expect(avPlayer.playCallCount == playCount)
+    #expect(try await PlayHelpers.queuedEpisodeIDs.isEmpty)
+    #expect(alert.config == nil)
+
+    recoveredItem.setStatus(.failed)
+    try await Wait.until({ await alert.config != nil }, { "Expected a playback failure alert" })
+    #expect(sharedState.onDeck == nil)
+    #expect(avPlayer.current == nil)
+    #expect(avPlayer.playCallCount == playCount)
+    #expect(try await PlayHelpers.queuedEpisodeIDs == [failed.id])
+  }
+
   @Test("failure notification honors playback ownership", arguments: NotificationCommand.allCases)
   func notificationHonorsPlaybackOwnership(command: NotificationCommand) async throws {
     let failed = try await Create.podcastEpisode()
@@ -286,6 +333,18 @@ import Testing
     #expect(avPlayer.timeControlStatus == (command.shouldRecover ? .playing : .paused))
     #expect(avPlayer.playCallCount == playCount + (command.shouldRecover ? 1 : 0))
     #expect(alert.config == nil)
+  }
+
+  private func waitForRecoveredItem(
+    replacing failedItem: FakeAVPlayerItem,
+    status: PlaybackStatus
+  ) async throws -> FakeAVPlayerItem {
+    try await Wait.forValue { @MainActor in
+      guard let item = avPlayer.current as? FakeAVPlayerItem, item !== failedItem,
+        sharedState.playbackStatus == status
+      else { return nil }
+      return item
+    }
   }
 
   private func suspendRecovery(at lookup: Lookup) async throws -> Task<Void, Never> {

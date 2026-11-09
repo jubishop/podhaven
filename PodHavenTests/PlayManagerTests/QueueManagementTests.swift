@@ -247,7 +247,7 @@ import Testing
     try await PlayHelpers.waitForQueue([episodeToLoad, playingEpisode])
   }
 
-  @Test("failed episode gets unshifted back to queue")
+  @Test("failed episode is reloaded once, then unshifted back to queue")
   func failedEpisodeGetsUnshiftedBackToQueue() async throws {
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
@@ -256,11 +256,18 @@ import Testing
     try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
 
-    // Now simulate the podcastEpisode failing after it becomes currentItem
-    let currentItem = avPlayer.current as! FakeAVPlayerItem
-    currentItem.setStatus(.failed)
+    let failedItem = avPlayer.current as! FakeAVPlayerItem
+    failedItem.setStatus(.failed)
+    let reloadedItem: FakeAVPlayerItem = try await Wait.forValue { @MainActor in
+      guard let item = avPlayer.current as? FakeAVPlayerItem, item !== failedItem,
+        sharedState.playbackStatus == .paused
+      else { return nil }
+      return item
+    }
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
 
-    // The failed episode should be unshifted back to the front of the queue
+    // A second failure inside the recovery window returns the episode to the queue
+    reloadedItem.setStatus(.failed)
     try await PlayHelpers.waitForNoCurrentItem()
     try await PlayHelpers.waitForQueue([podcastEpisode])
     try await PlayHelpers.waitForOnDeck(nil)
