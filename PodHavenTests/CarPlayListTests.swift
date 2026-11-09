@@ -102,6 +102,39 @@ import Testing
     #expect(item.handler == nil)
   }
 
+  @Test("on-deck ticks resend the list only when a whole second changes what it shows")
+  func onDeckTicksResendOnlyDisplayedChanges() async throws {
+    let episode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(duration: .seconds(120), currentTime: .seconds(30))
+    )
+    let template = CPListTemplate(title: "Up Next", sections: [])
+    let list = CarPlayEpisodeList(
+      template: template,
+      selection: Container.shared.carPlaySelection(),
+      artwork: CarPlayArtwork(displayScale: 2)
+    )
+    defer { list.stop() }
+    func update(at seconds: Double) {
+      var onDeck = OnDeck(from: episode)
+      onDeck.currentTime = .seconds(seconds)
+      list.update(
+        [CarPlayEpisodeList.Section(title: "Current", episodes: [CarPlayEpisodeRow(onDeck)])],
+        restricted: false
+      )
+    }
+
+    update(at: 30)
+    let rendered = try #require(template.sections.first)
+    update(at: 30.25)
+    update(at: 30.75)
+    #expect(template.sections.first === rendered)
+
+    update(at: 60)
+    #expect(template.sections.first !== rendered)
+    let item = try #require(template.sections.first?.items.first as? CPListItem)
+    #expect(item.playbackProgress == 0.5)
+  }
+
   @Test("obsolete artwork cannot mutate a removed row or its replacement")
   func artwork() async throws {
     let episode = try await Create.podcastEpisode()

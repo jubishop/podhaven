@@ -23,7 +23,7 @@ protocol CarPlaySession: AnyObject {
 
 extension CPSessionConfiguration: CarPlaySession {}
 
-struct CarPlayListLimits {
+struct CarPlayListLimits: Equatable {
   let items: Int
   let sections: Int
 }

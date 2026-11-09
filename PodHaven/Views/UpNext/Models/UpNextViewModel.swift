@@ -260,7 +260,8 @@ import SwiftUI
   var totalQueueTime: CMTime {
     episodeList.allEntries.reduce(CMTime.zero) { total, podcastEpisode in
       userSettings.showTimeRemainingInEpisodeLists
-        ? total + (podcastEpisode.duration.safe - podcastEpisode.currentTime.safe)
+        ? total
+          + (podcastEpisode.duration.safe - sharedState.playbackPosition(of: podcastEpisode).safe)
         : total + podcastEpisode.duration.safe
     }
   }
