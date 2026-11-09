@@ -206,6 +206,13 @@ private let htmlTextPreviewGroups: [HTMLTextPreviewGroup] = [
         font: .callout
       ),
       .init(
+        description: "Non-web schemes render as plain text",
+        html:
+          "<a href=\"tel:+15555550123\">Call the show</a>, <a href=\"podhaven://share?url=https://example.com/feed\">subscribe</a>, or <a href=\"mailto:host@example.com\">email us</a>.",
+        color: .primary,
+        font: .body
+      ),
+      .init(
         description: "Auto-detected bare URL",
         html: "No anchor tag here, just a raw link: https://www.swift.org/documentation/",
         color: .primary,
