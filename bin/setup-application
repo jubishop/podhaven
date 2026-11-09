@@ -1,12 +1,28 @@
 #!/usr/bin/env python3
-"""Prepare this checkout's Xcode caches; bin/setup, bin/prep-worktree, and new worktrees run it."""
-import sys
+"""Prepare this checkout for development; bin/setup, bin/prep-worktree, and new worktrees run it.
+
+Unless Git already has an SSH command, it sets the repository's core.sshCommand to send keepalives, so an SSH
+connection Git opens before its pre-push hook survives the tooling pre-push gate. Then it prepares Xcode caches."""
+import os
 from pathlib import Path
+import subprocess
+import sys
 sys.dont_write_bytecode = True
 from _worktrees import prepare_xcode
 
+ROOT = Path(__file__).resolve().parents[1]
+KEEPALIVE = "ssh -o ServerAliveInterval=30"
+
 try:
-    prepare_xcode(Path(__file__).resolve().parents[1])
+    # Git reads its SSH command from GIT_SSH_COMMAND, core.sshCommand in any scope, or GIT_SSH.
+    configured = subprocess.run(["git", "config", "--get", "core.sshCommand"], cwd=ROOT, text=True,
+                                capture_output=True)
+    if configured.returncode not in (0, 1):
+        raise RuntimeError(configured.stderr.strip() or "Could not read core.sshCommand")
+    if configured.returncode == 1 and not {"GIT_SSH_COMMAND", "GIT_SSH"} & os.environ.keys():
+        subprocess.run(["git", "config", "--local", "core.sshCommand", KEEPALIVE], cwd=ROOT, check=True)
+        print("Set core.sshCommand to " + KEEPALIVE + " so SSH pushes outlast the tooling pre-push gate.")
+    prepare_xcode(ROOT)
 except Exception as error:
-    print("Xcode preparation failed: " + str(error), file=sys.stderr)
+    print("Checkout preparation failed: " + str(error), file=sys.stderr)
     sys.exit(1)

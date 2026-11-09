@@ -4,13 +4,17 @@
 The managed pre-push hook runs this after its document checks, with Git's arguments and standard input.
 Tooling is every path under bin/ and .agents/, whose tests read skill prose, and every other non-Markdown
 path outside the application targets. Each revision is checked in a disposable linked worktree, so
-uncommitted edits neither hide nor cause a failure, and bin/check --full reuses a recent pass for its tree."""
+uncommitted edits neither hide nor cause a failure, and bin/check --full reuses a recent pass for its tree.
+Git opens an SSH connection before this hook and leaves it idle, so a full run can outlast it; over SSH without
+a keepalive, the gate keeps a full run's recorded pass and refuses the push so that a retry reuses it at once."""
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
 import tempfile
+sys.dont_write_bytecode = True
+from _checks import pass_record
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLING = ("bin/", ".agents/")
@@ -18,6 +22,7 @@ APPLICATION = ("PodHaven/", "PodHaven.xcodeproj/", "PodHavenIntents/", "PodHaven
                "PodHavenTests/", "PodHavenWidget/")
 # Git exports repository selectors and -c settings to hooks; the checks must see a plain environment.
 ENVIRONMENT = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+KEEPALIVE = re.compile(r"ServerAliveInterval[\s=]+0*[1-9]", re.IGNORECASE)
 
 
 def git(*args, check=True):
@@ -42,7 +47,41 @@ def changes_tooling(remote, commit):
                for path in paths.split("\0") if path)
 
 
+def idles_over_ssh(url):
+    """Report whether Git reaches url over SSH without a keepalive, so the remote can close the idle connection."""
+    scheme = re.match(r"([A-Za-z][A-Za-z0-9+.-]*)(://|::)", url)
+    if scheme:
+        ssh = scheme[2] == "://" and scheme[1].lower() in ("ssh", "git+ssh", "ssh+git")
+    else:
+        # Like Git, read a colon before any slash as scp-like [user@]host:path syntax.
+        colon, slash = url.find(":"), url.find("/")
+        ssh = colon > 0 and (slash < 0 or colon < slash)
+    if not ssh:
+        return False
+    if "GIT_SSH_COMMAND" in os.environ:
+        command = os.environ["GIT_SSH_COMMAND"]
+    else:
+        # Read the setting as the pushing Git does, with its -c options; GIT_SSH names a program without options.
+        configured = subprocess.run(["git", "config", "--get", "core.sshCommand"], cwd=ROOT, text=True,
+                                    capture_output=True)
+        if configured.returncode not in (0, 1):
+            raise RuntimeError(configured.stderr.strip() or "Could not read core.sshCommand")
+        command = configured.stdout
+    return not KEEPALIVE.search(command)
+
+
+def recorded_pass(commit):
+    """Return the pass bin/check --full records for the commit's tree; a run that reuses it leaves it unchanged."""
+    try:
+        return pass_record(ROOT, git("rev-parse", commit + "^{tree}").stdout.strip()).read_bytes()
+    except FileNotFoundError:
+        return None
+
+
 def main():
+    if len(sys.argv) != 3:
+        raise ValueError("Usage: bin/pre-push-application <remote> <url>")
+    idle = idles_over_ssh(sys.argv[2])
     revisions = {}
     for line in sys.stdin.read().splitlines():
         # Git passes the local ref as typed, such as ":/Fix the index", so only it can hold spaces.
@@ -54,8 +93,10 @@ def main():
         commit = set(local) != {"0"} and commit_of(local)
         if commit and commit not in revisions and changes_tooling(remote, commit):
             revisions[commit] = remote_ref
+    full_runs = []
     for commit, remote_ref in revisions.items():
         print("Running bin/check --full on " + commit[:12] + ", which changes repository tooling.", flush=True)
+        before = recorded_pass(commit)
         with tempfile.TemporaryDirectory(prefix="podhaven-pre-push-") as temporary:
             checkout = Path(temporary) / "checkout"
             git("-c", "core.hooksPath=/dev/null", "worktree", "add", "--quiet", "--detach", str(checkout), commit)
@@ -67,6 +108,14 @@ def main():
             print("bin/check --full failed for " + commit[:12] + ", pushed to " + remote_ref +
                   ", so Git refused the push. Fix the tooling, commit, and push again.", file=sys.stderr)
             return 1
+        if recorded_pass(commit) != before:
+            full_runs.append(commit[:12])
+    if idle and full_runs:
+        print("bin/check --full passed for " + ", ".join(full_runs) + " and recorded the pass, but Git refused "
+              "the push: the remote may have closed Git's SSH connection while it sat idle during the checks. "
+              "Push again; the retry reuses the recorded pass at once. To keep the connection alive through "
+              "future checks, run bin/setup, or add a ServerAliveInterval to your own SSH command.", file=sys.stderr)
+        return 1
     return 0
 
 
