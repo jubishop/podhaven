@@ -17,7 +17,7 @@ class WhiteningRepoTests {
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
 
-  private func seedEmbedding(_ vector: [Float]) async throws {
+  private func seedEmbedding(_ vector: [Float], revision: Int = 1) async throws {
     let podcastEpisode = try await repo
       .upsertPodcastEpisodes([
         UnsavedPodcastEpisode(
@@ -30,7 +30,7 @@ class WhiteningRepoTests {
       episodeId: podcastEpisode.episode.id,
       vector: UnsavedEpisodeEmbedding.vectorData(from: vector),
       sourceHash: "hash-\(UUID().uuidString)",
-      embeddingRevision: 1,
+      embeddingRevision: revision,
       dimension: vector.count,
       verificationDate: Date()
     )
@@ -44,7 +44,7 @@ class WhiteningRepoTests {
     try await seedEmbedding([0, 0, 1])
 
     let transform = try #require(
-      await recommendationRepo.whiteningTransform(principalComponentCount: 0)
+      await recommendationRepo.whiteningTransform(embeddingRevision: 1, principalComponentCount: 0)
     )
     let expected: [Float] = [1.0 / 3, 1.0 / 3, 1.0 / 3]
     for (i, x) in transform.mean.enumerated() {
@@ -63,7 +63,7 @@ class WhiteningRepoTests {
     }
 
     let transform = try #require(
-      await recommendationRepo.whiteningTransform(principalComponentCount: 1)
+      await recommendationRepo.whiteningTransform(embeddingRevision: 1, principalComponentCount: 1)
     )
     #expect(transform.principalComponents.count == 1)
     let pc = transform.principalComponents[0]
@@ -75,6 +75,7 @@ class WhiteningRepoTests {
   @Test("empty corpus returns nil")
   func emptyCorpusReturnsNil() async throws {
     let transform = try await recommendationRepo.whiteningTransform(
+      embeddingRevision: 1,
       principalComponentCount: 0
     )
     #expect(transform == nil)
@@ -92,8 +93,45 @@ class WhiteningRepoTests {
     }
 
     let transform = try #require(
-      await recommendationRepo.whiteningTransform(principalComponentCount: 2)
+      await recommendationRepo.whiteningTransform(embeddingRevision: 1, principalComponentCount: 2)
     )
     #expect(transform.principalComponents.count == 1)
+  }
+
+  @Test("embeddings whose dimension differs from the corpus are skipped")
+  func mismatchedDimensionsAreSkipped() async throws {
+    try await seedEmbedding([1, 0, 0])
+    try await seedEmbedding([0, 1, 0])
+    try await seedEmbedding([0, 0, 1])
+    try await seedEmbedding([5, 5])
+    try await seedEmbedding([5, 5, 5, 5])
+
+    let transform = try #require(
+      await recommendationRepo.whiteningTransform(embeddingRevision: 1, principalComponentCount: 1)
+    )
+    #expect(transform.mean.count == 3)
+    for x in transform.mean {
+      #expect(abs(x - 1.0 / 3) < 0.0001)
+    }
+    #expect(transform.principalComponents.allSatisfy { $0.count == 3 })
+  }
+
+  @Test("embeddings from other revisions are excluded")
+  func otherRevisionsAreExcluded() async throws {
+    try await seedEmbedding([9, 9, 9, 9], revision: 1)
+    try await seedEmbedding([1, 0, 0], revision: 2)
+    try await seedEmbedding([0, 1, 0], revision: 2)
+    try await seedEmbedding([0, 0, 1], revision: 2)
+
+    let transform = try #require(
+      await recommendationRepo.whiteningTransform(
+        embeddingRevision: 2,
+        principalComponentCount: 0
+      )
+    )
+    #expect(transform.mean.count == 3)
+    for x in transform.mean {
+      #expect(abs(x - 1.0 / 3) < 0.0001)
+    }
   }
 }

@@ -41,6 +41,24 @@ actor UserNotificationManagerTests {
     #expect(userNotificationManager.authorizationStatus == .authorized)
   }
 
+  @Test("refreshAuthorizationStatus notifies observers when the status changes")
+  func refreshAuthorizationStatusNotifiesObservers() async throws {
+    let notified = ThreadSafe(false)
+    withObservationTracking {
+      _ = userNotificationManager.isAuthorized
+    } onChange: {
+      notified(true)
+    }
+
+    fakeCenter.setAuthorizationStatus(.denied)
+    await userNotificationManager.refreshAuthorizationStatus()
+
+    try await Wait.until(
+      { notified() },
+      { "Expected the authorization status change to notify observers" }
+    )
+  }
+
   // MARK: - Handle Scene Phase Change
 
   @Test("handleScenePhaseChange refreshes status when active")
