@@ -406,6 +406,27 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
       .reduce(AppDB.noOp) { $0 && $1 }
   }
 
+  // Playback checkpoints rewrite the progress columns on every tick. SQLite
+  // reports the content trigger's `contentUpdatedAt` write as possible for
+  // every episode update, so tracking it would wake on each tick too; its
+  // `title` and `description` sources stay tracked.
+  private static let unobservedColumnNames: Set<String> = [
+    Columns.currentTime.name,
+    Columns.maxPlaybackTime.name,
+    Columns.lastPlayedDate.name,
+    Columns.playbackCoverage.name,
+    Columns.contentUpdatedAt.name,
+  ]
+
+  // Read from the schema so new columns join the tracked region of
+  // observations that select them.
+  static func observedColumns(_ db: Database) throws -> [Column] {
+    try db.columns(in: databaseTableName)
+      .map(\.name)
+      .filter { !unobservedColumnNames.contains($0) }
+      .map { Column($0) }
+  }
+
   // MARK: - Columns
 
   enum Columns {
