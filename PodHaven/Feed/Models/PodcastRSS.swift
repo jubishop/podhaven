@@ -40,14 +40,21 @@ struct PodcastRSS: Decodable, Sendable {
       }
       let title: String
       let enclosure: Enclosure?
-      let guid: GUID?
+      private let guidString: String?
       let link: String?  // URL?
       let description: String?
       let contentEncoded: String?
       let pubDateString: String?
 
+      var guid: GUID? {
+        guard let guidString, !guidString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return nil }
+        return GUID(guidString)
+      }
+
       enum CodingKeys: String, CodingKey {
-        case title, enclosure, guid, link, description
+        case title, enclosure, link, description
+        case guidString = "guid"
         case pubDateString = "pubDate"
         case contentEncoded = "content:encoded"
       }
