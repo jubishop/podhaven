@@ -11,6 +11,8 @@ import Testing
 @MainActor final class EpisodeDetailActionTests {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.fakeAudioSession) private var audioSession
+  @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
@@ -18,7 +20,154 @@ import Testing
   @DynamicInjected(\.stateManager) private var stateManager
 
   private var avPlayer: FakeAVPlayer { Container.shared.avPlayer() as! FakeAVPlayer }
+  private var fakeObservatory: FakeObservatory { observatory as! FakeObservatory }
   private var fakeQueue: FakeQueue { queue as! FakeQueue }
+
+  @Test("a shared start time seeks and plays only on the first appear")
+  func sharedStartTimeSeeksAndPlaysOnlyOnFirstAppear() async throws {
+    stateManager.start()
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Shared Start Time"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "shared-start-time",
+          title: "Shared Start Time"
+        )
+      )
+    )
+    let startTime = 120
+    let startCMTime = CMTime.seconds(Double(startTime))
+    let viewModel = EpisodeDetailViewModel(
+      episode: DisplayedEpisode(podcastEpisode),
+      startTime: startTime
+    )
+
+    viewModel.appear()
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(avPlayer.seekRequests.filter { $0 == startCMTime }.count == 1)
+    try await PlayHelpers.pause()
+
+    viewModel.disappear()
+    fakeObservatory.clearAllCalls()
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        self.fakeObservatory.allCallsInOrder.contains { $0.methodName == "podcastEpisodeWithTags" }
+      },
+      { @MainActor in
+        """
+        Expected the second appear to restart observation.
+        calls: \(self.fakeObservatory.allCallsInOrder.map(\.toString))
+        """
+      }
+    )
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(avPlayer.seekRequests.filter { $0 == startCMTime }.count == 1)
+    #expect(sharedState.playbackStatus == .paused)
+  }
+
+  @Test("a shared start time whose playback fails retries on the next appear")
+  func sharedStartTimeRetriesOnNextAppearAfterPlaybackFails() async throws {
+    stateManager.start()
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Shared Start Time Retry"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "shared-start-time-retry",
+          title: "Shared Start Time Retry"
+        )
+      )
+    )
+    let startTime = 120
+    let startCMTime = CMTime.seconds(Double(startTime))
+    let viewModel = EpisodeDetailViewModel(
+      episode: DisplayedEpisode(podcastEpisode),
+      startTime: startTime
+    )
+
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      error: TestError.assetLoadFailure(podcastEpisode)
+    )
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in self.alert.config != nil },
+      { @MainActor in "Expected alert after the start-time playback failed" }
+    )
+    #expect(avPlayer.seekRequests.filter { $0 == startCMTime }.isEmpty)
+
+    await episodeAssetLoader.clearCustomHandler(for: podcastEpisode.episode)
+    viewModel.disappear()
+    viewModel.appear()
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(avPlayer.seekRequests.filter { $0 == startCMTime }.count == 1)
+  }
+
+  @Test("a shared start time superseded by other playback does not seek on the next appear")
+  func sharedStartTimeSupersededByOtherPlaybackDoesNotSeekOnNextAppear() async throws {
+    stateManager.start()
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+
+    let (sharedEpisode, otherEpisode) = try await Create.twoPodcastEpisodes()
+    let startTime = 120
+    let startCMTime = CMTime.seconds(Double(startTime))
+    let viewModel = EpisodeDetailViewModel(
+      episode: DisplayedEpisode(sharedEpisode),
+      startTime: startTime
+    )
+
+    let sharedRelease = await episodeAssetLoader.waitRespond(
+      to: sharedEpisode.episode.mediaURL
+    )
+    defer { sharedRelease.signal() }
+
+    try await LogCapture.withSink { sink in
+      viewModel.appear()
+      try await PlayHelpers.waitFor(.loading(sharedEpisode.episode.title))
+
+      try await playManager.load(otherEpisode)
+      try await Wait.until(
+        { @MainActor in sink.captured().contains { $0.message.contains("appear: failed") } },
+        { @MainActor in "Expected the superseded start-time appear to finish" }
+      )
+    }
+    try await PlayHelpers.waitForOnDeck(otherEpisode)
+
+    await episodeAssetLoader.clearCustomHandler(for: sharedEpisode.episode)
+    viewModel.disappear()
+    fakeObservatory.clearAllCalls()
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        self.fakeObservatory.allCallsInOrder.contains { $0.methodName == "podcastEpisodeWithTags" }
+      },
+      { @MainActor in
+        """
+        Expected the second appear to restart observation.
+        calls: \(self.fakeObservatory.allCallsInOrder.map(\.toString))
+        """
+      }
+    )
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(avPlayer.seekRequests.filter { $0 == startCMTime }.isEmpty)
+    #expect(sharedState.onDeck?.id == otherEpisode.id)
+  }
 
   @Test("timestamp playback leaves the prior episode untouched when the target load fails")
   func timestampPlaybackLeavesPriorEpisodeUntouchedWhenTargetLoadFails() async throws {
