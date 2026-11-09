@@ -41,10 +41,15 @@ actor DownloadTask: Identifiable {
     let owner = self.owner
     self.owner = nil
     finalizeCancelled()
-    await owner?.handleDirectCancel(url: url)
+    await owner?.handleDirectCancel(self)
   }
 
   // MARK: - Fileprivate Methods
+
+  fileprivate nonisolated var cancelled: Bool {
+    guard case .failure(let error)? = finishedLatch.openValue else { return false }
+    return error is CancellationError
+  }
 
   fileprivate init(url: URL, session: any DataFetchable, owner: DownloadManager) {
     self.url = url
@@ -119,11 +124,13 @@ actor DownloadManager {
     }
 
     if let activeDownload = activeDownloads[url] {
-      return activeDownload
+      guard activeDownload.cancelled else { return activeDownload }
+      activeDownloads.removeValue(forKey: url)
     }
 
     if let pendingDownload = pendingDownloads[id: url] {
-      return pendingDownload
+      guard pendingDownload.cancelled else { return pendingDownload }
+      pendingDownloads.remove(id: url)
     }
 
     let download = DownloadTask(url: url, session: session, owner: self)
@@ -162,10 +169,12 @@ actor DownloadManager {
   // Called by DownloadTask when the task was cancelled directly (not via
   // cancelDownload/cancelAllDownloads). Keep manager state in sync and free
   // the concurrency slot the cancelled task was holding.
-  fileprivate func handleDirectCancel(url: URL) {
-    if activeDownloads.removeValue(forKey: url) != nil {
+  fileprivate func handleDirectCancel(_ downloadTask: DownloadTask) {
+    let url = downloadTask.url
+    if activeDownloads[url] === downloadTask {
+      activeDownloads.removeValue(forKey: url)
       startNextDownload()
-    } else {
+    } else if pendingDownloads[id: url] === downloadTask {
       pendingDownloads.remove(id: url)
     }
   }
@@ -185,7 +194,9 @@ actor DownloadManager {
   private func executeDownload(_ downloadTask: DownloadTask) {
     Task {  // Intentionally not weak so the Manager isn't deallocated before tasks complete
       await downloadTask.download()
-      activeDownloads.removeValue(forKey: downloadTask.url)
+      if activeDownloads[downloadTask.url] === downloadTask {
+        activeDownloads.removeValue(forKey: downloadTask.url)
+      }
       Task { startNextDownload() }
     }
   }
