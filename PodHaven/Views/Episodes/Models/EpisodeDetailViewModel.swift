@@ -347,10 +347,13 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try Task.checkCancellation()
       // Claim the start time before playback so an overlapping appear can't
-      // seek again; restore it on failure so a later appear retries.
+      // seek again. Restore it after a failure so a later appear retries, but
+      // not after newer playback superseded this load.
       self.startTime = nil
       do {
         try await loadAndPlay(podcastEpisode, seekTo: startTime)
+      } catch let error as CancellationError {
+        throw error
       } catch {
         self.startTime = startTime
         throw error

@@ -116,6 +116,59 @@ import Testing
     #expect(avPlayer.seekRequests.filter { $0 == startCMTime }.count == 1)
   }
 
+  @Test("a shared start time superseded by other playback does not seek on the next appear")
+  func sharedStartTimeSupersededByOtherPlaybackDoesNotSeekOnNextAppear() async throws {
+    stateManager.start()
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+
+    let (sharedEpisode, otherEpisode) = try await Create.twoPodcastEpisodes()
+    let startTime = 120
+    let startCMTime = CMTime.seconds(Double(startTime))
+    let viewModel = EpisodeDetailViewModel(
+      episode: DisplayedEpisode(sharedEpisode),
+      startTime: startTime
+    )
+
+    let sharedRelease = await episodeAssetLoader.waitRespond(
+      to: sharedEpisode.episode.mediaURL
+    )
+    defer { sharedRelease.signal() }
+
+    try await LogCapture.withSink { sink in
+      viewModel.appear()
+      try await PlayHelpers.waitFor(.loading(sharedEpisode.episode.title))
+
+      try await playManager.load(otherEpisode)
+      try await Wait.until(
+        { @MainActor in sink.captured().contains { $0.message.contains("appear: failed") } },
+        { @MainActor in "Expected the superseded start-time appear to finish" }
+      )
+    }
+    try await PlayHelpers.waitForOnDeck(otherEpisode)
+
+    await episodeAssetLoader.clearCustomHandler(for: sharedEpisode.episode)
+    viewModel.disappear()
+    fakeObservatory.clearAllCalls()
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        self.fakeObservatory.allCallsInOrder.contains { $0.methodName == "podcastEpisodeWithTags" }
+      },
+      { @MainActor in
+        """
+        Expected the second appear to restart observation.
+        calls: \(self.fakeObservatory.allCallsInOrder.map(\.toString))
+        """
+      }
+    )
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(avPlayer.seekRequests.filter { $0 == startCMTime }.isEmpty)
+    #expect(sharedState.onDeck?.id == otherEpisode.id)
+  }
+
   @Test("timestamp playback leaves the prior episode untouched when the target load fails")
   func timestampPlaybackLeavesPriorEpisodeUntouchedWhenTargetLoadFails() async throws {
     stateManager.start()
