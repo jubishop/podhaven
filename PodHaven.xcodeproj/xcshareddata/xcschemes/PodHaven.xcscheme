@@ -64,17 +64,6 @@
                ReferencedContainer = "container:PodHaven.xcodeproj">
             </BuildableReference>
          </TestableReference>
-         <TestableReference
-            skipped = "YES"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "8BD7F9392CF2A49100CEDAA7"
-               BuildableName = "PodHavenUITests.xctest"
-               BlueprintName = "PodHavenUITests"
-               ReferencedContainer = "container:PodHaven.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
