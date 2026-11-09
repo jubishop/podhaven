@@ -92,7 +92,17 @@ struct SilenceStore: Sendable {
   }
 
   func content(for filename: String) async throws -> CachedAudioContent? {
-    try await writer.write { db in
+    let (saved, available) = try await reader.read { db in
+      (
+        try CachedAudioContent.fetchOne(db, key: filename),
+        try Episode.filter(Episode.Columns.cachedFilename == filename).fetchCount(db) > 0
+          && Container.shared.fileManager()
+            .fileExists(at: CacheManager.resolveCachedFilepath(for: filename).rawValue)
+      )
+    }
+    if available, let saved, saved.detectorVersion == SilenceMap.detectorVersion { return saved }
+    if !available, saved == nil { return nil }
+    return try await writer.write { db in
       let url = CacheManager.resolveCachedFilepath(for: filename)
       guard Container.shared.fileManager().fileExists(at: url.rawValue),
         try Episode.filter(Episode.Columns.cachedFilename == filename).fetchCount(db) > 0
@@ -162,7 +172,7 @@ struct SilenceStore: Sendable {
         .filter(Column("detectorVersion") == SilenceMap.detectorVersion)
         .updateAll(
           db,
-          Column("failureCount").set(to: content.failureCount + 1),
+          Column("failureCount").set(to: Column("failureCount") + 1),
           Column("detectorVersion").set(to: SilenceMap.detectorVersion)
         )
     }
