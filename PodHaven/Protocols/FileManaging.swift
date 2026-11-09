@@ -47,6 +47,11 @@ protocol FileManaging {
     options mask: FileManager.DirectoryEnumerationOptions
   ) throws -> [URL]
   func contentsOfDirectory(at url: URL) throws -> [URL]
+
+  // MARK: - Backup Exclusion
+
+  func isExcludedFromBackup(_ url: URL) throws -> Bool
+  func excludeFromBackup(_ url: URL) throws
 }
 
 // MARK: - FileManaging Default Implementations
@@ -108,5 +113,16 @@ extension FileManaging {
       includingPropertiesForKeys: [.fileSizeKey],
       options: .skipsHiddenFiles
     )
+  }
+
+  func isExcludedFromBackup(_ url: URL) throws -> Bool {
+    try url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true
+  }
+
+  func excludeFromBackup(_ url: URL) throws {
+    var resourceValues = URLResourceValues()
+    resourceValues.isExcludedFromBackup = true
+    var url = url
+    try url.setResourceValues(resourceValues)
   }
 }

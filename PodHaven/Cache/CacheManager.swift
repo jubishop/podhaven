@@ -100,7 +100,35 @@ struct CacheManager {
         startCurrentEpisodeIDObservation()
         startQueueObservation()
         observing.open()
+        excludeCacheFromBackup()
       }
+    }
+  }
+
+  // Exclude the directory last: its flag marks the pass done, so a pass cut
+  // short repeats on the next launch.
+  private func excludeCacheFromBackup() {
+    do {
+      guard try !fileManager.isExcludedFromBackup(Self.cacheDirectory) else { return }
+
+      let cachedFileURLs = try fileManager.contentsOfDirectory(at: Self.cacheDirectory)
+      for fileURL in cachedFileURLs {
+        excludeFromBackup(fileURL)
+      }
+      try fileManager.excludeFromBackup(Self.cacheDirectory)
+      Self.log.info(
+        "excludeCacheFromBackup: excluded cache directory, existing files: \(cachedFileURLs.count)"
+      )
+    } catch {
+      Self.log.caughtError("excludeCacheFromBackup failed", error)
+    }
+  }
+
+  private func excludeFromBackup(_ url: URL) {
+    do {
+      try fileManager.excludeFromBackup(url)
+    } catch {
+      Self.log.caughtError("excludeFromBackup: failed for \(url)", error)
     }
   }
 
@@ -270,12 +298,16 @@ struct CacheManager {
 
     guard isCurrentDownloadAttempt(attempt) else { return nil }
 
-    return try await cacheFileStore.storeDownloadedFile(
+    let storage = try await cacheFileStore.storeDownloadedFile(
       at: sourceURL,
       for: attempt.episodeID,
       cachedFilename: cachedFilename,
       duration: duration
     )
+    if case .installed(let cachedURL) = storage {
+      excludeFromBackup(cachedURL.rawValue)
+    }
+    return storage
   }
 
   func claimDownloadCompletion(for attempt: CacheDownloadAttempt) -> Bool {
