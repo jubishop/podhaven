@@ -7,13 +7,22 @@ import Logging
 import Tagged
 
 extension PlayManager {
+  enum PlaybackFailureIntent: String {
+    case play
+    case pause
+  }
 
   // MARK: - Playback Recovery
 
-  func handlePlaybackFailure(preserving revision: UUID? = nil) async {
+  func handlePlaybackFailure(
+    preserving revision: UUID? = nil,
+    intent: PlaybackFailureIntent = .play
+  ) async {
     let requestID = revision ?? playbackRequestRevision
     guard playbackRequestRevision == requestID else { return }
-    Self.log.info("handlePlaybackFailure: recovering from AVPlayerItem failure")
+    Self.log.info(
+      "handlePlaybackFailure: recovering from AVPlayerItem failure, intent: \(intent.rawValue)"
+    )
 
     guard let episodeID = sharedState.onDeck?.id else {
       Self.log.warning("handlePlaybackFailure: no episode on deck to recover")
@@ -52,11 +61,18 @@ extension PlayManager {
           "handlePlaybackFailure: attempting auto-recovery for \(podcastEpisode.toString)"
         )
         lastRecoveryAttempt = (episodeID, Date())
-        let result = try await play(
-          podcastEpisode,
-          replacing: recoveryRequestID,
-          requestID: recoveryRequestID
-        )
+        let result: SelectionResult
+        switch intent {
+        case .play:
+          result = try await play(
+            podcastEpisode,
+            replacing: recoveryRequestID,
+            requestID: recoveryRequestID
+          )
+        case .pause:
+          try await load(podcastEpisode, preserving: recoveryRequestID)
+          result = settledOnDeckID == episodeID ? .ready : .unavailable
+        }
         guard playbackRequestRevision == recoveryRequestID else { return }
         switch result {
         case .ready:

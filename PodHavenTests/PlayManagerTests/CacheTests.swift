@@ -10,6 +10,37 @@ import Testing
 
 @Suite("of Cache functionality tests", .container)
 @MainActor struct CacheTests {
+  enum TransientCacheFailure: CaseIterable {
+    case fileProtection, mediaServicesReset, unclassified
+
+    var error: any Error {
+      switch self {
+      case .fileProtection: CocoaError(.fileReadNoPermission)
+      case .mediaServicesReset: AVError(.mediaServicesWereReset)
+      case .unclassified: TestError.simulatedFailure
+      }
+    }
+  }
+
+  enum BadCacheContent: CaseIterable {
+    case unrecognizedFormat, unparseableFile, decodeFailure, missingFile, wrappedDecodeFailure,
+      notPlayable
+
+    var response: FakeEpisodeAssetLoader.LoadHandler {
+      switch self {
+      case .unrecognizedFormat: { _ in throw AVError(.fileFormatNotRecognized) }
+      case .unparseableFile: { _ in throw AVError(.fileFailedToParse) }
+      case .decodeFailure: { _ in throw AVError(.decodeFailed) }
+      case .missingFile: { _ in throw URLError(.fileDoesNotExist) }
+      case .wrappedDecodeFailure:
+        { _ in
+          throw AVError(.unknown, userInfo: [NSUnderlyingErrorKey: AVError(.undecodableMediaData)])
+        }
+      case .notPlayable: { _ in (false, .seconds(30)) }
+      }
+    }
+  }
+
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.playManager) private var playManager
@@ -82,6 +113,50 @@ import Testing
     #expect(currentItem.url == podcastEpisode.episode.mediaURL.rawValue)
   }
 
+  @Test(
+    "transient cached asset failure streams without discarding the cache",
+    arguments: TransientCacheFailure.allCases
+  )
+  func transientCachedAssetFailureKeepsCache(failure: TransientCacheFailure) async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(cachedFilename: "transient-cache-failure.mp3")
+    )
+    let cachedURL = try #require(podcastEpisode.episode.cachedURL)
+    let cachedData = Data("intact download".utf8)
+    try await fileManager.writeData(cachedData, to: cachedURL.rawValue)
+    await episodeAssetLoader.respond(to: cachedURL, error: failure.error)
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
+
+    let storedEpisode = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(storedEpisode.cachedURL == cachedURL)
+    #expect(!storedEpisode.downloading)
+    #expect(try await fileManager.readData(from: cachedURL.rawValue) == cachedData)
+  }
+
+  @Test(
+    "bad cached content is discarded, streamed, and downloaded again",
+    arguments: BadCacheContent.allCases
+  )
+  func badCachedContentIsDiscarded(content: BadCacheContent) async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(cachedFilename: "bad-cache-content.mp3")
+    )
+    let cachedURL = try #require(podcastEpisode.episode.cachedURL)
+    try await fileManager.writeData(Data("bad download".utf8), to: cachedURL.rawValue)
+    await episodeAssetLoader.respond(to: cachedURL, content.response)
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
+    _ = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
+
+    #expect(try await repo.episode(podcastEpisode.id)?.cachedURL == nil)
+    #expect(!fileManager.fileExists(at: cachedURL.rawValue))
+  }
+
   @Test("loading an unreadable shared cache replaces the physical file")
   func loadingUnreadableSharedCacheReplacesPhysicalFile() async throws {
     await playManager.start()
@@ -103,7 +178,7 @@ import Testing
     try await fileManager.writeData(unreadableData, to: cachedURL.rawValue)
     await episodeAssetLoader.respond(
       to: cachedURL,
-      error: TestError.assetLoadFailure(target)
+      error: AVError(.fileFormatNotRecognized)
     )
 
     try await playManager.load(target)
