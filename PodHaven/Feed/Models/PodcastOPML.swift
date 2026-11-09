@@ -14,6 +14,17 @@ extension Container {
   }
 }
 
+enum PodcastOPMLError: Error, LocalizedError, Sendable {
+  case tooDeeplyNested
+
+  var errorDescription: String? {
+    switch self {
+    case .tooDeeplyNested:
+      return "This OPML file has too many nested folders to import."
+    }
+  }
+}
+
 struct PodcastOPML: Codable, Sendable {
   private static let log = Log.as(LogSubsystem.Feed.opml)
 
@@ -35,8 +46,51 @@ struct PodcastOPML: Codable, Sendable {
 
   @concurrent static func parse(_ data: Data) async throws -> PodcastOPML {
     log.debug("Parsing data of size: \(data.count)")
+    let depthLimiter = NestingDepthLimiter(maximumDepth: maximumNestingDepth)
+    let parser = XMLParser(data: data)
+    unsafe parser.delegate = depthLimiter
+    parser.parse()
+    guard depthLimiter.deepestDepth <= maximumNestingDepth
+    else { throw PodcastOPMLError.tooDeeplyNested }
+
     let decoder = XMLDecoder()
     return try decoder.decode(PodcastOPML.self, from: data)
+  }
+
+  // MARK: - Nesting Limit
+
+  // XMLCoder decodes the recursive Outline model recursively, so deep nesting overflows the stack.
+  private static let maximumNestingDepth = 16
+
+  private final class NestingDepthLimiter: NSObject, XMLParserDelegate {
+    private let maximumDepth: Int
+    private var depth = 0
+    private(set) var deepestDepth = 0
+
+    init(maximumDepth: Int) {
+      self.maximumDepth = maximumDepth
+    }
+
+    func parser(
+      _ parser: XMLParser,
+      didStartElement elementName: String,
+      namespaceURI: String?,
+      qualifiedName qName: String?,
+      attributes attributeDict: [String: String] = [:]
+    ) {
+      depth += 1
+      deepestDepth = max(deepestDepth, depth)
+      if depth > maximumDepth { parser.abortParsing() }
+    }
+
+    func parser(
+      _ parser: XMLParser,
+      didEndElement elementName: String,
+      namespaceURI: String?,
+      qualifiedName qName: String?
+    ) {
+      depth -= 1
+    }
   }
 
   // MARK: - Export Methods
