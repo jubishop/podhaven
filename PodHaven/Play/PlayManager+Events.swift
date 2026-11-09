@@ -345,10 +345,10 @@ extension PlayManager {
         )
 
         switch parsedNotification {
-        case .pause:
-          await pause()
-        case .resume:
-          await play()
+        case .began:
+          await beginAudioInterruption()
+        case .ended(let shouldResume):
+          await endAudioInterruption(shouldResume: shouldResume)
         case .ignore:
           break
         }

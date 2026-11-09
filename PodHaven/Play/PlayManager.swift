@@ -37,6 +37,11 @@ final class PlayManager {
     case paused
   }
 
+  private enum InterruptedPlayback {
+    case none
+    case resumable
+  }
+
   private final class LoadTransition {
     var establishedPlayback: (episodeID: Episode.ID, ownerID: UUID)?
     var id: UUID
@@ -109,6 +114,7 @@ final class PlayManager {
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
   private(set) var ignoreRemoteScrubCommands = false
+  private var interruptedPlayback = InterruptedPlayback.none
   private var restartScrubCommandsTask: Task<Void, any Error>?
   var onDeckBecameCurrentAt: Date?
   private var lastLoggedTime = Date.distantPast
@@ -615,6 +621,11 @@ final class PlayManager {
   }
 
   func pause() async {
+    interruptedPlayback = .none
+    await pausePlayback()
+  }
+
+  private func pausePlayback() async {
     newPlaybackRequest(UUID())
     cancelWidgetRouteRecovery(reason: "userPause")
     pendingPlaybackRequest = .none
@@ -672,6 +683,7 @@ final class PlayManager {
   // AVPlayer's status reflects neither pending playback nor an empty deck, so
   // app state decides those toggles.
   func toggle() async {
+    interruptedPlayback = .none
     guard onDeckRecoveryEpisodeID == nil else { return await play() }
     guard loadTransition == nil, case .none = pendingPlaybackRequest else {
       Self.log.debug("toggle: pausing pending playback")
@@ -682,6 +694,32 @@ final class PlayManager {
     newPlaybackRequest(requestID)
     cancelWidgetRouteRecovery(reason: "userToggle")
     await podAVPlayer.toggle(requestID: requestID)
+  }
+
+  // AVPlayer pauses itself for an interruption, possibly before its notification
+  // arrives, so playback requests rather than player status decide whether to resume.
+  func beginAudioInterruption() async {
+    let revision = playbackRequestRevision
+    let playRequested = await podAVPlayer.playRequested(by: revision)
+    let pendingPlayback =
+      switch pendingPlaybackRequest {
+      case .play: true
+      case .none: autoAdvance != nil && loadTransition?.playback != .paused
+      }
+    let resumable =
+      interruptedPlayback == .resumable || pendingPlayback
+      || (playRequested && playbackRequestRevision == revision)
+    interruptedPlayback = resumable ? .resumable : .none
+    Self.log.info("event=audioInterruptionBegan resumable=\(resumable)")
+    await pausePlayback()
+  }
+
+  func endAudioInterruption(shouldResume: Bool) async {
+    let resuming = shouldResume && interruptedPlayback == .resumable
+    interruptedPlayback = .none
+    Self.log.info("event=audioInterruptionEnded shouldResume=\(shouldResume) resuming=\(resuming)")
+    guard resuming else { return }
+    await play()
   }
 
   func finishEpisode(_ episodeID: Episode.ID? = nil) async {
