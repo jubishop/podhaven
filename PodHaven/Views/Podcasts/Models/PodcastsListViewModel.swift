@@ -97,10 +97,16 @@ class PodcastsListViewModel:
     displayMode = displayMode == .grid ? .list : .grid
   }
 
+  enum LoadingState: Equatable {
+    case loading
+    case loaded
+    case failed
+  }
+
   let title: String
   let filter: PodcastFilter
   let icon: LucideIcon
-  private(set) var isLoading = true
+  private(set) var loadingState = LoadingState.loading
 
   // MARK: - Initialization
 
@@ -120,7 +126,7 @@ class PodcastsListViewModel:
   }
 
   func execute() async {
-    defer { isLoading = false }
+    if loadingState == .failed { loadingState = .loading }
     do {
       let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> =
         observatory.listablePodcastsWithEpisodeMetadata(filter)
@@ -129,10 +135,12 @@ class PodcastsListViewModel:
         Self.log.debug("Updating \(podcastsWithEpisodeMetadata.count) observed podcasts")
 
         podcastList.allEntries = IdentifiedArray(uniqueElements: podcastsWithEpisodeMetadata)
-        isLoading = false
+        loadingState = .loaded
       }
     } catch {
       Self.log.caughtError("execute: observation failed for podcast list '\(title)'", error)
+      guard !Task.isCancelled else { return }
+      loadingState = .failed
     }
   }
 

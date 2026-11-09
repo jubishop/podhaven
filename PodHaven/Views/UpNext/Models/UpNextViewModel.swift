@@ -313,11 +313,18 @@ import SwiftUI
   func moveEpisode(from: IndexSet, to: Int) {
     guard from.count == 1, let from = from.first
     else { Assert.fatal("Somehow dragged none or several?") }
+    guard episodeList.allEntries.indices.contains(from) else {
+      Self.log.error(
+        "moveEpisode: stale source index \(from) with \(episodeList.allEntries.count) episodes"
+      )
+      return
+    }
 
+    let episodeID = episodeList.allEntries[from].id
     Task { [weak self] in
       guard let self else { return }
       do {
-        try await queue.insert(episodeList.allEntries[from].id, at: to)
+        try await queue.insert(episodeID, at: to)
       } catch {
         Self.log.caughtError("moveEpisode: failed to move from \(from) to \(to)", error)
         guard ErrorKit.isRemarkable(error) else { return }

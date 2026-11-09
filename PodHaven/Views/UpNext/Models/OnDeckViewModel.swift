@@ -8,7 +8,7 @@ import Foundation
 
   func getOrCreatePodcastEpisode(_ episode: OnDeck) async throws -> PodcastEpisode {
     guard let podcastEpisode = try await repo.podcastEpisode(episode.id) else {
-      Assert.fatal("PodcastEpisode not found for OnDeck ID \(episode.id)")
+      throw EpisodeNotFoundError(episodeID: episode.id)
     }
     return podcastEpisode
   }

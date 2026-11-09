@@ -79,8 +79,8 @@ import Testing
     #expect(viewModel.selectionHasTagData == false)
   }
 
-  @Test("selectedPodcastEpisodes preserves user-visible selection order")
-  func selectedPodcastEpisodesPreservesSelectionOrder() async throws {
+  @Test("resolving the selection preserves user-visible selection order")
+  func resolvedSelectionPreservesSelectionOrder() async throws {
     // Insertion order = ep1, ep2, ep3 (so DB rowid order matches that).
     // pubDates are reversed so `oldestFirst` flips the visible order to
     // [ep3, ep2, ep1] — different from any "natural" SQL ordering, which
@@ -133,12 +133,13 @@ import Testing
     // selectedEpisodes follows filteredEntries (visible) order, so the
     // returned PodcastEpisodes must match — anything else means the
     // `WHERE id IN (...)` row-order leaked into bulk queue actions.
-    let podcastEpisodes = try await viewModel.selectedPodcastEpisodes
+    let podcastEpisodes = try await viewModel.resolvedPodcastEpisodes(for: viewModel.selectedEpisodes)
+      .map(\.podcastEpisode)
     #expect(podcastEpisodes.map(\.id) == [oldest.id, middle.id, newest.id])
   }
 
-  @Test("selectedPodcastEpisodes degrades to [] when DB rows vanish under a live selection")
-  func selectedPodcastEpisodesGracefulOnVanishedRows() async throws {
+  @Test("resolving the selection degrades to [] when DB rows vanish under a live selection")
+  func resolvedSelectionGracefulOnVanishedRows() async throws {
     let savedSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(title: "About to be deleted"),
@@ -175,14 +176,15 @@ import Testing
     let deleted = try await repo.deletePodcast(savedSeries.id)
     #expect(deleted)
 
-    let podcastEpisodes = try await viewModel.selectedPodcastEpisodes
+    let podcastEpisodes = try await viewModel.resolvedPodcastEpisodes(for: viewModel.selectedEpisodes)
+      .map(\.podcastEpisode)
     #expect(podcastEpisodes.isEmpty)
 
     try await Wait.until(
       { @MainActor [self] in alert.config != nil },
       { @MainActor [self] in
         """
-        Expected an alert when selectedPodcastEpisodes degrades to [].
+        Expected an alert when resolving the selection degrades to [].
         alert presented: \(alert.config != nil)
         """
       }

@@ -313,6 +313,8 @@ class SearchViewModel:
         restartObservationForTrendingSection(trendingSection)
       }
 
+      // A cancelled fetch has already been replaced; its successor owns the handle.
+      guard !Task.isCancelled else { return }
       trendingSection.task = nil
     }
 
@@ -410,7 +412,7 @@ class SearchViewModel:
         )
       } catch {
         Self.log.caughtError("executeSearch: failed for term '\(term)'", error)
-        guard !Task.isCancelled else { return false }
+        guard !Task.isCancelled, term == searchedText else { return false }
 
         searchResults.removeAll()
         searchState = .error(ErrorKit.message(for: error))
@@ -624,6 +626,7 @@ class SearchViewModel:
           ),
           episodeCount: podcast.episodeCount,
           mostRecentEpisodeDate: podcast.mostRecentEpisodeDate,
+          tagIDs: podcast.tagIDs,
           resolvedFreshnessCadence: podcast.resolvedFreshnessCadence
         )
       )
@@ -650,6 +653,7 @@ class SearchViewModel:
         ),
         episodeCount: podcast.episodeCount,
         mostRecentEpisodeDate: podcast.mostRecentEpisodeDate,
+        tagIDs: podcast.tagIDs,
         resolvedFreshnessCadence: podcast.resolvedFreshnessCadence
       )
     )

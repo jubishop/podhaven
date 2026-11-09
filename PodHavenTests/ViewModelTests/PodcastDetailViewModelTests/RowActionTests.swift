@@ -197,7 +197,8 @@ import Testing
     let target = try #require(viewModel.episodeList.allEntries.first { $0.title == "Episode 2" })
     viewModel.episodeList.isSelected[target.id] = true
 
-    let podcastEpisodes = try await viewModel.selectedPodcastEpisodes
+    let podcastEpisodes = try await viewModel.resolvedPodcastEpisodes(for: viewModel.selectedEpisodes)
+      .map(\.podcastEpisode)
     #expect(podcastEpisodes.map(\.title) == ["Episode 2"])
 
     let series = try #require(try await repo.podcastSeries(feedURL))
