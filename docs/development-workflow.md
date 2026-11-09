@@ -517,8 +517,10 @@ gated SSH push from failing that way:
 - **Fallback:** when the gate runs the tooling tests in full for an SSH
   remote whose SSH command has no positive `ServerAliveInterval`, it lets
   them record their pass and then refuses the push, saying the checks passed
-  and to push again. The retry reuses that pass at once. A keepalive set only
-  in `~/.ssh/config` isn't detected, so such a push takes the retry.
+  and to push again. Git can still exit with status 141 after that message,
+  because it writes to the closed connection as it disconnects. The retry
+  reuses that pass at once. A keepalive set only in `~/.ssh/config` isn't
+  detected, so such a push takes the retry.
 
 ## Scheduled memory audit
 
