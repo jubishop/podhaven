@@ -17,3 +17,4 @@ Never propose installing or running a debug (Xcode-direct) build on @jubishop's 
 - "Run it locally" / "attach the debugger" means the **iOS Simulator on the Mac** — the only place with an interactive debugger + Instruments. Never the physical iPhone.
 - Real-hardware behavior — background scheduling, push, audio-session/playback edge cases, jetsam/OOM — must be exercised via **TestFlight**, which has **no debugger**. Diagnosing there requires self-contained instrumentation: structured logging, Sentry, one-shot error captures, on-device snapshots — not breakpoints.
 - If a bug reproduces only on real hardware, plan an instrumented TestFlight build + Sentry-feedback loop. Do not offer a device debug session as a fallback — it does not exist for this project.
+- That loop means shipping the instrumentation to TestFlight and reading what testers' devices report in Sentry. It doesn't ask @jubishop to reproduce or test anything by hand.
