@@ -94,6 +94,17 @@ enum HTMLContent {
     }
   }
 
+  // MARK: - Link Policy
+
+  // Feed-authored links may only leave for the web or mail. Any other scheme
+  // could hide a deep link into PodHaven or another app behind innocent text.
+  static func allowsLink(_ url: URL) -> Bool {
+    guard let scheme = url.scheme?.lowercased() else { return false }
+    return allowedLinkSchemes.contains(scheme)
+  }
+
+  private static let allowedLinkSchemes: Set<String> = ["http", "https", "mailto"]
+
   // MARK: - Main Parsing
 
   static func attributedString(html: String, font: Font) -> AttributedString? {
@@ -567,7 +578,8 @@ enum HTMLContent {
           let hrefRange = Range(match.range(at: 1), in: tagString)
         {
           let urlString = String(tagString[hrefRange]).decodingHTMLEntities()
-          return URL(string: urlString)
+          guard let url = URL(string: urlString), HTMLContent.allowsLink(url) else { return nil }
+          return url
         }
       }
 
