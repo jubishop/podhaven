@@ -243,8 +243,11 @@ import Testing
     )
   }
 
-  @Test("that a shared OPML file opens a review and deletes the shared copy")
-  func sharedOPMLFileOpensReview() async throws {
+  @Test(
+    "that a shared OPML file opens a review and deletes the shared copy",
+    arguments: ["OPML", "xml"]
+  )
+  func sharedOPMLFileOpensReview(fileExtension: String) async throws {
     let feedURL = URL(
       string: "https://feeds.soundcloud.com/users/soundcloud:users:122508048/sounds.rss"
     )!
@@ -253,7 +256,7 @@ import Testing
 
     let fakeFileManager = Container.shared.fileManager() as! FakeFileManager
     let opmlURL = try sharedContainerURL()
-      .appendingPathComponent("shared_file_\(UUID().uuidString).OPML")
+      .appendingPathComponent("shared_file_\(UUID().uuidString).\(fileExtension)")
     let opmlData = PreviewBundle.loadAsset(named: "techdirt", in: .OPML)
     await opmlSession.respond(to: opmlURL, data: opmlData)
     try await fakeFileManager.writeData(opmlData, to: opmlURL)
@@ -277,6 +280,47 @@ import Testing
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))
     #expect(podcastSeries?.podcast.title == "Techdirt")
     #expect(podcastSeries?.podcast.subscriptionDate != nil)
+  }
+
+  enum SharedNonOPMLFile: CaseIterable, Sendable {
+    case rssFeed, audio
+
+    var fileExtension: String {
+      switch self {
+      case .rssFeed: "xml"
+      case .audio: "mp3"
+      }
+    }
+
+    var data: Data {
+      switch self {
+      case .rssFeed: PreviewBundle.loadAsset(named: "techdirt", in: .FeedRSS)
+      case .audio: Data([0xFF, 0xFB, 0x90, 0x64, 0x00, 0x00, 0x00, 0x00])
+      }
+    }
+  }
+
+  @Test(
+    "that a shared file that is not OPML is rejected and its shared copy deleted",
+    arguments: SharedNonOPMLFile.allCases
+  )
+  func sharedNonOPMLFileIsDeleted(file: SharedNonOPMLFile) async throws {
+    let fakeFileManager = Container.shared.fileManager() as! FakeFileManager
+    let fileURL = try sharedContainerURL()
+      .appendingPathComponent("shared_file_\(UUID().uuidString).\(file.fileExtension)")
+    try await fakeFileManager.writeData(file.data, to: fileURL)
+
+    await #expect(throws: URLError.self) {
+      try await self.shareService.handleIncomingURL(ShareHelpers.shareURL(with: fileURL))
+    }
+
+    #expect(fakeFileManager.removeItemCallCount(for: fileURL) == 1)
+    #expect(!fakeFileManager.fileExists(at: fileURL))
+    #expect(await opmlSession.requests.isEmpty)
+    #expect(await feedSession.requests.isEmpty)
+    #expect(opmlViewModel.opmlFile == nil)
+    #expect(navigation.settings.path.isEmpty)
+    #expect(navigation.search.path.isEmpty)
   }
 
   @Test("that a remote OPML share URL is rejected without fetching or subscribing")
