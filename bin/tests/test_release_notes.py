@@ -15,6 +15,10 @@ import service_guard
 
 
 ROOT = Path(__file__).resolve().parents[2]
+PROJECT = "PodHaven.xcodeproj/project.pbxproj"
+RESOLVED = "PodHaven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+SETTINGS = ("\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = {target};\n\t\t\t\tMARKETING_VERSION = {version};\n"
+            "\t\t\t\tSWIFT_VERSION = 6.0;\n")
 FAKE_LLM = r'''
 import json, os, pathlib, sys
 base = pathlib.Path(os.environ['NOTES_FIXTURE'])
@@ -68,10 +72,12 @@ class ReleaseNotesTests(unittest.TestCase):
         return subprocess.check_output(["git", "-C", str(self.repo), *args], env=self.env,
                                        stderr=subprocess.PIPE, text=True).strip()
 
-    def commit(self, path, message, date=None):
+    def commit(self, path, message, date=None, text=None):
         file = self.repo / path
         file.parent.mkdir(parents=True, exist_ok=True)
-        file.write_text(file.read_text() + message + "\n" if file.exists() else message + "\n")
+        if text is None:
+            text = file.read_text() + message + "\n" if file.exists() else message + "\n"
+        file.write_text(text)
         self.git("add", path)
         self.git_at(date, "commit", "-m", message)
 
@@ -310,6 +316,51 @@ class ReleaseNotesTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout + result.stderr, "")
         self.assertFalse(self.llm_calls())
+
+    def test_untested_reports_a_dependency_update_alone(self):
+        self.add_untested_commits(0)
+        self.commit(RESOLVED, "⬆️ chore(deps): Update Nuke", "2026-10-24T12:00:00-07:00")
+        result = self.run_notes("untested", "--since-build", "583")
+        self.assertNotEqual(result.returncode, 0)
+        report = result.stderr
+        self.assertIn("Testers in Everyone don't have 1 app commit yet.", report)
+        self.assertIn("2 commits landed between Oct 22, 2026 and Oct 24, 2026, and 1 of them changes the app.", report)
+        self.assertIn("Oct 24, 2026", report)
+        self.assertIn("Update Nuke", report)
+        self.assertIn("Run testflight first", report)
+
+    def test_untested_counts_build_setting_changes_but_not_version_changes(self):
+        self.commit(PROJECT, "🔧 build: Add the project", text=SETTINGS.format(target="26.1", version="1.4.1"))
+        self.add_untested_commits(0)
+        self.commit(PROJECT, "Change version number to 1.5", "2026-10-24T12:00:00-07:00",
+                    text=SETTINGS.format(target="26.1", version="1.5"))
+        self.commit(PROJECT, "🔧 build: Raise the deployment target", "2026-10-25T12:00:00-07:00",
+                    text=SETTINGS.format(target="26.2", version="1.5"))
+        self.git("tag", "-a", "v1.5b584", "-m", "Rejected build")
+        self.commit(RESOLVED, "⬆️ chore(deps): Update Nuke", "2026-10-26T12:00:00-07:00")
+        pending = self.pending(state="BETA_REJECTED", submitted=None)
+        report = self.run_notes("untested", "--since-build", "583", "--pending", pending).stderr
+        self.assertIn("Testers in Everyone don't have 2 app commits yet.", report)
+        self.assertIn("4 commits landed between Oct 22, 2026 and Oct 26, 2026, and 2 of them change the app.", report)
+        self.assertIn("Raise the deployment target", report)
+        self.assertIn("Update Nuke", report)
+        self.assertNotIn("Change version number", report)
+        self.assertIn("It includes 1 of the 2 app commits below.", report)
+
+    def test_notes_leave_dependency_and_build_setting_changes_to_the_fixed_note(self):
+        self.commit(RESOLVED, "⬆️ chore(deps): Update Nuke")
+        self.commit(PROJECT, "🔧 build: Raise the deployment target", text=SETTINGS.format(target="26.2", version="1.4.1"))
+        result = self.run_notes("testflight", "--since-build", "582")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "Behind-the-scenes stability and performance improvements.")
+        self.assertFalse(self.llm_calls())
+        self.commit("PodHaven/Player.swift", "🐛 fix: Another fix")
+        result = self.run_notes("testflight", "--since-build", "582")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        [(_, log)] = self.llm_calls()
+        self.assertIn("Another fix", log)
+        self.assertNotIn("Update Nuke", log)
+        self.assertNotIn("deployment target", log)
 
     def test_untested_release_proceeds_only_on_yes(self):
         self.add_untested_commits(1)
