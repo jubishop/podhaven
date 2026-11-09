@@ -4,7 +4,7 @@ from pathlib import Path
 import shutil
 import sys
 
-from test_test_all import FAKE as PLATFORM_FAKE, make_container
+from test_test_all import FAKE as PLATFORM_FAKE, make_container, write_package_pins
 
 FAKE = PLATFORM_FAKE.replace("base / 'events'", "base / 'gate-events'")
 
@@ -21,6 +21,7 @@ def install_gate(repo, commands):
         path.write_text(f"#!{sys.executable}\n" + FAKE)
         path.chmod(0o755)
     (repo / ".gitignore").write_text(".cache/\n")
+    write_package_pins(repo)
     home = commands.parent / "home"
     home.mkdir(exist_ok=True)
     make_container(home, "test-host")
