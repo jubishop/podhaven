@@ -48,10 +48,6 @@ Keep development, CI, and release tools compatible with these requirements.
 Use the existing manifests and setup mechanisms instead of adding conflicting
 version declarations.
 
-Swift Collections uses release 1.6.0. Its development branch introduced a
-Swift runtime symbol that prevented the app from launching on OS 26. Keep
-dependency runtime requirements compatible with the app's deployment target.
-
 When changing application commands, reject unsupported toolchains before
 installation, tests, builds, or release work. Report the detected version,
 the supported versions, and how to select a compatible toolchain. Check the
@@ -59,11 +55,41 @@ selected tools with `xcodebuild -hideShellScriptEnvironment -version` and
 `xcrun swift --version`. Use `DEVELOPER_DIR` to select a different installed
 Xcode for a command.
 
-Prefer maintained releases and coordinate upgrades across development, CI,
-and deployment after dependency and behavior checks. Review automatic version
-selectors when changing the supported major versions; do not silently widen
-that policy. Document and foundation checks must remain independent of Xcode
-and Swift because they do not use those tools.
+Coordinate toolchain upgrades across development, CI, and deployment after
+dependency and behavior checks. Review automatic version selectors when
+changing the supported major versions; do not silently widen that policy.
+Document and foundation checks must remain independent of Xcode and Swift
+because they do not use those tools.
+
+## Package dependencies
+
+The app's Swift package requirements, and the macro package's swift-syntax
+and swift-tagged, deliberately track each project's development branch,
+`main` or GRDB's `master`, instead of release versions. Fixes and support for
+new toolchains, such as Swift 6.4 and Xcode 27, arrive as soon as they land
+rather than with the next release. Version ranges from the newest releases and
+exact release pins were considered and rejected. Two app requirements differ:
+Swift Collections has the exact pin described below, and
+swift-concurrency-extras uses a version range.
+
+These safeguards make branch tracking safe:
+
+- `Package.resolved` records each package's exact revision, so builds stay
+  reproducible until someone updates packages.
+- Every package update is a reviewed change that passes `bin/test-all`.
+- A package whose development branch breaks the app's deployment target gets
+  an exact release pin. Swift Collections uses release 1.6.0 because its
+  development branch introduced a Swift runtime symbol that prevented the app
+  from launching on OS 26. Keep dependency runtime requirements compatible
+  with the app's deployment target.
+
+The app's `Package.resolved` and `PodHavenMacros/Package.resolved` pin the
+macro package's dependencies separately. Xcode builds the macros from the
+app's pins, while `bin/test-all` tests them with `swift test` from the macro
+package's own. Before running tests, `bin/test-all` fails when a macro
+package pin differs from or is missing in the app's file. After updating
+packages, copy the app's new pins for those dependencies into
+`PodHavenMacros/Package.resolved`.
 
 ## Worktrees
 
