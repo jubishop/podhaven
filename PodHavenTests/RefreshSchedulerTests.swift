@@ -14,6 +14,7 @@ import UIKit
 @MainActor struct RefreshSchedulerTests {
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
   @DynamicInjected(\.cacheManagerSession) private var cacheManagerSession
+  @DynamicInjected(\.networkPathMonitor) private var networkPathMonitor
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
@@ -36,6 +37,9 @@ import UIKit
   }
   private var fakeApplication: FakeApplication {
     uiApplication as! FakeApplication
+  }
+  private var fakeNetworkPathMonitor: FakeNetworkPathMonitor {
+    networkPathMonitor as! FakeNetworkPathMonitor
   }
   private var fakeObservatory: FakeObservatory {
     observatory as! FakeObservatory
@@ -339,12 +343,99 @@ import UIKit
     }
   }
 
+  @Test(
+    "background refresh waits for the first network path and skips a constrained connection until it clears",
+    arguments: [
+      FakeNetworkPath(isConstrained: true),
+      FakeNetworkPath(isUltraConstrained: true),
+    ]
+  )
+  func backgroundRefreshSkipsConstrainedFirstPath(constrainedPath: FakeNetworkPath) async throws {
+    let fakeBGTaskScheduler = fakeBGTaskScheduler
+    let fakeNetworkPathMonitor = fakeNetworkPathMonitor
+    let session = session
+    fakeNetworkPathMonitor.withholdInitialPath()
+    let podcastSeries = try await makeStaleSubscribedSeries()
+    let responseData = PreviewBundle.loadAsset(
+      named: "hardfork_short_updated",
+      in: .FeedRSS
+    )
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: responseData)
+    fakeApplication.applicationState = .background
+
+    refreshScheduler.register()
+
+    let identifier = try #require(fakeBGTaskScheduler.submissions.first?.identifier)
+    let constrainedTask = try #require(fakeBGTaskScheduler.launchTask(withIdentifier: identifier))
+    try await fakeNetworkPathMonitor.waitForStart()
+    fakeNetworkPathMonitor.update(constrainedPath)
+
+    try await Wait.until(
+      { constrainedTask.completionResults == [true] },
+      {
+        "Expected constrained background refresh to complete successfully, got \(constrainedTask.completionResults)"
+      }
+    )
+    let constrainedRequests = await session.requests
+    #expect(constrainedRequests.isEmpty)
+
+    fakeNetworkPathMonitor.update(FakeNetworkPath())
+    let unconstrainedTask = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+
+    try await Wait.until(
+      { unconstrainedTask.completionResults == [true] },
+      {
+        "Expected unconstrained background refresh to complete successfully, got \(unconstrainedTask.completionResults)"
+      }
+    )
+    let unconstrainedRequests = await session.requests
+    #expect(unconstrainedRequests == [podcastSeries.podcast.feedURL.rawValue])
+  }
+
+  @Test("background refresh waits for the first network path and applies cellular staleness")
+  func backgroundRefreshAppliesCellularStalenessOnExpensiveFirstPath() async throws {
+    let fakeBGTaskScheduler = fakeBGTaskScheduler
+    let fakeNetworkPathMonitor = fakeNetworkPathMonitor
+    let session = session
+    fakeNetworkPathMonitor.withholdInitialPath()
+    // Background refresh treats this as stale on Wi-Fi but not on cellular.
+    _ = try await makeStaleSubscribedSeries(
+      feedData: SyntheticFeed.rss(index: 0, episodes: 1),
+      feedURL: SyntheticFeed.url(0),
+      lastUpdate: 3.hoursAgo
+    )
+    let cellularStaleSeries = try await makeStaleSubscribedSeries(
+      feedData: SyntheticFeed.rss(index: 1, episodes: 1),
+      feedURL: SyntheticFeed.url(1),
+      lastUpdate: 5.hoursAgo
+    )
+    await SyntheticFeed.respond(session, episodes: 2)
+    fakeApplication.applicationState = .background
+
+    refreshScheduler.register()
+
+    let identifier = try #require(fakeBGTaskScheduler.submissions.first?.identifier)
+    let task = try #require(fakeBGTaskScheduler.launchTask(withIdentifier: identifier))
+    try await fakeNetworkPathMonitor.waitForStart()
+    fakeNetworkPathMonitor.update(FakeNetworkPath(isExpensive: true))
+
+    try await Wait.until(
+      { task.completionResults == [true] },
+      { "Expected background refresh to complete successfully, got \(task.completionResults)" }
+    )
+    let requests = await session.requests
+    #expect(requests == [cellularStaleSeries.podcast.feedURL.rawValue])
+  }
+
   private func makeStaleSubscribedSeries(
+    feedData: Data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS),
+    feedURL: URL = URL(string: "https://example.com/feed.rss")!,
+    lastUpdate: Date = 5.hoursAgo,
     queueAllEpisodes: QueueAllEpisodes = .never
   ) async throws -> PodcastSeries {
-    let feedURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    let podcastFeed = try await PodcastFeed.parse(data, from: feedURL)
+    let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
     let basePodcast = try podcastFeed.toUnsavedPodcast()
     let unsavedPodcast = try Create.unsavedPodcast(
       feedURL: basePodcast.feedURL,
@@ -352,7 +443,7 @@ import UIKit
       image: basePodcast.image,
       description: basePodcast.description,
       link: basePodcast.link,
-      lastUpdate: 5.hoursAgo,
+      lastUpdate: lastUpdate,
       subscriptionDate: Date(),
       queueAllEpisodes: queueAllEpisodes
     )
