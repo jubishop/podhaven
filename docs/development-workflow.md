@@ -361,7 +361,12 @@ covers error issues. Each creates an intake issue with a body marker, its
 label, and an instruction comment declaring its analysis skill as a
 `fix-issue` prerequisite. When an error issue recurs after all its tracking
 issues closed, the checker opens a recurrence intake issue that links them
-instead of reopening shipped work.
+instead of reopening shipped work. Feedback never recurs: each Sentry feedback
+issue is one user's submission, and new feedback arrives under a new slug with
+its own tracking issue. A feedback item's tracking issue, open or closed,
+therefore stays its record for good, and the checker reports it as already
+tracked. Both checkers share `bin/_sentry_intake.sh` and fail rather than
+check a partial Sentry list.
 
 | | Feedback | Error issues |
 | --- | --- | --- |
