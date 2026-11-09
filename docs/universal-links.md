@@ -15,6 +15,14 @@ an episode `guid` when applicable, and an optional `startTime` in seconds.
 The app validates the domain, path, feed URL, and required query values before
 opening a podcast or episode. Existing custom-scheme links remain supported.
 
+Custom-scheme `podhaven://share?url=` links get the same checks. A wrapped URL
+with a `feedURL` parameter must pass Universal Link validation, and any other
+wrapped URL must be an Apple Podcasts link or an HTTP or HTTPS feed. Feeds open
+over HTTPS. An `.opml` link opens only a `shared_file_*` copy that the share
+extension wrote to the app group container. The app deletes only that copy.
+Every OPML import, including one chosen in Settings, lists its feeds and
+subscribes to nothing until the user taps Import.
+
 The website's association file lists only the production app identifier,
 `34TKMKM889.com.artisanalsoftware.PodHaven`. Development and test builds do not
 take over public links. Only `applinks` is configured; the association does not
