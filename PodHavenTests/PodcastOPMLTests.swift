@@ -76,6 +76,28 @@ struct PodcastOPMLTests {
     #expect(rssFeeds.skippedCount == 3)
   }
 
+  @Test("parsing OPML keeps feed URLs with uppercase schemes as HTTPS")
+  func parseOPMLWithUppercaseSchemes() async throws {
+    let xml = """
+      <?xml version="1.0" encoding="utf-8"?>
+      <opml version="1.0">
+        <head><title>Uppercase Schemes</title></head>
+        <body>
+          <outline type="rss" text="Hard Fork" xmlUrl="HTTPS://feeds.simplecast.com/l2i9YnTd"/>
+          <outline type="rss" text="Marketplace" xmlUrl="HTTP://www.marketplace.org/feed/podcast/marketplace"/>
+        </body>
+      </opml>
+      """
+    let rssFeeds = try await PodcastOPML.parse(Data(xml.utf8)).rssFeeds
+    #expect(
+      rssFeeds.feeds.map(\.feedURL.absoluteString) == [
+        "https://feeds.simplecast.com/l2i9YnTd",
+        "https://www.marketplace.org/feed/podcast/marketplace",
+      ]
+    )
+    #expect(rssFeeds.skippedCount == 0)
+  }
+
   @Test("parsing OPML counts feed entries without a usable feed URL")
   func parseOPMLCountsUnusableFeedURLs() async throws {
     let xml = """

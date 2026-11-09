@@ -22,7 +22,8 @@ Preserve decision reasons and evidence. Follow the
 - [Project Starter foundation](foundation/README.md): shared engineering and knowledge search policy.
 - [Development workflow](development-workflow.md): setup, search, hooks, cache isolation, dependencies, testing, and validation
 - [Versioning and releases](releases.md): version commits, TestFlight uploads, automated App Store submissions, and retry behavior
-- [Universal Links](universal-links.md): associated domains, website fallback, and coordinated app rollout
+- [Universal Links](universal-links.md): associated domains, website fallback, private feed links, and coordinated app rollout
+- [Files app access](files-app-access.md): why `Documents` stays visible in the Files app on every build, and the live database risk
 - [CarPlay scene lifecycle](carplay-lifecycle.md): startup ownership, connection cleanup, Sentry app-hang gating, protected storage audit, and validation boundaries
 - [CarPlay browsing and playback](carplay-playback.md): live Up Next rows, bounded paging, shared selection ownership, and Now Playing controls
 - [CarPlay MVP automated acceptance](carplay-validation.md): integration evidence matrix, signed builds, reproducible checks, and native/device limits

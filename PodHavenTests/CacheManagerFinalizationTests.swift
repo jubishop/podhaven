@@ -54,6 +54,22 @@ import Testing
     #expect(withExtURL.pathExtension == "wav")
   }
 
+  @Test("cache filenames drop an over-long extension")
+  func cacheFilenameDropsOverLongExtension() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(
+        mediaURL: MediaURL(URL(string: "https://a.b/c/d." + String(repeating: "a", count: 250))!)
+      )
+    )
+    let taskID = try await cacheManager.downloadToCache(for: podcastEpisode.id)!
+
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    #expect(cachedURL.pathExtension == "mp3")
+    #expect(cachedURL.rawValue.lastPathComponent.utf8.count <= NAME_MAX)
+  }
+
   @Test("extensionless download uses mp3 staging suffix for validation")
   func extensionlessDownloadUsesMP3StagingSuffix() async throws {
     let mediaURL = MediaURL(try #require(URL(string: "https://example.com/download")))
