@@ -179,6 +179,8 @@ struct PublisherTranscriptImporter: Sendable {
 
   private static let log = Log.as(LogSubsystem.Transcription.processor)
 
+  static let downloadByteLimit = 8 * 1024 * 1024
+
   fileprivate init() {}
 
   func importTranscript(
@@ -204,7 +206,10 @@ struct PublisherTranscriptImporter: Sendable {
       guard let format = reference.format else { continue }
 
       do {
-        let data = try await session.validatedData(from: reference.url)
+        let data = try await session.validatedData(
+          from: reference.url,
+          byteLimit: Self.downloadByteLimit
+        )
         let segments = try PublisherTranscriptParser.parse(data, as: format)
         return .imported(
           PublisherTranscriptImport(
@@ -236,7 +241,9 @@ struct PublisherTranscriptImporter: Sendable {
   }
 
   private static func isRetryable(_ error: any Error) -> Bool {
-    if error is PublisherTranscriptParser.ParsingError || error is DecodingError {
+    if error is PublisherTranscriptParser.ParsingError || error is DecodingError
+      || error is ResponseTooLargeError
+    {
       return false
     }
     if let statusError = error as? HTTPStatusError {

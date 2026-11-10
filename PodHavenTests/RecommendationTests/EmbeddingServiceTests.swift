@@ -59,6 +59,32 @@ class EmbeddingServiceTests {
     #expect(result == "real bad content")
   }
 
+  @Test("cleanText reads only its byte limit of input")
+  func cleanTextByteLimit() {
+    let limit = EmbeddingService.cleanTextByteLimit
+    let words =
+      String(repeating: "word ", count: limit / 5) + String(repeating: " ", count: limit % 5)
+    let result = EmbeddingService.cleanText(words + "sentinel")
+    #expect(result == words.trimmed())
+  }
+
+  @Test("cleanText cuts its input on a character boundary")
+  func cleanTextByteLimitCharacterBoundary() {
+    let euros = String(repeating: "€", count: EmbeddingService.cleanTextByteLimit)
+    let result = EmbeddingService.cleanText(euros)
+    #expect(result == String(repeating: "€", count: EmbeddingService.cleanTextByteLimit / 3))
+  }
+
+  @Test("cleanText finishes a description of unclosed brackets within a CPU budget")
+  func cleanTextUnclosedBrackets() async throws {
+    let text = String(repeating: "<", count: 100_000)
+
+    let (result, cpu) = try await ThreadCPUTime.measure { EmbeddingService.cleanText(text) }
+
+    #expect(result == String(repeating: "<", count: EmbeddingService.cleanTextByteLimit))
+    #expect(cpu < .seconds(20))
+  }
+
   // MARK: - Input Forwarding
 
   @Test("upsertEpisodeEmbeddings forwards full cleaned text without length truncation")

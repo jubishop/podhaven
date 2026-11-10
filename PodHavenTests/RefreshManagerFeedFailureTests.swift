@@ -67,6 +67,36 @@ actor RefreshManagerFeedFailureTests {
     #expect(parseFailureLevels(for: feedURL, in: captured) == [.warning, .notice])
   }
 
+  @Test("performRefresh warns once per process for each feed over the download limit")
+  func oversizedFeedsWarnOncePerFeed() async throws {
+    let feedURL = try await insertPodcast(feedURL: "https://example.com/oversized.rss")
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+        <channel>
+          <title>Oversized</title>
+          <description>Valid feed padded past the download limit</description>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Episode</title>
+            <guid>episode</guid>
+            <enclosure url="https://example.com/episode.mp3" type="audio/mpeg"/>
+          </item>
+        </channel>
+      </rss>
+      """
+    let padding = String(repeating: " ", count: PodcastFeed.downloadByteLimit)
+    await session.respond(to: feedURL, data: Data((xml + padding).utf8))
+
+    let captured = try await LogCapture.withSink { sink in
+      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+      return sink.captured()
+    }
+
+    #expect(parseFailureLevels(for: feedURL, in: captured) == [.warning, .notice])
+  }
+
   @Test("performRefresh keeps network and HTTP feed failures below warning")
   func networkAndHTTPFailuresStayAtNotice() async throws {
     let offlineURL = try await insertPodcast(feedURL: "https://example.com/offline.rss")

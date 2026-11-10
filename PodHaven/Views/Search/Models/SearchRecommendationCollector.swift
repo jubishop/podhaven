@@ -129,6 +129,7 @@ final class SearchRecommendationCollector {
   init() {
     downloadManager = DownloadManager(
       session: Container.shared.podcastFeedSession(),
+      byteLimit: PodcastFeed.downloadByteLimit,
       maxConcurrentDownloads: Self.rssConcurrency
     )
   }
