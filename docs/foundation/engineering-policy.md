@@ -184,10 +184,12 @@ A project's `.shellcheckrc` configures ShellCheck, such as
 The whitespace checks read the checkout's own changes: staged changes, and
 the working tree compared with where the branch left `origin`'s default
 branch, so they catch errors already committed on the branch. Before anything
-is fetched or pushed, every commit counts. Content already on the default
-branch never fails them. A clone without that history, such as CI's shallow
-checkout, checks only uncommitted changes. Exempt a file whose format needs
-such whitespace with `-whitespace` in `.gitattributes`.
+is fetched or pushed, every commit counts. In [hosted CI](#hosted-ci), a pull
+request's commits count from where it left its base branch, and a push's from
+the commit it replaced. Content already on the default branch never fails
+them. A clone without that history checks only uncommitted changes. Exempt a
+file whose format needs such whitespace with `-whitespace` in
+`.gitattributes`.
 
 Choose checks by the change and its stage:
 
@@ -249,6 +251,11 @@ Markdown affects behavior, such as pages the application serves or tests
 read, use a `paths` filter instead: `'**'`, then `'!**.md'`, then those
 pages. A workflow skipped by a path filter reports no status, so do not make
 it a required check.
+
+Give `actions/checkout` `fetch-depth: 0` in each job that runs `bin/check` or
+`bin/check --full`, so the [whitespace checks](#checks) can reach the commits
+the run adds. In a pull request or push run, a checkout too shallow to reach
+them fails those checks instead of passing without reading them.
 
 When hosted CI cannot run only because the Actions quota is exhausted or
 GitHub is rate limiting, run `bin/check --full` locally on the exact revision

@@ -306,20 +306,48 @@ def validate(root, areas=("memory", "docs"), options=None):
     return errors
 
 
+def event_base():
+    """Return the revision a GitHub Actions pull request or push run starts from, or None for any other run.
+
+    That is the pull request's base branch, or the commit a push replaced. A push that creates its branch has none.
+    """
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return None
+    name = os.environ.get("GITHUB_EVENT_NAME")
+    if name == "pull_request" and os.environ.get("GITHUB_BASE_REF"):
+        return "refs/remotes/origin/" + os.environ["GITHUB_BASE_REF"]
+    if name == "push":
+        before = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text()).get("before") or ""
+        return before if before.strip("0") else None
+    return None
+
+
 def change_base(root):
     """Return where this checkout's own changes start, or None when its history can't tell.
 
-    That is the fork point from origin's default branch, or the empty tree before anything is fetched or pushed.
-    A clone without that history, such as CI's shallow checkout, gets None rather than the empty tree, so
-    content already on the default branch never fails the check.
+    In a GitHub Actions pull request or push run, that is the fork point from its event's base. Otherwise it is
+    the fork point from origin's default branch, or the empty tree before anything is fetched or pushed.
+    A clone without that history, such as one whose push rewrote what it replaced, gets None rather than the
+    empty tree, so content already on the default branch never fails the check. A shallow GitHub Actions
+    checkout that can't reach its event's base fails instead, since it would check nothing committed.
     """
     if not git("rev-parse", "--verify", "--quiet", "HEAD^{commit}", root=root, optional=True):
         return None
+    shallow = git("rev-parse", "--is-shallow-repository", root=root) == "true"
+    event = event_base()
+    if event:
+        commit = git("rev-parse", "--verify", "--quiet", event + "^{commit}", root=root, optional=True)
+        base = commit and git("merge-base", "HEAD", commit, root=root, optional=True)
+        if base:
+            return base
+        if shallow:
+            raise RuntimeError("This shallow checkout can't reach " + event + ", where this run's commits start, so "
+                               "the whitespace check would read none of them. Give actions/checkout fetch-depth: 0, "
+                               "as docs/foundation/engineering-policy.md#hosted-ci describes.")
     default = git("rev-parse", "--verify", "--quiet", "refs/remotes/origin/HEAD^{commit}", root=root, optional=True)
     if default:
         return git("merge-base", "HEAD", default, root=root, optional=True) or None
-    if (git("for-each-ref", "--count=1", "--format=%(refname)", "refs/remotes", root=root)
-            or git("rev-parse", "--is-shallow-repository", root=root) == "true"):
+    if shallow or git("for-each-ref", "--count=1", "--format=%(refname)", "refs/remotes", root=root):
         return None
     return git("hash-object", "-t", "tree", os.devnull, root=root)
 
