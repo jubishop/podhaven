@@ -166,6 +166,8 @@ extension SelectableEpisodeList {
         didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("addSelectedEpisodesToBottomOfQueue: failed", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -188,6 +190,8 @@ extension SelectableEpisodeList {
         didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("addSelectedEpisodesToTopOfQueue: failed", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -210,6 +214,8 @@ extension SelectableEpisodeList {
         didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("replaceQueueWithSelected: failed", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -238,6 +244,8 @@ extension SelectableEpisodeList {
           "dequeueSelectedEpisodes: failed to dequeue \(queuedSavedEpisodeIDs.count) episodes",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -251,29 +259,27 @@ extension SelectableEpisodeList {
 
     Self.log.debug("cacheSelectedEpisodes: caching \(selectedCount) selected episodes")
 
-    let log = Self.log
     Task { [weak self] in
       guard let self else { return }
 
+      let episodeIDs: [Episode.ID]
       do {
-        let episodeIDs = try await selectedPodcastEpisodeIDs
-        await withDiscardingTaskGroup { group in
-          for episodeID in episodeIDs {
-            group.addTask {
-              do {
-                try await Container.shared.cacheManager().downloadToCache(for: episodeID)
-              } catch {
-                log.caughtError(
-                  "cacheSelectedEpisodes: failed for episode \(episodeID)",
-                  error
-                )
-              }
-            }
-          }
-        }
+        episodeIDs = try await selectedPodcastEpisodeIDs
       } catch {
-        log.caughtError("cacheSelectedEpisodes: failed to resolve episode IDs", error)
+        Self.log.caughtError("cacheSelectedEpisodes: failed to resolve episode IDs", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+        return
       }
+
+      let failure = await Self.firstRemarkableFailure(
+        forEach: episodeIDs,
+        logging: "cacheSelectedEpisodes: failed for episode"
+      ) { episodeID in
+        try await Container.shared.cacheManager().downloadToCache(for: episodeID)
+      }
+      guard let failure else { return }
+      alert(ErrorKit.message(for: failure))
     }
   }
 
@@ -293,6 +299,7 @@ extension SelectableEpisodeList {
     )
 
     let log = Self.log
+    let alert = self.alert
     Task {
       do {
         try await Container.shared.repo().updateSaveInCache(cachedEpisodeIDs, saveInCache: false)
@@ -301,22 +308,19 @@ extension SelectableEpisodeList {
           "uncacheSelectedEpisodes: failed to unsave \(cachedEpisodeIDs.count) episodes",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
         return
       }
-      await withDiscardingTaskGroup { group in
-        for episodeID in cachedEpisodeIDs {
-          group.addTask {
-            do {
-              try await Container.shared.cacheManager().clearCache(for: episodeID)
-            } catch {
-              log.caughtError(
-                "uncacheSelectedEpisodes: failed to clear cache for episode \(episodeID)",
-                error
-              )
-            }
-          }
-        }
+
+      let failure = await Self.firstRemarkableFailure(
+        forEach: cachedEpisodeIDs,
+        logging: "uncacheSelectedEpisodes: failed to clear cache for episode"
+      ) { episodeID in
+        try await Container.shared.cacheManager().clearCache(for: episodeID)
       }
+      guard let failure else { return }
+      alert(ErrorKit.message(for: failure))
     }
   }
 
@@ -340,6 +344,8 @@ extension SelectableEpisodeList {
         episodeIDs = try await selectedPodcastEpisodeIDs
       } catch {
         log.caughtError("saveSelectedEpisodesInCache: failed to resolve episode IDs", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
         return
       }
 
@@ -350,23 +356,19 @@ extension SelectableEpisodeList {
           "saveSelectedEpisodesInCache: failed to save \(episodeIDs.count) episodes",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
         return
       }
 
-      await withDiscardingTaskGroup { group in
-        for episodeID in episodeIDs {
-          group.addTask {
-            do {
-              try await Container.shared.cacheManager().downloadToCache(for: episodeID)
-            } catch {
-              log.caughtError(
-                "saveSelectedEpisodesInCache: failed to cache episode \(episodeID)",
-                error
-              )
-            }
-          }
-        }
+      let failure = await Self.firstRemarkableFailure(
+        forEach: episodeIDs,
+        logging: "saveSelectedEpisodesInCache: failed to cache episode"
+      ) { episodeID in
+        try await Container.shared.cacheManager().downloadToCache(for: episodeID)
       }
+      guard let failure else { return }
+      alert(ErrorKit.message(for: failure))
     }
   }
 
@@ -388,6 +390,7 @@ extension SelectableEpisodeList {
     )
 
     let log = Self.log
+    let alert = self.alert
     Task {
       do {
         try await Container.shared.repo().updateSaveInCache(savedEpisodeIDs, saveInCache: false)
@@ -396,6 +399,8 @@ extension SelectableEpisodeList {
           "unsaveSelectedEpisodesFromCache: failed to unsave \(savedEpisodeIDs.count) episodes",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -417,22 +422,16 @@ extension SelectableEpisodeList {
       "cancelSelectedEpisodeDownloads: cancelling \(downloadingEpisodeIDs.count) of \(selectedCount) selected episodes"
     )
 
-    let log = Self.log
+    let alert = self.alert
     Task {
-      await withDiscardingTaskGroup { group in
-        for episodeID in downloadingEpisodeIDs {
-          group.addTask {
-            do {
-              try await Container.shared.cacheManager().clearCache(for: episodeID)
-            } catch {
-              log.caughtError(
-                "cancelSelectedEpisodeDownloads: failed for episode \(episodeID)",
-                error
-              )
-            }
-          }
-        }
+      let failure = await Self.firstRemarkableFailure(
+        forEach: downloadingEpisodeIDs,
+        logging: "cancelSelectedEpisodeDownloads: failed for episode"
+      ) { episodeID in
+        try await Container.shared.cacheManager().clearCache(for: episodeID)
       }
+      guard let failure else { return }
+      alert(ErrorKit.message(for: failure))
     }
   }
 
@@ -456,6 +455,8 @@ extension SelectableEpisodeList {
         didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("markSelectedEpisodesFinished: failed", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -483,6 +484,8 @@ extension SelectableEpisodeList {
           "rateSelectedEpisodes: failed for \(episodes.count) episodes",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -499,6 +502,7 @@ extension SelectableEpisodeList {
     )
 
     let log = Self.log
+    let alert = self.alert
     Task {
       do {
         try await Container.shared.repo().addTag(tagID, toEpisodes: episodeIDs)
@@ -507,6 +511,8 @@ extension SelectableEpisodeList {
           "applyTagToSelectedEpisodes: failed for \(episodeIDs.count) episodes, tag \(tagID)",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -523,6 +529,7 @@ extension SelectableEpisodeList {
     )
 
     let log = Self.log
+    let alert = self.alert
     Task {
       do {
         _ = try await Container.shared.repo().removeTag(tagID, fromEpisodes: episodeIDs)
@@ -531,7 +538,41 @@ extension SelectableEpisodeList {
           "removeTagFromSelectedEpisodes: failed for \(episodeIDs.count) episodes, tag \(tagID)",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
+    }
+  }
+
+  // MARK: - Helpers
+
+  // Logs each failure and returns the first remarkable one so the caller alerts
+  // once for the whole selection.
+  nonisolated private static func firstRemarkableFailure(
+    forEach episodeIDs: [Episode.ID],
+    logging header: String,
+    _ operation: @escaping @Sendable (Episode.ID) async throws -> Void
+  ) async -> (any Error)? {
+    let log = Self.log
+    return await withTaskGroup(of: (any Error)?.self) { group in
+      for episodeID in episodeIDs {
+        group.addTask {
+          do {
+            try await operation(episodeID)
+            return nil
+          } catch {
+            log.caughtError("\(header) \(episodeID)", error)
+            return error
+          }
+        }
+      }
+
+      var firstRemarkable: (any Error)?
+      for await error in group {
+        guard firstRemarkable == nil, let error, ErrorKit.isRemarkable(error) else { continue }
+        firstRemarkable = error
+      }
+      return firstRemarkable
     }
   }
 }

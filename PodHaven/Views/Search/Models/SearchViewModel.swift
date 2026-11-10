@@ -15,6 +15,7 @@ class SearchViewModel:
   SelectablePodcastList,
   SortablePodcastList
 {
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.iTunesService) private var iTunesService
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
 
@@ -35,11 +36,11 @@ class SearchViewModel:
   var podcastList = PowerList<PodcastWithEpisodeMetadata<ListedPodcast>>()
 
   func saveSelectedPodcasts() async -> [Podcast.ID] {
-    await withTaskGroup(of: Podcast.ID?.self) { group in
+    await withTaskGroup(of: Result<Podcast.ID, any Error>.self) { group in
       for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
         group.addTask {
           do {
-            return try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast().id
+            return .success(try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast().id)
           } catch {
             Self.log
               .caughtError(
@@ -49,14 +50,25 @@ class SearchViewModel:
                 """,
                 error
               )
-            return nil
+            return .failure(error)
           }
         }
       }
 
       var podcastIDs: [Podcast.ID] = []
-      for await podcastID in group {
-        if let podcastID { podcastIDs.append(podcastID) }
+      var firstRemarkableFailure: (any Error)?
+      for await result in group {
+        switch result {
+        case .success(let podcastID):
+          podcastIDs.append(podcastID)
+        case .failure(let error):
+          if firstRemarkableFailure == nil, ErrorKit.isRemarkable(error) {
+            firstRemarkableFailure = error
+          }
+        }
+      }
+      if let firstRemarkableFailure {
+        alert(ErrorKit.message(for: firstRemarkableFailure))
       }
       return podcastIDs
     }
