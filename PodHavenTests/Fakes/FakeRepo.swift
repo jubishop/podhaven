@@ -98,7 +98,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   func allPodcasts(
     _ filter: SQLExpression,
-    order: SQLOrdering,
+    order: [SQLOrdering],
     limit: Int
   ) async throws -> [Podcast] {
     recordCall(
@@ -958,6 +958,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       }
     }
     try await repo.updateLastUpdates(refreshes)
+  }
+
+  func recordRefreshFailures(
+    _ failures: [(id: Podcast.ID, failureCount: Int, backoffUntil: Date)]
+  ) async throws {
+    recordCall(methodName: "recordRefreshFailures", parameters: failures)
+    try await repo.recordRefreshFailures(failures)
   }
 
   func resumeAllUpdateLastUpdatesSuspensions() {

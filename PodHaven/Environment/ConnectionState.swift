@@ -16,6 +16,7 @@ extension Container {
 
 struct ConnectionState: Sendable {
   struct Path: Sendable {
+    let isSatisfied: Bool
     let isConstrained: Bool
     let isExpensive: Bool
   }
@@ -30,6 +31,7 @@ struct ConnectionState: Sendable {
       latestPath.close()
       latestPath.open(
         Path(
+          isSatisfied: path.isSatisfied,
           isConstrained: path.isConstrained || path.isUltraConstrained,
           isExpensive: path.isExpensive
         )

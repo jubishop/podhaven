@@ -3,7 +3,9 @@
 import Foundation
 import Network
 
-extension NWPath: NetworkPathDescribing {}
+extension NWPath: NetworkPathDescribing {
+  var isSatisfied: Bool { status == .satisfied }
+}
 
 extension NWPathMonitor: NetworkPathMonitoring {
   func start(

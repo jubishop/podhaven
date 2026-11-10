@@ -56,7 +56,7 @@ actor RefreshManagerTests {
     await session.respond(to: series.podcast.feedURL.rawValue, data: updatedData)
 
     let before = Date.now
-    try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+    try await refreshManager.performRefresh(trigger: .user, stalenessThreshold: .minutes(30))
     let after = Date.now
 
     #expect(fakeBGTaskScheduler.pendingIdentifiers.count == 1)
@@ -92,7 +92,7 @@ actor RefreshManagerTests {
     await session.respond(to: series.podcast.feedURL.rawValue, data: data)
     let submissionCount = fakeBGTaskScheduler.submissions.count
 
-    try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+    try await refreshManager.performRefresh(trigger: .user, stalenessThreshold: .minutes(30))
 
     #expect(fakeBGTaskScheduler.submissions.count == submissionCount)
     #expect(fakeBGTaskScheduler.pendingIdentifiers.isEmpty)
@@ -700,7 +700,7 @@ actor RefreshManagerTests {
 
     fakeRepo.clearAllCalls()
 
-    try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+    try await refreshManager.performRefresh(trigger: .user, stalenessThreshold: .minutes(30))
 
     try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
     let flush = try fakeRepo.expectCall(
@@ -747,7 +747,7 @@ actor RefreshManagerTests {
     fakeRepo.refreshEpisodeRowsRead(0)
 
     let refresh = Task {
-      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+      try await refreshManager.performRefresh(trigger: .user, stalenessThreshold: .minutes(30))
     }
     try await started.waitUnlessCancelled()
 
@@ -813,7 +813,7 @@ actor RefreshManagerTests {
     fakeRepo.pendingUpdateLastUpdatesSuspend(true)
 
     let refresh = Task {
-      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+      try await refreshManager.performRefresh(trigger: .user, stalenessThreshold: .minutes(30))
     }
     try await fakeRepo.waitForUpdateLastUpdatesSuspended(count: 1)
 

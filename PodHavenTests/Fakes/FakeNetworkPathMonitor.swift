@@ -6,12 +6,13 @@ import Testing
 @testable import PodHaven
 
 struct FakeNetworkPath: NetworkPathDescribing, CustomTestStringConvertible {
+  var isSatisfied = true
   var isConstrained = false
   var isUltraConstrained = false
   var isExpensive = false
 
   var testDescription: String {
-    "constrained: \(isConstrained), ultraConstrained: \(isUltraConstrained), expensive: \(isExpensive)"
+    "satisfied: \(isSatisfied), constrained: \(isConstrained), ultraConstrained: \(isUltraConstrained), expensive: \(isExpensive)"
   }
 }
 
