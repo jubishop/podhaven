@@ -67,7 +67,7 @@ Same rule as the file logs: **ask which run the user reproduced; do not infer.**
 
 - **Subsystem is the swift-log label prefix, not a bundle id.** Each `LogCategorizable` enum is its own subsystem equal to the enum's type name — `Feed`, `Play`, `Cache`, `Database`, `Recommendations`, `State`, `PlayBar`, `SearchView`, `Widget`, etc. Default `Log.as(String)` loggers use `PodHaven`; the share extension uses `PodHavenShare`. There is **no shared `com.apple`-style prefix**, so filter by **process**, not subsystem.
 - **Process name is `PodHaven`** (Simulator and My Mac alike). Only one PodHaven run exists at a time, so the process filter is unambiguous regardless of branch/worktree.
-- **Level remap** (`OSLogHandler`): swift-log `trace`/`debug` → `Debug`, `info`/`notice` → `Info`, `warning`/`error` → `Error`, `critical` → `Fault`. So a swift-log **warning surfaces as an `Error`-type** unified entry and a **critical as `Fault`** — predicate on `messageType`, not the original swift-log name.
+- **Level remap** (`OSLogHandler`): swift-log `trace`/`debug` → `Debug`, `info` → `Info`, `notice` → `Default`, `warning`/`error` → `Error`, `critical` → `Fault`. So a swift-log **warning surfaces as an `Error`-type** unified entry and a **critical as `Fault`** — predicate on `messageType`, not the original swift-log name. `Default` and above persist to disk, so notice entries survive in `log collect` archives without `--info`.
 - **`log show` hides `Debug`/`Info` by default.** Most app entries are `.debug`, so pass `--info --debug` or you'll see almost nothing.
 - Messages emit with `privacy: .public` — never redacted to `<private>`.
 - If a bare `log` command errors with `too many arguments`, a shell function is shadowing it — call `/usr/bin/log` explicitly.
