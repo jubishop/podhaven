@@ -53,7 +53,7 @@ class PrePushApplicationTests(unittest.TestCase):
         self.repo = self.base / "checkout"
         self.remote = self.base / "remote.git"
         self.calls = self.base / "check calls"
-        self.env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        self.env = {key: value for key, value in os.environ.items() if not key.startswith(("GIT_", "PODHAVEN_"))}
         self.env.update(HOME=str(self.base / "home"), GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
                         GIT_AUTHOR_NAME="Test", GIT_AUTHOR_EMAIL="test@example.com",
                         GIT_COMMITTER_NAME="Test", GIT_COMMITTER_EMAIL="test@example.com",
@@ -131,7 +131,8 @@ class PrePushApplicationTests(unittest.TestCase):
         self.assertEqual(self.git("worktree", "list", "--porcelain").count("worktree "), 1)
 
     def test_refuses_a_push_that_leaves_a_skill_script_failing_its_tests(self):
-        shutil.copy2(ROOT / "bin/check-application", self.repo / "bin/check-application")
+        for name in ("check-application", "_validation_slot.py"):
+            shutil.copy2(ROOT / "bin" / name, self.repo / "bin" / name)
         (self.repo / "bin/tests").mkdir()
         (self.repo / "bin/tests/test_probe.py").write_text(
             "import unittest\n\n\nclass ProbeTests(unittest.TestCase):\n"

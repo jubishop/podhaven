@@ -281,9 +281,10 @@ For focused application tests, use My Mac by default with
 running zero tests.
 
 Run focused tests with `bin/with-my-mac-lock env -u SDKROOT xcodebuild test ...`
-so they take the [My Mac test lock](#my-mac-test-lock) and Xcode selects the
-SDK for the requested destination; `bin/test-all` takes the lock and clears
-inherited `SDKROOT` itself.
+so they take a [validation slot](#validation-slots) and the
+[My Mac test lock](#my-mac-test-lock), and Xcode selects the SDK for the
+requested destination; `bin/test-all` takes both and clears inherited `SDKROOT`
+itself.
 
 Run `bin/test-all --preflight` to check the Xcode, Swift, and macOS versions
 without running tests. Release commands run this preflight too.
@@ -314,7 +315,16 @@ those that focused runs and Xcode's own test action leave behind.
 
 Each attempt retains logs, its `.xcresult` bundle, diagnostic reports, and
 `run.json` under `.cache/test-all/`. The report records the revision, local
-changes, toolchain, destination, and outcome. A new attempt keeps only the
+changes, toolchain, destination, and outcome. Its `phases` record each phase
+the run reached: tooling, Swift lint, macros, and the three `xcodebuild test`
+phases, each with its result validation. For each, it records the 1-, 5-, and
+15-minute load averages and the core count at the phase's start and end, and
+the peak 1-minute load sampled every `LOAD_SAMPLE_SECONDS` while it ran. A
+phase whose peak exceeded twice the core count is `saturated`. When a
+saturated phase fails, including when a check of its output fails, the failure
+output and the report's `saturation` field say that the failure may be
+load-induced. The flag only informs: the run still fails, and `--ensure` and
+`--verify` never reuse it. A new attempt keeps only the
 newest evidence directories, up to `RETAINED_RUNS` in `bin/test-all` (five,
 counting itself), and removes older ones. That bound always keeps the newest
 earlier run, which reuse and comparison need, and leaves other entries alone.
@@ -379,6 +389,54 @@ outlives its `bin/test-all` still blocks the next run. A nested
 of waiting on itself. If a holder hangs, stop its run, including its
 `xcodebuild`, to release the lock. Xcode's own test action does not take the
 lock.
+
+#### Validation slots
+
+**Decision — 2026-11-09:** Concurrent sessions queue for machine-wide
+validation slots instead of saturating the Mac. That day, about ten sessions
+each ran `bin/test-all` at once, load averages reached 289–510 on 18 cores, and
+every run failed with timeouts that said nothing about the code under test.
+The My Mac test lock serializes only the `xcodebuild test` phases; the tooling
+phase, whose `bin/tests` fakes start thousands of short-lived processes, was
+the largest source of load.
+
+`PODHAVEN_VALIDATION_SLOTS` sets how many heavy runs do their work at once on
+this Mac, as a positive integer that defaults to 2; any other value fails with
+a clear error. Set it outside the repository, such as in a shell profile, so
+every checkout on the Mac shares one count. These runs take a slot:
+
+- `bin/test-all`, from before its first phase until it exits.
+  `bin/test-all --preflight`, `--verify`, and an `--ensure` run that reuses
+  evidence do no heavy work and take no slot.
+- `bin/check --full`, through `bin/check-application`, including in the
+  [tooling pre-push gate](#tooling-pre-push-gate). A pass that `bin/check`
+  reuses runs no checks and takes no slot.
+- Focused runs under `bin/with-my-mac-lock`.
+
+The fast `bin/check`, `bin/lint-swift-format`, and the macro `swift test` take
+no slot when run on their own.
+
+Each slot is an advisory file lock, `~/.cache/podhaven/validation-slot-<n>.lock`,
+which holds a one-line record of its holder's process ID, start time, command,
+and checkout. The system releases a slot when its holder exits or is killed,
+so no stale slot outlives a run. While every slot is held, a run prints each
+holder, polls for a free slot at a short interval, and waits without a time
+limit; it says which slot it took. Every run waits, whether interactive or
+unattended.
+
+A nested run reuses the slot it runs inside instead of waiting on itself. The
+holder exports `PODHAVEN_VALIDATION_SLOT`, which names the slot's file and
+holder process, because managed `bin/check` starts `bin/check-application`
+without passing it any descriptor. A child reuses that slot only when the
+slot's record names that process and the slot is still locked. So the tooling
+phase of `bin/test-all` runs inside the run's own slot.
+
+Runs take their slot before the My Mac test lock and never wait for a slot
+while holding that lock, so a focused run and `bin/test-all` can't deadlock.
+They also take it before an Xcode or SwiftPM build limit kept outside the
+repository: nothing that holds such a build slot waits for a validation slot.
+The limit uses only this repository's lock files, so it works the same on any
+Mac.
 
 ## Sentry triage commands
 

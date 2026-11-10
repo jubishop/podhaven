@@ -4,14 +4,19 @@
 ShellCheck lints the shell scripts the foundation checks skip, following their sources; actionlint lints the GitHub
 workflows; and fish and Ruby check their scripts' syntax. The suites in bin/tests then run together, and unittest
 runs each skill and helper suite under .agents on its own, so a suite without a main block still runs its tests.
-Every check and suite runs even after one fails. Swift application validation stays separate; see
+Every check and suite runs even after one fails, all while holding a validation slot, or the one held by the
+bin/test-all or other run this runs inside. Swift application validation stays separate; see
 docs/development-workflow.md."""
+from contextlib import ExitStack
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
+
+sys.dont_write_bytecode = True
+from _validation_slot import validation_slot
 
 ROOT = Path(__file__).resolve().parents[1]
 # The interpreter a shebang names, directly or through env, with or without flags.
@@ -54,13 +59,19 @@ for path in listed(".agents"):
         suites.append((str(path), [sys.executable, "-B", "-m", "unittest", "discover", "-s", str(path.parent),
                                    "-p", path.name, "-v"]))
 failed = []
-for label, command in checks + suites:
-    print("Running " + label, flush=True)
-    if not shutil.which(command[0]):
-        print(command[0] + " is required for bin/check --full. Install it with your package manager.", file=sys.stderr)
-        failed.append(label)
-    elif subprocess.run([*map(str, command)], cwd=ROOT).returncode:
-        failed.append(label)
+with ExitStack() as held:
+    try:
+        held.enter_context(validation_slot(f"bin/check-application in {ROOT}"))
+    except ValueError as error:
+        sys.exit(f"bin/check-application: {error}")
+    for label, command in checks + suites:
+        print("Running " + label, flush=True)
+        if not shutil.which(command[0]):
+            print(command[0] + " is required for bin/check --full. Install it with your package manager.",
+                  file=sys.stderr)
+            failed.append(label)
+        elif subprocess.run([*map(str, command)], cwd=ROOT).returncode:
+            failed.append(label)
 if failed:
     print("Tooling checks failed: " + ", ".join(failed), file=sys.stderr)
 sys.exit(1 if failed else 0)

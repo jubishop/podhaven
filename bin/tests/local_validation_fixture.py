@@ -12,8 +12,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def install_gate(repo, commands):
-    """Return a disposable HOME; run the gate with it so its My Mac test lock stays out of the real one."""
-    for name in ("test-all", "check-swift-results", "_my_mac_lock.py"):
+    """Return a disposable HOME; run the gate with it so its validation slots and My Mac test lock stay out of
+    the real ones."""
+    for name in ("test-all", "check-swift-results", "_my_mac_lock.py", "_validation_slot.py"):
         shutil.copy2(ROOT / "bin" / name, repo / "bin" / name)
     commands.mkdir(exist_ok=True)
     for path in (commands / "xcodebuild", commands / "xcrun", commands / "sw_vers",

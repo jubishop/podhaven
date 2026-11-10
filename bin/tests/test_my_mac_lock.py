@@ -36,8 +36,8 @@ class MyMacLockTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.home = Path(temporary.name)
         self.lock = self.home / ".cache/podhaven/my-mac-tests.lock"
-        self.env = {**os.environ, "HOME": str(self.home)}
-        self.env.pop("PODHAVEN_MY_MAC_LOCK_FD", None)
+        self.env = {key: value for key, value in os.environ.items() if not key.startswith("PODHAVEN_")}
+        self.env["HOME"] = str(self.home)
 
     def run_locked(self, *command):
         return hang_guard.run([sys.executable, "-B", str(COMMAND), *command],
