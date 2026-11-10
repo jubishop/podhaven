@@ -181,6 +181,14 @@ startup; they should finish well under a second on a small repository.
 A project's `.shellcheckrc` configures ShellCheck, such as
 `external-sources=true` to follow the files its scripts source.
 
+The whitespace checks read the checkout's own changes: staged changes, and
+the working tree compared with where the branch left `origin`'s default
+branch, so they catch errors already committed on the branch. Before anything
+is fetched or pushed, every commit counts. Content already on the default
+branch never fails them. A clone without that history, such as CI's shallow
+checkout, checks only uncommitted changes. Exempt a file whose format needs
+such whitespace with `-whitespace` in `.gitattributes`.
+
 Choose checks by the change and its stage:
 
 - Discussion, planning, and read-only work: none.
