@@ -32,9 +32,10 @@ final class PlayManager {
     case establishedPlayback(Episode.ID)
   }
 
-  private enum LoadTransitionPlayback {
+  private enum LoadTransitionPlayback: Equatable {
     case automatic
     case paused
+    case requested(origin: PlaybackRequestOrigin, requestID: UUID)
   }
 
   private enum InterruptedPlayback {
@@ -505,6 +506,16 @@ final class PlayManager {
     switch outcome {
     case .succeeded:
       loadTransition = nil
+      guard case .requested(let origin, let requestID) = transition.playback,
+        let episodeID = transition.loadingEpisodeID
+      else { return }
+      await beginPlaybackRequest(
+        origin: origin,
+        requestID: requestID,
+        episodeID: episodeID,
+        snapshot: podAVPlayer.playbackSnapshot()
+      )
+      await fulfillPendingPlaybackRequest(preserving: requestID)
     case .didNotLoad, .failed:
       switch transition.state {
       case .preservingPlayback:
@@ -595,6 +606,21 @@ final class PlayManager {
   }
 
   func play(origin: PlaybackRequestOrigin = .application, requestID: UUID = UUID()) async {
+    // A play during a load joins the load's request instead of superseding it.
+    if let loadingEpisodeID = loadTransition?.loadingEpisodeID,
+      loadingEpisodeID != sharedState.onDeck?.id
+    {
+      if case .play(let pendingEpisodeID) = pendingPlaybackRequest,
+        pendingEpisodeID == loadingEpisodeID
+      {
+        Self.log.debug("play: episode \(loadingEpisodeID) already plays once loaded")
+        return
+      }
+      pendingPlaybackRequest = .play(loadingEpisodeID)
+      loadTransition?.playback = .requested(origin: origin, requestID: playbackRequestRevision)
+      Self.log.debug("play: playing episode \(loadingEpisodeID) once loaded")
+      return
+    }
     newPlaybackRequest(requestID)
     cancelWidgetRouteRecovery(reason: "newPlay")
     loadTransition?.playback = .automatic
