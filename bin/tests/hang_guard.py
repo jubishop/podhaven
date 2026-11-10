@@ -60,17 +60,21 @@ def stop(process):
     if process.returncode is None:
         kill(process)
         process.wait()
-        deadline = time.monotonic() + HANG_LIMIT
-        while True:
-            try:
-                os.killpg(process.pid, 0)
-            except ProcessLookupError:
-                break
-            except PermissionError:
-                pass  # Only exited members remain, waiting to be reaped.
-            if time.monotonic() > deadline:
-                raise RuntimeError(f"Processes {process.args} started outlived SIGKILL for {HANG_LIMIT} s")
-            time.sleep(0.01)
+    else:
+        # A reaped command's group keeps its process ID, unused by anything else, while a process it started remains.
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(process.pid, signal.SIGKILL)
+    deadline = time.monotonic() + HANG_LIMIT
+    while True:
+        try:
+            os.killpg(process.pid, 0)
+        except ProcessLookupError:
+            break
+        except PermissionError:
+            pass  # Only exited members remain, waiting to be reaped.
+        if time.monotonic() > deadline:
+            raise RuntimeError(f"Processes {process.args} started outlived SIGKILL for {HANG_LIMIT} s")
+        time.sleep(0.01)
     for stream in (process.stdin, process.stdout, process.stderr):
         if stream:
             with contextlib.suppress(BrokenPipeError):
