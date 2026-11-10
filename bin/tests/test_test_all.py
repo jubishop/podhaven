@@ -14,6 +14,7 @@ import time
 import unittest
 import uuid
 
+import hang_guard
 import service_guard
 
 
@@ -225,9 +226,9 @@ class TestAllTests(unittest.TestCase):
         return subprocess.check_output(["git", *args], cwd=self.repo, env=self.env, text=True).strip()
 
     def run_all(self, *args, **env):
-        return subprocess.run([sys.executable, "-B", str(self.repo / "bin/test-all"), *args],
+        return hang_guard.run([sys.executable, "-B", str(self.repo / "bin/test-all"), *args],
                               cwd=self.base, env={**self.env, **env}, text=True,
-                              capture_output=True, timeout=15)
+                              capture_output=True)
 
     def report(self):
         return json.loads(next((self.repo / ".cache/test-all").glob("*/run.json")).read_text())
@@ -299,7 +300,7 @@ class TestAllTests(unittest.TestCase):
         processes = []
 
         def start(repo, **env):
-            process = subprocess.Popen([sys.executable, "-B", str(repo / "bin/test-all")], cwd=self.base,
+            process = hang_guard.start([sys.executable, "-B", str(repo / "bin/test-all")], cwd=self.base,
                                        env={**self.env, **env}, text=True,
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             processes.append(process)
@@ -309,12 +310,10 @@ class TestAllTests(unittest.TestCase):
             if not released:
                 os.close(writer)
             for process in processes:
-                if process.poll() is None:
-                    process.kill()
-                process.communicate()
+                hang_guard.stop(process)
 
         self.addCleanup(stop)
-        watchdog = threading.Timer(60, lambda: [process.kill() for process in processes])
+        watchdog = threading.Timer(hang_guard.HANG_LIMIT, lambda: [hang_guard.kill(process) for process in processes])
         watchdog.start()
         self.addCleanup(watchdog.cancel)
         first = start(self.repo, TEST_HOLD_FIFO=str(gate))
@@ -329,9 +328,9 @@ class TestAllTests(unittest.TestCase):
         self.assertIn(f"bin/test-all in {self.repo.resolve()}", waiting)
         os.close(writer)
         released = True
-        first_output, first_errors = first.communicate(timeout=30)
+        first_output, first_errors = hang_guard.finish(first)
         self.assertEqual(first.returncode, 0, first_output + first_errors)
-        second_output, second_errors = second.communicate(timeout=30)
+        second_output, second_errors = hang_guard.finish(second)
         self.assertEqual(second.returncode, 0, second_output + second_errors)
         events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
         owners = [Path(args[args.index("-resultBundlePath") + 1]).parents[3]
@@ -374,9 +373,9 @@ class TestAllTests(unittest.TestCase):
         self.assertEqual(self.report()["result"], "passed")
 
     def test_run_under_the_lock_command_reuses_its_lock(self):
-        result = subprocess.run([sys.executable, "-B", str(ROOT / "bin/with-my-mac-lock"),
+        result = hang_guard.run([sys.executable, "-B", str(ROOT / "bin/with-my-mac-lock"),
                                  sys.executable, "-B", str(self.repo / "bin/test-all")],
-                                cwd=self.base, env=self.env, text=True, capture_output=True, timeout=15)
+                                cwd=self.base, env=self.env, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotIn("Waiting", result.stderr)
 
@@ -401,7 +400,7 @@ class TestAllTests(unittest.TestCase):
         data = self.host_temporary.parent
         ended = subprocess.Popen([sys.executable, "-c", ""])
         ended.wait()
-        running = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        running = subprocess.Popen([sys.executable, "-c", "import signal; signal.pause()"])
         self.addCleanup(running.wait)
         self.addCleanup(running.kill)
 
@@ -502,6 +501,7 @@ class TestAllTests(unittest.TestCase):
     def test_unreadable_package_pins_stop_before_tests(self):
         for name, contents in ((MACRO_RESOLVED, None), (APP_RESOLVED, "{}"), (MACRO_RESOLVED, "not json")):
             with self.subTest(name=name, contents=contents):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
                 write_package_pins(self.repo)
                 path = self.repo / name
                 if contents is None:
@@ -614,6 +614,7 @@ class TestAllTests(unittest.TestCase):
     def test_ensure_rejects_unchecked_paths_before_running_tests(self):
         for flag in ("assume-unchanged", "skip-worktree"):
             with self.subTest(flag=flag):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
                 self.git("update-index", "--" + flag, "source.txt")
                 try:
                     (self.repo / "source.txt").write_text("hidden change")

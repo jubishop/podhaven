@@ -1,7 +1,7 @@
 from pathlib import Path
-import subprocess
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -14,7 +14,7 @@ class ShellScriptTests(unittest.TestCase):
         self.assertTrue(scripts)
         for script in scripts:
             with self.subTest(script=script.name):
-                result = subprocess.run(["/bin/bash", str(script)], text=True, capture_output=True, timeout=60)
+                result = hang_guard.run(["/bin/bash", str(script)], text=True, capture_output=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 

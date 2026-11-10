@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 
+import hang_guard
 from local_validation_fixture import FAKE as GATE_FAKE, install_gate
 import service_guard
 
@@ -144,9 +145,9 @@ class AppStoreCommandTests(unittest.TestCase):
                                        stderr=subprocess.PIPE, text=True).strip()
 
     def run_command(self, *args, **env):
-        return subprocess.run([sys.executable, str(self.repo / "bin/appstore"), *args],
+        return hang_guard.run([sys.executable, str(self.repo / "bin/appstore"), *args],
                               cwd=self.base, env={**self.env, **env}, text=True,
-                              capture_output=True, timeout=20)
+                              capture_output=True)
 
     def events(self, name=None):
         path = self.base / "events"
@@ -184,9 +185,9 @@ class AppStoreCommandTests(unittest.TestCase):
         self.git("add", "change.txt")
         self.git("commit", "-m", "New work")
         self.git("push")
-        result = subprocess.run([str(self.repo / "bin/shipit")], cwd=self.repo,
+        result = hang_guard.run([str(self.repo / "bin/shipit")], cwd=self.repo,
                                 env={**self.env, "TEST_MACRO_WARNING": "1"},
-                                text=True, capture_output=True, timeout=20)
+                                text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertFalse(any("archive" in event[1] or "-exportArchive" in event[1]
                              for event in self.events("xcodebuild")))
@@ -228,10 +229,11 @@ class AppStoreCommandTests(unittest.TestCase):
             self.env["TESTED_BUILD"] = "100"
 
     def test_app_changes_testers_lack_stop_before_any_change(self):
-        self.commit_app_change("Fix CarPlay skipping", tested=False)
-        head = self.git("rev-parse", "HEAD")
         for args in ((), ("--notes", "Public notes")):
             with self.subTest(args=args):
+                self.setUp()
+                self.commit_app_change("Fix CarPlay skipping", tested=False)
+                head = self.git("rev-parse", "HEAD")
                 result = self.run_command(*args)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("Testers in Everyone don't have 1 app commit yet", result.stderr)
@@ -285,11 +287,12 @@ class AppStoreCommandTests(unittest.TestCase):
         self.assertFalse((self.base / "notes-input").exists())
 
     def test_unusable_generated_notes_stop_before_changes(self):
-        self.commit_app_change("Fix CarPlay skipping")
-        head = self.git("rev-parse", "HEAD")
         for case, env in (("blank", {"LLM_OUTPUT": "  "}), ("long", {"LLM_OUTPUT": "a" * 4001}),
                           ("untagged", {"LIVE_BUILD": "999"}), ("lookup", {"APPSTORE_FAIL_PHASE": "base"})):
             with self.subTest(case=case):
+                self.setUp()
+                self.commit_app_change("Fix CarPlay skipping")
+                head = self.git("rev-parse", "HEAD")
                 result = self.run_command(**env)
                 self.assertNotEqual(result.returncode, 0)
                 if case != "lookup":
@@ -360,8 +363,9 @@ class AppStoreCommandTests(unittest.TestCase):
     def test_automatic_versions_increment_minor_and_discard_patch(self):
         for current, expected in (("2", "2.1"), ("2.1", "2.2"), ("2.2.3", "2.3"), ("2.9.9", "2.10")):
             with self.subTest(current=current):
-                result = subprocess.run([str(self.repo / "bin/version"), current], cwd=self.repo,
-                                        env=self.env, text=True, capture_output=True, timeout=10)
+                self.setUp()
+                result = hang_guard.run([str(self.repo / "bin/version"), current], cwd=self.repo,
+                                        env=self.env, text=True, capture_output=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 result = self.run_command("--notes", "Release from " + current)
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -419,12 +423,13 @@ class AppStoreCommandTests(unittest.TestCase):
         self.assertEqual(len(self.events()), count)
 
     def test_explicit_new_release_must_be_strictly_greater_than_current_version(self):
-        result = subprocess.run([str(self.repo / "bin/version"), "2.1.0"], cwd=self.repo,
-                                env=self.env, text=True, capture_output=True, timeout=10)
-        self.assertEqual(result.returncode, 0, result.stderr)
         for version in ("2", "2.0", "2.1"):
             for build in ([], ["--build", "600"]):
                 with self.subTest(version=version, build=build):
+                    self.setUp()
+                    result = hang_guard.run([str(self.repo / "bin/version"), "2.1.0"], cwd=self.repo,
+                                            env=self.env, text=True, capture_output=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
                     result = self.run_command("--release", version, "--notes", "Fixes", *build)
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn("greater than", result.stderr)
@@ -448,8 +453,8 @@ class AppStoreCommandTests(unittest.TestCase):
     def test_shipit_automatically_starts_the_next_testflight_version(self):
         result = self.run_command("--release", "1.1", "--notes", "Release notes")
         self.assertEqual(result.returncode, 0, result.stderr)
-        result = subprocess.run([str(self.repo / "bin/shipit")], cwd=self.repo, env=self.env,
-                                text=True, capture_output=True, timeout=20)
+        result = hang_guard.run([str(self.repo / "bin/shipit")], cwd=self.repo, env=self.env,
+                                text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("MARKETING_VERSION = 1.1.1;", self.project.read_text())
         self.assertEqual(self.git("log", "-1", "--format=%s"), "Change version number to 1.1.1")
@@ -462,8 +467,8 @@ class AppStoreCommandTests(unittest.TestCase):
     def test_shipit_uses_zero_minor_for_a_major_only_release(self):
         result = self.run_command("--release", "2", "--notes", "Release notes")
         self.assertEqual(result.returncode, 0, result.stderr)
-        result = subprocess.run([str(self.repo / "bin/shipit")], cwd=self.repo, env=self.env,
-                                text=True, capture_output=True, timeout=20)
+        result = hang_guard.run([str(self.repo / "bin/shipit")], cwd=self.repo, env=self.env,
+                                text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("MARKETING_VERSION = 2.0.1;", self.project.read_text())
 
@@ -473,13 +478,13 @@ class AppStoreCommandTests(unittest.TestCase):
         hook.write_text("#!/bin/sh\nexit 1\n")
         hook.chmod(0o755)
         for _ in range(2):
-            result = subprocess.run([str(self.repo / "bin/shipit")], cwd=self.repo, env=self.env,
-                                    text=True, capture_output=True, timeout=20)
+            result = hang_guard.run([str(self.repo / "bin/shipit")], cwd=self.repo, env=self.env,
+                                    text=True, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(sum("-exportArchive" in event[1] for event in self.events("xcodebuild")), 1)
         hook.unlink()
-        result = subprocess.run([str(self.repo / "bin/shipit")], cwd=self.repo, env=self.env,
-                                text=True, capture_output=True, timeout=20)
+        result = hang_guard.run([str(self.repo / "bin/shipit")], cwd=self.repo, env=self.env,
+                                text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.git("rev-list", "--count", "HEAD"), "3")
 
@@ -564,6 +569,7 @@ class AppStoreCommandTests(unittest.TestCase):
                      ("--release", "1.1.1", "--notes", "Fix", "--build", "569"),
                      ("--release", "1.0", "--notes", "Fix"), ("--api-key-id", "key")):
             with self.subTest(args=args[:2]):
+                self.setUp()
                 result = self.run_command(*args)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse(self.events())

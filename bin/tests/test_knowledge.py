@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 
+import hang_guard
 import service_guard
 
 SOURCE = Path(__file__).resolve().parents[2]
@@ -131,8 +132,8 @@ else:
         path.chmod(0o755)
 
     def run_command(self, *args, root=None, extra=None, check=True, input=None):
-        result = subprocess.run(args, cwd=root or self.repo, env=self.env | (extra or {}),
-                                text=True, capture_output=True, input=input, timeout=30)
+        result = hang_guard.run(args, cwd=root or self.repo, env=self.env | (extra or {}),
+                                text=True, capture_output=True, input=input)
         if check:
             self.assertEqual(result.returncode, 0, (args, result.stdout, result.stderr))
         return result
@@ -149,7 +150,7 @@ else:
         self.drain()
 
     def wait_for_command(self, count):
-        deadline = time.monotonic() + 10
+        deadline = time.monotonic() + hang_guard.HANG_LIMIT
         while len(self.records()) < count:
             self.assertLess(time.monotonic(), deadline)
             time.sleep(0.02)
@@ -187,10 +188,10 @@ def flock(file, operation):
 fcntl.flock = flock
 ''')
         env = self.env | {"PYTHONPATH": str(shim), "RELEASE_READY": str(ready), "RELEASE_GATE": str(gate)}
-        process = subprocess.Popen(["bin/knowledge", "search", "reference"], cwd=self.repo, env=env,
+        process = hang_guard.start(["bin/knowledge", "search", "reference"], cwd=self.repo, env=env,
                                    text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
-            deadline = time.monotonic() + 10
+            deadline = time.monotonic() + hang_guard.HANG_LIMIT
             while not ready.exists():
                 self.assertLess(time.monotonic(), deadline, "Worker never reached the unlock boundary")
                 time.sleep(0.01)
@@ -198,7 +199,7 @@ fcntl.flock = flock
                 process.communicate(timeout=0.5)
         finally:
             gate.unlink(missing_ok=True)
-            stdout, stderr = process.communicate(timeout=10)
+            stdout, stderr = hang_guard.finish(process)
         self.assertEqual(process.returncode, 0, (stdout, stderr))
         self.assertEqual(json.loads(stdout)["command"], "search")
 
@@ -467,14 +468,14 @@ fcntl.flock = flock
         initial = len(self.records())
         self.run_command("bin/qmd-index", "--background", extra={"CLEANUP_GATE": str(gate)})
         self.wait_for_command(initial + 3)
-        process = subprocess.Popen(["bin/knowledge", "search", "reference"], cwd=self.repo, env=self.env,
+        process = hang_guard.start(["bin/knowledge", "search", "reference"], cwd=self.repo, env=self.env,
                                    text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             with self.assertRaises(subprocess.TimeoutExpired):
                 process.communicate(timeout=0.5)
         finally:
             gate.unlink()
-            stdout, stderr = process.communicate(timeout=10)
+            stdout, stderr = hang_guard.finish(process)
         self.assertEqual(process.returncode, 0, (stdout, stderr))
         self.assertEqual(json.loads(stdout)["command"], "search")
         self.assertEqual([r["command"] for r in self.records()[initial:]], ["update", "embed", "cleanup", "search"])
@@ -752,10 +753,10 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
         self.run_command("bin/setup")
         self.events.unlink()
         (self.repo / ".cache/qmd/index.sqlite").unlink()
-        processes = [subprocess.Popen([str(self.repo / "bin/qmd-index"), "--background"], cwd=self.repo,
+        processes = [hang_guard.start([str(self.repo / "bin/qmd-index"), "--background"], cwd=self.repo,
                                       env=self.env | {"QMD_TEST_DELAY": "0.2"}, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for _ in range(8)]
         for process in processes:
-            output = process.communicate(timeout=20)
+            output = hang_guard.finish(process)
             self.assertEqual(process.returncode, 0, output)
         self.drain()
         self.assertEqual([r["command"] for r in self.records()], ["update", "embed", "cleanup"])
@@ -783,10 +784,10 @@ def flock(file, operation):
 fcntl.flock = flock
 ''')
         env = self.env | {"PYTHONPATH": str(shim), "RELEASE_READY": str(ready), "RELEASE_GATE": str(gate)}
-        process = subprocess.Popen(["bin/knowledge", "search", "reference"], cwd=self.repo, env=env,
+        process = hang_guard.start(["bin/knowledge", "search", "reference"], cwd=self.repo, env=env,
                                    text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
-            deadline = time.monotonic() + 10
+            deadline = time.monotonic() + hang_guard.HANG_LIMIT
             while not ready.exists():
                 self.assertLess(time.monotonic(), deadline, "Worker never reached the unlock boundary")
                 time.sleep(0.01)
@@ -794,7 +795,7 @@ fcntl.flock = flock
                 process.communicate(timeout=0.5)
         finally:
             gate.unlink(missing_ok=True)
-            stdout, stderr = process.communicate(timeout=10)
+            stdout, stderr = hang_guard.finish(process)
         self.assertEqual(process.returncode, 0, (stdout, stderr))
         self.assertEqual(json.loads(stdout)["command"], "search")
 

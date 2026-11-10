@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
+import hang_guard
 import service_guard
 
 
@@ -56,11 +56,10 @@ print(json.dumps(payload))
         self.fake.chmod(0o755)
 
     def fetch(self, output, *, issue="456", event="second-event", fallback=False):
-        return subprocess.run(
+        return hang_guard.run(
             ["bash", str(SCRIPT), f"podhaven:{issue}", "--out", str(output)],
             capture_output=True,
             text=True,
-            timeout=10,
             check=False,
             env={
                 **os.environ,
@@ -138,11 +137,10 @@ print(json.dumps(payload))
     def test_output_argument_is_required_before_authentication(self):
         for arguments in ([], ["--out"], ["--out", ""]):
             with self.subTest(arguments=arguments):
-                result = subprocess.run(
+                result = hang_guard.run(
                     ["bash", str(SCRIPT), "podhaven:123", *arguments],
                     capture_output=True,
                     text=True,
-                    timeout=10,
                     check=False,
                     env={**os.environ, "SENTRY_BIN": str(self.root / "missing-sentry")},
                 )

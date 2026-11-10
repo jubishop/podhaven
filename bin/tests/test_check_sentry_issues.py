@@ -2,11 +2,11 @@ import json
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -93,9 +93,9 @@ else:
         path.chmod(0o755)
 
     def run_check(self, script=SCRIPT, **environment):
-        return subprocess.run(
+        return hang_guard.run(
             ["/bin/bash", str(script)], cwd=ROOT, env={**self.env, **environment},
-            text=True, capture_output=True, timeout=30,
+            text=True, capture_output=True,
         )
 
     def test_creates_intake_for_untracked_issue_ignoring_mentions_and_pull_requests(self):

@@ -2,11 +2,11 @@ import json
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -90,10 +90,10 @@ else:
         path.chmod(0o755)
 
     def run_command(self, *arguments, input=None):
-        return subprocess.run(
+        return hang_guard.run(
             [FISH, "--no-config", str(SCRIPT), *arguments],
             cwd=ROOT / "PodHavenTests", env=self.env,
-            input=input, text=True, capture_output=True, timeout=15,
+            input=input, text=True, capture_output=True,
         )
 
     def assert_launched(self, result, reference):

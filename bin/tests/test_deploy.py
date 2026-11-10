@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -163,8 +164,8 @@ class DeployTests(unittest.TestCase):
             self.env.pop(key, None)
 
     def run_deploy(self, *args, **env):
-        return subprocess.run(["/bin/bash", str(self.repo / "bin/deploy.sh"), *args],
-                              env={**self.env, **env}, text=True, capture_output=True, timeout=15)
+        return hang_guard.run(["/bin/bash", str(self.repo / "bin/deploy.sh"), *args],
+                              env={**self.env, **env}, text=True, capture_output=True)
 
     def events(self, command):
         return [event for line in (self.base / "events").read_text().splitlines()
@@ -231,8 +232,8 @@ class DeployTests(unittest.TestCase):
                 self.assertEqual([call[1][1] for call in self.events("fastlane")], ["preflight:true", "prepare:true"])
                 retry = next(line.split("Retry with: ", 1)[1] for line in result.stderr.splitlines()
                              if "Retry with: " in line)
-                result = subprocess.run(["/bin/bash", "-c", retry], env=self.env, text=True,
-                                        capture_output=True, timeout=15)
+                result = hang_guard.run(["/bin/bash", "-c", retry], env=self.env, text=True,
+                                        capture_output=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertEqual(sum("-exportArchive" in event[1] for event in self.events("xcodebuild")), 1)
                 self.assertTrue(json.loads((self.base / "state").read_text())["remote"])
@@ -275,6 +276,7 @@ class DeployTests(unittest.TestCase):
     def test_shipit_rejects_malformed_testflight_versions(self):
         for version in ("2.1.1.1", "2.01.1", "2.1.beta"):
             with self.subTest(version=version):
+                self.setUp()
                 result = self.run_deploy(DEPLOY_VERSION=version)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("two dots", result.stderr)
@@ -290,14 +292,14 @@ class DeployTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
 
     def test_shipit_cannot_use_the_release_upload_mode(self):
-        result = subprocess.run([str(self.repo / "bin/shipit"), "--appstore-release", "2.1"],
+        result = hang_guard.run([str(self.repo / "bin/shipit"), "--appstore-release", "2.1"],
                                 env={**self.env, "DEPLOY_VERSION": "2.1"}, text=True,
-                                capture_output=True, timeout=5)
+                                capture_output=True)
         self.assertNotEqual(result.returncode, 0)
 
     def test_shipit_help_has_no_external_side_effects(self):
-        result = subprocess.run([str(self.repo / "bin/shipit"), "--help"],
-                                env=self.env, text=True, capture_output=True, timeout=5)
+        result = hang_guard.run([str(self.repo / "bin/shipit"), "--help"],
+                                env=self.env, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--notes", result.stdout)
         self.assertIn("--reuse", result.stdout)
@@ -389,7 +391,7 @@ class DeployTests(unittest.TestCase):
     def test_missing_dwarf_in_sentry_stops_before_app_store_upload(self):
         for name, debug_id in DEBUG_IDS.items():
             with self.subTest(binary=name):
-                (self.base / "events").unlink(missing_ok=True)
+                self.setUp()
                 result = self.run_deploy("--notes", "Fixes", SENTRY_EXE_ONLY=debug_id)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(debug_id.lower(), result.stderr)
@@ -439,6 +441,7 @@ class DeployTests(unittest.TestCase):
     def test_missing_or_blank_notes_are_rejected(self):
         for args in (("--notes",), ("--notes", ""), ("--notes", "  \n")):
             with self.subTest(args=args):
+                self.setUp()
                 result = self.run_deploy(*args)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("--notes requires", result.stderr)
@@ -496,8 +499,8 @@ class TaggedDeployTests(unittest.TestCase):
                                        stderr=subprocess.PIPE, text=True).strip()
 
     def run_deploy(self, *args, **env):
-        return subprocess.run([str(self.repo / "bin/testflight"), *args], cwd=self.repo,
-                              env={**self.env, **env}, text=True, capture_output=True, timeout=15)
+        return hang_guard.run([str(self.repo / "bin/testflight"), *args], cwd=self.repo,
+                              env={**self.env, **env}, text=True, capture_output=True)
 
     def events(self, command=None):
         path = self.base / "events"
@@ -523,7 +526,7 @@ class TaggedDeployTests(unittest.TestCase):
     def test_build_already_in_testing_needs_no_notes_or_distribution(self):
         for args in ((), ("--reuse",)):
             with self.subTest(args=args):
-                (self.base / "events").unlink(missing_ok=True)
+                self.setUp()
                 result = self.run_deploy(*args, TESTFLIGHT_BASE_BUILD="576")
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertIn("576 is already in testing for Everyone", result.stdout)
@@ -544,8 +547,8 @@ class TaggedDeployTests(unittest.TestCase):
         self.assertIn("HTTP 422", result.stderr)
         self.assertIn("Could not create the v1.3.1b576 GitHub release", result.stderr)
         retry = next(line.split("Retry with: ", 1)[1] for line in result.stderr.splitlines() if "Retry with: " in line)
-        result = subprocess.run(["/bin/bash", "-c", retry], cwd=self.repo, env={**self.env, "TESTFLIGHT_BASE_BUILD": "576"},
-                                text=True, capture_output=True, timeout=15)
+        result = hang_guard.run(["/bin/bash", "-c", retry], cwd=self.repo, env={**self.env, "TESTFLIGHT_BASE_BUILD": "576"},
+                                text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("576 is already in testing for Everyone", result.stdout)
         self.assertEqual(self.git("ls-remote", "--tags", "origin", "refs/tags/v1.3.1b576"),
@@ -607,10 +610,11 @@ class TaggedDeployTests(unittest.TestCase):
         self.assertFalse(self.events("llm"))
 
     def test_unknown_or_missing_tested_build_stops_before_version_changes(self):
-        self.project_version("1.4")
-        head = self.git("rev-parse", "HEAD")
         for tested in ("999", ""):
             with self.subTest(tested=tested):
+                self.setUp()
+                self.project_version("1.4")
+                head = self.git("rev-parse", "HEAD")
                 result = self.run_deploy(DEPLOY_VERSION="1.4", TESTFLIGHT_BASE_BUILD=tested)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("--notes", result.stderr)

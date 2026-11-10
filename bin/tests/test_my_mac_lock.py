@@ -10,6 +10,7 @@ import tempfile
 import threading
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -39,24 +40,20 @@ class MyMacLockTests(unittest.TestCase):
         self.env.pop("PODHAVEN_MY_MAC_LOCK_FD", None)
 
     def run_locked(self, *command):
-        return subprocess.run([sys.executable, "-B", str(COMMAND), *command],
-                              env=self.env, text=True, capture_output=True, timeout=30)
+        return hang_guard.run([sys.executable, "-B", str(COMMAND), *command],
+                              env=self.env, text=True, capture_output=True)
 
     def start(self, *command):
-        process = subprocess.Popen([sys.executable, "-B", str(COMMAND), *command], env=self.env, text=True,
+        process = hang_guard.start([sys.executable, "-B", str(COMMAND), *command], env=self.env, text=True,
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        watchdog = threading.Timer(30, process.kill)
+        watchdog = threading.Timer(hang_guard.HANG_LIMIT, hang_guard.kill, (process,))
         watchdog.start()
         self.addCleanup(self.stop, process, watchdog)
         return process
 
     def stop(self, process, watchdog):
         watchdog.cancel()
-        if process.poll() is None:
-            process.kill()
-        process.wait()
-        for stream in (process.stdin, process.stdout, process.stderr):
-            stream.close()
+        hang_guard.stop(process)
 
     def hold(self):
         holder = self.start("/bin/sh", "-c", 'echo held; read line; echo released > "$HOME/released"')
@@ -87,9 +84,9 @@ class MyMacLockTests(unittest.TestCase):
         self.assertIn(f"pid {holder.pid} since ", waiting)
         self.assertIn("echo held", waiting)
         holder.stdin.close()
-        self.assertEqual(holder.wait(timeout=30), 0)
+        self.assertEqual(hang_guard.wait(holder), 0)
         self.assertEqual(waiter.stdout.read(), "released\n")
-        self.assertEqual(waiter.wait(timeout=30), 0)
+        self.assertEqual(hang_guard.wait(waiter), 0)
         self.assert_free()
 
     def test_killed_holder_releases_the_lock(self):
@@ -97,9 +94,9 @@ class MyMacLockTests(unittest.TestCase):
         waiter = self.start("/bin/echo", "ran")
         self.assertIn("Waiting for the My Mac test lock", waiter.stderr.readline())
         os.kill(holder.pid, signal.SIGKILL)
-        self.assertEqual(holder.wait(timeout=30), -signal.SIGKILL)
+        self.assertEqual(hang_guard.wait(holder), -signal.SIGKILL)
         self.assertEqual(waiter.stdout.read(), "ran\n")
-        self.assertEqual(waiter.wait(timeout=30), 0)
+        self.assertEqual(hang_guard.wait(waiter), 0)
         self.assert_free()
 
     def test_nested_runs_reuse_the_inherited_lock(self):

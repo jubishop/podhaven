@@ -516,6 +516,19 @@ reach live services, such as `sentry`, `gh`, `fastlane`, `llm`, and
 script under test ignores the failure, instead of acting on real accounts.
 Fake every such command a script under test runs. A test that runs one on
 purpose claims the blocked calls with `service_guard.take_blocked()`.
+
+Tooling tests run fixture commands through `bin/tests/hang_guard.py`, with
+`hang_guard.run`, or `start` and `finish` for a command the test talks to
+while it runs, instead of choosing their own timeouts. Fixture commands start
+many fake commands, each a fresh interpreter, so a loaded machine can slow a
+run far past its usual time although nothing hangs. The shared `HANG_LIMIT`
+therefore only stops a real hang, and machine load never decides a test's
+outcome. Each command starts in its own session; on a timeout, the helper
+kills that whole process group and waits for it to end, so the test reports
+one `TimeoutExpired` and its temporary directory still cleans up. Keep a short
+wait only where its expiry is the assertion. Give each subtest that runs a
+release or gate command its own fixture, so one interrupted or failed run
+can't fail the subtests after it.
 Run one suite with `python3 -B -m unittest discover -s bin/tests -p 'test_deploy.py'`,
 which keeps the guard importable; a dotted `bin.tests` module name fails to
 import it instead of running unguarded.

@@ -15,6 +15,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import hang_guard
 import service_guard
 
 SOURCE = Path(__file__).resolve().parents[1]
@@ -84,7 +85,7 @@ class CacheTests(unittest.TestCase):
                 with self.assertRaises(TimeoutError):
                     future.result(timeout=0.1)
                 self.assertTrue(folder.exists())
-            self.assertEqual(future.result(timeout=10)["removed"], [str(folder)])
+            self.assertEqual(future.result(timeout=hang_guard.HANG_LIMIT)["removed"], [str(folder)])
 
     def test_partial_deletion_preserves_ownership_for_automatic_retry(self):
         folder = self.cache()

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -41,14 +42,14 @@ class CheckApplicationTests(unittest.TestCase):
                 suite = self.repo / SKILL_SUITE
                 suite.parent.mkdir(parents=True, exist_ok=True)
                 suite.write_text(source)
-                result = subprocess.run([str(self.repo / "bin/check-application")], cwd=self.repo, env=self.env,
-                                        text=True, capture_output=True, timeout=120)
+                result = hang_guard.run([str(self.repo / "bin/check-application")], cwd=self.repo, env=self.env,
+                                        text=True, capture_output=True)
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                 self.assertIn("Tooling checks failed: " + SKILL_SUITE + "\n", result.stderr)
 
     def run_checks(self, **env):
-        return subprocess.run([sys.executable, str(self.repo / "bin/check-application")], cwd=self.repo,
-                              env={**self.env, **env}, text=True, capture_output=True, timeout=120)
+        return hang_guard.run([sys.executable, str(self.repo / "bin/check-application")], cwd=self.repo,
+                              env={**self.env, **env}, text=True, capture_output=True)
 
     def test_scripts_and_workflows_outside_foundation_checks_are_linted(self):
         cases = {
@@ -73,8 +74,10 @@ class CheckApplicationTests(unittest.TestCase):
             with self.subTest(label):
                 self.assertIn("Running " + label + "\n", result.stdout)
                 (self.repo / path).write_text(broken)
-                failed = self.run_checks()
-                (self.repo / path).write_text(valid)
+                try:
+                    failed = self.run_checks()
+                finally:
+                    (self.repo / path).write_text(valid)
                 self.assertEqual(failed.returncode, 1, failed.stdout + failed.stderr)
                 self.assertIn("Tooling checks failed: " + label + "\n", failed.stderr)
                 self.assertIn("Running bin/tests\n", failed.stdout)

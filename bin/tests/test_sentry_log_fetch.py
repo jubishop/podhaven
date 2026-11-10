@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import tempfile
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import hang_guard
 import service_guard
 
 SCRIPT = (
@@ -66,11 +66,10 @@ print(json.dumps(payload))
         arguments = ["bash", str(SCRIPT), period, "--out", str(self.output)]
         if query is not None:
             arguments += ["--query", query]
-        return subprocess.run(
+        return hang_guard.run(
             arguments,
             capture_output=True,
             text=True,
-            timeout=10,
             check=False,
             env={
                 **os.environ,

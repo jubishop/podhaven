@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -85,8 +86,8 @@ class PrePushApplicationTests(unittest.TestCase):
         return self.git("rev-parse", "HEAD")
 
     def push(self, *refs, remote="origin", options=(), env=None):
-        return subprocess.run(["git", *options, "push", remote, *refs], cwd=self.repo,
-                              env={**self.env, **(env or {})}, text=True, capture_output=True, timeout=120)
+        return hang_guard.run(["git", *options, "push", remote, *refs], cwd=self.repo,
+                              env={**self.env, **(env or {})}, text=True, capture_output=True)
 
     def ssh_remote(self):
         """Add a remote that reaches the disposable remote over an SSH URL; return the stand-in ssh command."""
