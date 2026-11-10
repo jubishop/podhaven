@@ -516,6 +516,9 @@ reach live services, such as `sentry`, `gh`, `fastlane`, `llm`, and
 script under test ignores the failure, instead of acting on real accounts.
 Fake every such command a script under test runs. A test that runs one on
 purpose claims the blocked calls with `service_guard.take_blocked()`.
+Run one suite with `python3 -B -m unittest discover -s bin/tests -p 'test_deploy.py'`,
+which keeps the guard importable; a dotted `bin.tests` module name fails to
+import it instead of running unguarded.
 
 Tooling tests run fixture commands through `bin/tests/hang_guard.py`, with
 `hang_guard.run`, or `start` and `finish` for a command the test talks to
@@ -529,9 +532,6 @@ one `TimeoutExpired` and its temporary directory still cleans up. Keep a short
 wait only where its expiry is the assertion. Give each subtest that runs a
 release or gate command its own fixture, so one interrupted or failed run
 can't fail the subtests after it.
-Run one suite with `python3 -B -m unittest discover -s bin/tests -p 'test_deploy.py'`,
-which keeps the guard importable; a dotted `bin.tests` module name fails to
-import it instead of running unguarded.
 
 `.project-starter.json` records the installed Project Starter release, the
 hashes of its managed files, and the enabled `memory-audit` feature. Update
