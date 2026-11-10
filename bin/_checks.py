@@ -362,28 +362,38 @@ def hosted_partial_clone(root):
 
 
 def base_blobs(root, base):
-    """Return the paths left out of the sparse checkout that differ from base, and base's blobs of the other
-    changed paths that this clone lacks, without fetching anything."""
+    """Return the changed paths that the sparse checkout leaves out, and base's blobs of the other changed paths that
+    the whitespace check reads but this clone lacks, without fetching anything. With no base, the changes are the
+    working tree's against the index.
+
+    The checkout's own patterns decide what it leaves out, so a path stays out after a step writes a file there, and
+    whatever its content. The check skips deletions, which add no lines, but when the run adds a file, Git's rename
+    detection reads each deleted file's base to look for a pair, so whitespace a run only moves still passes.
+    """
     environment = git_environment() | {"GIT_NO_LAZY_FETCH": "1"}
 
-    def fields(*args, **options):
-        result = subprocess.run(["git", *args], cwd=root, env=environment, check=True, capture_output=True, **options)
+    def fields(*args, paths=()):
+        result = subprocess.run(["git", *args], cwd=root, env=environment, capture_output=True,
+                                input=b"".join(os.fsencode(path) + b"\0" for path in paths))
+        if result.returncode:
+            raise RuntimeError(os.fsdecode(result.stderr).strip() or "Git command failed")
         return [os.fsdecode(field) for field in result.stdout.split(b"\0")[:-1]]
 
-    skipped = {entry[2:] for entry in fields("ls-files", "-t", "-z") if entry.startswith("S ")}
-    # Unlike git diff, diff-index reads no blob to rule out a file whose stat information alone is stale.
-    changed = fields("diff-index", "-z", "--no-renames", "--no-abbrev", base)
-    excluded, wanted = [], set()
+    # Unlike git diff, the diff-* commands read no blob to rule out a file whose stat information alone is stale.
+    listed = fields(*(("diff-index", base) if base else ("diff-files",)), "-z", "--no-renames", "--no-abbrev")
     # Each change is ":<base mode> <mode> <base object> <object> <status>", then its path.
-    for header, path in zip(changed[0::2], changed[1::2]):
-        mode, _, blob = header[1:].split()[:3]
-        if path in skipped:
-            excluded.append(path)
-        elif mode not in ("000000", "160000"):
-            wanted.add(blob)
+    changes = {path: header[1:].split()[:3] for header, path in zip(listed[0::2], listed[1::2])}
+    excluded = set()
+    if git("config", "--type=bool", "--get", "core.sparseCheckout", root=root, optional=True) == "true":
+        # check-rules prints each path that the patterns, cone or not, keep, and reads no objects.
+        excluded = changes.keys() - set(fields("sparse-checkout", "check-rules", "-z", paths=changes))
+    checked = [modes for path, modes in changes.items() if path not in excluded]
+    adds = any(base_mode == "000000" for base_mode, _, _ in checked)
+    names = sorted({name for base_mode, mode, name in checked
+                    if base_mode not in ("000000", "160000") and (mode != "000000" or adds)})
     probe = subprocess.run(["git", "cat-file", "--batch-check=%(objectname)"], cwd=root, env=environment, check=True,
-                           capture_output=True, text=True, input="".join(blob + "\n" for blob in sorted(wanted)))
-    return excluded, sorted(line.split()[0] for line in probe.stdout.splitlines() if line.endswith(" missing"))
+                           capture_output=True, text=True, input="".join(name + "\n" for name in names))
+    return sorted(excluded), [line.split()[0] for line in probe.stdout.splitlines() if line.endswith(" missing")]
 
 
 def check_whitespace(root):
@@ -393,7 +403,7 @@ def check_whitespace(root):
     if hosted_partial_clone(root):
         # The check's step holds no credentials, so it reads only what the checkout has, and skips what it left out.
         environment |= {"GIT_NO_LAZY_FETCH": "1"}
-        excluded, missing = base_blobs(root, base) if base else ([], [])
+        excluded, missing = base_blobs(root, base)
         if missing:
             files = "1 changed file" if len(missing) == 1 else str(len(missing)) + " changed files"
             raise RuntimeError("This partial clone lacks the base version of " + files + " that the whitespace check "
@@ -401,8 +411,10 @@ def check_whitespace(root):
                                "bin/check --fetch-base with the job's token in a step before it, as "
                                "docs/foundation/engineering-policy.md#hosted-ci describes.")
     paths = ["--", *(":(top,literal,exclude)" + path for path in excluded)] if excluded else []
-    # Comparing the base with the working tree covers commits since it, and a fix counts once it's made.
-    subprocess.run(["git", "diff", "--check", *([base] if base else []), *paths], cwd=root, env=environment, check=True)
+    # Comparing the base with the working tree covers commits since it, and a fix counts once it's made. A deletion
+    # adds no lines, so Git reads a deleted file's base only for rename detection, when the run adds a file.
+    subprocess.run(["git", "diff", "--check", "--diff-filter=d", *([base] if base else []), *paths], cwd=root,
+                   env=environment, check=True)
     subprocess.run(["git", "diff", "--cached", "--check"], cwd=root, env=environment, check=True)
 
 
