@@ -29,6 +29,7 @@ import Logging
 
 extension SelectablePodcastList {
   private var repo: any Databasing { Container.shared.repo() }
+  private var alert: Alert { Container.shared.alert() }
 
   nonisolated private static var log: Logger { Log.as(LogSubsystem.ViewProtocols.podcastList) }
 
@@ -65,20 +66,23 @@ extension SelectablePodcastList {
       return
     }
 
-    Self.log.debug(
-      "deleteSelectedPodcasts: deleting \(savedPodcastIDs.count) of \(selectedCount) selected podcasts"
-    )
+    let savedTitles = selectedPodcastsWithMetadata.filter(\.isSaved).map(\.title)
+    alert.confirmPodcastDeletion(titles: savedTitles) { [weak self] in
+      Self.log.debug(
+        "deleteSelectedPodcasts: deleting \(savedPodcastIDs.count) of \(selectedCount) selected podcasts"
+      )
 
-    Task { [weak self] in
-      guard let self else { return }
+      Task { [weak self] in
+        guard let self else { return }
 
-      do {
-        try await repo.deletePodcast(savedPodcastIDs)
-      } catch {
-        Self.log.caughtError(
-          "deleteSelectedPodcasts: failed to delete \(savedPodcastIDs.count) podcasts",
-          error
-        )
+        do {
+          try await repo.deletePodcast(savedPodcastIDs)
+        } catch {
+          Self.log.caughtError(
+            "deleteSelectedPodcasts: failed to delete \(savedPodcastIDs.count) podcasts",
+            error
+          )
+        }
       }
     }
   }

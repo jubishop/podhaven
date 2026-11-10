@@ -847,6 +847,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     viewModel.disappear()
     viewModel.delete()
+    try await answerAlert("Delete")
 
     try await Wait.until(
       { @MainActor in
