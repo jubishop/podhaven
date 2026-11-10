@@ -9,11 +9,16 @@ import Testing
 
 @Suite("of RefreshManager backoff tests", .container)
 actor RefreshManagerBackoffTests {
+  @DynamicInjected(\.connectionState) private var connectionState
   @DynamicInjected(\.fakeDate) private var fakeDate
+  @DynamicInjected(\.networkPathMonitor) private var networkPathMonitor
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.refreshManager) private var refreshManager
   @DynamicInjected(\.repo) private var repo
 
+  private var fakeNetworkPathMonitor: FakeNetworkPathMonitor {
+    networkPathMonitor as! FakeNetworkPathMonitor
+  }
   private var session: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
 
   private let start = Date(
@@ -132,6 +137,21 @@ actor RefreshManagerBackoffTests {
 
     #expect(try await scheduledRefreshRequests(at: start) == [SyntheticFeed.url(0)])
     #expect(try await scheduledRefreshRequests(at: start + 1) == [SyntheticFeed.url(0)])
+  }
+
+  @Test("a timeout while offline doesn't back off a feed, but one while online does")
+  func offlineTimeoutDoesNotBackOff() async throws {
+    _ = try await insertPodcast(index: 0, lastUpdate: start.addingTimeInterval(-5 * 3600))
+    await session.respond(to: SyntheticFeed.url(0), error: URLError(.timedOut))
+    _ = try await connectionState.currentPath()
+
+    fakeNetworkPathMonitor.update(FakeNetworkPath(isSatisfied: false))
+    #expect(try await scheduledRefreshRequests(at: start) == [SyntheticFeed.url(0)])
+    #expect(try await scheduledRefreshRequests(at: start + 1) == [SyntheticFeed.url(0)])
+
+    fakeNetworkPathMonitor.update(FakeNetworkPath())
+    #expect(try await scheduledRefreshRequests(at: start + 2) == [SyntheticFeed.url(0)])
+    #expect(try await scheduledRefreshRequests(at: start + 3).isEmpty)
   }
 
   // MARK: - Helpers

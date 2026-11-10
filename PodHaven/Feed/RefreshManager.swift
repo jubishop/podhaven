@@ -19,6 +19,7 @@ struct RefreshManager {
   }
 
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.connectionState) private var connectionState
   @DynamicInjected(\.dateProvider) private var dateProvider
   @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
   @DynamicInjected(\.publisherTranscriptProcessor) private var publisherTranscriptProcessor
@@ -269,8 +270,11 @@ struct RefreshManager {
         level: level
       )
       if Task.isCancelled || error is CancellationError { return nil }
-      if let urlError = error as? URLError, Self.nonFeedURLErrorCodes.contains(urlError.code) {
-        return nil
+      if let urlError = error as? URLError {
+        if Self.nonFeedURLErrorCodes.contains(urlError.code) { return nil }
+        // An offline fetch waits for connectivity and then times out.
+        let path = try await connectionState.currentPath()
+        if !path.isSatisfied { return nil }
       }
       releaseOnExit = false
       return failure(of: podcast)
