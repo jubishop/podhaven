@@ -43,6 +43,31 @@ struct PlaybackCoverageTests {
     #expect(coverage.ratio == 0.0)
   }
 
+  @Test("implausibly long duration yields a zero-byte bitmap that marks nothing")
+  func implausiblyLongDuration() {
+    var coverage = PlaybackCoverage(durationSeconds: 1_000_000_000, data: Data([0xFF]))
+    #expect(coverage.bytes.isEmpty)
+    let marked = coverage.mark(startSeconds: 0, endSeconds: 30)
+    #expect(!marked)
+    #expect(coverage.coveredSeconds == 0)
+    #expect(coverage.ratio == 0.0)
+  }
+
+  @Test("only durations past maxDurationSeconds are implausible")
+  func maxDurationBoundary() {
+    let atLimit = PlaybackCoverage(durationSeconds: PlaybackCoverage.maxDurationSeconds)
+    #expect(!atLimit.bytes.isEmpty)
+
+    let pastLimit = PlaybackCoverage(durationSeconds: PlaybackCoverage.maxDurationSeconds + 1)
+    #expect(pastLimit.bytes.isEmpty)
+  }
+
+  @Test("duration past Int's range yields a zero-byte bitmap")
+  func durationPastIntRange() {
+    let coverage = PlaybackCoverage(duration: CMTime(value: .max, timescale: 1))
+    #expect(coverage.bytes.isEmpty)
+  }
+
   // MARK: - Mark
 
   @Test("mark a single chunk sets exactly one bit")
