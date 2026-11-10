@@ -74,4 +74,16 @@ struct HTMLLinearTimeTests {
     #expect(try #require(attributed).runs.count { $0.link != nil } == count)
     #expect(cpu < Self.budget)
   }
+
+  @Test("URL detection is linear in URLs with no whitespace between them", arguments: ["|", ","])
+  func linkingURLsWithoutWhitespace(_ separator: String) async throws {
+    let html = "<b>start</b> " + String(repeating: "http://a.co" + separator, count: 20_000)
+
+    let (attributed, cpu) = try await ThreadCPUTime.measure {
+      HTMLContent.attributedString(html: html, font: .body)
+    }
+
+    #expect(String(try #require(attributed).characters).hasPrefix("start"))
+    #expect(cpu < Self.budget)
+  }
 }
