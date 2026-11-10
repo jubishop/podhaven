@@ -197,6 +197,7 @@ struct PodcastFeedTests {
     "parsing a feed uses an absolute HTTP self link as HTTPS",
     arguments: [
       ("http://example.com/feed.xml", "https://example.com/feed.xml"),
+      ("HTTP://example.com/feed.xml", "https://example.com/feed.xml"),
       ("https://example.com/feed.xml", "https://example.com/feed.xml"),
     ]
   )
@@ -250,7 +251,9 @@ struct PodcastFeedTests {
       ("../", "https://example.com/"),
       ("//cdn.example.com/", "https://cdn.example.com/"),
       ("http://cdn.example.com/", "https://cdn.example.com/"),
+      ("HTTP://cdn.example.com/", "https://cdn.example.com/"),
       ("https://cdn.example.com/", "https://cdn.example.com/"),
+      ("HTTPS://cdn.example.com/", "https://cdn.example.com/"),
     ]
   )
   func parseFeedWithContentURLs(prefix: String, expectedPrefix: String) async throws {

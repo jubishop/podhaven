@@ -21,8 +21,15 @@ import Testing
   var feedSession: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
   var opmlSession: FakeDataFetchable { podcastOPMLSession as! FakeDataFetchable }
 
-  @Test("that a new apple podcast URL is correctly imported")
-  func newApplePodcastURLImportsSuccessfully() async throws {
+  @Test(
+    "that a new apple podcast URL is correctly imported",
+    arguments: [
+      "https://podcasts.apple.com",
+      "https://embed.podcasts.apple.com",
+      "HTTPS://PODCASTS.APPLE.COM",
+    ]
+  )
+  func newApplePodcastURLImportsSuccessfully(origin: String) async throws {
     Container.shared.fakeDate().freeze()
     #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
 
@@ -38,12 +45,7 @@ import Testing
     await feedSession.respond(to: feedURL, data: feedData)
 
     try await shareService.handleIncomingURL(
-      ShareHelpers.shareURL(
-        with: ShareHelpers.itunesPodcastURL(
-          for: itunesID,
-          withTitle: "Lenny's Podcast: Product | Growth | Career"
-        )
-      )
+      ShareHelpers.shareURL(with: URL(string: "\(origin)/us/podcast/lenny/id\(itunesID)")!)
     )
 
     // Podcast should NOT be saved to repo
@@ -55,6 +57,31 @@ import Testing
     // Should navigate to search tab with unsaved podcast
     #expect(navigation.currentTab == .search)
     #expect(navigation.search.path == [.unsavedPodcastSeries(try podcastFeed.toUnsavedSeries())])
+  }
+
+  @Test(
+    "that a link on a host that only resembles Apple Podcasts isn't looked up on iTunes",
+    arguments: ["https://podcasts.apple.com.evil.example", "https://evilpodcasts.apple.com"]
+  )
+  func lookalikeApplePodcastsHostIsNotLookedUp(origin: String) async throws {
+    let itunesID = "1627920305"
+    await itunesSession.respond(
+      to: ITunesURL.lookupRequest(podcastIDs: [ITunesPodcastID(Int(itunesID)!)]).url!,
+      data: PreviewBundle.loadAsset(named: "lenny", in: .iTunesResults)
+    )
+    await feedSession.respond(
+      to: URL(string: "https://api.substack.com/feed/podcast/10845.rss")!,
+      data: PreviewBundle.loadAsset(named: "lenny", in: .FeedRSS)
+    )
+
+    await #expect(throws: (any Error).self) {
+      try await self.shareService.handleIncomingURL(
+        ShareHelpers.shareURL(with: URL(string: "\(origin)/us/podcast/lenny/id\(itunesID)")!)
+      )
+    }
+
+    #expect(await itunesSession.requests.isEmpty)
+    #expect(navigation.search.path.isEmpty)
   }
 
   @Test(
@@ -410,6 +437,35 @@ import Testing
     let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
     #expect(navigation.currentTab == .search)
     #expect(navigation.search.path == [.unsavedPodcastSeries(try podcastFeed.toUnsavedSeries())])
+  }
+
+  @Test(
+    "that a shared HTTP feed URL opens the saved HTTPS podcast without fetching it",
+    arguments: [
+      "http://changelog.com/podcast/feed",
+      "HTTP://changelog.com/podcast/feed",
+      "HTTPS://changelog.com/podcast/feed",
+    ],
+    [false, true]  // wrapped in a PodHaven share link
+  )
+  func httpFeedURLOpensSavedPodcast(sharedFeedURL: String, wrapped: Bool) async throws {
+    let feedURL = URL(string: "https://changelog.com/podcast/feed")!
+    let feedData = PreviewBundle.loadAsset(named: "changelog", in: .FeedRSS)
+    let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
+    let podcastSeries = try await repo.insertSeries(podcastFeed.toUnsavedSeries())
+    let sharedURL =
+      wrapped ? ShareHelpers.podcastURL(feedURL: sharedFeedURL) : URL(string: sharedFeedURL)!
+
+    try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: sharedURL))
+
+    #expect(await feedSession.requests.isEmpty)
+    #expect(navigation.currentTab == .podcasts)
+    #expect(
+      navigation.podcasts.path == [
+        .podcastsViewType(.unsubscribed),
+        .podcast(DisplayedPodcast(podcastSeries.podcast)),
+      ]
+    )
   }
 
   @Test("that a plain feed URL is imported successfully")
