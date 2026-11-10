@@ -263,11 +263,14 @@ def primary_checkout(root):
                 return candidate
         except RuntimeError:
             pass
+    return checkouts(root)[0]
+
+
+def checkouts(root=ROOT):
+    """List the clone's checkout roots, the primary first; a bare repository's entry is None."""
     output = subprocess.check_output(["git", "-C", str(root), "worktree", "list", "--porcelain", "-z"], env=git_environment())
-    first = output.split(b"\0\0", 1)[0].split(b"\0")
-    if b"bare" in first:
-        return None
-    return Path(os.fsdecode(first[0][len(b"worktree "):]))
+    records = [record.split(b"\0") for record in output.split(b"\0\0") if record.startswith(b"worktree ")]
+    return [None if b"bare" in fields else Path(os.fsdecode(fields[0][len(b"worktree "):])) for fields in records]
 
 
 def prepare(root):
@@ -318,6 +321,28 @@ def hooks_path():
     return path if path.is_absolute() else ROOT / path
 
 
+def shared_hooks(active):
+    """Report whether active is another checkout's bin/hooks.
+
+    A clone's checkouts share its core.hooksPath, so it may name one checkout's bin/hooks for all of them."""
+    own = (ROOT / "bin/hooks").resolve()
+    return active.resolve() != own and active.resolve() in {(path / "bin/hooks").resolve() for path in checkouts() if path}
+
+
+def shared_hooks_error(active):
+    """Name the events whose shared hook differs from this checkout's bundled hook, or return None."""
+    def matches(event):
+        try:
+            return os.access(active / event, os.X_OK) and (active / event).read_bytes() == (ROOT / "bin/hooks" / event).read_bytes()
+        except OSError:
+            return False
+    differing = [event for event in EVENTS if not matches(event)]
+    if not differing:
+        return None
+    return (str(active) + ", another checkout's bin/hooks, differs from this checkout's for: " + ", ".join(differing) +
+            ". Bring both checkouts to the same hooks; see docs/foundation/knowledge-search.md#shared-hooks")
+
+
 def install_hooks():
     mode = setting("hooks") or "bundled"
     if mode not in {"bundled", "external"}:
@@ -328,6 +353,12 @@ def install_hooks():
         print("Preserved external hooks: " + str(active))
         print("Verify every forwarding call as described in docs/foundation/knowledge-search.md#existing-hooks.")
         return
+    if shared_hooks(active):
+        error = shared_hooks_error(active)
+        if error:
+            raise RuntimeError(error)
+        print("Active hooks: " + str(active))
+        return
     configured = git("config", "--get", "core.hooksPath", optional=True)
     existing = active.is_dir() and any(p.is_file() and os.access(p, os.X_OK)
                                       and not p.name.endswith(".sample") for p in active.iterdir())
@@ -337,8 +368,9 @@ def install_hooks():
     for event in EVENTS:
         if not os.access(bundled / event, os.X_OK):
             raise RuntimeError("Missing executable hook: bin/hooks/" + event)
-    git("config", "--local", "core.hooksPath", "bin/hooks")
-    print("Active hooks: bin/hooks")
+    if not configured:
+        git("config", "--local", "core.hooksPath", "bin/hooks")
+    print("Active hooks: " + (configured or "bin/hooks"))
 
 
 def changes_markdown(remote, commit):
@@ -577,7 +609,11 @@ def diagnose():
         report["notices"].append("ShellCheck absent: install it before running bin/check.")
     active = hooks_path()
     if report["hooks_mode"] == "bundled":
-        if active.resolve() != (ROOT / "bin/hooks").resolve() or any(not os.access(active / e, os.X_OK) for e in EVENTS):
+        if shared_hooks(active):
+            error = shared_hooks_error(active)
+            if error:
+                report["issues"].append(error)
+        elif active.resolve() != (ROOT / "bin/hooks").resolve() or any(not os.access(active / e, os.X_OK) for e in EVENTS):
             report["issues"].append("Bundled hooks are not active. Run bin/setup.")
     elif report["hooks_mode"] == "external":
         observations = read_json(cache() / "hooks.json")
