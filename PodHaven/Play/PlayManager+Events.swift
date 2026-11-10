@@ -27,7 +27,7 @@ extension PlayManager {
 
     if status == .stopped {
       do {
-        try Container.shared.setAudioSessionActive()(false)
+        try Container.shared.setAudioSessionActive()(false, .notifyOthersOnDeactivation)
       } catch {
         Self.log.caughtError(
           "setStatus: failed to deactivate audio session",
@@ -136,7 +136,7 @@ extension PlayManager {
         avPlayerCurrentTime: \(avPlayerCurrentTime)
         nowPlayingElapsed: \(nowPlayingElapsedString)
         sharedPlaybackStatus: \(sharedState.playbackStatus)
-        avPlayerPlaybackStatus: \(avPlayerPlaybackStatus)
+        avPlayerPlaybackStatus: \(avPlayerPlaybackStatus?.description ?? "unknown")
         ignoreRemoteScrubCommands: \(ignoreRemoteScrubCommands)
         appState: \(applicationState)
         routeOutputs: \(routeOutputs)
@@ -456,24 +456,27 @@ extension PlayManager {
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await notification in notifications(AVPlayerItem.newErrorLogEntryNotification) {
-        guard let item = notification.object as? AVPlayerItem
-        else { Assert.fatal("newErrorLogEntryNotification: \(notification) is invalid") }
+        guard let item = notification.object as? AVPlayerItem else {
+          Self.log.warning("Ignoring newErrorLogEntryNotification without a player item")
+          continue
+        }
 
         guard await podAVPlayer.isCurrentItem(item) else {
           Self.log.warning("Ignoring newErrorLogEntryNotification from non-current item")
           continue
         }
 
-        guard let errorLog = item.errorLog()
-        else { Assert.fatal("newErrorLogEntryNotification fired but errorLog() returned nil?") }
+        guard let errorLog = item.errorLog(), let event = errorLog.events.last else {
+          Self.log.warning("Ignoring newErrorLogEntryNotification without an error log entry")
+          continue
+        }
 
         Self.log.warning(
           """
-          Error log events for episode \
-            \(String(describing: sharedState.onDeck?.id)) (\(errorLog.events.count)):
-            \(errorLog.events.map { event in
-              String(describing: event.errorComment)
-            }.joined(separator: "\n  "))
+          Error log event \(errorLog.events.count) for episode \
+          \(String(describing: sharedState.onDeck?.id)): \
+          \(event.errorDomain) \(event.errorStatusCode) \
+          \(String(describing: event.errorComment))
           """
         )
       }

@@ -59,7 +59,7 @@ extension PlayManager {
       playerGeneration=\(String(describing: snapshot.source?.generation)) \
       appState=\(applicationState) currentTime=\(snapshot.currentTime) \
       itemStatus=\(String(describing: snapshot.itemStatus)) cached=\(snapshot.isFromCache) \
-      timeControlStatus=\(snapshot.status) \
+      timeControlStatus=\(snapshot.status?.description ?? "unknown") \
       waitingReason=\(String(describing: snapshot.waitingReason)) routeOutputs=\(routeOutputs) \
       routeAgeSeconds=\(routeAge)
       """
@@ -290,7 +290,7 @@ extension PlayManager {
       playerGeneration=\(recovery.playerSource.generation) \
       routeChangeID=\(String(describing: routeChangeID)) \
       currentTime=\(snapshot.currentTime) itemStatus=\(String(describing: snapshot.itemStatus)) \
-      cached=\(snapshot.isFromCache) timeControlStatus=\(snapshot.status) \
+      cached=\(snapshot.isFromCache) timeControlStatus=\(snapshot.status?.description ?? "unknown") \
       waitingReason=\(String(describing: snapshot.waitingReason))
       """
     )
@@ -311,7 +311,7 @@ extension PlayManager {
     case .paused:
       setStatus(.paused)
       failWidgetRouteRecovery(currentRecovery, reason: "pausedAfterRetry")
-    case .loading, .stopped:
+    case .loading, .stopped, .none:
       failWidgetRouteRecovery(currentRecovery, reason: "playbackStateChanged")
     }
   }
@@ -356,7 +356,7 @@ extension PlayManager {
       """
       event=widgetRouteRecoveryTimeout requestID=\(requestID) episodeID=\(recovery.episodeID) \
       playerGeneration=\(recovery.playerSource.generation) currentTime=\(snapshot.currentTime) \
-      timeControlStatus=\(snapshot.status)
+      timeControlStatus=\(snapshot.status?.description ?? "unknown")
       """
     )
     let paused = await player.pause(requestID: requestID, ifCurrent: recovery.playerSource)

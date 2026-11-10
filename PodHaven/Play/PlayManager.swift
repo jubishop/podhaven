@@ -406,7 +406,7 @@ final class PlayManager {
       guard try shouldFinishEstablishedLoad(loadID) else { return true }
       let playbackStatus = await podAVPlayer.playbackStatus()
       guard try shouldFinishEstablishedLoad(loadID) else { return true }
-      setStatus(playbackStatus)
+      if let playbackStatus { setStatus(playbackStatus) }
       loadTransition?.state = .preservingPlayback
       Self.log.debug(
         """

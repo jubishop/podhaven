@@ -551,6 +551,26 @@ import Testing
     try await PlayHelpers.waitForFinished(podcastEpisode)
   }
 
+  @Test("stopping playback tells interrupted apps they can resume")
+  func stoppingPlaybackTellsInterruptedAppsTheyCanResume() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+    avPlayer.finishEpisode()
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await Wait.until(
+      {
+        let deactivations = await audioSession.deactivationOptions
+        return !deactivations.isEmpty
+          && deactivations.allSatisfy { $0.contains(.notifyOthersOnDeactivation) }
+      },
+      { await "Deactivation options: \(audioSession.deactivationOptions.map(\.rawValue))" }
+    )
+  }
+
   // MARK: - Stop After Current Episode
 
   @Test("stopAfterCurrentEpisode stops at episode end instead of advancing to queued episode")

@@ -71,11 +71,10 @@ extension Container {
     .scope(.cached)
   }
 
-  var setAudioSessionActive: Factory<(Bool) throws -> Void> {
+  var setAudioSessionActive: Factory<(Bool, AVAudioSession.SetActiveOptions) throws -> Void> {
     Factory(self) {
-      { active in
-        let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setActive(active)
+      { active, options in
+        try AVAudioSession.sharedInstance().setActive(active, options: options)
       }
     }
   }
