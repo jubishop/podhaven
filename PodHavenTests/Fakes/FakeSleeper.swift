@@ -5,8 +5,14 @@ import Foundation
 @testable import PodHaven
 
 actor FakeSleeper: Sleepable {
-  private var sleepRequests:
-    [(duration: Duration, wakeTime: Duration, continuation: CheckedContinuation<Void, Error>)] = []
+  private struct SleepRequest {
+    let id: UUID
+    let duration: Duration
+    let wakeTime: Duration
+    let continuation: CheckedContinuation<Void, Error>
+  }
+
+  private var sleepRequests: [SleepRequest] = []
   private var currentTime: Duration = .zero
 
   // Exposed outside the actor so waitForSleepRequests can poll without
@@ -16,30 +22,47 @@ actor FakeSleeper: Sleepable {
   let pendingCount = ThreadSafe<Int>(0)
   let pendingDurations = ThreadSafe<[Duration]>([])
 
+  // When set, a cancelled sleep throws CancellationError like Task.sleep;
+  // otherwise it stays pending until time advances past it.
+  let throwsOnCancellation = ThreadSafe(false)
+
   func sleep(for duration: Duration) async throws {
-    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-      let wakeTime = currentTime + duration
-      let request = (duration: duration, wakeTime: wakeTime, continuation: continuation)
-      let insertionIndex = sleepRequests.firstIndex { $0.wakeTime > wakeTime }
-      if let insertionIndex {
-        sleepRequests.insert(request, at: insertionIndex)
-      } else {
-        sleepRequests.append(request)
+    let id = UUID()
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, Error>) in
+        guard !(throwsOnCancellation() && Task.isCancelled) else {
+          continuation.resume(throwing: CancellationError())
+          return
+        }
+        let wakeTime = currentTime + duration
+        let request = SleepRequest(
+          id: id,
+          duration: duration,
+          wakeTime: wakeTime,
+          continuation: continuation
+        )
+        let insertionIndex = sleepRequests.firstIndex { $0.wakeTime > wakeTime }
+        if let insertionIndex {
+          sleepRequests.insert(request, at: insertionIndex)
+        } else {
+          sleepRequests.append(request)
+        }
+        pendingCount(sleepRequests.count)
+        pendingDurations { $0.append(duration) }
       }
-      pendingCount(sleepRequests.count)
-      pendingDurations { $0.append(duration) }
+    } onCancel: {
+      guard throwsOnCancellation() else { return }
+      Task { await self.cancelSleep(id) }
     }
   }
 
   func advanceTime(by duration: Duration) {
     currentTime += duration
     while let first = sleepRequests.first, first.wakeTime <= currentTime {
-      first.continuation.resume(returning: ())
       sleepRequests.removeFirst()
-      pendingDurations { durations in
-        guard let index = durations.firstIndex(of: first.duration) else { return }
-        durations.remove(at: index)
-      }
+      removePendingDuration(first.duration)
+      first.continuation.resume(returning: ())
     }
     pendingCount(sleepRequests.count)
   }
@@ -58,5 +81,20 @@ actor FakeSleeper: Sleepable {
         "Expected \(count) sleep requests for \(duration), got \(self.pendingDurations())"
       }
     )
+  }
+
+  private func cancelSleep(_ id: UUID) {
+    guard let index = sleepRequests.firstIndex(where: { $0.id == id }) else { return }
+    let request = sleepRequests.remove(at: index)
+    removePendingDuration(request.duration)
+    pendingCount(sleepRequests.count)
+    request.continuation.resume(throwing: CancellationError())
+  }
+
+  private func removePendingDuration(_ duration: Duration) {
+    pendingDurations { durations in
+      guard let index = durations.firstIndex(of: duration) else { return }
+      durations.remove(at: index)
+    }
   }
 }

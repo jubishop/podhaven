@@ -163,6 +163,6 @@ import Testing
       )
       #expect(scene.controller.topTemplate === reopened)
     }
-    #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)
+    #expect(Container.shared.fakeAudioSession().activeCalls.isEmpty)
   }
 }

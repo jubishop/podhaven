@@ -67,6 +67,7 @@ final class PlayManager {
 
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.commandCenterStream) var commandCenterStream
+  @DynamicInjected(\.audioSession) var audioSession
   @DynamicInjected(\.dateProvider) var dateProvider
   @DynamicInjected(\.fileManager) var fileManager
   @DynamicInjected(\.imagePipeline) var imagePipeline
@@ -269,7 +270,7 @@ final class PlayManager {
 
     var phaseStart = Date()
     Self.log.debug("performLoad: configuring audio session")
-    let audioSessionConfigured = await Container.shared.configureAudioSession()()
+    let audioSessionConfigured = await Self.configureAudioSession()
     Self.log.debug(
       """
       performLoad: configured audio session result=\(audioSessionConfigured) \

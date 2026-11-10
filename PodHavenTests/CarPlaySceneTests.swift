@@ -70,7 +70,7 @@ import Testing
       await Container.shared.fakeEpisodeAssetLoader().responseCount(for: episode.episode.mediaURL)
         == 0
     )
-    #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)
+    #expect(Container.shared.fakeAudioSession().activeCalls.isEmpty)
     #expect((Container.shared.avPlayer() as! FakeAVPlayer).current == nil)
 
     let observatory = Container.shared.observatory() as! FakeObservatory
@@ -152,7 +152,7 @@ import Testing
     )
     _ = try observatory.expectCalls(methodName: "smartLists")
     _ = try observatory.expectCalls(methodName: "tags")
-    #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)
+    #expect(Container.shared.fakeAudioSession().activeCalls.isEmpty)
   }
 
   @Test(
@@ -170,7 +170,7 @@ import Testing
     let avPlayer = Container.shared.avPlayer() as! FakeAVPlayer
     let current = avPlayer.current
     let status = avPlayer.timeControlStatus
-    let audioCalls = await Container.shared.fakeAudioSession().activeCalls
+    let audioCalls = Container.shared.fakeAudioSession().activeCalls
     let coordinator = Container.shared.carPlayCoordinator()
 
     for _ in 0..<5 {
@@ -186,7 +186,7 @@ import Testing
     #expect(avPlayer.current === current)
     #expect(avPlayer.timeControlStatus == status)
     #expect(Container.shared.sharedState().onDeck?.id == episode.id)
-    #expect(await Container.shared.fakeAudioSession().activeCalls == audioCalls)
+    #expect(Container.shared.fakeAudioSession().activeCalls == audioCalls)
   }
 
   @Test("late completion and old disconnect cannot mutate a replacement connection")
@@ -307,7 +307,7 @@ import Testing
       }
       coordinator.disconnect(controller)
       #expect(sharedState.scenePhase == .inactive)
-      #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)
+      #expect(Container.shared.fakeAudioSession().activeCalls.isEmpty)
     }
   }
 }

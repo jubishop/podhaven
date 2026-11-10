@@ -59,7 +59,7 @@ import Testing
     #expect(selected.text == title)
     #expect(selected.detailText?.contains("Saved podcast") == true)
     #expect(selected.isEnabled)
-    #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)
+    #expect(Container.shared.fakeAudioSession().activeCalls.isEmpty)
     #expect(Container.shared.sharedState().onDeck == nil)
     let completion = ThreadSafe(0)
     let handler = try #require(selected.handler)
@@ -225,13 +225,13 @@ import Testing
         )
       )
       try await PlayHelpers.waitFor(.paused)
-      let calls = await Container.shared.fakeAudioSession().activeCalls
+      let calls = Container.shared.fakeAudioSession().activeCalls
       coordinator.disconnect(controller)
       #expect(nowPlaying.observers.isEmpty)
       #expect(nowPlaying.buttons.isEmpty)
       #expect(controller.delegate == nil)
       #expect(player.current === item)
-      #expect(await Container.shared.fakeAudioSession().activeCalls == calls)
+      #expect(Container.shared.fakeAudioSession().activeCalls == calls)
       interruptions.yield(
         Notification(
           name: AVAudioSession.interruptionNotification,
