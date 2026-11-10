@@ -48,7 +48,10 @@ import UIKit
     #expect(await Container.shared.playManager().settledOnDeckID == episodes[0].id)
   }
 
-  @Test("a cold Siri handoff waits for the pending launch catalog publication")
+  @Test(
+    "a cold Siri handoff waits for the pending launch catalog publication",
+    .timeLimit(.minutes(5))
+  )
   func pendingLaunchPublication() async throws {
     let series = try await Container.shared.repo()
       .insertSeries(
@@ -73,21 +76,23 @@ import UIKit
       delegate.application?(UIApplication.shared, handlerFor: intent) as? SiriMediaIntentHandler
     )
     let responses = ThreadSafe<[Int]>([])
-    try await LogCapture.withSink { sink in
+    let responded = AsyncLatch<Void>()
+    let waitingForLaunch = AsyncLatch<Void>()
+    let onCapture: @Sendable (LogCapture.Captured) -> Void = { captured in
+      if captured.message == "Waiting for the launch Siri catalog publication" {
+        waitingForLaunch.open()
+      }
+    }
+    try await LogCapture.withSink(onCapture: onCapture) { _ in
       handler.handle(intent: intent) { response in
         responses { $0.append(response.code.rawValue) }
+        responded.open()
       }
-      try await Wait.until(
-        {
-          sink.captured()
-            .contains { $0.message == "Waiting for the launch Siri catalog publication" }
-        },
-        { "Siri handoff did not wait for the launch publication" }
-      )
+      try await waitingForLaunch.wait()
     }
     #expect(responses().isEmpty)
     storage.release()
-    try await Wait.until({ !responses().isEmpty }, { "Siri handoff did not complete" })
+    try await responded.wait()
     #expect(responses() == [INPlayMediaIntentResponseCode.success.rawValue])
     #expect(Container.shared.sharedState().currentEpisodeID == series.episodes[0].id)
   }
