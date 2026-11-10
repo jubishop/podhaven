@@ -172,6 +172,7 @@ what its application may do, or to allow direct pushes of production code.
 | `bin/check --documents-only` | Managed-file hashes, document metadata, index coverage, local links, and heading anchors. |
 | `bin/check` | The documents-only checks, plus Python syntax, ShellCheck, and Git whitespace checks. ShellCheck lints `.envrc` and each `bin/` script whose shebang names `sh`, `bash`, `dash`, or `ksh`, in that dialect. |
 | `bin/check --full` | The `bin/check` checks, then the project's executable `bin/check-application`, when present. |
+| `bin/check --fetch-base` | No checks; in a GitHub Actions partial clone, it fetches what the whitespace checks read, as [hosted CI](#hosted-ci) describes. |
 
 Put application typechecking, lint, tests, and builds in
 `bin/check-application`. Only `--full` runs it, after the foundation checks
@@ -256,6 +257,27 @@ Give `actions/checkout` `fetch-depth: 0` in each job that runs `bin/check` or
 `bin/check --full`, so the [whitespace checks](#checks) can reach the commits
 the run adds. In a pull request or push run, a checkout too shallow to reach
 them fails those checks instead of passing without reading them.
+
+A job whose checkout is a partial clone, which any `sparse-checkout` or
+`filter` makes, leaves the files it didn't check out on GitHub, including the
+base's version of the files the run changes. `bin/check` fetches none of
+them, since `persist-credentials: false` leaves its step no token. Give such
+a job a step that runs before the one that runs `bin/check`, under the same
+conditions:
+
+```yaml
+- name: Fetch the base files the whitespace check reads
+  env:
+    GH_TOKEN: ${{ github.token }}
+  run: bin/check --fetch-base
+```
+
+It fetches from `origin` only the base's version of each file the run
+changes, leaving out paths the sparse checkout excludes, and hands the token
+to that one fetch without writing it to the checkout's config. The whitespace
+checks then skip the excluded paths. Without the step, they fail with this
+fix instead of asking for credentials. Outside such a checkout,
+`bin/check --fetch-base` fetches nothing.
 
 When hosted CI cannot run only because the Actions quota is exhausted or
 GitHub is rate limiting, run `bin/check --full` locally on the exact revision

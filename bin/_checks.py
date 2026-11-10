@@ -352,12 +352,89 @@ def change_base(root):
     return git("hash-object", "-t", "tree", os.devnull, root=root)
 
 
+def hosted_partial_clone(root):
+    """Return whether this is a GitHub Actions checkout that leaves objects on its server, as a sparse checkout does."""
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return False
+    promisors = git("config", "--type=bool", "--get-regexp", r"^remote\..*\.promisor$", root=root, optional=True)
+    return bool(git("config", "--get", "extensions.partialClone", root=root, optional=True)
+                or any(line.endswith(" true") for line in promisors.splitlines()))
+
+
+def base_blobs(root, base):
+    """Return the paths left out of the sparse checkout that differ from base, and base's blobs of the other
+    changed paths that this clone lacks, without fetching anything."""
+    environment = git_environment() | {"GIT_NO_LAZY_FETCH": "1"}
+
+    def fields(*args, **options):
+        result = subprocess.run(["git", *args], cwd=root, env=environment, check=True, capture_output=True, **options)
+        return [os.fsdecode(field) for field in result.stdout.split(b"\0")[:-1]]
+
+    skipped = {entry[2:] for entry in fields("ls-files", "-t", "-z") if entry.startswith("S ")}
+    # Unlike git diff, diff-index reads no blob to rule out a file whose stat information alone is stale.
+    changed = fields("diff-index", "-z", "--no-renames", "--no-abbrev", base)
+    excluded, wanted = [], set()
+    # Each change is ":<base mode> <mode> <base object> <object> <status>", then its path.
+    for header, path in zip(changed[0::2], changed[1::2]):
+        mode, _, blob = header[1:].split()[:3]
+        if path in skipped:
+            excluded.append(path)
+        elif mode not in ("000000", "160000"):
+            wanted.add(blob)
+    probe = subprocess.run(["git", "cat-file", "--batch-check=%(objectname)"], cwd=root, env=environment, check=True,
+                           capture_output=True, text=True, input="".join(blob + "\n" for blob in sorted(wanted)))
+    return excluded, sorted(line.split()[0] for line in probe.stdout.splitlines() if line.endswith(" missing"))
+
+
 def check_whitespace(root):
     """Run Git's whitespace check on staged changes and on the working tree since the change base."""
     base = change_base(root)
+    environment, excluded = git_environment(), []
+    if hosted_partial_clone(root):
+        # The check's step holds no credentials, so it reads only what the checkout has, and skips what it left out.
+        environment |= {"GIT_NO_LAZY_FETCH": "1"}
+        excluded, missing = base_blobs(root, base) if base else ([], [])
+        if missing:
+            files = "1 changed file" if len(missing) == 1 else str(len(missing)) + " changed files"
+            raise RuntimeError("This partial clone lacks the base version of " + files + " that the whitespace check "
+                               "reads, and the check fetches nothing, since its step has no credentials. Run "
+                               "bin/check --fetch-base with the job's token in a step before it, as "
+                               "docs/foundation/engineering-policy.md#hosted-ci describes.")
+    paths = ["--", *(":(top,literal,exclude)" + path for path in excluded)] if excluded else []
     # Comparing the base with the working tree covers commits since it, and a fix counts once it's made.
-    subprocess.run(["git", "diff", "--check", *([base] if base else [])], cwd=root, env=git_environment(), check=True)
-    subprocess.run(["git", "diff", "--cached", "--check"], cwd=root, env=git_environment(), check=True)
+    subprocess.run(["git", "diff", "--check", *([base] if base else []), *paths], cwd=root, env=environment, check=True)
+    subprocess.run(["git", "diff", "--cached", "--check"], cwd=root, env=environment, check=True)
+
+
+def fetch_base(root):
+    """Fetch from origin the base blobs the whitespace check reads in a GitHub Actions partial clone, if any.
+
+    GH_TOKEN, when set, reaches only this fetch, through a credential helper that reads it from the environment.
+    """
+    base = change_base(root) if hosted_partial_clone(root) else None
+    missing = base_blobs(root, base)[1] if base else []
+    if not missing:
+        print("The whitespace check has every base file it reads; nothing to fetch.", flush=True)
+        return
+    environment = git_environment() | {"GIT_NO_LAZY_FETCH": "1", "GIT_TERMINAL_PROMPT": "0"}
+    if os.environ.get("GH_TOKEN"):
+        count = int(os.environ.get("GIT_CONFIG_COUNT") or 0)
+        # The empty value drops any configured helpers, so none asks elsewhere or stores the token.
+        helpers = ("", '!f() { test "$1" = get && printf "username=x-access-token\\npassword=%s\\n" "$GH_TOKEN"; }; f')
+        for index, helper in enumerate(helpers, count):
+            environment |= {"GIT_CONFIG_KEY_%d" % index: "credential.helper", "GIT_CONFIG_VALUE_%d" % index: helper}
+        environment["GIT_CONFIG_COUNT"] = str(count + len(helpers))
+    files = "1 changed file" if len(missing) == 1 else str(len(missing)) + " changed files"
+    # These are the options Git's own lazy fetch uses, so only the named blobs arrive.
+    fetched = subprocess.run(["git", "-c", "fetch.negotiationAlgorithm=noop", "fetch", "--quiet", "--no-tags",
+                              "--no-write-fetch-head", "--recurse-submodules=no", "--filter=blob:none", "--stdin",
+                              "origin"], cwd=root, env=environment, text=True,
+                             input="".join(blob + "\n" for blob in missing))
+    if fetched.returncode:
+        raise RuntimeError("Could not fetch the base version of " + files + " from origin. A private repository "
+                           "needs the job's token in this step, as GH_TOKEN: ${{ github.token }}; see "
+                           "docs/foundation/engineering-policy.md#hosted-ci.")
+    print("Fetched the base version of " + files + " for the whitespace check.", flush=True)
 
 
 def environment(root):
@@ -441,8 +518,11 @@ def application_checks(root, application, reuse):
 def main():
     root = Path(__file__).resolve().parents[1]
     try:
-        if sys.argv[1:] not in ([], ["--documents-only"], ["--full"], ["--full", "--no-reuse"]):
-            raise ValueError("Usage: bin/check [--documents-only | --full [--no-reuse]]")
+        if sys.argv[1:] not in ([], ["--documents-only"], ["--full"], ["--full", "--no-reuse"], ["--fetch-base"]):
+            raise ValueError("Usage: bin/check [--documents-only | --full [--no-reuse] | --fetch-base]")
+        if sys.argv[1:] == ["--fetch-base"]:
+            fetch_base(root)
+            return 0
         errors = manifest_errors(root) + validate(root)
         if errors:
             print("\n".join(errors), file=sys.stderr)
