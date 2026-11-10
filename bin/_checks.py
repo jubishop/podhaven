@@ -15,7 +15,7 @@ import sys
 import unicodedata
 from urllib.parse import unquote, urlsplit
 
-from _knowledge import git, matches
+from _knowledge import git, git_environment, matches
 
 
 MARKERS = ("project-starter:begin", "project-starter:end")
@@ -306,6 +306,32 @@ def validate(root, areas=("memory", "docs"), options=None):
     return errors
 
 
+def change_base(root):
+    """Return where this checkout's own changes start, or None when its history can't tell.
+
+    That is the fork point from origin's default branch, or the empty tree before anything is fetched or pushed.
+    A clone without that history, such as CI's shallow checkout, gets None rather than the empty tree, so
+    content already on the default branch never fails the check.
+    """
+    if not git("rev-parse", "--verify", "--quiet", "HEAD^{commit}", root=root, optional=True):
+        return None
+    default = git("rev-parse", "--verify", "--quiet", "refs/remotes/origin/HEAD^{commit}", root=root, optional=True)
+    if default:
+        return git("merge-base", "HEAD", default, root=root, optional=True) or None
+    if (git("for-each-ref", "--count=1", "--format=%(refname)", "refs/remotes", root=root)
+            or git("rev-parse", "--is-shallow-repository", root=root) == "true"):
+        return None
+    return git("hash-object", "-t", "tree", os.devnull, root=root)
+
+
+def check_whitespace(root):
+    """Run Git's whitespace check on staged changes and on the working tree since the change base."""
+    base = change_base(root)
+    # Comparing the base with the working tree covers commits since it, and a fix counts once it's made.
+    subprocess.run(["git", "diff", "--check", *([base] if base else [])], cwd=root, env=git_environment(), check=True)
+    subprocess.run(["git", "diff", "--cached", "--check"], cwd=root, env=git_environment(), check=True)
+
+
 def environment(root):
     """Fingerprint what besides the tree can change application results."""
     # platform.platform() differs between Python releases on the same machine.
@@ -409,8 +435,7 @@ def main():
                 ast.parse(path.read_text(), filename=str(path))
         for shell, paths in sorted(shell_files.items()):
             subprocess.run(["shellcheck", "--shell=" + shell, *map(str, paths)], cwd=root, check=True)
-        subprocess.run(["git", "diff", "--check"], cwd=root, check=True)
-        subprocess.run(["git", "diff", "--cached", "--check"], cwd=root, check=True)
+        check_whitespace(root)
         if sys.argv[1:2] != ["--full"]:
             print("Fast foundation checks passed. Use bin/check --full for application validation.", flush=True)
             return 0
