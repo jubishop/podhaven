@@ -114,7 +114,7 @@ struct ListablePodcastEpisode:
 
   func getPodcastEpisode() async throws -> PodcastEpisode {
     guard let podcastEpisode = try await repo.podcastEpisode(id) else {
-      Assert.fatal("PodcastEpisode not found for ID \(id)")
+      throw EpisodeNotFoundError(episodeID: id)
     }
     return podcastEpisode
   }

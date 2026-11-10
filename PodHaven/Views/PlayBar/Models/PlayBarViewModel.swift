@@ -467,20 +467,22 @@ enum UndoSeekDirection {
         return
       }
 
-      let currentTime = (sharedState.onDeck?.currentTime ?? .zero).safe.seconds
-      guard currentTime != undoCandidate.time else {
+      // The player reports the new position only once the seek lands, so use
+      // where the scrub left the slider.
+      let scrubbedTime = _sliderValue
+      guard scrubbedTime != undoCandidate.time else {
         Self.log.debug(
-          "Clearing undo state: scrub landed at the original position (\(currentTime))"
+          "Clearing undo state: scrub landed at the original position (\(scrubbedTime))"
         )
         clearUndoState()
         return
       }
 
       // If the scrub went backward, undoing jumps forward.
-      let direction: UndoSeekDirection = undoCandidate.time > currentTime ? .forward : .backward
+      let direction: UndoSeekDirection = undoCandidate.time > scrubbedTime ? .forward : .backward
       undoSeekDirection = direction
       Self.log.debug(
-        "Showing undo button (direction: \(direction), from \(currentTime) to \(undoCandidate.time))"
+        "Showing undo button (direction: \(direction), from \(scrubbedTime) to \(undoCandidate.time))"
       )
 
       hideUndoButtonTask = Task { [weak self] in

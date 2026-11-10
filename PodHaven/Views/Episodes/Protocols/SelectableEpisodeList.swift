@@ -13,14 +13,11 @@ import OrderedCollections
 
   var selectedEpisodes: [EpisodeType] { get }
   var selectedSavedEpisodeIDs: [Episode.ID] { get }
-  var selectedPodcastEpisodeIDs: [Episode.ID] { get async throws }
 
   // Must Implement: Saves new PodcastEpisodes as needed while preserving the
   // source row for every successfully resolved episode.
   func resolvedPodcastEpisodes(for episodes: [EpisodeType]) async throws
     -> [ResolvedPodcastEpisode<EpisodeType>]
-
-  var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
 
   var anySelectedQueued: Bool { get }
   var anySelectedNotAtTopOfQueue: Bool { get }
@@ -85,15 +82,13 @@ extension SelectableEpisodeList {
   var selectedSavedEpisodeIDs: [Episode.ID] {
     selectedEpisodes.compactMap(\.episodeID)
   }
-  var selectedPodcastEpisodes: [PodcastEpisode] {
-    get async throws {
-      try await resolvedPodcastEpisodes(for: selectedEpisodes).map(\.podcastEpisode)
-    }
-  }
-  var selectedPodcastEpisodeIDs: [Episode.ID] {
-    get async throws {
-      try await selectedPodcastEpisodes.map(\.id)
-    }
+
+  // Resolves the selection captured when an action was requested; the live
+  // selection may have changed by the time the action's Task runs.
+  private func resolvedPodcastEpisodeIDs(for episodes: [EpisodeType]) async throws
+    -> [Episode.ID]
+  {
+    try await resolvedPodcastEpisodes(for: episodes).map(\.podcastEpisode.id)
   }
 
   // MARK: - "Any"? Getters
@@ -161,7 +156,7 @@ extension SelectableEpisodeList {
       guard let self else { return }
 
       do {
-        let episodeIDs = try await selectedPodcastEpisodeIDs
+        let episodeIDs = try await resolvedPodcastEpisodeIDs(for: episodes)
         try await queue.append(episodeIDs)
         didPerformBulkAction(on: episodes)
       } catch {
@@ -183,7 +178,7 @@ extension SelectableEpisodeList {
       guard let self else { return }
 
       do {
-        let episodeIDs = try await selectedPodcastEpisodeIDs
+        let episodeIDs = try await resolvedPodcastEpisodeIDs(for: episodes)
         try await queue.unshift(episodeIDs)
         didPerformBulkAction(on: episodes)
       } catch {
@@ -205,7 +200,7 @@ extension SelectableEpisodeList {
       guard let self else { return }
 
       do {
-        let episodeIDs = try await selectedPodcastEpisodeIDs
+        let episodeIDs = try await resolvedPodcastEpisodeIDs(for: episodes)
         try await queue.replace(episodeIDs)
         didPerformBulkAction(on: episodes)
       } catch {
@@ -243,20 +238,22 @@ extension SelectableEpisodeList {
   }
 
   func cacheSelectedEpisodes() {
-    let selectedCount = selectedEpisodes.count
+    let episodes = selectedEpisodes
     guard anySelectedNotCached else {
-      Self.log.notice("cacheSelectedEpisodes: no uncached episodes among \(selectedCount) selected")
+      Self.log.notice(
+        "cacheSelectedEpisodes: no uncached episodes among \(episodes.count) selected"
+      )
       return
     }
 
-    Self.log.debug("cacheSelectedEpisodes: caching \(selectedCount) selected episodes")
+    Self.log.debug("cacheSelectedEpisodes: caching \(episodes.count) selected episodes")
 
     let log = Self.log
     Task { [weak self] in
       guard let self else { return }
 
       do {
-        let episodeIDs = try await selectedPodcastEpisodeIDs
+        let episodeIDs = try await resolvedPodcastEpisodeIDs(for: episodes)
         await withDiscardingTaskGroup { group in
           for episodeID in episodeIDs {
             group.addTask {
@@ -321,15 +318,15 @@ extension SelectableEpisodeList {
   }
 
   func saveSelectedEpisodesInCache() {
-    let selectedCount = selectedEpisodes.count
+    let episodes = selectedEpisodes
     guard anySelectedNotSavedInCache else {
       Self.log.notice(
-        "saveSelectedEpisodesInCache: no unsaved episodes among \(selectedCount) selected"
+        "saveSelectedEpisodesInCache: no unsaved episodes among \(episodes.count) selected"
       )
       return
     }
 
-    Self.log.debug("saveSelectedEpisodesInCache: saving \(selectedCount) selected episodes")
+    Self.log.debug("saveSelectedEpisodesInCache: saving \(episodes.count) selected episodes")
 
     let log = Self.log
     Task { [weak self] in
@@ -337,7 +334,7 @@ extension SelectableEpisodeList {
 
       let episodeIDs: [Episode.ID]
       do {
-        episodeIDs = try await selectedPodcastEpisodeIDs
+        episodeIDs = try await resolvedPodcastEpisodeIDs(for: episodes)
       } catch {
         log.caughtError("saveSelectedEpisodesInCache: failed to resolve episode IDs", error)
         return
@@ -451,7 +448,7 @@ extension SelectableEpisodeList {
       guard let self else { return }
 
       do {
-        let episodeIDs = try await selectedPodcastEpisodeIDs
+        let episodeIDs = try await resolvedPodcastEpisodeIDs(for: episodes)
         try await repo.markFinished(episodeIDs)
         didPerformBulkAction(on: episodes)
       } catch {
@@ -475,7 +472,7 @@ extension SelectableEpisodeList {
       guard let self else { return }
 
       do {
-        let episodeIDs = try await selectedPodcastEpisodeIDs
+        let episodeIDs = try await resolvedPodcastEpisodeIDs(for: episodes)
         try await repo.updateRating(episodeIDs, rating: rating)
         didPerformBulkAction(on: episodes)
       } catch {

@@ -255,11 +255,14 @@ import Testing
 
   // MARK: - undoSeekDirection
 
+  // Drags the slider the way the progress bar does. The player reports the new
+  // position only after the seek lands, so the on-deck time still reads `start`
+  // when the drag ends.
   private func scrub(from start: Double, to end: Double) async throws {
     userSettings.$enableUndoSeek.new(true)
     _ = try await episodeOnDeck(currentTime: CMTime.seconds(start))
     viewModel.isDragging = true
-    stateManager.setCurrentTime(CMTime.seconds(end))
+    viewModel.sliderValue = end
     viewModel.isDragging = false
   }
 
@@ -300,7 +303,7 @@ import Testing
     userSettings.$enableUndoSeek.new(false)
     _ = try await episodeOnDeck(currentTime: CMTime.seconds(100))
     viewModel.isDragging = true
-    stateManager.setCurrentTime(CMTime.seconds(250))
+    viewModel.sliderValue = 250
     viewModel.isDragging = false
 
     #expect(viewModel.undoSeekDirection == nil)

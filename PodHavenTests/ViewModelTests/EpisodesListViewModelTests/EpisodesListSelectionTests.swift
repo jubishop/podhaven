@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import IdentifiedCollections
 import Testing
 
@@ -7,6 +8,8 @@ import Testing
 
 @Suite("of EpisodesListViewModel selection tests", .container)
 @MainActor final class EpisodesListSelectionTests {
+  @DynamicInjected(\.repo) private var repo
+
   @Test("selectedEpisodesTagIntersection collapses to common tags across selection")
   func selectedEpisodesTagIntersectionAcrossSelection() async throws {
     let setup = try await EpisodesListTestHelpers.setupFourTaggedEpisodes()
@@ -75,13 +78,13 @@ import Testing
     #expect(viewModel.selectedEpisodesTagUnion == [setup.tagB.id, setup.tagC.id])
   }
 
-  @Test("selectedPodcastEpisodes preserves user-visible selection order")
-  func selectedPodcastEpisodesPreservesSelectionOrder() async throws {
+  @Test("resolving the selection preserves user-visible selection order")
+  func resolvedSelectionPreservesSelectionOrder() async throws {
     let setup = try await EpisodesListTestHelpers.setupFourTaggedEpisodes()
 
     let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Test")
     // Visible order is reversed from DB rowid order so the test fails if
-    // `WHERE id IN (...)` row order leaks through `selectedPodcastEpisodes`.
+    // `WHERE id IN (...)` row order leaks through `resolvedPodcastEpisodes`.
     let reversed = IdentifiedArray(
       uniqueElements: [setup.ep4.id, setup.ep3.id, setup.ep2.id, setup.ep1.id]
         .compactMap { id in
@@ -105,9 +108,42 @@ import Testing
       ids: [setup.ep4.id, setup.ep3.id, setup.ep2.id, setup.ep1.id]
     )
 
-    let podcastEpisodes = try await viewModel.selectedPodcastEpisodes
+    let podcastEpisodes = try await viewModel.resolvedPodcastEpisodes(for: viewModel.selectedEpisodes)
+      .map(\.podcastEpisode)
     #expect(
       podcastEpisodes.map(\.id) == [setup.ep4.id, setup.ep3.id, setup.ep2.id, setup.ep1.id]
     )
+  }
+
+  // Regression: bulk actions snapshotted the selection for their checks but
+  // resolved episode IDs from the live selection inside their Task, so a
+  // selection change in between acted on episodes the user hadn't chosen.
+  @Test("a bulk action acts on the selection at the time it was requested")
+  func bulkActionUsesSelectionAtRequestTime() async throws {
+    let setup = try await EpisodesListTestHelpers.setupFourTaggedEpisodes()
+
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Test")
+    try await EpisodesListTestHelpers.loadEntries(into: viewModel, episodes: setup.episodes)
+    EpisodesListTestHelpers.select(viewModel, ids: [setup.ep1.id, setup.ep2.id])
+
+    viewModel.addSelectedEpisodesToBottomOfQueue()
+    viewModel.episodeList.isSelected[setup.ep2.id] = false
+    viewModel.episodeList.isSelected[setup.ep3.id] = true
+
+    let repo = repo
+    let ep1ID = setup.ep1.id
+    let ep2ID = setup.ep2.id
+    try await Wait.until(
+      {
+        let ep1 = try await repo.episode(ep1ID)
+        let ep2 = try await repo.episode(ep2ID)
+        return ep1?.queued == true && ep2?.queued == true
+      },
+      { "Expected the episodes selected at request time to be queued" }
+    )
+    withExtendedLifetime(viewModel) {}
+
+    let ep3 = try #require(try await repo.episode(setup.ep3.id))
+    #expect(!ep3.queued)
   }
 }
