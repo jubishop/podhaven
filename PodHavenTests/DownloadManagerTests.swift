@@ -46,6 +46,18 @@ struct DownloadManagerTests {
       tasks.append(task)
     }
 
+    // Hold every response until the manager has filled all of its slots, so the
+    // peak is observed before any request leaves.
+    try await Wait.until(
+      { await session.activeRequests == maxConcurrentDownloads },
+      {
+        """
+        Expected \(maxConcurrentDownloads) active requests, \
+        got \(await session.activeRequests)
+        """
+      }
+    )
+
     // Wait for all downloads to complete
     for asyncSemaphore in asyncSemaphores {
       asyncSemaphore.signal()
@@ -66,7 +78,11 @@ struct DownloadManagerTests {
 
   @Test("that you can cancel a download before it has begun")
   func cancelPendingDownload() async throws {
-    let downloadManager = DownloadManager(session: session, byteLimit: .max, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     // Since maxConcurrentDownloads is 1 this task holds up the queue
     let url = URL.valid()
@@ -87,7 +103,11 @@ struct DownloadManagerTests {
   @Test("downloadBegan throws CancellationError when the awaiting task is cancelled")
   func downloadBeganThrowsOnCancellation() async throws {
     // First URL holds the queue so the second never begins.
-    let downloadManager = DownloadManager(session: session, byteLimit: .max, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
     let blockingURL = URL.valid()
     _ = await session.waitRespond(to: blockingURL)
     _ = await downloadManager.addURL(blockingURL)
@@ -264,7 +284,11 @@ struct DownloadManagerTests {
     let url2 = URL.valid()
 
     func makeTask() async -> (AsyncSemaphore, DownloadTask) {
-      let downloadManager = DownloadManager(session: session, byteLimit: .max, maxConcurrentDownloads: 1)
+      let downloadManager = DownloadManager(
+        session: session,
+        byteLimit: .max,
+        maxConcurrentDownloads: 1
+      )
       let url = URL.valid()
       let asyncSemaphore = await session.waitRespond(to: url)
       _ = await downloadManager.addURL(url)
@@ -364,7 +388,11 @@ struct DownloadManagerTests {
 
   @Test("that failed downloads don't block subsequent downloads")
   func failedDownloadDoesNotBlockQueue() async throws {
-    let downloadManager = DownloadManager(session: session, byteLimit: .max, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     // First URL will fail
     let failingURL = URL.valid()
@@ -446,7 +474,11 @@ struct DownloadManagerTests {
 
   @Test("that direct DownloadTask.cancel() removes a pending task from manager state")
   func directCancelOfPendingRemovesFromManager() async throws {
-    let downloadManager = DownloadManager(session: session, byteLimit: .max, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     let blockingURL = URL.valid()
     _ = await session.waitRespond(to: blockingURL)
@@ -469,7 +501,11 @@ struct DownloadManagerTests {
 
   @Test("that direct DownloadTask.cancel() on an active task frees its concurrency slot")
   func directCancelOfActiveFreesSlot() async throws {
-    let downloadManager = DownloadManager(session: session, byteLimit: .max, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     let activeURL = URL.valid()
     _ = await session.waitRespond(to: activeURL)
@@ -558,7 +594,11 @@ struct DownloadManagerTests {
 
   @Test("that cancelling one task does not affect other concurrent downloads")
   func cancelOneDoesNotAffectConcurrentDownloads() async throws {
-    let downloadManager = DownloadManager(session: session, byteLimit: .max, maxConcurrentDownloads: 3)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 3
+    )
 
     let cancelURL = URL.valid()
     let succeedURL1 = URL.valid()
@@ -585,7 +625,11 @@ struct DownloadManagerTests {
 
   @Test("that cancelDownload(url:) removes a pending task from manager state")
   func cancelDownloadOfPendingRemovesFromManager() async throws {
-    let downloadManager = DownloadManager(session: session, byteLimit: .max, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     let blockingURL = URL.valid()
     _ = await session.waitRespond(to: blockingURL)
@@ -605,7 +649,11 @@ struct DownloadManagerTests {
 
   @Test("that cancelDownload(url:) on an active task frees its concurrency slot")
   func cancelDownloadOfActiveFreesSlot() async throws {
-    let downloadManager = DownloadManager(session: session, byteLimit: .max, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     let activeURL = URL.valid()
     _ = await session.waitRespond(to: activeURL)
@@ -647,7 +695,11 @@ struct DownloadManagerTests {
 
   @Test("that cancelAllDownloads() cancels all in-flight URLSession fetches")
   func cancelAllDownloadsCancelsUnderlyingFetches() async throws {
-    let downloadManager = DownloadManager(session: session, byteLimit: .max, maxConcurrentDownloads: 2)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 2
+    )
 
     let url1 = URL.valid()
     let url2 = URL.valid()
@@ -750,7 +802,11 @@ struct DownloadManagerTests {
   func reAddedURLStaysTrackedAfterCancelledPredecessorUnwinds(
     cancellationPath: CancellationPath
   ) async throws {
-    let downloadManager = DownloadManager(session: session, byteLimit: .max, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     // The first fetch ignores cancellation, so it unwinds only when released.
     let url = URL.valid()
