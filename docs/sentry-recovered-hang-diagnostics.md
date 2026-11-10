@@ -33,14 +33,25 @@ workarounds, or broad warning suppression.
 
 ## Migration to beforeSend
 
-When a released SDK provides the attachment hint directly to `beforeSend`, use
-that supported signature and remove `beforeSendWithHint`. The SDK's deprecation
-message describes this as a future major-version change; the replacement is
-not available in the checked 9.28.0 or 9.29.0 release. Check the actual released
-API before migrating.
+PodHaven tracks sentry-cocoa's `main`. Migrate once `main` offers a public,
+non-deprecated way for the event callback to add attachments to SDK-captured
+events in the default build, most likely `beforeSend` receiving the hint. Then
+use that supported signature and remove `beforeSendWithHint`. Availability only
+behind the SDK's `V10` trait doesn't count, because enabling that trait changes
+far more than this callback. The SDK's deprecation message describes the change
+as part of its next major version. Check the actual API before migrating;
+[#1006](https://github.com/jubishop/podhaven/issues/1006) tracks the migration
+and its monthly recheck.
+
+Last checked November 9, 2026: neither the 9.33.0 release nor `main` at
+[`9440dc4b`](https://github.com/getsentry/sentry-cocoa/blob/9440dc4b7a1d90e967f48e26c6ba9c7a9902e338/Sources/Swift/Options.swift#L175-L188)
+offers it. `beforeSend` still takes only the event, and the
+`beforeSendWithHint` setter is still deprecated, with or without the `V10`
+trait.
 
 At migration, remove the function's `@diagnose` annotation, the matching validation
-exception, and its tests. Retain
+exception, its tests, and the exception's mentions in `AGENTS.md` and the
+[development workflow](development-workflow.md). Retain
 coverage of the final outgoing envelope, filtering and enrichment, duplicate
 prevention, feedback photos/full logs, missing widget files, and the actual iOS
 recovered-hang path. Keep the app and widget tail bounds at 128 KiB and 32 KiB.

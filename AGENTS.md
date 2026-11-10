@@ -52,7 +52,7 @@ take precedence over this block and the foundation pages wherever they differ.
 ## Repo Guardrails
 - Public repo: no secrets, API keys, tokens, or credentials.
 - No commits or pushes unless explicitly asked; preserve user edits and never reset/revert unknown changes.
-- Build/test must end with zero compiler, linker, or framework runtime warnings, including deprecation, unused-result, and Sendable diagnostics. Intentional application warning/error logs from error-path tests are allowed; keep diagnostic reporting enabled.
+- Build/test must end with zero compiler, linker, or framework runtime warnings, including deprecation, unused-result, and Sendable diagnostics. The one approved exception is the deprecation warning for Sentry's `beforeSendWithHint` setter in `PodHaven/AppLauncher.swift`, until the SDK offers a replacement; see [recovered-hang diagnostics](docs/sentry-recovered-hang-diagnostics.md). Intentional application warning/error logs from error-path tests are allowed; keep diagnostic reporting enabled.
 - Never install or run an Xcode-direct/debug build on @jubishop's physical iPhone. See the [device restriction](memory/device-debug-builds-break-background-scheduling.md) for context.
 - The Lint Swift build phase fails before `SwiftCompile`: a lint-only failure says nothing about whether the code compiles. Format touched files with `swift-format format --in-place --configuration .swift-format <files>`, check with `bin/lint-swift-format`, then rebuild to surface compile errors.
 
