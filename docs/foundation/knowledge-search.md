@@ -138,6 +138,20 @@ nonzero when the helper does, so Git refuses the push. Then run
 event in a disposable checkout. `bin/doctor` lists the forwarding events it
 has observed, which shows past runs, not that a later edit works.
 
+## Shared hooks
+
+A clone's checkouts share its Git configuration, `core.hooksPath` included.
+When that setting names one checkout's `bin/hooks`, such as the primary
+checkout's by absolute path, Git runs those hook files in every checkout, and
+each one calls the `bin/knowledge-hook` of the checkout it runs in. Setup and
+`bin/doctor` accept that path in a checkout of the same clone whose own
+`bin/hooks` holds the same files, and setup leaves it unchanged. When a hook
+there differs or is missing, `bin/doctor` names the event and setup stops.
+Bring whichever checkout is behind to the default branch rather than
+repointing `core.hooksPath`, which would change the hooks of every checkout.
+A `bin/hooks` outside the clone's checkouts counts as
+[existing hooks](#existing-hooks).
+
 ## Diagnostics
 
 `bin/doctor` and `bin/doctor --json` report hooks, tools and versions,
