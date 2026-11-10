@@ -172,6 +172,7 @@ import Testing
 
   @Test("episode failing after recovery makes audio session inactive")
   func episodeFailingMakesAudioSessionInactive() async throws {
+    Container.shared.fakeContinuousClock().freeze()
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
 

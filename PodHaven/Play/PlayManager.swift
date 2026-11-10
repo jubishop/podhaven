@@ -67,6 +67,7 @@ final class PlayManager {
 
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.commandCenterStream) var commandCenterStream
+  @DynamicInjected(\.continuousClockNow) var continuousClockNow
   @DynamicInjected(\.dateProvider) var dateProvider
   @DynamicInjected(\.fileManager) var fileManager
   @DynamicInjected(\.imagePipeline) var imagePipeline
@@ -89,7 +90,7 @@ final class PlayManager {
 
   // MARK: - Configurable Constants
 
-  let recoveryDebounceInterval: TimeInterval = 5
+  let recoveryDebounceInterval: Duration = .seconds(5)
   let routeChangeAssociationWindow: TimeInterval = 5
   let routeChangeProgressTolerance: TimeInterval = 0.5
   let routeChangeRecoveryDelay: Duration = .seconds(1)
@@ -105,7 +106,7 @@ final class PlayManager {
   // MARK: - State Management
 
   var autoAdvance: AutoAdvance?
-  var lastRecoveryAttempt: (episodeID: Episode.ID, time: Date)?
+  var lastRecoveryAttempt: (episodeID: Episode.ID, time: ContinuousClock.Instant)?
   var lastMediaServicesResetAt: Date?
   var latestAudioRouteChange: AudioRouteChange?
   var imageFetchTask: Task<Void, Never>?
