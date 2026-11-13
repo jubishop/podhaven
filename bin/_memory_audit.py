@@ -1,8 +1,8 @@
 """Run, schedule, or show the settings of the weekly Claude audit of this project's memory notes.
 
 Validated edits go to a new branch with an unassigned issue and a pull request that closes it, for the user
-to merge; the audit never pushes to main or touches the user's checkout. A failure shows a macOS notification
-and opens or updates one GitHub issue, which the next success closes.
+to merge; the audit never pushes to the default branch or touches the user's checkout. A failure shows a macOS
+notification and opens or updates one GitHub issue, which the next success closes.
 Project Starter manages this file; see docs/foundation/memory-audit.md.
 """
 
@@ -32,8 +32,9 @@ from _knowledge import atomic_json
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL = "claude-sonnet-5-5"
-# The project's own Anthropic API key. Only this line of the checkout's ignored .env is read.
-API_KEY = "MEMORY_AUDIT_ANTHROPIC_API_KEY"
+# The audit's Anthropic API key, read only from this line of the checkout's ignored .env, or else of ~/.env, where
+# one key serves every project's audit on this Mac.
+API_KEY = "ANTHROPIC_MEMORY_AUDIT_API_KEY"
 API_KEY_LINE = re.compile(r"\s*(?:export\s+)?" + API_KEY + r"\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s#]*))\s*(?:#.*)?")
 # Refusals of the key that the subscription reruns. Claude Code shortens the API's "Your credit balance is
 # too low to access the Anthropic API" to "Credit balance is too low"; a spend limit reads "You have reached
@@ -76,7 +77,7 @@ def command(args, cwd, env, timeout=120, input=None):
 
 
 def environment():
-    # API keys stay out; only the API-key attempt adds the project's own key.
+    # API keys stay out; only the API-key attempt adds the audit's key.
     return {key: os.environ[key] for key in
             ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "CLAUDE_CONFIG_DIR")
             if key in os.environ}
@@ -144,23 +145,26 @@ def settings(root, env):
 
 
 def api_key(root):
-    """Return MEMORY_AUDIT_ANTHROPIC_API_KEY from the checkout's .env, or None when it is missing or empty."""
-    path = root / ".env"
-    if not path.is_file():
-        return None
-    key = None
-    for line in path.read_text().splitlines():
-        match = API_KEY_LINE.fullmatch(line)
-        if match:
-            key = next(value for value in match.groups() if value is not None)
-    return key or None
+    """Return the audit's key and the file that set it, or (None, None) to bill the subscription.
+
+    The checkout's .env overrides ~/.env, even with an empty value, which keeps that project on the subscription.
+    """
+    for path, name in ((root / ".env", ".env"), (Path.home() / ".env", "~/.env")):
+        key = None
+        for line in path.read_text().splitlines() if path.is_file() else []:
+            match = API_KEY_LINE.fullmatch(line)
+            if match:
+                key = next(value for value in match.groups() if value is not None)
+        if key is not None:
+            return (key, name) if key else (None, None)
+    return None, None
 
 
 def with_key(env, key):
     return env | {"ANTHROPIC_API_KEY": key} if key else env
 
 
-def require_login(root, env, key):
+def require_login(root, env, key, key_file=None):
     """Fail unless Claude Code will bill the first-party Anthropic API key given, or else the subscription."""
     login = subprocess.run(["claude", "auth", "status", "--json"], cwd=root, env=with_key(env, key),
                            capture_output=True, text=True, timeout=30)
@@ -171,11 +175,11 @@ def require_login(root, env, key):
     if not (status.get("loggedIn") and status.get("apiProvider") == "firstParty"):
         status = {}
     if key and (status.get("authMethod"), status.get("apiKeySource")) != ("api_key", "ANTHROPIC_API_KEY"):
-        raise RuntimeError(f"Claude Code would not bill the Anthropic API with {API_KEY} from .env; check "
+        raise RuntimeError(f"Claude Code would not bill the Anthropic API with {API_KEY} from {key_file}; check "
                            "claude auth status --json with the key as ANTHROPIC_API_KEY")
     if not key and status.get("authMethod") != "claude.ai":
         raise RuntimeError("Memory audit requires a saved Claude subscription login; run claude auth login. Only "
-                           f"{API_KEY} in .env may bill an API key instead.")
+                           f"{API_KEY} in .env or ~/.env may bill an API key instead.")
 
 
 def key_refusal(run_dir):
@@ -397,9 +401,19 @@ def issue_body(base, branch, run_name, result):
     return head + report + tail
 
 
-def publish(root, repo, base, env, result, options, run_name):
+def default_branch(root, env):
+    """Return the branch origin's HEAD names, which the audit reads and proposes its changes to."""
+    listing = command(["git", "ls-remote", "--symref", "origin", "HEAD"], root, env, timeout=300)
+    head = re.search(r"(?m)^ref: refs/heads/(\S+)\tHEAD$", listing)
+    if not head:
+        raise RuntimeError("origin names no default branch; git ls-remote --symref origin HEAD shows no branch")
+    return head[1]
+
+
+def publish(root, repo, base, env, result, options, run_name, target):
     """Push the validated memory changes to a new branch, and open an unassigned issue describing them and a pull
-    request that closes it. Return the pushed commit, branch, issue, and pull request; nothing reaches main.
+    request into the target branch that closes it. Return the pushed commit, branch, issue, and pull request;
+    nothing reaches the target.
     """
     name = command(["git", "config", "user.name"], root, env).strip()
     email = command(["git", "config", "user.email"], root, env).strip()
@@ -419,13 +433,13 @@ def publish(root, repo, base, env, result, options, run_name):
             repo, env)
     for url in command(["git", "remote", "get-url", "--push", "--all", "origin"], root, env).splitlines():
         command(["git", "remote", "set-url", "--add", "--push", "origin", url], repo, env)
-    command(["git", "fetch", "--quiet", "origin", "main"], repo, env)
+    command(["git", "fetch", "--quiet", "origin", target], repo, env)
     latest = command(["git", "rev-parse", "FETCH_HEAD"], repo, env).strip()
     if latest != base:
         moved = subprocess.run(["git", "diff", "--quiet", base, latest, "--", "memory"], cwd=repo, env=env,
                                capture_output=True, text=True)
         if moved.returncode == 1:
-            raise RuntimeError("main changed memory/ during the audit; the next run audits the new notes")
+            raise RuntimeError(target + " changed memory/ during the audit; the next run audits the new notes")
         if moved.returncode:
             raise RuntimeError("git diff failed (" + str(moved.returncode) + "): " + moved.stderr.strip())
         command(git + ["rebase", "--quiet", latest], repo, env)
@@ -455,7 +469,7 @@ def publish(root, repo, base, env, result, options, run_name):
         body = (f"Closes #{number[1]}.\n\n{summary} #{number[1]} lists each change with its evidence and holds the "
                 f"audit's report.\n\nMerge to apply the changes, or close this pull request and #{number[1]} to reject "
                 "them. The audit never merges anything itself.\n")
-        published["pullRequest"] = command(["gh", "pr", "create", "--repo", repository, "--base", "main", "--head",
+        published["pullRequest"] = command(["gh", "pr", "create", "--repo", repository, "--base", target, "--head",
                                             branch, "--title", COMMIT_SUBJECT, "--body-file", "-"],
                                            root, env, input=body).strip().splitlines()[-1]
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
@@ -824,7 +838,8 @@ def run(root=ROOT, force=False):
             if pull:
                 meta.update(status="skipped", reason="The audit's pull request is open: " + pull, pullRequest=pull)
                 return meta
-            command(["git", "fetch", "--quiet", "origin", "main"], root, env)
+            target = default_branch(root, env)
+            command(["git", "fetch", "--quiet", "origin", target], root, env)
             base = command(["git", "rev-parse", "FETCH_HEAD"], root, env).strip()
             meta["baseSha"] = base
             context = {"baseSha": base}
@@ -842,8 +857,8 @@ def run(root=ROOT, force=False):
                 meta.update(status="skipped", reason="No repository, issue, PR, or audit instruction changes",
                             previousDirectory=previous["directory"])
                 return meta
-            key = api_key(root)
-            require_login(root, env, key)
+            key, key_file = api_key(root)
+            require_login(root, env, key, key_file)
             # Claude Code can record the folder it works in as a project in ~/.claude.json, which nothing prunes,
             # so every run clones to the same path. The project's lock keeps other runs out of it, and an interrupted
             # run can leave it behind.
@@ -882,6 +897,8 @@ def run(root=ROOT, force=False):
             check_boundary(run_dir, env, state / "boundary")
             env = prepare_search(repo, env)
             meta["credential"] = "api-key" if key else "subscription"
+            if key:
+                meta["keyFile"] = key_file
             atomic_json(state / "latest.json", meta)
             deadline = time.monotonic() + 5400
             for attempt in range(2):
@@ -901,8 +918,8 @@ def run(root=ROOT, force=False):
                         require_login(root, env, None)
                     except RuntimeError as error:
                         status = f", HTTP {refusal['status']}" if refusal["status"] else ""
-                        raise RuntimeError(f"The API refused {API_KEY} ({refusal['message']}{status}), and the "
-                                           f"subscription fallback failed: {error}") from None
+                        raise RuntimeError(f"The API refused {API_KEY} from {key_file} ({refusal['message']}{status}), "
+                                           f"and the subscription fallback failed: {error}") from None
                     run_model(repo, run_dir, env, prompt, timeout=max(1, deadline - time.monotonic()))
                 if (command(["git", "rev-parse", "HEAD"], repo, env).strip() != base
                         or command(["git", "status", "--porcelain", "--untracked-files=all"], repo, env).strip()):
@@ -936,7 +953,7 @@ def run(root=ROOT, force=False):
             (run_dir / "memory-audit-report.md").write_text(result["report"])
             changed = command(["git", "diff", "--name-only", "HEAD"], repo, env).splitlines()
             if changed:
-                meta.update(publish(root, repo, base, env, result, options, run_dir.name))
+                meta.update(publish(root, repo, base, env, result, options, run_dir.name, target))
             meta.update(status="success", inputHash=fingerprint, activeNoteCount=len(notes), changedFiles=changed,
                         completedAt=datetime.now(timezone.utc).isoformat(timespec="seconds"))
             atomic_json(previous_path, meta)

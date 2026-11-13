@@ -9,8 +9,8 @@ against the code and GitHub evidence, and proposes validated archives and
 updates of stale notes in a pull request for the user to merge. It is an
 optional Project Starter feature: `bin/sync --enable memory-audit` installs
 `bin/memory-audit`, its runner and prompt, and this page, and
-`--disable memory-audit` removes them. It needs macOS, a GitHub repository as
-`origin`, and a `main` branch.
+`--disable memory-audit` removes them. It needs macOS and a GitHub repository
+as `origin`.
 
 ## Install
 
@@ -67,10 +67,18 @@ scheduled run tries again. A second run of the same project, such as a manual
 run during a scheduled one, still skips at once through the project's own
 lock.
 
+On a Mac that audits many projects, give each its own `schedule`, spread
+across days or hours, so that no queue behind one start time outlasts
+`lockWaitMinutes`. Audits that call the model have taken 1 to 7 minutes, but
+each may use its whole 90-minute model limit. Prefer hours when the Mac is
+otherwise idle, so that a run that falls back to the
+[subscription](#api-key) does not compete with interactive sessions for its
+limits.
+
 ## Model and evidence
 
 The job runs `claude -p` with `claude-sonnet-5-5` and high effort. It bills
-the project's own [API key](#api-key) when one is set, and otherwise the saved
+the audit's [API key](#api-key) when one is set, and otherwise the saved
 Claude subscription login, whose limits apply. It refuses third-party provider
 logins and keeps every other API key out of Claude's environment.
 Restricted mode ignores user and project Claude settings and instruction
@@ -82,11 +90,12 @@ denies automatically. Beyond Claude Code's built-in read-only commands, only
 `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, so its tools never receive Anthropic
 credentials or other secret-named variables; see [API key](#api-key).
 
-Each run fetches `origin/main` and audits that exact revision in a disposable
-clone at `.cache/memory-audit/repository`, so uncommitted work is neither
-audited nor touched. Every run reuses that path, replacing any clone an
-interrupted run left. Claude Code can record the folder it works in as a
-project in `~/.claude.json`, as it does when the project tracks
+Each run fetches the default branch that `origin`'s `HEAD` names, such as
+`main`, and audits that exact revision in a disposable clone at
+`.cache/memory-audit/repository`, so uncommitted work is neither audited nor
+touched. Every run reuses that path, replacing any clone an interrupted run
+left. Claude Code can record the folder it works in as a project in
+`~/.claude.json`, as it does when the project tracks
 `.claude/settings.local.json`, and nothing prunes those entries. It also keeps
 large tool output under `~/.claude/projects/` until its `cleanupPeriodDays`
 sweep, 30 days by default, removes it. One path keeps both to one entry and
@@ -109,34 +118,40 @@ open. Model attempts share a 90-minute limit.
 
 ## API key
 
-Each project can bill its audits to its own Anthropic API key instead of the
-subscription. Put the key in `.env` at the root of the checkout the job runs
-from, the primary checkout:
+Audits can bill an Anthropic API key instead of the subscription. One key in
+`~/.env` serves every project's audit on the Mac, and a key in `.env` at the
+root of the checkout the job runs from, the primary checkout, overrides it for
+that project:
 
 ```sh
-MEMORY_AUDIT_ANTHROPIC_API_KEY=sk-ant-api03-...
+ANTHROPIC_MEMORY_AUDIT_API_KEY=sk-ant-api03-...
 ```
 
-Project Starter's `.gitignore` block ignores `.env`; make it private with
-`chmod 600 .env`. The runner reads only that line, quoted or not and with or
-without `export`, at the start of each run, so adding, changing, or removing
-the key needs no reinstall. No `.env`, no line, or an empty value uses the
-subscription. Nothing else sets the key: the variable in the shell or in
-`~/.env`, and any `ANTHROPIC_API_KEY`, are ignored. The distinct name keeps
-other Anthropic clients from picking up the key. The runner passes it to
-Claude as `ANTHROPIC_API_KEY` for the API-key attempt only, after
-`claude auth status` confirms that Claude Code will bill it as a first-party
-key.
+Make each file private with `chmod 600`; Project Starter's `.gitignore` block
+ignores `.env`. The runner reads only that line, quoted or not and with or
+without `export`, from the checkout's `.env` and then `~/.env`, at the start
+of each run, so adding, changing, or removing the key needs no reinstall. It
+reads the files itself, since launchd gives the job none of the shell's
+variables. The checkout's line wins even when its value is empty, which keeps
+that project on the subscription. So leave the line out of a template that
+setup copies to `.env`, such as `.env.example`, or an empty placeholder there
+opts the project out of the shared key. With no line in either file, or an
+empty one in `~/.env`, the audit uses the subscription. Nothing else sets the
+key: the variable in the shell, and any `ANTHROPIC_API_KEY`, are ignored. The
+distinct name keeps other Anthropic clients from picking up the key. The
+runner passes it to Claude as `ANTHROPIC_API_KEY` for the API-key attempt
+only, after `claude auth status` confirms that Claude Code will bill it as a
+first-party key.
 
-The model never sees the key. Reading `.env` needs approval, which the job
-denies. Claude Code otherwise passes its environment to Bash, and the allowed
-`jq` could print it with its `env` builtin. So every model attempt runs in
-Claude Code's subprocess scrub mode, which bills the key but withholds
+The model never sees the key. Reading `.env` or `~/.env` needs approval, which
+the job denies. Claude Code otherwise passes its environment to Bash, and the
+allowed `jq` could print it with its `env` builtin. So every model attempt
+runs in Claude Code's subprocess scrub mode, which bills the key but withholds
 `ANTHROPIC_API_KEY` and other secret-named variables from every tool process.
 Scrub mode keeps the job's manual permission mode. It also withholds
 `XDG_CACHE_HOME`, so the runner names the clone's search index with
-`INDEX_PATH`; otherwise `qmd search` would read the user's own index. Each
-run first [checks](#tool-boundary-check) that the installed Claude Code still
+`INDEX_PATH`; otherwise `qmd search` would read the user's own index. Each run
+first [checks](#tool-boundary-check) that the installed Claude Code still
 behaves this way.
 
 When the API refuses the key, the runner reruns that model attempt on the
@@ -154,9 +169,10 @@ Only Claude Code's API error events count, never the model's own text. Any
 other failure, such as a rate limit or an outage, fails the run as before, and
 so does a fallback without a subscription login. `latest.json` and the run's
 `run-meta.json` record the `credential` that ran the model, `api-key` or
-`subscription`, and after a fallback a `fallback` object with its `trigger`,
-HTTP `status`, and API `message`. The refused attempt's logs stay in the run
-folder as `api-key-events.jsonl` and `api-key-claude.log`.
+`subscription`; the `keyFile` that set the key, `.env` or `~/.env`; and after
+a fallback a `fallback` object with its `trigger`, HTTP `status`, and API
+`message`. The refused attempt's logs stay in the run folder as
+`api-key-events.jsonl` and `api-key-claude.log`.
 
 ## Tool boundary check
 
@@ -220,29 +236,30 @@ error. A second rejection fails the run. Both attempts' logs are kept.
 ## Publishing and failures
 
 When the checks pass and notes changed, the runner commits the change in the
-clone with the checkout's Git identity and adds the `commitTrailers`. If
-`main` moved during the audit, the commit is rebased onto it, unless the move
-changed `memory/`; then the run fails and the next run audits the new notes.
-The runner pushes the commit to a new `memory-audit/<run folder>` branch on
-every push URL of `origin`, never to `main`. Git hooks stay off in the clone;
-none gates a memory-only commit, and the runner has already run the
-[pre-push hook](engineering-policy.md#pre-push-hook)'s document checks on
-the proposed tree. The local checkout is never touched.
+clone with the checkout's Git identity and adds the `commitTrailers`. If the
+default branch moved during the audit, the commit is rebased onto it, unless
+the move changed `memory/`; then the run fails and the next run audits the new
+notes. The runner pushes the commit to a new `memory-audit/<run folder>`
+branch on every push URL of `origin`, never to the default branch. Git hooks
+stay off in the clone; none gates a memory-only commit, and the runner has
+already run the [pre-push hook](engineering-policy.md#pre-push-hook)'s
+document checks on the proposed tree. The local checkout is never touched.
 
 It then opens an unassigned, unlabeled issue that lists each change with the
 model's evidence and holds the audit report, and a pull request from the
-branch that closes the issue. The user merges the pull request, or an agent
-that works unassigned issues picks up the issue and reviews it; the audit
-never merges, assigns, or closes its own work. To reject the changes, close
-the pull request and the issue; the prompt tells later audits to propose a
-rejected change again only on evidence newer than the rejection. An issue left
-open after its pull request closes unmerged says to close it as not planned,
-so an agent that picks it up never applies the rejected changes another way.
-The runner puts a zero-width space after each bare `@` in the model's
-evidence and report, outside code and links, so the issue mentions no one,
-such as a GitHub user named like the Swift attribute `@MainActor`. If the
-issue or the pull request cannot be opened, the runner deletes the branch,
-closes any issue it opened as not planned, and fails the run.
+branch into the default branch that closes the issue. The user merges the pull
+request, or an agent that works unassigned issues picks up the issue and
+reviews it; the audit never merges, assigns, or closes its own work. To reject
+the changes, close the pull request and the issue; the prompt tells later
+audits to propose a rejected change again only on evidence newer than the
+rejection. An issue left open after its pull request closes unmerged says to
+close it as not planned, so an agent that picks it up never applies the
+rejected changes another way. The runner puts a zero-width space after each
+bare `@` in the model's evidence and report, outside code and links, so the
+issue mentions no one, such as a GitHub user named like the Swift attribute
+`@MainActor`. If the issue or the pull request cannot be opened, the runner
+deletes the branch, closes any issue it opened as not planned, and fails the
+run.
 
 The audit keeps one pull request open at a time. While a pull request from a
 `memory-audit/` branch is open, each run skips before it gathers evidence,
@@ -270,17 +287,17 @@ launchctl print gui/$(id -u)/<launchAgentLabel>
 ```
 
 `latest.json` records the latest success, failure, or skip, its run folder,
-the [credential](#api-key) and any fallback, and, when it published, the
-`publishedCommit`, its `branch`, and the URLs of its `issue` and
-`pullRequest`. A skip for an open pull request records that `pullRequest`. A
-failure never updates `last-success.json`. Each
-run folder keeps `run-meta.json` and the context; the
-[tool boundary check](#tool-boundary-check) adds `boundary/`, model attempts add
+the [credential](#api-key), its key file, and any fallback, and, when it
+published, the `publishedCommit`, its `branch`, and the URLs of its `issue`
+and `pullRequest`. A skip for an open pull request records that `pullRequest`.
+A failure never updates `last-success.json`. Each run folder keeps
+`run-meta.json` and the context; the [tool boundary
+check](#tool-boundary-check) adds `boundary/`, model attempts add
 `events.jsonl`, `claude.log`, and the structured result, and successful runs
 add `memory-audit-report.md` and `memory-audit.patch`. The clone and the
-boundary check's scratch repository are deleted when the run ends. Run
-folders stay local and ignored by Git. Each run deletes run folders older than
-60 days, except those the state files name.
+boundary check's scratch repository are deleted when the run ends. Run folders
+stay local and ignored by Git. Each run deletes run folders older than 60
+days, except those the state files name.
 
 ## Stop
 
