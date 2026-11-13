@@ -335,9 +335,13 @@ A Project Starter sync writes text and development code that Project
 Starter's release checks already exercised, so it goes directly to the default
 branch without further checks; the [pre-push hook](#pre-push-hook) still
 checks the pages it changes. With no manual follow-up, commit only the
-synced files, with `[skip ci]` in the message so
-GitHub Actions starts no push workflows, and push from a checkout with no
-other unpushed commits. Never bypass enforced branch protection.
+synced files, with `[skip ci]` in the message, such as at the end of its
+subject, so GitHub Actions starts no push workflows. End the message with any
+`syncCommitTrailers` the project records, which `bin/sync` prints after the
+sync, in its final trailer paragraph;
+[deployment decisions](#deployment-decisions) says which projects record
+them. Push from a checkout with no other unpushed commits. Never bypass
+enforced branch protection.
 
 ## Deployment decisions
 
@@ -349,3 +353,13 @@ operations change, when uncertain, or when asked. A project that deploys on
 push documents its supported skip mechanism and a manual override for edits a
 path filter cannot classify. When skipping, record the reason and the last
 deployed revision.
+
+A project whose deployment reads skip trailers from every commit since its
+last deployment records them for Project Starter sync commits and memory
+audit commits too: such a commit without them makes the next push deploy,
+even when that push's own commit skips. When the project starts deciding
+deployment this way, record them, mapping each trailer name to a one-line
+value, as `syncCommitTrailers` in `.project-starter.json` for a sync with no
+manual follow-up and, when the `memory-audit` feature is enabled, as
+`memoryAudit.commitTrailers` in `.config/knowledge.json` for the audit's
+commit.

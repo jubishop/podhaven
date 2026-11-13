@@ -1,7 +1,7 @@
 {
-  "version": "3.13.0",
+  "version": "3.13.1",
   "source": "https://github.com/jubishop/project-starter",
-  "ref": "v3.13.0",
+  "ref": "v3.13.1",
   "managed": {
     "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
     "bin/_checks.py": "669d966bcd7c232251310af90934d0d738f8412de358a52b6f1f70854c09bd86",
@@ -22,7 +22,7 @@
     "bin/qmd-index": "8e7de8dcc353a768878f52c9fa5b4b9bbfab6db00a0d229f55b7af3a6f008fc5",
     "bin/setup": "22a1ba1d1cf981957dad1fce20da692d276b864e5e1bf0aa9d70fcc336c6332b",
     "docs/foundation/README.md": "5f7b56395b210e96c4513fc4e9dcb17b9c2ce57421949f00e35247e4635272cb",
-    "docs/foundation/engineering-policy.md": "658c841d29fb277dd1dbb5a7f09611fd7a4cb5358fd506b9428a29db76790582",
+    "docs/foundation/engineering-policy.md": "d5a1e577dff7e8a82565e52d853812b1724d270552618fde0e775442a3a0ce1c",
     "docs/foundation/knowledge-search.md": "bb67e2dfd7d7f7a51f34da3c61404cc49c2cb85f4bafd6607049233003378c64",
     "docs/foundation/memory-audit.md": "cbf40b7cace765346a8c2890408ccb8ff97b060c9261d3321867304804768546"
   },
