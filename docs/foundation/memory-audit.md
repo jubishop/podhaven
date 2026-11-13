@@ -5,11 +5,12 @@ status: current
 # Memory audit
 
 A weekly local job checks every active [memory](../../memory/README.md) note
-against the code and GitHub evidence, archives or updates stale notes, and
-commits validated changes to `main`. It is an optional Project Starter
-feature: `bin/sync --enable memory-audit` installs `bin/memory-audit`, its
-runner and prompt, and this page, and `--disable memory-audit` removes them.
-It needs macOS, a GitHub repository as `origin`, and a `main` branch.
+against the code and GitHub evidence, and proposes validated archives and
+updates of stale notes in a pull request for the user to merge. It is an
+optional Project Starter feature: `bin/sync --enable memory-audit` installs
+`bin/memory-audit`, its runner and prompt, and this page, and
+`--disable memory-audit` removes them. It needs macOS, a GitHub repository as
+`origin`, and a `main` branch.
 
 ## Install
 
@@ -45,11 +46,11 @@ defaults filled in, and every command rejects an unknown or invalid setting.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `repository` | `OWNER/NAME` from a github.com `origin` | Where issues, PRs, and the failure issue live. |
+| `repository` | `OWNER/NAME` from a github.com `origin` | Where the evidence, the audit's issue and pull request, and the failure issue live. |
 | `launchAgentLabel` | `com.<owner>.<name>.memory-audit`, lowercase | The LaunchAgent's label and plist name. |
 | `schedule` | `{"weekday": "Saturday", "hour": 6, "minute": 0}` | Weekly start time; any key may be omitted. |
 | `issueLabels` | `[]` | Existing labels for a new failure issue. |
-| `commitTrailers` | `{}` | Trailers for the audit's commit, such as a deployment skip. |
+| `commitTrailers` | `{}` | Trailers for the audit's commit, such as a deployment skip; a squash or rebase merge keeps them. |
 | `indexHeading` | `Active pages` | The level-two heading in `memory/README.md` over the active-note list. |
 | `context` | none | Project context added to the prompt. |
 | `lockWaitMinutes` | `180` | How long a run waits for its turn before failing. |
@@ -101,9 +102,10 @@ keyword-only QMD index of the clone's shared collections from
 downloads.
 
 Unchanged repository, GitHub, and audit inputs skip the model call, except
-right after a failed or interrupted run; `--force` always audits. A project
-without active notes skips the model too. Model attempts share a 90-minute
-limit.
+right after a failed or interrupted run; `--force` overrides this change gate.
+A project without active notes skips the model too, and so does any run, even
+a forced one, while the audit's [pull request](#publishing-and-failures) is
+open. Model attempts share a 90-minute limit.
 
 ## API key
 
@@ -218,21 +220,44 @@ error. A second rejection fails the run. Both attempts' logs are kept.
 ## Publishing and failures
 
 When the checks pass and notes changed, the runner commits the change in the
-clone with the checkout's Git identity, adds the `commitTrailers`, and pushes
-it to `main` on every push URL of `origin`. Git hooks stay off in the clone;
+clone with the checkout's Git identity and adds the `commitTrailers`. If
+`main` moved during the audit, the commit is rebased onto it, unless the move
+changed `memory/`; then the run fails and the next run audits the new notes.
+The runner pushes the commit to a new `memory-audit/<run folder>` branch on
+every push URL of `origin`, never to `main`. Git hooks stay off in the clone;
 none gates a memory-only commit, and the runner has already run the
 [pre-push hook](engineering-policy.md#pre-push-hook)'s document checks on
-the proposed tree. If `main` moved during the audit, the commit
-is rebased onto it, unless the move changed `memory/`; then the run fails and
-the next run audits the new notes. The local checkout is never touched; pull
-to see the change.
+the proposed tree. The local checkout is never touched.
+
+It then opens an unassigned, unlabeled issue that lists each change with the
+model's evidence and holds the audit report, and a pull request from the
+branch that closes the issue. The user merges the pull request, or an agent
+that works unassigned issues picks up the issue and reviews it; the audit
+never merges, assigns, or closes its own work. To reject the changes, close
+the pull request and the issue; the prompt tells later audits to propose a
+rejected change again only on evidence newer than the rejection. An issue left
+open after its pull request closes unmerged says to close it as not planned,
+so an agent that picks it up never applies the rejected changes another way.
+The runner puts a zero-width space after each bare `@` in the model's
+evidence and report, outside code and links, so the issue mentions no one,
+such as a GitHub user named like the Swift attribute `@MainActor`. If the
+issue or the pull request cannot be opened, the runner deletes the branch,
+closes any issue it opened as not planned, and fails the run.
+
+The audit keeps one pull request open at a time. While a pull request from a
+`memory-audit/` branch is open, each run skips before it gathers evidence,
+recording the pull request in `latest.json`. The next audit after it merges or
+closes covers whatever changed meanwhile. A run that publishes first deletes
+any `memory-audit/` branches that earlier audits left on `origin`, merged or
+rejected.
 
 A failed run shows a macOS notification and opens a GitHub issue titled
 `Memory audit failing` with the `issueLabels`, or comments on the open one,
 with the error and the run's folder name. If the labels cannot be applied,
 the issue opens without them and says why. Invalid settings fail the run with
 only the notification. The next successful run closes the issue. A run that
-changes nothing stays silent.
+changes nothing stays silent, and so does a run skipped for an open pull
+request, which leaves an open failure issue for a later successful run.
 
 ## Run and inspect
 
@@ -245,7 +270,10 @@ launchctl print gui/$(id -u)/<launchAgentLabel>
 ```
 
 `latest.json` records the latest success, failure, or skip, its run folder,
-the [credential](#api-key) and any fallback, and any `publishedCommit`. A failure never updates `last-success.json`. Each
+the [credential](#api-key) and any fallback, and, when it published, the
+`publishedCommit`, its `branch`, and the URLs of its `issue` and
+`pullRequest`. A skip for an open pull request records that `pullRequest`. A
+failure never updates `last-success.json`. Each
 run folder keeps `run-meta.json` and the context; the
 [tool boundary check](#tool-boundary-check) adds `boundary/`, model attempts add
 `events.jsonl`, `claude.log`, and the structured result, and successful runs

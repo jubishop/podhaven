@@ -3,8 +3,9 @@
 Review every active memory note against this repository snapshot and the
 captured GitHub evidence. Run to completion without questions. This is a
 read-only audit: return proposed changes as structured JSON. The local runner
-validates your response and commits accepted changes directly to `main`, so
-propose only what the evidence supports. Do not edit files, create tasks,
+validates your response and opens a pull request with accepted changes for
+the user to review, with your report in its issue, so propose only what the
+evidence supports. Do not edit files, create tasks,
 commit, push, open issues or PRs, contact anyone, or use other agents.
 
 {{projectContext}}
@@ -72,6 +73,11 @@ decision supersedes it. When evidence is mixed, keep the note and explain what
 still needs verification. Verify every cited issue and PR available in the
 snapshot. Cite concrete source paths, symbols, tests, and issue states in each
 finding.
+
+Pull requests from `memory-audit/` branches hold earlier audits' proposals,
+and the issue each one closes lists its changes. One closed without merging
+is a change the user rejected: propose it again only when evidence newer than
+that closing supports it, and cite that pull request in the finding.
 
 Consolidate substantially overlapping notes into the best existing survivor.
 Preserve unique facts, constraints, evidence, and relative links. Archive the

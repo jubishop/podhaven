@@ -1,7 +1,8 @@
 """Run, schedule, or show the settings of the weekly Claude audit of this project's memory notes.
 
-Validated edits are committed to main and pushed; the user's checkout is never touched. A failure
-shows a macOS notification and opens or updates one GitHub issue, which the next success closes.
+Validated edits go to a new branch with an unassigned issue and a pull request that closes it, for the user
+to merge; the audit never pushes to main or touches the user's checkout. A failure shows a macOS notification
+and opens or updates one GitHub issue, which the next success closes.
 Project Starter manages this file; see docs/foundation/memory-audit.md.
 """
 
@@ -44,6 +45,14 @@ KEY_REFUSALS = (
     ("key-rejected", None, "authentication_failed", (401, 403)),
 )
 FAILURE_ISSUE = "Memory audit failing"
+# Each audit's pull request comes from its own branch under this prefix, which marks the pull request as the audit's.
+BRANCH_PREFIX = "memory-audit/"
+COMMIT_SUBJECT = "📝 docs(memory): Apply the weekly memory audit"
+# GitHub refuses an issue body over 65,536 characters; the audit report is cut to fit within this.
+ISSUE_BODY_LIMIT = 60000
+# GitHub notifies anyone an issue @mentions, and Swift attributes such as @MainActor read as mentions. Code spans and
+# links mention no one, so only a bare @ elsewhere gets a zero-width space after it.
+MENTION = re.compile(r"(`+).*?\1|https?://\S+|(?<!\w)@(?=[A-Za-z0-9])", re.DOTALL)
 # The tool boundary check's bogus key, which only its local stand-in API receives.
 BOUNDARY_KEY = "sk-ant-api03-memory-audit-boundary-check"
 RETENTION_DAYS = 60
@@ -348,17 +357,60 @@ def verify_session(repo, run_dir, notes):
                          f"evidence lookups for {len(notes)} note{'s' if len(notes) != 1 else ''}")
 
 
-def publish(root, repo, base, env, changes, options):
-    """Commit the validated memory changes and push them to main on GitHub; return the pushed commit."""
+def open_pull_request(root, env, repository):
+    """Return the URL of the repository's open audit pull request, or None."""
+    pulls = json.loads(command(["gh", "pr", "list", "--repo", repository, "--state", "open", "--limit", "1000",
+                                "--json", "url,headRefName"], root, env))
+    return next((pull.get("url") for pull in pulls if str(pull.get("headRefName") or "").startswith(BRANCH_PREFIX)),
+                None)
+
+
+def plural(count, noun):
+    return f"{count} {noun}{'' if count == 1 else 's'}"
+
+
+def quiet_mentions(text):
+    """Return the model's Markdown with no bare @name that would notify a GitHub user."""
+    return MENTION.sub(lambda match: "@\u200b" if match[0] == "@" else match[0], text)
+
+
+def issue_body(base, branch, run_name, result):
+    """Describe the proposed changes, each with its evidence, and include the audit report cut to fit."""
+    evidence = {item["path"]: quiet_mentions(" ".join(item["evidence"].split())) for item in result["findings"]}
+    changes = "".join(f"- {'Archive' if change['archive'] else 'Update'} `{change['path']}`: {evidence[change['path']]}\n"
+                      for change in result["changes"])
+    head = (f"The weekly memory audit of `{base}` proposes these memory note changes. The pull request from the "
+            f"`{branch}` branch applies them and closes this issue when merged. The audit read every active note, and "
+            f"its proposal passed the memory checks.\n\n## Changes\n\n{changes}\n## Review\n\nMerge the pull request "
+            "to apply the changes, or close it and this issue to reject them. A pull request closed without merging is "
+            "a rejection: close this issue as not planned instead of applying its changes another way. The audit never "
+            "merges anything itself. "
+            "While its pull request is open, later audits open no other; the next audit after it closes covers whatever "
+            f"changed meanwhile. The run folder `.cache/memory-audit/runs/{run_name}/` on the Mac keeps the report, "
+            "patch, and logs.\n\n<details>\n<summary>Audit report</summary>\n\n")
+    tail = "\n\n</details>\n"
+    report = quiet_mentions(result["report"].strip())
+    note = "\n\n[The report is cut here; `memory-audit-report.md` in the run folder has all of it.]"
+    room = ISSUE_BODY_LIMIT - len(head) - len(tail)
+    if len(report) > room:
+        report = report[:max(0, room - len(note))].rstrip() + note
+    return head + report + tail
+
+
+def publish(root, repo, base, env, result, options, run_name):
+    """Push the validated memory changes to a new branch, and open an unassigned issue describing them and a pull
+    request that closes it. Return the pushed commit, branch, issue, and pull request; nothing reaches main.
+    """
     name = command(["git", "config", "user.name"], root, env).strip()
     email = command(["git", "config", "user.email"], root, env).strip()
     # Hooks stay off in the disposable clone; no hook gates a memory-only commit.
     git = ["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=" + name, "-c", "user.email=" + email]
+    changes = result["changes"]
     archived = sum(1 for change in changes if change["archive"])
     updated = len(changes) - archived
-    message = ["-m", "📝 docs(memory): Apply the weekly memory audit", "-m",
-               f"The audit of {base[:8]} archived {archived} and updated {updated} notes. It read every "
-               "active note, and its proposal passed the memory checks."]
+    summary = (f"The audit of {base[:8]} archived {archived} and updated {updated} notes. It read every "
+               "active note, and its proposal passed the memory checks.")
+    message = ["-m", COMMIT_SUBJECT, "-m", summary]
     if options["commitTrailers"]:
         message += ["-m", "\n".join(key + ": " + value for key, value in options["commitTrailers"].items())]
     command(git + ["add", "--all", "--", "memory"], repo, env)
@@ -377,9 +429,56 @@ def publish(root, repo, base, env, changes, options):
         if moved.returncode:
             raise RuntimeError("git diff failed (" + str(moved.returncode) + "): " + moved.stderr.strip())
         command(git + ["rebase", "--quiet", latest], repo, env)
-    command(["git", "-c", "core.hooksPath=/dev/null", "push", "--quiet", "origin", "HEAD:refs/heads/main"],
-            repo, env, timeout=300)
-    return command(["git", "rev-parse", "HEAD"], repo, env).strip()
+    repository = options["repository"]
+    # No audit pull request is open, so the branches of earlier audits, merged or rejected, are stale.
+    stale = [line.split()[-1] for line in command(["git", "ls-remote", "--heads", "origin",
+                                                   "refs/heads/" + BRANCH_PREFIX + "*"], repo, env).splitlines()]
+    if stale:
+        try:
+            command(["git", "-c", "core.hooksPath=/dev/null", "push", "--quiet", "origin", "--delete", *stale],
+                    repo, env, timeout=300)
+        except (OSError, RuntimeError, subprocess.SubprocessError) as problem:
+            print("Could not delete earlier audit branches: " + str(problem), file=sys.stderr, flush=True)
+    branch = BRANCH_PREFIX + run_name
+    published = {"publishedCommit": command(["git", "rev-parse", "HEAD"], repo, env).strip(), "branch": branch}
+    try:
+        command(["git", "-c", "core.hooksPath=/dev/null", "push", "--quiet", "origin", "HEAD:refs/heads/" + branch],
+                repo, env, timeout=300)
+        # No assignee, so the issue stays where the user, or an agent that works unassigned issues, finds it.
+        issue = command(["gh", "issue", "create", "--repo", repository, "--title",
+                         f"Apply the memory audit's changes to {plural(len(changes), 'note')}", "--body-file", "-"],
+                        root, env, input=issue_body(base, branch, run_name, result)).strip().splitlines()[-1]
+        number = re.search(r"/issues/(\d+)$", issue)
+        if not number:
+            raise RuntimeError("gh issue create printed no issue URL: " + issue)
+        published["issue"] = issue
+        body = (f"Closes #{number[1]}.\n\n{summary} #{number[1]} lists each change with its evidence and holds the "
+                f"audit's report.\n\nMerge to apply the changes, or close this pull request and #{number[1]} to reject "
+                "them. The audit never merges anything itself.\n")
+        published["pullRequest"] = command(["gh", "pr", "create", "--repo", repository, "--base", "main", "--head",
+                                            branch, "--title", COMMIT_SUBJECT, "--body-file", "-"],
+                                           root, env, input=body).strip().splitlines()[-1]
+    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+        withdraw(root, repo, env, repository, published, error)
+        raise
+    return published
+
+
+def withdraw(root, repo, env, repository, published, error):
+    """Close the issue and delete the branch of a publication that failed partway; never raise."""
+    try:
+        if published.get("issue"):
+            number = published["issue"].rsplit("/", 1)[1]
+            command(["gh", "issue", "close", number, "--repo", repository, "--reason", "not planned", "--comment",
+                     "The memory audit could not open its pull request, so it withdrew these changes; the next "
+                     "run audits again. Error: " + str(error).replace(str(Path.home()), "~")[:1000]], root, env)
+    except (OSError, RuntimeError, subprocess.SubprocessError) as problem:
+        print("Could not close the audit's issue: " + str(problem), file=sys.stderr, flush=True)
+    try:
+        command(["git", "-c", "core.hooksPath=/dev/null", "push", "--quiet", "origin", "--delete",
+                 "refs/heads/" + published["branch"]], repo, env, timeout=300)
+    except (OSError, RuntimeError, subprocess.SubprocessError) as problem:
+        print("Could not delete the audit's branch: " + str(problem), file=sys.stderr, flush=True)
 
 
 def failure_issue(root, env, repository):
@@ -720,6 +819,11 @@ def run(root=ROOT, force=False):
             # Waiting happens before the evidence is gathered and before the model's time limit starts.
             turn = take_turn(options["lockWaitMinutes"], state, meta)
             meta["status"] = "running"
+            # One audit pull request at a time: the next audit after it closes covers whatever changed meanwhile.
+            pull = open_pull_request(root, env, repository)
+            if pull:
+                meta.update(status="skipped", reason="The audit's pull request is open: " + pull, pullRequest=pull)
+                return meta
             command(["git", "fetch", "--quiet", "origin", "main"], root, env)
             base = command(["git", "rev-parse", "FETCH_HEAD"], root, env).strip()
             meta["baseSha"] = base
@@ -832,7 +936,7 @@ def run(root=ROOT, force=False):
             (run_dir / "memory-audit-report.md").write_text(result["report"])
             changed = command(["git", "diff", "--name-only", "HEAD"], repo, env).splitlines()
             if changed:
-                meta["publishedCommit"] = publish(root, repo, base, env, result["changes"], options)
+                meta.update(publish(root, repo, base, env, result, options, run_dir.name))
             meta.update(status="success", inputHash=fingerprint, activeNoteCount=len(notes), changedFiles=changed,
                         completedAt=datetime.now(timezone.utc).isoformat(timespec="seconds"))
             atomic_json(previous_path, meta)

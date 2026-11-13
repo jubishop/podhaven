@@ -642,12 +642,13 @@ gated SSH push from failing that way:
 ## Scheduled memory audit
 
 A weekly local job checks every active [memory](../memory/README.md) note
-against the code and GitHub evidence, archives or updates stale notes, and
-commits validated changes to `main`. It is Project Starter's shared
-[memory audit](foundation/memory-audit.md) feature, whose page covers
-installing, running, inspecting, and stopping it, and its model, validation,
-and failure handling. PodHaven's `memoryAudit` settings in
-`.config/knowledge.json` add:
+against the code and GitHub evidence, and proposes validated archives and
+updates of stale notes in a pull request for the user to merge, with an
+unassigned issue that the pull request closes. It never pushes to `main`. It
+is Project Starter's shared [memory audit](foundation/memory-audit.md)
+feature, whose page covers installing, running, inspecting, and stopping it,
+and its model, validation, and failure handling. PodHaven's `memoryAudit`
+settings in `.config/knowledge.json` add:
 
 - **Schedule:** the default Saturday at 06:00 in the Mac's local time zone.
   Audits on the same Mac take turns through the feature's shared lock.
