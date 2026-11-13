@@ -282,13 +282,48 @@ checks then skip the excluded paths. Without the step, they fail with this
 fix instead of asking for credentials. Outside such a checkout,
 `bin/check --fetch-base` fetches nothing.
 
-When hosted CI cannot run only because the Actions quota is exhausted or
-GitHub is rate limiting, run `bin/check --full` locally on the exact revision
-being delivered. A pass satisfies the merge or release gate. Record the
-blocker, revision, commands, and result, and report CI as unavailable, not
-passed. This does not cover failing or unexplained runs, or checks that
-cannot run locally, and it never bypasses enforced branch protection or
-required approvals.
+When CI didn't run the checks only because GitHub refused to start the job,
+for any reason, or because the self-hosted runners it needs stayed down, run
+`bin/check --full` locally on the exact revision being delivered. A pass
+satisfies the merge or release gate. Record the blocker, revision, commands,
+and result, and report CI as unavailable, not passed. This does not cover a
+job that ran and failed or was cancelled, a workflow that failed to start
+because its file is invalid, an unexplained run, or checks that cannot run
+locally, and it never bypasses enforced branch protection or required
+approvals.
+
+A refused job has a failure annotation beginning "The job was not started
+because" and no steps or runner. Its cause, such as exhausted minutes, a
+failed payment, or rate limiting, doesn't matter; only telling it from a job
+that ran and failed does.
+
+A job queued for a self-hosted runner never moves to a hosted one: GitHub
+keeps it queued, without an error, until a runner matching its labels takes
+it or 24 hours pass, when GitHub ends it. Its runners count as down when it
+has stayed queued, with no runner, for 10 or more minutes while every
+self-hosted runner matching its labels was `offline`, or `online` and not
+busy. A shorter spell is a restart or a self-update, and a busy runner is
+running another job, which the queued one waits for, so either restarts the
+count. A job that started on a runner never counts, even if the runner then
+goes offline: GitHub fails it, and that is a failure. A queued job GitHub
+ends after 24 hours counts only when listings had already shown its runners
+down for 10 minutes. To tell:
+
+```sh
+gh api repos/<owner>/<repo>/actions/jobs/<job-id> \
+  --jq '[.status, .runner_name, (.labels | join(","))] | @tsv'
+gh api repos/<owner>/<repo>/actions/runners \
+  --jq '.runners[] | [.name, .status, .busy, ([.labels[].name] | join(","))] | @tsv'
+```
+
+The first shows the job `queued`, with no runner and `self-hosted` among its
+labels. The second lists the repository's runners with their labels, and an
+organization's shared ones are under `orgs/<org>/actions/runners`. It shows
+each runner's state only when it is read, so the 10 minutes come from
+listings across that time, not from the job's age. A runner alert the
+project keeps, where it has one, also shows a runner down. Here the blocker
+is the queued job, each matching runner's name and state, the window they
+were seen down, and the listings that showed it.
 
 `.project-starter.json` records the hashes of managed files. Change those
 files through Project Starter releases, or record an override with its reason;
