@@ -7,8 +7,8 @@ pages and link to these; project rules take precedence wherever they differ.
 - [Engineering policy](engineering-policy.md): dependencies, tests, file and
   page organization, checkout isolation, runtime versions, checks, and
   deployment.
-- [Knowledge search](knowledge-search.md): search commands, failures,
-  refreshes, home memory, worktrees, hooks, and diagnostics.
+- [Knowledge search](knowledge-search.md): search commands, required tools,
+  failures, refreshes, worktrees, hooks, and diagnostics.
 
 ## Enabled features
 

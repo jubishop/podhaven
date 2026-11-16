@@ -54,14 +54,6 @@ files, processes, and data clear ownership and validating independence. Keep
 sequential execution where interference remains, and never hide failures with
 retries or weaker assertions.
 
-### Flaky tests
-
-Never ignore a flaky test. Fix it on the spot when the fix fits the current
-change. When it doesn't, such as when it lies outside the pull request's
-scope, file a GitHub issue for it right away, without waiting to be asked, or
-reuse the one that already tracks it, so a later agent can fix it. Name that
-issue when reporting the work.
-
 ## File organization
 
 Keep each file focused on one responsibility or feature area. About 1,000
@@ -77,9 +69,10 @@ reader task. Split a page when it mixes independent topics or readers must
 scan unrelated material, not because of its length. Move complete topics into
 descriptively named pages, leave a short overview and links, and update
 indexes and incoming links. Keep each rule or decision in one authoritative
-place with its reasons, evidence, dates, and status. Keep indexes and
-automatically loaded instructions short and link to details. Preserve
-generated and tool-managed formats.
+place with its reasons, evidence, dates, and status, across repositories too:
+for a system another repository owns, link to that repository's page rather
+than restating its facts. Keep indexes and automatically loaded instructions
+short and link to details. Preserve generated and tool-managed formats.
 
 ## Validation checkout isolation
 
@@ -145,25 +138,13 @@ Keep document and foundation checks independent of application runtimes.
 
 ## Kinds of change
 
-How a change reaches the default branch depends on what it touches:
-
-1. **Text** is not code: Markdown, including docs, memory, and agent
-   instructions, and the prose of AI skills. Commit it directly on the default
-   branch and push it without a pull request once
-   `bin/check --documents-only` passes. It needs no tests or other checks.
-2. **Development code** doesn't run in production: tests, CI workflows, hooks,
-   check scripts, development and deploy tooling, scripts in AI skills, and the
-   configuration they read. Run the [checks](#checks) it needs, then commit it
-   directly on the default branch and push it, without a pull request.
-3. **Production code** runs when the application executes: its code, the
-   configuration it reads, its dependencies, and whatever starts it, such as
-   service units or schedules. Run its checks and deliver it through a pull
-   request.
-
-A change that spans kinds follows the strictest kind it touches, and an
-uncertain change is treated as the stricter kind. A project's own rules take
-precedence, for example to require a pull request for a document that defines
-what its application may do, or to allow direct pushes of production code.
+`~/AGENTS.md`'s Kinds of change says how text, development code, and
+production code reach the default branch. Here, text needs
+`bin/check --documents-only`, which the [pre-push hook](#pre-push-hook)
+enforces, and a Project Starter sync takes the route [hosted CI](#hosted-ci)
+describes. A project may set its own rule instead, for example to require a
+pull request for a document that defines what its application may do, or to
+allow direct pushes of production code.
 
 ## Checks
 
@@ -215,11 +196,22 @@ change. Report focused and full results separately.
 `bin/check --full` reuses a passing `bin/check-application` run on its own: when
 the checkout has no uncommitted or untracked changes, and that run passed in
 the last 12 hours for the same tree and environment (the platform, `python3`
-and `node` versions, and the packages in `.venv` and `node_modules`), it says
-which commit passed and skips the application checks. A reused result counts
-as a successful `bin/check --full` for that tree. Worktrees of a repository
-share the record, and `bin/check --full --no-reuse` runs the application checks
-regardless.
+and `node` versions, the packages in `.venv` and `node_modules`, and the
+values of the variables below), it says which commit passed and skips the
+application checks. A reused result counts as a successful `bin/check --full`
+for that tree. Worktrees of a repository share the record, and
+`bin/check --full --no-reuse` runs the application checks regardless. In
+GitHub Actions, `bin/check --full` neither reuses nor records a pass, so a CI
+result always comes from running the checks on its revision, even on a
+self-hosted runner whose checkout keeps `.git` between jobs.
+
+List in `checks.applicationEnvironment` in `.config/knowledge.json` each
+environment variable that changes which application checks run or what runs
+them, such as `["NVR_PYTHON"]` for a variable naming the Python that runs a
+host's tests. A pass then stands only for runs where each listed variable has
+the same value, or is unset as it was. The record keeps a digest, never the
+values. Never list the whole environment or a variable that changes on every
+run, such as a temporary path, since no pass would match.
 
 ### Pre-push hook
 
@@ -282,48 +274,11 @@ checks then skip the excluded paths. Without the step, they fail with this
 fix instead of asking for credentials. Outside such a checkout,
 `bin/check --fetch-base` fetches nothing.
 
-When CI didn't run the checks only because GitHub refused to start the job,
-for any reason, or because the self-hosted runners it needs stayed down, run
-`bin/check --full` locally on the exact revision being delivered. A pass
-satisfies the merge or release gate. Record the blocker, revision, commands,
-and result, and report CI as unavailable, not passed. This does not cover a
-job that ran and failed or was cancelled, a workflow that failed to start
-because its file is invalid, an unexplained run, or checks that cannot run
-locally, and it never bypasses enforced branch protection or required
-approvals.
-
-A refused job has a failure annotation beginning "The job was not started
-because" and no steps or runner. Its cause, such as exhausted minutes, a
-failed payment, or rate limiting, doesn't matter; only telling it from a job
-that ran and failed does.
-
-A job queued for a self-hosted runner never moves to a hosted one: GitHub
-keeps it queued, without an error, until a runner matching its labels takes
-it or 24 hours pass, when GitHub ends it. Its runners count as down when it
-has stayed queued, with no runner, for 10 or more minutes while every
-self-hosted runner matching its labels was `offline`, or `online` and not
-busy. A shorter spell is a restart or a self-update, and a busy runner is
-running another job, which the queued one waits for, so either restarts the
-count. A job that started on a runner never counts, even if the runner then
-goes offline: GitHub fails it, and that is a failure. A queued job GitHub
-ends after 24 hours counts only when listings had already shown its runners
-down for 10 minutes. To tell:
-
-```sh
-gh api repos/<owner>/<repo>/actions/jobs/<job-id> \
-  --jq '[.status, .runner_name, (.labels | join(","))] | @tsv'
-gh api repos/<owner>/<repo>/actions/runners \
-  --jq '.runners[] | [.name, .status, .busy, ([.labels[].name] | join(","))] | @tsv'
-```
-
-The first shows the job `queued`, with no runner and `self-hosted` among its
-labels. The second lists the repository's runners with their labels, and an
-organization's shared ones are under `orgs/<org>/actions/runners`. It shows
-each runner's state only when it is read, so the 10 minutes come from
-listings across that time, not from the job's age. A runner alert the
-project keeps, where it has one, also shows a runner down. Here the blocker
-is the queued job, each matching runner's name and state, the window they
-were seen down, and the listings that showed it.
+When hosted CI is unavailable rather than failed, as the `fix-ci` skill's
+Unavailable hosted CI section defines, follow that skill. The local
+equivalent of a job that runs `bin/check --full` is `bin/check --full` on the
+exact revision being delivered, and its pass satisfies the merge or release
+gate under [checks](#checks).
 
 `.project-starter.json` records the hashes of managed files. Change those
 files through Project Starter releases, or record an override with its reason;

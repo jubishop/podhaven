@@ -63,8 +63,7 @@ SETTINGS = ("repository", "launchAgentLabel", "schedule", "issueLabels", "commit
 # Every project's audit on this machine computes the same path, so their runs take turns.
 TURN_LOCK = Path(".cache/project-starter/memory-audit.lock")
 GITHUB_URL = r"(?:git@github\.com:|ssh://git@github\.com/|https://github\.com/)([A-Za-z0-9-]+)/([A-Za-z0-9._-]+?)(?:\.git)?/?"
-# Renders the clone's shared search collections with its own Project Starter loader. A fresh clone has
-# no local Git settings, so the personal home-memory collection is never added.
+# Renders the clone's shared search collections with its own Project Starter loader.
 INDEX_CONFIG = ("import json, sys; sys.path.insert(0, sys.argv[1]); from _knowledge import config; "
                 "print(json.dumps(config()[0], indent=2, sort_keys=True))")
 
@@ -749,7 +748,7 @@ def check_boundary(run_dir, env, scratch):
         folder.mkdir()
         for path in ("bin", ".config", "memory", "artifacts"):
             (repo / path).mkdir(parents=True)
-        # Its own Git repository keeps the checkout's local settings, such as a home memory path, out of the index.
+        # Like the clone, it is its own Git repository.
         command(["git", "init", "--quiet"], repo, env)
         shutil.copy2(ROOT / "bin/_knowledge.py", repo / "bin")
         (repo / ".config/knowledge.json").write_text(json.dumps(

@@ -1,12 +1,12 @@
 {
-  "version": "3.13.1",
+  "version": "3.14.0",
   "source": "https://github.com/jubishop/project-starter",
-  "ref": "v3.13.1",
+  "ref": "v3.14.0",
   "managed": {
     "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
-    "bin/_checks.py": "669d966bcd7c232251310af90934d0d738f8412de358a52b6f1f70854c09bd86",
-    "bin/_knowledge.py": "2ca717933b8cdc776805a163edb5c87c380f5ac49cf1937efcf2c1f839f0e98a",
-    "bin/_memory_audit.py": "92363beee2f17a9cdd5aa729e95a253ec25a38cfcbdcde6360360138d595b0d2",
+    "bin/_checks.py": "2d9f888ba9ee33804b1d0c02c60cedaf5738629df62a870a0321088e614efc06",
+    "bin/_knowledge.py": "2751237df09b8a73c89fdc783b43e741b64c94c7f4528c55ba2075553f897bcd",
+    "bin/_memory_audit.py": "a9e7f00eb28f1ee9405d6314d371b376b4498ad2219ab920e630b724afb79127",
     "bin/check": "1eb794b0695f4840553f89d5be40060c58a749e9b3a261ac6992b5617c3ab57f",
     "bin/doctor": "bafccb584f6e9fb9fe161d3021f9d3832dc1e51ccabb9bee5794b0222894b79f",
     "bin/hooks/post-checkout": "521c755dea87b8f54d29aa4cad151d636f3bea6803720a05af137f11f35fe795",
@@ -21,13 +21,13 @@
     "bin/prep-worktree": "b95e77ebc0ef3bae7d868f5e5bcdb35a05e94aa2695dfc5fd44117edc72f9294",
     "bin/qmd-index": "8e7de8dcc353a768878f52c9fa5b4b9bbfab6db00a0d229f55b7af3a6f008fc5",
     "bin/setup": "22a1ba1d1cf981957dad1fce20da692d276b864e5e1bf0aa9d70fcc336c6332b",
-    "docs/foundation/README.md": "5f7b56395b210e96c4513fc4e9dcb17b9c2ce57421949f00e35247e4635272cb",
-    "docs/foundation/engineering-policy.md": "d5a1e577dff7e8a82565e52d853812b1724d270552618fde0e775442a3a0ce1c",
-    "docs/foundation/knowledge-search.md": "bb67e2dfd7d7f7a51f34da3c61404cc49c2cb85f4bafd6607049233003378c64",
-    "docs/foundation/memory-audit.md": "cbf40b7cace765346a8c2890408ccb8ff97b060c9261d3321867304804768546"
+    "docs/foundation/README.md": "74dce6dcae8c87879e22eb68ce1fa7e488b7ff3a234b94d2f87d437e4124e8d7",
+    "docs/foundation/engineering-policy.md": "c83022bdaf6f1e2af96f469d31b239a31d72a16c5cd9e50a8c9de7c8dbda7c33",
+    "docs/foundation/knowledge-search.md": "aa8e4545d0384eae4b3ec80fef0050527aac4430d7f4a4cc7bef0e5525a595a6",
+    "docs/foundation/memory-audit.md": "e21f2a7272ddf9dc4e5043ce53b3e5140c0fc3d8160fdf9b1ab07c2159c56017"
   },
   "blocks": {
-    "AGENTS.md": "097f0b1cb160bd4cf0482e69dfab6daa048f2aa0ebb3eb1db4853c754d23b71c",
+    "AGENTS.md": "3251f8ec9a9e97af8e26ea983163a49d35e748f2b95290b360887ee21bd90adb",
     ".gitignore": "25eeca4e619f1c731bc245b73427fcd0d85b5264265beb758010f6eda123242d"
   },
   "overrides": {},

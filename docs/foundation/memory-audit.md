@@ -106,9 +106,8 @@ Before the model starts, the runner writes
 two bounded lists of up to 1,000 entries each, and the commits since the last
 successful audit, or the last seven days on the first run. It also builds a
 keyword-only QMD index of the clone's shared collections from
-`.config/knowledge.json`, never personal home memory, through the clone's own
-`bin/_knowledge.py`. The model makes no network requests or QMD model
-downloads.
+`.config/knowledge.json` through the clone's own `bin/_knowledge.py`. The
+model makes no network requests or QMD model downloads.
 
 Unchanged repository, GitHub, and audit inputs skip the model call, except
 right after a failed or interrupted run; `--force` overrides this change gate.

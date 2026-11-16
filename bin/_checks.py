@@ -23,6 +23,8 @@ MARKERS = ("project-starter:begin", "project-starter:end")
 REUSE_WINDOW = timedelta(hours=12)
 # A shebang naming a ShellCheck dialect, directly or through env, with or without flags.
 SHELL_SHEBANG = re.compile(rb"#![ \t]*(?:\S*/)?(?:env[ \t]+(?:-\S*[ \t]+)*)?(sh|bash|dash|ksh)(?=\s|$)")
+# An environment variable name that a POSIX shell accepts.
+VARIABLE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 def digest(data):
@@ -449,10 +451,23 @@ def fetch_base(root):
     print("Fetched the base version of " + files + " for the whitespace check.", flush=True)
 
 
-def environment(root):
-    """Fingerprint what besides the tree can change application results."""
+def application_variables(config):
+    """Return the environment variables that the project's application checks read, as checks.applicationEnvironment
+    in .config/knowledge.json lists them."""
+    names = config.get("checks", {}).get("applicationEnvironment", [])
+    if not isinstance(names, list) or not all(isinstance(name, str) and VARIABLE_NAME.fullmatch(name) for name in names):
+        raise ValueError(".config/knowledge.json: checks.applicationEnvironment must list environment variable names,"
+                         ' such as ["NODE_ENV"]')
+    return names
+
+
+def environment(root, variables=()):
+    """Fingerprint what besides the tree can change application results, including the listed variables' values."""
     # platform.platform() differs between Python releases on the same machine.
     facts = {"platform": " ".join((platform.system(), platform.release(), platform.machine()))}
+    if variables:
+        # Unset differs from empty. Only the fingerprint's digest is recorded, so a listed secret stays out of it.
+        facts["variables"] = {name: os.environ.get(name) for name in variables}
     for tool in ("python3", "node"):
         if shutil.which(tool):
             result = subprocess.run([tool, "--version"], text=True, capture_output=True)
@@ -508,10 +523,15 @@ def record_pass(root, tree, fingerprint):
     temporary.replace(path)
 
 
-def application_checks(root, application, reuse):
-    """Run bin/check-application, or reuse its recent pass on the same clean tree and environment."""
-    tree = clean_tree(root)
-    fingerprint = environment(root) if tree else None
+def application_checks(root, application, reuse, variables=()):
+    """Run bin/check-application, or reuse its recent pass on the same clean tree and environment, which includes
+    the values of the variables it reads.
+
+    GitHub Actions neither reuses nor records a pass: a CI result comes from running the checks on its revision,
+    and a self-hosted runner's checkout keeps .git, with any records in it, between jobs.
+    """
+    tree = None if os.environ.get("GITHUB_ACTIONS") == "true" else clean_tree(root)
+    fingerprint = environment(root, variables) if tree else None
     record = reusable_pass(root, tree, fingerprint) if tree and reuse else None
     if record:
         passed = datetime.fromisoformat(record["passed_at"]).astimezone().strftime("%Y-%m-%d %H:%M")
@@ -535,7 +555,8 @@ def main():
         if sys.argv[1:] == ["--fetch-base"]:
             fetch_base(root)
             return 0
-        errors = manifest_errors(root) + validate(root)
+        config = json.loads((root / ".config/knowledge.json").read_text())
+        errors = manifest_errors(root) + validate(root, options=config)
         if errors:
             print("\n".join(errors), file=sys.stderr)
             return 1
@@ -565,7 +586,8 @@ def main():
             return 0
         if not os.access(application, os.X_OK):
             raise RuntimeError("bin/check-application must be executable")
-        application_checks(root, application, reuse="--no-reuse" not in sys.argv)
+        application_checks(root, application, reuse="--no-reuse" not in sys.argv,
+                           variables=application_variables(config))
         print("Full foundation and application checks passed.", flush=True)
         return 0
     except (OSError, ValueError, RuntimeError, SyntaxError, subprocess.SubprocessError) as error:

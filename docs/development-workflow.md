@@ -4,7 +4,7 @@ status: current
 
 # Development workflow
 
-This repository keeps knowledge as Markdown and uses optional QMD search.
+This repository keeps knowledge as Markdown and searches it with QMD.
 Each checkout has its own index. Git hooks refresh it in the background.
 
 ## First setup
@@ -19,15 +19,15 @@ bin/doctor-xcode           # macOS
 bin/check --full
 ```
 
-Setup requires Git and Python 3.9 or later. Checks also require ShellCheck,
-available through the operating system's package manager; `bin/check --full`
-also requires actionlint, fish, and Ruby. The local memory
-audit also requires Claude Code, GitHub CLI, QMD, ripgrep, and QMD's Node.js or Bun runtime.
-Its tests use fake services and do not make model requests.
-QMD and direnv are optional. Missing optional tools produce clear notices; an installed but
-failing QMD returns an error. Install QMD using its
-[official instructions](https://github.com/tobi/qmd#installation).
-`bin/doctor` reports the installed QMD version.
+Setup needs Git, Python 3, and QMD, plus direnv when the project has an
+`.envrc`; see [required tools](foundation/knowledge-search.md#required-tools).
+Install QMD using its
+[official instructions](https://github.com/tobi/qmd#installation);
+`bin/doctor` reports the installed QMD version. Checks also require
+ShellCheck, available through the operating system's package manager;
+`bin/check --full` also requires actionlint, fish, and Ruby. The local memory
+audit also requires Claude Code, GitHub CLI, ripgrep, and QMD's Node.js or Bun
+runtime. Its tests use fake services and do not make model requests.
 
 Setup validates configuration, activates bundled hooks when no existing
 integration would be displaced, prepares caches, and waits for the initial
@@ -562,8 +562,8 @@ does not require building the Swift app.
 skill tests and the shell tests in `bin/tests`, instead of reusing an earlier
 pass.
 `bin/check --full` alone is not a full test run.
-`bin/tests` covers the knowledge worker and cache ownership and artifact
-repair; Project Starter tests the shared memory audit. `bin/smoke-knowledge` checks real QMD retrieval and
+`bin/tests` covers cache ownership and artifact repair; Project Starter tests
+the knowledge tools and the shared memory audit. `bin/smoke-knowledge` checks real QMD retrieval and
 linked-worktree isolation in disposable repositories. It reuses
 `~/.cache/qmd/models` and does not publish changes.
 
