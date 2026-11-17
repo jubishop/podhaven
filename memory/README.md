@@ -85,9 +85,8 @@ error accepted as noise.
 ## Active notes
 
 Link every active note from the list below, one list item per note. When the
-weekly [memory audit](../docs/development-workflow.md#scheduled-memory-audit)
-archives a note, it removes that note's entry after validating its proposal;
-the model cannot edit this README.
+[memory audit](../docs/development-workflow.md#scheduled-memory-audit)
+archives a note, it removes that note's entry.
 
 - [Build variants: Development / Debug / Release](build-variants-dev-debug-release.md): PodHaven's three app build variants — Development (.dev), Debug (.debug), Release (production) — their bundle IDs, isolated on-disk data directories, which scheme action builds each, and how runtime environment (separate axis) drives logging.
 - [CarPlay artwork test observability](carplay-artwork-test-observability.md): CPListItem.image returns CarPlay's downscaled copy, and Nuke memory-cache hits did not reach the pipeline delegate; observe row artwork size through a recording ImagePipeline delegate on a cache miss

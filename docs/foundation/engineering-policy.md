@@ -310,11 +310,11 @@ path filter cannot classify. When skipping, record the reason and the last
 deployed revision.
 
 A project whose deployment reads skip trailers from every commit since its
-last deployment records them for Project Starter sync commits and memory
-audit commits too: such a commit without them makes the next push deploy,
-even when that push's own commit skips. When the project starts deciding
-deployment this way, record them, mapping each trailer name to a one-line
-value, as `syncCommitTrailers` in `.project-starter.json` for a sync with no
-manual follow-up and, when the `memory-audit` feature is enabled, as
-`memoryAudit.commitTrailers` in `.config/knowledge.json` for the audit's
-commit.
+last deployment records them for Project Starter sync commits and the home
+guidance review's audit commits too: such a commit without them makes the
+next push deploy, even when that push's own commit skips. When the project
+starts deciding deployment this way, record them, mapping each trailer name
+to a one-line value, as `syncCommitTrailers` in `.project-starter.json` for a
+sync with no manual follow-up, and in `~/bin/guidance-review`'s
+`ADOPTER_SETTINGS` for the audits' commits, as `~/docs/guidance-review.md`
+describes.

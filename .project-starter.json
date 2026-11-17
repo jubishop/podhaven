@@ -1,12 +1,11 @@
 {
-  "version": "3.14.0",
+  "version": "4.0.0",
   "source": "https://github.com/jubishop/project-starter",
-  "ref": "v3.14.0",
+  "ref": "v4.0.0",
   "managed": {
     "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
     "bin/_checks.py": "2d9f888ba9ee33804b1d0c02c60cedaf5738629df62a870a0321088e614efc06",
-    "bin/_knowledge.py": "2751237df09b8a73c89fdc783b43e741b64c94c7f4528c55ba2075553f897bcd",
-    "bin/_memory_audit.py": "a9e7f00eb28f1ee9405d6314d371b376b4498ad2219ab920e630b724afb79127",
+    "bin/_knowledge.py": "5a2f1f58dfd0f6f77c0750f7d254480e36332ab392054a103682da60a0f3619b",
     "bin/check": "1eb794b0695f4840553f89d5be40060c58a749e9b3a261ac6992b5617c3ab57f",
     "bin/doctor": "bafccb584f6e9fb9fe161d3021f9d3832dc1e51ccabb9bee5794b0222894b79f",
     "bin/hooks/post-checkout": "521c755dea87b8f54d29aa4cad151d636f3bea6803720a05af137f11f35fe795",
@@ -16,22 +15,16 @@
     "bin/hooks/pre-push": "80d8dbeacb59d339d12f9d00cd79087dc0c08057674347699f4fcd4dafcbe80b",
     "bin/knowledge": "15fb18f13967a2f9e87cda954a3f8f23636fb6104587a64797eea35cece95d93",
     "bin/knowledge-hook": "c91ebb3dd7f4096d0e08945dee8b3acda2b555756a8678af89b6ebd257215a95",
-    "bin/memory-audit": "a81d0b333f7ae6cbf266e679a0f4087469fa58f2b75be02b73350c5af96e18bb",
-    "bin/memory-audit-prompt.md": "02f44c39804d221d2ff8e7cf82323396e098dabeb4eaa173191e16b29b20c154",
     "bin/prep-worktree": "b95e77ebc0ef3bae7d868f5e5bcdb35a05e94aa2695dfc5fd44117edc72f9294",
     "bin/qmd-index": "8e7de8dcc353a768878f52c9fa5b4b9bbfab6db00a0d229f55b7af3a6f008fc5",
     "bin/setup": "22a1ba1d1cf981957dad1fce20da692d276b864e5e1bf0aa9d70fcc336c6332b",
-    "docs/foundation/README.md": "74dce6dcae8c87879e22eb68ce1fa7e488b7ff3a234b94d2f87d437e4124e8d7",
-    "docs/foundation/engineering-policy.md": "c83022bdaf6f1e2af96f469d31b239a31d72a16c5cd9e50a8c9de7c8dbda7c33",
-    "docs/foundation/knowledge-search.md": "aa8e4545d0384eae4b3ec80fef0050527aac4430d7f4a4cc7bef0e5525a595a6",
-    "docs/foundation/memory-audit.md": "e21f2a7272ddf9dc4e5043ce53b3e5140c0fc3d8160fdf9b1ab07c2159c56017"
+    "docs/foundation/README.md": "5cdcb3fb3d0d56c1e029f0febf2e596fb5f48ec1a899d22a0ef54c2458e97666",
+    "docs/foundation/engineering-policy.md": "c66e7dc47457820da9170db25142440f3eb9aa9ae98386d13d4981752f52f9cc",
+    "docs/foundation/knowledge-search.md": "aa8e4545d0384eae4b3ec80fef0050527aac4430d7f4a4cc7bef0e5525a595a6"
   },
   "blocks": {
     "AGENTS.md": "3251f8ec9a9e97af8e26ea983163a49d35e748f2b95290b360887ee21bd90adb",
     ".gitignore": "25eeca4e619f1c731bc245b73427fcd0d85b5264265beb758010f6eda123242d"
   },
-  "overrides": {},
-  "features": [
-    "memory-audit"
-  ]
+  "overrides": {}
 }

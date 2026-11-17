@@ -25,9 +25,7 @@ Install QMD using its
 [official instructions](https://github.com/tobi/qmd#installation);
 `bin/doctor` reports the installed QMD version. Checks also require
 ShellCheck, available through the operating system's package manager;
-`bin/check --full` also requires actionlint, fish, and Ruby. The local memory
-audit also requires Claude Code, GitHub CLI, ripgrep, and QMD's Node.js or Bun
-runtime. Its tests use fake services and do not make model requests.
+`bin/check --full` also requires actionlint, fish, and Ruby.
 
 Setup validates configuration, activates bundled hooks when no existing
 integration would be displaced, prepares caches, and waits for the initial
@@ -563,7 +561,7 @@ skill tests and the shell tests in `bin/tests`, instead of reusing an earlier
 pass.
 `bin/check --full` alone is not a full test run.
 `bin/tests` covers cache ownership and artifact repair; Project Starter tests
-the knowledge tools and the shared memory audit. `bin/smoke-knowledge` checks real QMD retrieval and
+the knowledge tools. `bin/smoke-knowledge` checks real QMD retrieval and
 linked-worktree isolation in disposable repositories. It reuses
 `~/.cache/qmd/models` and does not publish changes.
 
@@ -591,10 +589,10 @@ wait only where its expiry is the assertion. Give each subtest that runs a
 release or gate command its own fixture, so one interrupted or failed run
 can't fail the subtests after it.
 
-`.project-starter.json` records the installed Project Starter release, the
-hashes of its managed files, and the enabled `memory-audit` feature. Update
-them with Project Starter's `bin/sync`. PodHaven overrides no managed file:
-its Xcode preparation runs from the project-owned `bin/setup-application`.
+`.project-starter.json` records the installed Project Starter release and the
+hashes of its managed files. Update them with Project Starter's `bin/sync`.
+PodHaven overrides no managed file: its Xcode preparation runs from the
+project-owned `bin/setup-application`.
 
 ### Tooling pre-push gate
 
@@ -641,36 +639,14 @@ gated SSH push from failing that way:
 
 ## Scheduled memory audit
 
-A weekly local job checks every active [memory](../memory/README.md) note
-against the code and GitHub evidence, and proposes validated archives and
-updates of stale notes in a pull request for the user to merge, with an
-unassigned issue that the pull request closes. It never pushes to `main`. It
-is Project Starter's shared [memory audit](foundation/memory-audit.md)
-feature, whose page covers installing, running, inspecting, and stopping it,
-and its model, validation, and failure handling. PodHaven's `memoryAudit`
-settings in `.config/knowledge.json` add:
+Home's nightly guidance review, `~/docs/guidance-review.md`, audits
+PodHaven's [memory](../memory/README.md) notes against the code and GitHub
+evidence when they come due, in place of Project Starter's weekly memory
+audit, which 4.0.0 retired. That page covers when it runs, its model and
+billing, how its changes land, and its failures.
 
-- **Schedule:** the default Saturday at 06:00 in the Mac's local time zone.
-  Audits on the same Mac take turns through the feature's shared lock.
-- **Failure issue:** a new `Memory audit failing` issue gets the
-  `memory-audit-failure` label.
-- **Index:** archiving a note removes its entry from the README's
-  "Active notes" list.
-- **Context:** the prompt records that this Claude Code job replaced the paid
-  OpenRouter audit and the later Codex job, that it bills the API key every
-  project's memory audit on this Mac shares, with a subscription fallback,
-  and that the Sentry Intake GitHub workflow, which uses no model, stays in
-  use.
-
-Audits bill the Anthropic API key that every Project Starter memory audit on
-this Mac shares, set as `ANTHROPIC_MEMORY_AUDIT_API_KEY` in `~/.env`, and fall
-back to the Claude subscription when the API refuses it, as the feature's
-[API key](foundation/memory-audit.md#api-key) section describes. The same line
-in the primary checkout's `.env`, even with an empty value, would override the
+It bills memory-note audits to `ANTHROPIC_MEMORY_AUDIT_API_KEY` in `~/.env`,
+the key every adopter's memory-note audits share. The same line in the
+primary checkout's `.env`, even with an empty value, would override the
 shared key for PodHaven, so that file sets none. The
 [model selection](../memory/memory-audit-model-selection.md) note records why.
-
-Run `bin/memory-audit install` in the primary checkout to register or update
-the LaunchAgent, and
-`launchctl print gui/$(id -u)/com.jubishop.podhaven.memory-audit` to inspect
-it.

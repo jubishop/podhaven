@@ -9,10 +9,3 @@ pages and link to these; project rules take precedence wherever they differ.
   deployment.
 - [Knowledge search](knowledge-search.md): search commands, required tools,
   failures, refreshes, worktrees, hooks, and diagnostics.
-
-## Enabled features
-
-This project enabled these optional Project Starter features.
-
-- [Memory audit](memory-audit.md): the weekly Claude audit of memory notes,
-  its schedule, settings, validation, publishing, and failure issue.

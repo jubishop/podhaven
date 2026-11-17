@@ -122,7 +122,7 @@ def snapshot(rendered, version):
     return digest.hexdigest(), counts
 
 
-def shared_models(root=ROOT):
+def shared_models():
     return Path.home() / ".cache" / "qmd" / "models"
 
 
@@ -639,14 +639,6 @@ class Knowledge:
         for key in ("issues", "notices"):
             index[key] = report[key] + index[key]
         return dict(report, **index)
-
-
-def config():
-    """Render this checkout's collections for the memory audit; return them with an empty list.
-
-    The audit runs this from a clone of origin's default branch, which can hold another release than the audit
-    itself, so it keeps the (collections, warnings) shape that every release's audit reads."""
-    return Knowledge().config(), []
 
 
 def cli(action):
