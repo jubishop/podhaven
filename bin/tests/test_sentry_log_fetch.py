@@ -212,6 +212,24 @@ print(json.dumps(payload))
         self.assertEqual(coverage["detail"], "sample")
         self.assertEqual(coverage["counts_by_severity"], {"error": 5})
 
+    def test_help_prints_the_whole_header_without_code(self):
+        result = hang_guard.run(
+            ["bash", str(SCRIPT), "--help"], capture_output=True, text=True, check=False
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("START..END", result.stdout)
+        self.assertIn("Requires:", result.stdout)
+        self.assertNotIn("#!", result.stdout)
+        self.assertNotIn("set -euo pipefail", result.stdout)
+
+    def test_bounded_range_is_the_window_for_every_request(self):
+        period = "2026-11-17T00:00:00-08:00..2026-11-18T00:00:00-08:00"
+        result = self.fetch(period=period)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for args in self.requests():
+            self.assertEqual(args[args.index("--period") + 1], period)
+        self.assertEqual(self.read("coverage.json")["period"], period)
+
     def test_failed_detail_retains_complete_summary_but_fails(self):
         result = self.fetch(detail=1)
         self.assertNotEqual(result.returncode, 0)

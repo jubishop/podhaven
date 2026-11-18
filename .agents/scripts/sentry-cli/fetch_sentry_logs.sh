@@ -1,8 +1,14 @@
 #!/bin/bash
-# Fetches Sentry structured logs via the `sentry` CLI (log list + explore).
+# Fetches PodHaven's Sentry structured logs via the `sentry` CLI: complete
+# counts for every message in one fixed window (explore, all pages) and a
+# detail sample of individual entries (log list).
 #
 # Usage:
-#   fetch_sentry_logs.sh <statsPeriod> --out DIR [--query QUERY]
+#   fetch_sentry_logs.sh <period> --out DIR [--query QUERY]
+#
+#   <period> is a duration ending now (12h, 2d, 1w) or a bounded ISO range
+#   with timezone offsets, START..END. Pass an earlier coverage.json's
+#   `period` to sample again within the same window. DIR must be new or empty.
 #
 # Examples:
 #   fetch_sentry_logs.sh 10h --out /tmp/podhaven-logs
@@ -19,9 +25,14 @@
 # environment:deployed. Prefer user.id (+ optional release) over environment.
 #
 # Outputs:
-#   <out>/detail.json   — individual entries (up to 1000; may be a sample)
 #   <out>/summary.json  — counts by severity + message across all pages
-#   <out>/coverage.json — fixed window, effective query, and coverage status
+#   <out>/detail.json   — individual entries (up to 1000; may be a sample)
+#   <out>/coverage.json — fixed `period`, effective `query`,
+#     `counts_by_severity`, `summary` (complete|partial), `detail`
+#     (complete|sample|unavailable), and `error` when a request failed
+#
+# Exits nonzero on failure. Once fetching starts, it first writes what it
+# retrieved and records the error in coverage.json.
 #
 # Requires: `sentry` CLI on PATH and Sentry auth.
 
@@ -31,8 +42,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 
+usage() {
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"
+}
+
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  sed -n '1,26p' "$0"
+  usage
   exit 0
 fi
 
@@ -54,7 +69,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h | --help)
-      sed -n '1,26p' "$0"
+      usage
       exit 0
       ;;
     *)
@@ -65,7 +80,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$STATS_PERIOD" || -z "$OUT" ]]; then
-  echo "Usage: fetch_sentry_logs.sh <statsPeriod> --out DIR [--query QUERY]" >&2
+  echo "Usage: fetch_sentry_logs.sh <period> --out DIR [--query QUERY]" >&2
   exit 1
 fi
 if [[ -L "$OUT" ]]; then
