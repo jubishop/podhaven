@@ -1,6 +1,6 @@
 # Design Docs
 
-PR-reviewed architecture, initiatives, and research. Use [`memory/`](../memory/README.md) for captured notes and GitHub issues for TODOs.
+Architecture, initiatives, and research. Use [`memory/`](../memory/README.md) for captured notes and GitHub issues for TODOs.
 
 Every doc starts with:
 

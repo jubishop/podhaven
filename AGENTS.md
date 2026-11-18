@@ -27,13 +27,6 @@ take precedence over this block and the foundation pages wherever they differ.
   override with its reason.
 <!-- project-starter:end -->
 
-## Project Memory & Tracking
-- `memory/`: long-lived project notes. New or updated pages must follow [`memory/README.md`](memory/README.md); move notes that are no longer relevant to active work into `memory/archive/`, and set `status: resolved` only on project notes.
-- `docs/`: PR-reviewed design docs and research; update [`docs/README.md`](docs/README.md) when adding/removing docs.
-- GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
-
-`bin/check --full` runs the repository lint checks and tooling tests in `bin/tests` and `.agents` through `bin/check-application`; run it after setup or tooling changes and before a tooling PR or release. The pre-push hook refuses a push that changes tooling until `bin/check --full` passes on the pushed revision; see the [tooling pre-push gate](docs/development-workflow.md#tooling-pre-push-gate). Use the existing Swift build and test checks for application changes. Read the [development workflow](docs/development-workflow.md) for cache cleanup and recovery.
-
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.
 
@@ -42,13 +35,14 @@ take precedence over this block and the foundation pages wherever they differ.
 
 ## Release Versions
 - App Store versions have zero or one dot (`2`, `2.1`); TestFlight versions have exactly two (`2.1.1`). Preserve this deliberate convention so the version identifies the intended release channel at a glance. See [Versioning and releases](docs/releases.md).
+- Nonfunctional changes need no version bump or upload; see the [release policy](docs/releases.md#nonfunctional-changes).
 
 ## Repo Guardrails
 - Public repo: no secrets, API keys, tokens, or credentials.
 - No commits or pushes unless explicitly asked; preserve user edits and never reset/revert unknown changes.
-- Build/test must end with zero compiler, linker, or framework runtime warnings, including deprecation, unused-result, and Sendable diagnostics. The one approved exception is the deprecation warning for Sentry's `beforeSendWithHint` setter in `PodHaven/AppLauncher.swift`, until the SDK offers a replacement; see [recovered-hang diagnostics](docs/sentry-recovered-hang-diagnostics.md). Intentional application warning/error logs from error-path tests are allowed; keep diagnostic reporting enabled.
+- Build/test must end with zero compiler, linker, or framework runtime warnings, including deprecation, unused-result, and Sendable diagnostics. The one approved exception is the deprecation warning for Sentry's `beforeSendWithHint` setter in `PodHaven/AppLauncher.swift`, until the SDK offers a replacement; see [recovered-hang diagnostics](docs/sentry-recovered-hang-diagnostics.md). Intentional application warning/error logs from error-path tests are allowed; keep diagnostic reporting and App Intents extraction enabled.
 - Never install or run an Xcode-direct/debug build on @jubishop's physical iPhone. See the [device restriction](memory/device-debug-builds-break-background-scheduling.md) for context.
-- The Lint Swift build phase fails before `SwiftCompile`: a lint-only failure says nothing about whether the code compiles. Format touched files with `swift-format format --in-place --configuration .swift-format <files>`, check with `bin/lint-swift-format`, then rebuild to surface compile errors.
+- Format every Swift file you touch with `swift-format format --in-place --configuration .swift-format <files>` and check with `bin/lint-swift-format`. The Lint Swift build phase fails before `SwiftCompile`, so a lint-only failure says nothing about whether the code compiles; rebuild after fixing it.
 
 ## Compatibility
 - Use modern APIs and avoid unnecessary compatibility layers. Change deployment targets or dependency versions when the requested work requires it, or when an upgrade is explicitly requested.
@@ -81,15 +75,13 @@ take precedence over this block and the foundation pages wherever they differ.
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
-- Before Swift validation, read the [current-revision workflow](docs/development-workflow.md#current-revision-swift-validation) for commands, targets, and evidence checks.
-- Before pushing, merging, or releasing functionally material changes, require [full local validation](docs/foundation/engineering-policy.md#checks) with `bin/test-all --ensure --revision <sha>` on the final clean revision. Require zero skipped tests and the warning requirements above. Documentation needs only `bin/check --documents-only` before it is pushed; comments and formatting-only changes use relevant focused checks.
+- Choose checks with the [validation table](docs/development-workflow.md#checks-and-project-extensions), and read the [current-revision workflow](docs/development-workflow.md#current-revision-swift-validation) before Swift validation.
+- Before pushing, merging, or releasing functionally material changes, run `bin/test-all --ensure --revision <sha>` on the final clean revision; it must pass with zero skipped tests and the warning requirements above. Comments and formatting-only changes use relevant focused checks.
 - Never substitute a historical revision or copy selected current files onto old source for acceptance. Label historical reproductions as diagnostic experiments.
-- Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`).
+- Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`). `.container` isolates Factory state per test so suites run fully concurrently; never use `.serialized`.
 - Use `FactoryKit` with `scope(.cached)` and then override with `context(.test)` in `PodHavenTests/Extensions/Container.swift` for test injection.
-- `@Suite("...", .container)` isolates Factory injected state per-test; supporting full test concurrency. Do not use `.serialized`.
 - Every functional change requires [a regression test that fails before implementation and passes after](docs/foundation/engineering-policy.md#test-driven-development).
 - Always pass `-hideShellScriptEnvironment` to `xcodebuild`; the shared scheme pre-action otherwise prints inherited environment values into raw logs.
-- Keep App Intents extraction and warning reporting enabled. Validate both the result bundle and raw build log through the workflow's evidence checks.
 - Use suite/class-level test filters; method filters can look green while running zero tests.
 - Async tests use `Wait.until`, `Wait.forValue`, polling helpers, `AsyncStream` continuations, or `withObservationTracking`; never `Task.sleep` or thread blockers (`DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`). Use `sleeper.sleep` only to advance production sleeps.
 - Application tests belong in `PodHavenTests`; macro tests belong in `PodHavenMacros/Tests`; repository tooling tests belong in `bin/tests`.
@@ -97,7 +89,7 @@ take precedence over this block and the foundation pages wherever they differ.
 - Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete all test-only surfaces.
 - Put the test seam at the OS-integration boundary, not above our own logic. Wrap system-framework types in app-owned protocols that the real types conform to (via `extension`) and fake those, so our orchestration runs for real in tests.
 - To assert on swift-log output, use `LogCapture.withSink` (per-test isolation via `@TaskLocal`).
-- Put files that tests write under `TestFiles.uniqueURL()`, not `URL.temporaryDirectory`. The test process removes that root when it exits, so add no per-test cleanup for those files; `bin/test-all` fails when tests leave new entries in the test host's temporary directory.
+- Put files that tests write under `TestFiles.uniqueURL()`, not `URL.temporaryDirectory`, and add no per-test cleanup for them; the test process removes that root when it exits.
 
 ## Previews
 - Every graphical change requires adequate Xcode `#Preview` coverage. Add or update preview blocks so the changed UI and its relevant states can be inspected without running the app, and verify that the previews build.
@@ -121,7 +113,6 @@ take precedence over this block and the foundation pages wherever they differ.
 - Avoid `try?`; use `do`/`catch`. Exceptions: `Task.checkCancellation()` and `sleeper.sleep()` when silent failure is intentional.
 - No force unwraps (`!`); use `Assert` or guarded error handling.
 - Never use `map`/`flatMap` to unwrap optionals; use `if let`/`guard let`. Reserve `map`/`flatMap` for collections.
-- Run `swift-format` on every Swift file you touch. Production code must pass `bin/lint-swift-format`.
 - Comments use `//`, not `///`; no doc comments. Default to no comment whenever possible, or very succinct comment if absolutely necessary.
 - No code-comment refs to repo items — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`); that context belongs in the commit/PR. Stable external urls are fine.
 - Don't bake specific constant values into comments; they drift when the constant changes and silently go wrong. Describe behavior relative to the named constant.
@@ -133,6 +124,3 @@ take precedence over this block and the foundation pages wherever they differ.
 - Prefer `@MainActor` on declarations over `MainActor.run`.
 - Model state transitions as enums, not `Bool` flags.
 - Prefer `struct` over `class`; reach for `class` only when reference identity or shared mutable state genuinely require it.
-
-Nonfunctional changes do not require a version bump or upload. Follow the
-[release policy](docs/releases.md#nonfunctional-changes).
