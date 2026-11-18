@@ -3,9 +3,8 @@ name: analyze-sentry-logs
 description: >-
   Analyze PodHaven Sentry structured logs for real issues, severity mismatches,
   and missing observability. Use only when explicitly invoked.
-user_invocable: true
 disable-model-invocation: true
-argument: Time span (such as 12h, 2d, or 1w) and an optional Sentry logs query
+argument-hint: "<time-span, such as 2d> [logs-query]"
 ---
 
 # Sentry Log Analysis
@@ -18,9 +17,9 @@ error issues and feedback belong to `analyze-sentry-issue` and
 
 ## Scope and access
 
-Require a time span. If none is supplied, ask before fetching logs. Accept an
-optional Sentry logs query. Default to warnings/errors unless the user
-explicitly requests other levels. User, trace, and release filters preserve
+Require a time span, such as `12h`, `2d`, or `1w`. If none is supplied, ask
+before fetching logs. Accept an optional Sentry logs query. Default to
+warnings/errors unless the user explicitly requests other levels. User, trace, and release filters preserve
 that default. Express requested levels through a severity filter; use
 `severity:*` for all levels.
 
