@@ -1,7 +1,7 @@
 {
-  "version": "4.1.1",
+  "version": "4.2.0",
   "source": "https://github.com/jubishop/project-starter",
-  "ref": "v4.1.1",
+  "ref": "v4.2.0",
   "managed": {
     "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
     "bin/_checks.py": "2d9f888ba9ee33804b1d0c02c60cedaf5738629df62a870a0321088e614efc06",
