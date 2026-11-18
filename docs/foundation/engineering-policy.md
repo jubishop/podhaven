@@ -300,8 +300,8 @@ enforced branch protection.
 
 ## Deployment decisions
 
-Documentation, agent instructions, task setup, comments, and other
-nonfunctional changes may be pushed without a deployment or release. A
+Documentation, agent instructions, comments, and other nonfunctional
+changes may be pushed without a deployment or release. A
 Project Starter sync with no manual follow-up needs no deployment. Assess every change since the last successful release.
 Deploy when behavior, dependencies, assets, migrations, configuration, or
 operations change, when uncertain, or when asked. A project that deploys on
