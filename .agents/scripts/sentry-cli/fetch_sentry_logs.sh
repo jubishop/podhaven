@@ -15,8 +15,8 @@
 #   user.id:<uuid>  — PodHaven device IDFV
 #   trace:<trace_id> — logs sharing a trace with an error event
 #
-# PodHaven: error events often tag environment:testFlight while structured logs
-# tag environment:deployed. Prefer user.id (+ optional release) over environment.
+# PodHaven: logs sent before the app detects its environment carry
+# environment:deployed. Prefer user.id (+ optional release) over environment.
 #
 # Outputs:
 #   <out>/detail.json   — individual entries (up to 1000; may be a sample)

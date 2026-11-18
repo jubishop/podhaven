@@ -19,9 +19,9 @@ error issues and feedback belong to `analyze-sentry-issue` and
 
 Require a time span, such as `12h`, `2d`, or `1w`. If none is supplied, ask
 before fetching logs. Accept an optional Sentry logs query. Default to
-warnings/errors unless the user explicitly requests other levels. User, trace, and release filters preserve
-that default. Express requested levels through a severity filter; use
-`severity:*` for all levels.
+warnings/errors unless the user explicitly requests other levels. User, trace,
+and release filters preserve that default. Express requested levels through a
+severity filter; use `severity:*` for all levels.
 
 PodHaven uses the device IDFV for `user.id`. Error events and structured logs
 can have different environment tags. Do not copy an event's environment filter
