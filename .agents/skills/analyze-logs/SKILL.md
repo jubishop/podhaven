@@ -30,7 +30,7 @@ Analyze with `scripts/log_summary.py "$LOG_PATH"`, whose `--help` gives its scop
 
 PodHaven mirrors every swift-log entry to the unified log in Simulator, My Mac, and device builds, interleaved with the system and framework events, such as XPC, AVFoundation, and networking, that the file log never captures: use it when the OS is in the failure path. Unlike the file log, it isn't rate-limited, but it carries only each entry's message, without metadata or call site. Triage the file log with `log_summary.py`, then pull the same window from the unified log with `log show --start/--end`.
 
-- Filter by process: `PodHaven` on the Simulator and My Mac alike. Subsystems share no prefix: each is a `LogSubsystem` type's name, such as `Feed` or `Play`, `PodHaven` for `Log.as("…")` string loggers, or `PodHavenShare` for the share extension. A subsystem filter misses string loggers, in the file log too.
+- Filter by process: `PodHaven` on the Simulator and My Mac alike. The extensions run as `PodHavenWidget`, `PodHavenShare`, and `PodHavenIntents`, and the last two log only here. Subsystems share no prefix: each is a `LogSubsystem` type's name, such as `Feed` or `Play`, `PodHaven` for `Log.as("…")` string loggers, or `PodHavenShare` for the share extension. A subsystem filter misses string loggers, in the file log too.
 - Levels remap: trace and debug to `Debug`, info and notice to `Info`, warning and error to `Error`, and critical to `Fault`, so predicate on `messageType`.
 - `log show` and `log stream` hide `Debug` and `Info` without `--info --debug`, and most app entries are debug.
 - Messages are public, never `<private>`.
