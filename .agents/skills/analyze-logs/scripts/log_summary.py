@@ -45,6 +45,11 @@ URL_ERROR_CODES: dict[int, tuple[str, str]] = {
     -1017: ("cannotParseResponse", "A task couldn't parse the response."),
 }
 URL_ERROR_PATTERN = re.compile(r"NSURLErrorDomain(?:\s+error)?[^-\d]*(?P<code>-\d+)")
+TIME_FORMATS_HELP = (
+    "Times accept YYYY-MM-DD, YYYY-MM-DD HH:MM[:SS], MM/DD HH:MM in the current year, "
+    "ISO-8601 with an optional zone, such as a Sentry timestamp, or epoch milliseconds. "
+    "Times without a zone are Pacific."
+)
 
 
 def parse_time_arg(s: str) -> int:
@@ -138,7 +143,8 @@ class Report:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Summarize PodHaven NDJSON logs and optionally filter or compare them."
+        description="Summarize PodHaven NDJSON logs and optionally filter or compare them.",
+        epilog=TIME_FORMATS_HELP,
     )
     parser.add_argument(
         "path",

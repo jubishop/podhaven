@@ -1,24 +1,14 @@
 # PodHaven Log Format
 
-Use this reference when you need exact field details or file-behavior context while analyzing `log.ndjson` or `widget-log.ndjson`.
+Use this reference when you need exact field details or file-behavior context while analyzing PodHaven's NDJSON logs. `scripts/locate_logs.py` lists where they live on this Mac.
 
 ## Files
 
-- `log.ndjson`: main app log file. The app constructs this path from `AppInfo.logFileURL`.
-- `widget-log.ndjson`: widget log file. The widget constructs this path from `WidgetInfo.logFileURL`.
-
-### Where files live on the Mac host
-
-Development (Run / `.dev` bundle) — **one rolling file per destination** (all worktrees share it):
-
-| Destination | App log | Widget log |
-|-------------|---------|------------|
-| Booted Simulator | `$DATA/Documents/PodHavenDev/log.ndjson` where `DATA=$(xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev data)` | `$GROUP/widget-log.ndjson` where `GROUP=$(xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev group.podhaven.shared.dev)` |
-| My Mac | `~/Library/Containers/com.artisanalsoftware.PodHaven.dev/Data/Documents/PodHavenDev/log.ndjson` | `~/Library/Group Containers/group.podhaven.shared.dev/widget-log.ndjson` |
-
-Production (Release bundle): `Documents/log.ndjson` (no `PodHavenDev` subdir) under the production container; app group `group.podhaven.shared`.
-
-The analyze-logs skill requires the user to supply the path explicitly. Run `scripts/locate_logs.py` for a reference list only — it does not choose a file.
+| File | Written by | Holds |
+| --- | --- | --- |
+| `log.ndjson` | App, at `AppInfo.logFileURL` | The newest entries across launches |
+| `widget-log.ndjson` | Widget, at `WidgetInfo.logFileURL` | The same, for the widget |
+| `recent-log.ndjson`, `recent-widget-log.ndjson` | App and widget, at each one's `recentLogFileURL` | A small tail of earlier launches plus the current launch's newest entries; Sentry events attach them |
 
 ## Entry Schema
 
@@ -37,33 +27,16 @@ Each line is a standalone JSON object with these fields:
 | `file` | string | Source file path reported by the logger |
 | `function` | string | Swift function name |
 | `line` | number | Source line number |
-
-## Unified log (os_log) mapping
-
-The same entries are mirrored to the OS unified log via `OSLogHandler` (capture commands live in the skill's "OS unified logs" section). Level correspondence:
-
-| swift-log level | NDJSON `level` | Unified `messageType` |
-| --- | --- | --- |
-| trace | 0 | Debug |
-| debug | 1 | Debug |
-| info | 2 | Info |
-| notice | 3 | Info |
-| warning | 4 | Error |
-| error | 5 | Error |
-| critical | 6 | Fault |
-
-- Unified-log **subsystem** = the entry's `subsystem` (a bare module name like `Feed`, `Database`, or `PodHaven`); **category** = `category`. Filter by **process** (`PodHaven`) — subsystems share no common prefix.
-- `log show` omits Debug/Info unless `--info --debug` is passed; most entries are Debug.
-- Only `message` is emitted to os_log (with `privacy: .public`, so never redacted). `source`, `file`, `function`, `line`, and `metadata` exist **only** in the NDJSON file.
-- The unified log adds thread IDs and interleaved system/framework events the NDJSON does not capture.
+| `sessionID` | string | One UUID per process launch |
+| `version`, `buildNumber`, `gitCommitHash` | string | The build that wrote the entry |
 
 ## Behavior
 
 - The log format is NDJSON, not a JSON array. Parse one line at a time.
 - `message` may decode to multiline text, including stack traces or state dumps.
-- When the file exceeds its max size, PodHaven truncates from the top and keeps the newest complete lines.
-- Truncation means the remaining file is still valid NDJSON, but older context may be missing.
-- The file writer appends a newline after every encoded entry.
+- When a file exceeds its max size, PodHaven truncates it from the top, keeping complete lines, so the rest is valid NDJSON but older context may be missing. The truncation notice goes only to the unified log. The recent-log files keep their earlier-launch tail through truncation.
+- The file logs rate-limit each call site, its `file` and `line`, after a burst; the unified log gets every entry. An `info` entry, `FileLogHandler admission limit — dropped N entries from this log site`, records each drop, so counts by call site understate a storm by those N.
+- The recent-log files cap each entry's size: an oversized entry keeps a prefix of its message, and its metadata becomes `fileLog.originalRecordBytes` and `fileLog.recordLimitBytes`.
 
 ## MetricKit Diagnostic Entries
 
@@ -109,14 +82,4 @@ The embedded JSON is shaped like:
 
 Release-build binaries are stripped and the dSYM never ships to device, so the frames are **unsymbolicated**: each carries `binaryUUID` + `offsetIntoBinaryTextSegment` but no function/file/line. Use `scripts/symbolicate_metrickit.py` to resolve them against dSYMs from Sentry's Debug Files API. The script also accepts one downloaded raw diagnostic file, such as the `metrickit-crash-diagnostic.json` attachment on a forwarded MetricKit crash event or the SDK's `MXDiagnosticPayload.json`; that file has no log timestamp, so `--around` excludes it.
 
-The `MetricKit` background-exit metrics directive (separate, `.info` or `.error`) uses a different shape: per-reason exit counts live as flat string keys in metadata (`normalAppExit`, `memoryResourceLimit`, …) and there is no `metricKitDiagnostic` field. The symbolication script ignores those.
-
-## Analysis Notes
-
-- Start with counts and repeated warnings or errors before reading individual entries.
-- Prefer structural filters such as subsystem, category, source file, and function before broad text matching.
-- Use recent scopes like `--last-hours` or `--tail` when the user only cares about the latest failure window.
-- Compare logs side-by-side when the user provides both app and widget files.
-- Use timestamps, `subsystem`, `category`, `source`, and `metadata` together to reconstruct the event chain.
-- Present user-facing timestamps in Pacific Time unless the user explicitly asks for another timezone.
-- When a MetricKit entry surfaces in the timeline, run `scripts/symbolicate_metrickit.py` against the same NDJSON to resolve the call stack instead of staring at raw `binaryUUID+offset` frames.
+The foreground- and background-exit metrics entries, also in category `MetricKit`, use a different shape: per-reason exit counts live as flat string keys in metadata (`normalAppExit`, `memoryResourceLimit`, …) and there is no `metricKitDiagnostic` field. The symbolication script ignores those.

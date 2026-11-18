@@ -50,7 +50,7 @@ from typing import Any, Callable, Iterable
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from log_summary import parse_time_arg
+from log_summary import TIME_FORMATS_HELP, parse_time_arg
 
 PACIFIC = ZoneInfo("America/Los_Angeles")
 
@@ -669,7 +669,8 @@ def serialize_entry(symbolicated: SymbolicatedEntry) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Symbolicate MetricKit call stacks captured in PodHaven NDJSON logs."
+        description="Symbolicate MetricKit call stacks captured in PodHaven NDJSON logs.",
+        epilog=TIME_FORMATS_HELP,
     )
     parser.add_argument(
         "path",
