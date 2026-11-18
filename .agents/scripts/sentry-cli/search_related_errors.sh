@@ -5,7 +5,7 @@
 #   search_related_errors.sh --period PERIOD --query QUERY [--out FILE] [--limit N]
 #
 # Examples:
-#   search_related_errors.sh --period '2026-05-30T00:10:00Z/2026-05-30T00:21:00Z' \
+#   search_related_errors.sh --period '2026-05-30T00:10:00Z..2026-05-30T00:21:00Z' \
 #     --query 'user.id:<uuid>'
 #   search_related_errors.sh --period 90d --query 'user.id:<uuid>' --limit 25
 
