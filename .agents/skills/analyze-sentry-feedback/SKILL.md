@@ -87,9 +87,9 @@ once, closed ones included, and match each feedback to its tracking issue as
 `bin/snfeedback` does. Present the entries newest first, one line each, and
 let the user choose one:
 `PODHAVEN-XX  podhaven:<id> — "<message on one line>" (<contact email or
-anonymous>; GitHub: #N intake|#N analyzed|#N closed|untracked)`. Treat
-anything typed with the pick as triage notes. If nothing is unresolved, say
-so and stop.
+anonymous>; GitHub: jubishop/podhaven#N intake|analyzed|closed, or
+untracked)`. Treat anything typed with the pick as triage notes. If nothing
+is unresolved, say so and stop.
 
 ## Step 1: Find the tracking issue and prior analysis
 
