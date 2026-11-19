@@ -170,7 +170,10 @@ class PrePushApplicationTests(unittest.TestCase):
         # Tooling tests read skill prose, so pages under bin/ and .agents/ count as tooling.
         self.git("checkout", "--quiet", "feature")
         (self.repo / ".agents/skills/example").mkdir(parents=True)
-        (self.repo / ".agents/skills/example/SKILL.md").write_text("# Example\n\nUse the example script.\n")
+        # bin/check --documents-only holds every skill's frontmatter to the Agent Skills rules.
+        (self.repo / ".agents/skills/example/SKILL.md").write_text(
+            "---\nname: example\ndescription: Use the example script.\ndisable-model-invocation: false\n---\n\n"
+            "# Example\n\nUse the example script.\n")
         skill = self.commit("Describe the example skill")
         result = self.push("feature")
         self.assertEqual(result.returncode, 0, result.stderr)
