@@ -14,11 +14,11 @@ Never infer or auto-select a log. Ask which run the user reproduced, such as the
 
 ## NDJSON file logs
 
-All Development runs on one destination, from every worktree, append to one rolling `log.ndjson`, so have the user copy it right after reproducing, or scope to the right launch with `--sessions` and each entry's `gitCommitHash`. On the Simulator, Settings → Debug → Share Logs saves the file to the Mac's `~/Desktop`.
+All Development runs on one destination, from every worktree, append to one rolling `log.ndjson`, so find the user's launch by its time, build, and commit in `--sessions`. On the Simulator, Settings → Debug → Share Logs saves the file to the Mac's `~/Desktop`.
 
 Analyze with `scripts/log_summary.py "$LOG_PATH"`, whose `--help` gives its scope, filter, and display flags and the time formats they accept, rather than reading a multi-megabyte file into context:
 
-1. Start with no filters for the overview, then keep a rolling log to one launch with `--sessions` and `--session N`.
+1. Start with no filters for the overview, then scope a rolling log to one launch with `--session N`.
 2. Prioritize `error` and `critical`, with relevant warnings; `--call-sites` finds storms that never reach warning level.
 3. Build the timeline with `--around`, which takes a Sentry timestamp as is, or `--after`/`--before`; prefer structural filters, such as `--subsystem`, `--category`, `--file`, and `--function`, to `--match`, and use `rg` on the raw file for line-level detail.
 4. Analyze app and widget logs separately, then compare them with `--compare-other`.
