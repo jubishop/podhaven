@@ -308,6 +308,148 @@ def validate(root, areas=("memory", "docs"), options=None):
     return errors
 
 
+# Skill frontmatter spellings that no supported runtime reads, each with the spelling Claude Code reads.
+UNREAD_SKILL_FIELDS = {"user_invocable": "user-invocable", "disable_model_invocation": "disable-model-invocation",
+                       "argument_hint": "argument-hint", "allowed_tools": "allowed-tools", "argument": "argument-hint"}
+# The Agent Skills limit on a description, in characters.
+DESCRIPTION_LIMIT = 1024
+# An agents/openai.yaml policy that keeps Codex from starting a skill on its own. Each line inside the block matches
+# only one way, so a block that lacks the setting fails in linear time.
+IMPLICIT_OFF = re.compile(r"^policy:[ \t]*(?:#.*)?\n(?:(?:[ \t#].*)?\n)*?"
+                          r"[ \t]+allow_implicit_invocation:[ \t]*false[ \t]*(?:#.*)?$", re.M)
+
+
+def frontmatter_entries(text):
+    """Return each top-level key of a SKILL.md's frontmatter, mapped to its value's lines: the rest of the key's
+    line, then the blank, indented, and sequence lines under it."""
+    lines = text.splitlines()
+    if not lines or lines[0].rstrip() != "---":
+        raise ValueError("missing frontmatter")
+    end = next((i for i, line in enumerate(lines[1:], 1) if line.rstrip() == "---"), None)
+    if end is None:
+        raise ValueError("frontmatter has no closing --- line")
+    entries, key = {}, None
+    for line in lines[1:end]:
+        if line.startswith("#"):
+            continue
+        if key and (not line.strip() or line[0] in " \t" or re.match(r"-(?:\s|$)", line)):
+            entries[key].append(line)
+            continue
+        entry = re.fullmatch(r"([^\s#][^:]*?)[ \t]*:(?:[ \t]+(.*)|[ \t]*)", line) if line.strip() else None
+        if line.strip() and not entry:
+            raise ValueError("unsupported frontmatter line: " + line)
+        if entry:
+            key = entry[1]
+            if key in entries:
+                raise ValueError("duplicate frontmatter field: " + key)
+            entries[key] = [entry[2] or ""]
+    return entries
+
+
+def block_scalar(header, lines):
+    """Return a | or > block scalar's value as YAML reads it, from its header, such as >-, and its lines."""
+    style, chomp = header[0], "".join(c for c in header if c in "+-")
+    digits = "".join(c for c in header if c.isdigit())
+    content = [line for line in lines if line.strip()]
+    indent = int(digits) if digits else len(content[0]) - len(content[0].lstrip(" ")) if content else 0
+    result, empty, started, spaced = "", 0, False, False
+    # Folding keeps the line breaks around a more-indented line, and turns any other single one into a space.
+    for line in lines:
+        if not line.strip():
+            empty += 1
+            continue
+        if len(line) - len(line.lstrip(" ")) < indent:
+            raise ValueError("block value has a line indented less than its first")
+        text = line[indent:]
+        if style == "|" or text[0] in " \t" or spaced:
+            result += "\n" * (empty + 1 if started else empty)
+        else:
+            result += " " if started and not empty else "\n" * empty
+        spaced = style == ">" and text[0] in " \t"
+        result += text
+        started, empty = True, 0
+    if chomp == "+":
+        return result + "\n" * (empty + 1 if started else empty)
+    return result + "\n" if started and not chomp else result
+
+
+def frontmatter_string(field, lines):
+    """Return a frontmatter field's string as YAML reads it, from a plain, quoted, or block value, or None when the
+    value is empty or null."""
+    first = lines[0].strip()
+    header = re.fullmatch(r"([|>](?:[1-9]?[+-]?|[+-][1-9]))(?:[ \t]+#.*)?", first)
+    if header:
+        return block_scalar(header[1], lines[1:])
+    # A flow value's lines fold together: one line break becomes a space, and each empty line a line break.
+    value, empty = "", 0
+    for line in (first, *(line.strip() for line in lines[1:])):
+        if not line:
+            empty += 1 if value else 0
+            continue
+        value += ("\n" * empty if empty else " ") if value else ""
+        value, empty = value + line, 0
+    if value.startswith('"'):
+        try:
+            decoded, end = json.JSONDecoder(strict=False).raw_decode(value)
+        except json.JSONDecodeError:
+            raise ValueError(field + " has an invalid double-quoted string") from None
+        if re.fullmatch(r"\s*(?:#.*)?", value[end:]):
+            return decoded
+        raise ValueError(field + " has text after its closing quote")
+    if value.startswith("'"):
+        match = re.fullmatch(r"'((?:[^']|'')*)'\s*(?:#.*)?", value, re.S)
+        if not match:
+            raise ValueError(field + " has an invalid single-quoted string")
+        return match[1].replace("''", "'")
+    value = re.split(r"(?:^|\s)#", value, maxsplit=1)[0].rstrip()
+    if re.search(r":(?:\s|$)", value) or re.match(r"[][{}>|&*!%@`,]|[-?:](?:\s|$)", value):
+        raise ValueError(field + " is not a plain YAML string; quote it or fold it with >-")
+    return None if value in ("", "~", "null", "Null", "NULL") else value
+
+
+def skill_problems(page):
+    """Return how a skill's SKILL.md breaks the frontmatter rules that Agent Skills runtimes read."""
+    try:
+        entries = frontmatter_entries(page.read_text())
+        name, description = (frontmatter_string(field, entries[field]) if field in entries else None
+                             for field in ("name", "description"))
+    except ValueError as error:
+        return [str(error)]
+    problems = [] if name == page.parent.name else ["name must be " + page.parent.name + ", its folder's name"]
+    description = description or ""
+    if not description.strip():
+        problems.append("description must not be empty")
+    elif len(description) > DESCRIPTION_LIMIT:
+        problems.append("description is {:,} characters; the Agent Skills limit is {:,}".format(
+            len(description), DESCRIPTION_LIMIT))
+    flag = entries.get("disable-model-invocation", [""])
+    explicit = re.sub(r"\s+#.*", "", flag[0]).strip()
+    if explicit not in ("true", "false") or any(line.strip() for line in flag[1:]):
+        problems.append("disable-model-invocation must be true or false")
+    else:
+        codex = page.parent / "agents/openai.yaml"
+        implicit_off = codex.is_file() and bool(IMPLICIT_OFF.search(codex.read_text()))
+        if explicit == "true" and not implicit_off:
+            problems.append("disable-model-invocation is true, so agents/openai.yaml must set "
+                            "policy.allow_implicit_invocation: false; Codex ignores the frontmatter field")
+        elif explicit == "false" and implicit_off:
+            problems.append("agents/openai.yaml sets policy.allow_implicit_invocation: false, so "
+                            "disable-model-invocation must be true")
+    problems += [wrong + " is a spelling no runtime reads; use " + right
+                 for wrong, right in UNREAD_SKILL_FIELDS.items() if wrong in entries]
+    return problems
+
+
+def skill_errors(root):
+    """Check each .agents/skills/<name>/SKILL.md against the frontmatter rules that Agent Skills runtimes read.
+
+    A skill folder that Git tracks as a symlink, into another repository, is that repository's to check.
+    """
+    pages = [p for p in tracked_files(root) if p.relative_to(root).parts[:2] == (".agents", "skills")
+             and len(p.relative_to(root).parts) == 4 and p.name == "SKILL.md"]
+    return [page.relative_to(root).as_posix() + ": " + problem for page in pages for problem in skill_problems(page)]
+
+
 def event_base():
     """Return the revision a GitHub Actions pull request or push run starts from, or None for any other run.
 
@@ -556,11 +698,11 @@ def main():
             fetch_base(root)
             return 0
         config = json.loads((root / ".config/knowledge.json").read_text())
-        errors = manifest_errors(root) + validate(root, options=config)
+        errors = manifest_errors(root) + validate(root, options=config) + skill_errors(root)
         if errors:
             print("\n".join(errors), file=sys.stderr)
             return 1
-        print("Document metadata, index coverage, and local links passed.", flush=True)
+        print("Document metadata, skill frontmatter, index coverage, and local links passed.", flush=True)
         if sys.argv[1:] == ["--documents-only"]:
             return 0
         if not shutil.which("shellcheck"):

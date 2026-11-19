@@ -150,7 +150,7 @@ allow direct pushes of production code.
 
 | Command | Runs |
 | --- | --- |
-| `bin/check --documents-only` | Managed-file hashes, document metadata, index coverage, local links, and heading anchors. |
+| `bin/check --documents-only` | Managed-file hashes, document metadata, index coverage, local links, heading anchors, and the frontmatter fields Agent Skills runtimes read in each `.agents/skills/<name>/SKILL.md`. |
 | `bin/check` | The documents-only checks, plus Python syntax, ShellCheck, and Git whitespace checks. ShellCheck lints `.envrc` and each `bin/` script whose shebang names `sh`, `bash`, `dash`, or `ksh`, in that dialect. |
 | `bin/check --full` | The `bin/check` checks, then the project's executable `bin/check-application`, when present. |
 | `bin/check --fetch-base` | No checks; in a GitHub Actions partial clone, it fetches what the whitespace checks read, as [hosted CI](#hosted-ci) describes. |
