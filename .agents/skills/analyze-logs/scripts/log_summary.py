@@ -163,7 +163,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--compare-other",
-        help="Compare the first log file to another log file using the same scope and filters.",
+        help=(
+            "Compare the first log file to another log file using the same scope and filters; "
+            "--session scopes the other file to that session's time range."
+        ),
     )
     parser.add_argument(
         "--min-level",
@@ -403,19 +406,31 @@ def scope_description(args: argparse.Namespace) -> str | None:
     return ", ".join(parts) if parts else None
 
 
-def apply_scope(entries: list[Entry], args: argparse.Namespace) -> list[Entry]:
+def select_session(entries: list[Entry], number: int) -> list[Entry]:
+    sessions = detect_sessions(entries)
+    if not 1 <= number <= len(sessions):
+        print(
+            f"error: session {number} not found "
+            f"({len(sessions)} sessions detected; run --sessions to list them)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return sessions[number - 1]
+
+
+def apply_scope(
+    entries: list[Entry], args: argparse.Namespace, session_range: dict[str, Any] | None = None
+) -> list[Entry]:
     scoped_entries = entries
 
-    if args.session is not None and scoped_entries:
-        sessions = detect_sessions(scoped_entries)
-        if not 1 <= args.session <= len(sessions):
-            print(
-                f"error: session {args.session} not found "
-                f"({len(sessions)} sessions detected; run --sessions to list them)",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        scoped_entries = sessions[args.session - 1]
+    if session_range is not None:
+        scoped_entries = [
+            entry
+            for entry in scoped_entries
+            if session_range["start_ms"] <= entry.timestamp_ms <= session_range["end_ms"]
+        ]
+    elif args.session is not None and scoped_entries:
+        scoped_entries = select_session(scoped_entries, args.session)
 
     if args.after is not None and scoped_entries:
         cutoff_ms = parse_time_arg(args.after)
@@ -711,9 +726,11 @@ def serialize_issue_group(group: IssueGroup) -> dict[str, Any]:
     }
 
 
-def build_report(path: Path, args: argparse.Namespace) -> Report:
+def build_report(
+    path: Path, args: argparse.Namespace, session_range: dict[str, Any] | None = None
+) -> Report:
     file_entries, parse_errors = load_entries(path)
-    active_entries = apply_scope(file_entries, args)
+    active_entries = apply_scope(file_entries, args, session_range)
     min_level = LEVEL_VALUES[args.min_level] if args.min_level else None
     filtered = filters_applied(args)
     selected_entries = [
@@ -1212,7 +1229,11 @@ def main() -> int:
         if not comparison_path.exists():
             print(f"Comparison log file not found: {comparison_path}", file=sys.stderr)
             return 1
-        comparison_report = build_report(comparison_path, args)
+        # Session numbers are per file, so the other file takes this session's time range.
+        session_range = None
+        if args.session is not None:
+            session_range = range_summary(select_session(primary_report.file_entries, args.session))
+        comparison_report = build_report(comparison_path, args, session_range)
 
     if args.json_output:
         payload: dict[str, Any] = {"primary": report_to_dict(primary_report, args)}

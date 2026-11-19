@@ -112,6 +112,27 @@ class TestSessions(CLITestCase):
             [(None, 2), (None, 2), (SESSION_A, 2)],
         )
 
+    def test_compare_other_scopes_to_the_primary_sessions_time_range(self) -> None:
+        widget = {"source": "PodHavenWidget", "subsystem": "Widget"}
+        app_log = self.write_log(
+            entry(1_000, SESSION_A, **LAUNCH),
+            entry(2_000, SESSION_A),
+            entry(100_000, SESSION_B, **LAUNCH),
+            entry(101_000, SESSION_B),
+        )
+        widget_log = self.write_log(
+            entry(500, "widget-1", **widget),
+            entry(1_500, "widget-2", **widget),
+            entry(50_000, "widget-3", **widget),
+            entry(100_500, "widget-4", **widget),
+        )
+
+        report = json.loads(self.run_cli(app_log, "--session", "2", "--compare-other", str(widget_log), "--json"))
+
+        secondary = report["comparison"]["secondary"]
+        self.assertEqual(secondary["active_entries"], 1)
+        self.assertEqual(secondary["active_range"]["start_ms"], 100_500)
+
 
 class TestMatch(CLITestCase):
     def test_match_finds_session_id_and_commit(self) -> None:
