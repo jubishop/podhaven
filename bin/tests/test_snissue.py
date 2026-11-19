@@ -159,6 +159,43 @@ else:
         self.assertEqual(calls.count("gh"), 1)
         self.assertEqual(calls.count("sentry"), 1)
 
+    def test_list_prints_plain_rows_without_picking_or_launching(self):
+        for command in ("fzf", "claude"):
+            (self.bin / command).unlink()
+        result = self.run_command("--list")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(result.stdout.splitlines(), [
+            "PODHAVEN-AC  1003 — Synthetic new issue  "
+            "(error; 4 events; 2 users; GitHub: jubishop/podhaven#42 closed)",
+            "PODHAVEN-AB  1002 — Synthetic middle issue  "
+            "(unknown; ? events; ? users; GitHub: jubishop/podhaven#44 intake)",
+            "PODHAVEN-AA  1001 — Synthetic old issue  "
+            "(warning; 12 events; 3 users; GitHub: jubishop/podhaven#45 analyzed)",
+        ])
+        self.assertEqual((self.directory / "calls").read_text().splitlines(), ["sentry", "gh"])
+
+    def test_list_of_nothing_succeeds_without_github(self):
+        self.write("sentry.json", {"data": [], "hasMore": False})
+        result = self.run_command("--list")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "No unresolved Sentry issues found.\n")
+        self.assertFalse((self.directory / "gh.args").exists())
+
+    def test_list_failures_stop(self):
+        for command, message in (
+            ("sentry", "could not fetch unresolved"),
+            ("gh", "could not fetch PodHaven GitHub issues"),
+        ):
+            with self.subTest(command=command):
+                self.env["SNISSUE_FAIL"] = command
+                self.assert_stopped(self.run_command("--list"), message)
+        del self.env["SNISSUE_FAIL"]
+        payload = self.read("sentry.json")
+        payload["hasMore"] = True
+        self.write("sentry.json", payload)
+        self.assert_stopped(self.run_command("--list"), "refusing to show a partial list")
+
     def test_mentions_and_pull_requests_do_not_track(self):
         self.write("gh.json", [[
             {"number": 90, "state": "open", "title": "", "body": "<!-- sentry-issue:1003 -->",

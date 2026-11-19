@@ -73,23 +73,9 @@ instructions given to `fix-issue` as this skill's triage notes.
 ## Step 0: No reference given? List unresolved feedback
 
 When no feedback reference is given or obvious from the conversation, list
-the unresolved feedback instead of asking for one:
-
-```bash
-sentry issue list artisanal-software/podhaven \
-  --query 'issue.category:feedback is:unresolved' \
-  --period 365d --limit 1000 --fresh --json \
-  --fields id,shortId,metadata,permalink
-```
-
-Higher numeric IDs are newer. Fetch GitHub issues in `jubishop/podhaven`
-once, closed ones included, and match each feedback to its tracking issue as
-`bin/snfeedback` does. Present the entries newest first, one line each, and
-let the user choose one:
-`PODHAVEN-XX  podhaven:<id> — "<message on one line>" (<contact email or
-anonymous>; GitHub: jubishop/podhaven#N intake|analyzed|closed, or
-untracked)`. Treat anything typed with the pick as triage notes. If nothing
-is unresolved, say so and stop.
+the unresolved feedback with `bin/snfeedback --list` instead of asking for
+one, and let the user choose a row. Treat anything typed with the pick as
+triage notes. If nothing is unresolved, say so and stop.
 
 ## Step 1: Find the tracking issue and prior analysis
 

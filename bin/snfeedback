@@ -1,7 +1,7 @@
 #!/usr/bin/env fish
 
 function __snfeedback_usage
-    echo "Usage: snfeedback [feedback-url|feedback-slug|feedback-id]"
+    echo "Usage: snfeedback [--list|feedback-url|feedback-slug|feedback-id]"
 end
 
 function __snfeedback_parse_reference --argument-names reference
@@ -26,8 +26,9 @@ function __snfeedback_parse_reference --argument-names reference
     echo "$slug"
 end
 
-function __snfeedback_pick
-    set -g __snfeedback_selected_slug
+# Sets __snfeedback_rows to "<slug>\t<display>" rows, newest first; list rows are plain, with full issue references.
+function __snfeedback_collect --argument-names format
+    set -g __snfeedback_rows
 
     if not type -q sentry
         echo "Error: sentry is required to list Sentry feedback"
@@ -106,14 +107,21 @@ function __snfeedback_pick
 
     if test (count $raw_rows) -eq 0
         echo "No unresolved Sentry feedback found."
-        return 1
+        return 0
     end
 
-    set -l cyan (set_color --bold cyan)
-    set -l magenta (set_color magenta)
-    set -l dim (set_color brblack)
-    set -l normal (set_color normal)
-    set -l feedback_rows
+    set -l cyan
+    set -l magenta
+    set -l dim
+    set -l normal
+    set -l issue_prefix jubishop/podhaven#
+    if test "$format" != list
+        set cyan (set_color --bold cyan)
+        set magenta (set_color magenta)
+        set dim (set_color brblack)
+        set normal (set_color normal)
+        set issue_prefix "#"
+    end
 
     for raw_row in $raw_rows
         set -l parts (string split \t -- "$raw_row")
@@ -167,14 +175,25 @@ function __snfeedback_pick
             end
 
             if test "$github_parts[2]" = closed
-                set tracking "#$github_parts[1] closed"
+                set tracking "$issue_prefix$github_parts[1] closed"
             else
-                set tracking "#$github_parts[1] $github_parts[3]"
+                set tracking "$issue_prefix$github_parts[1] $github_parts[3]"
             end
         end
 
         set -l display "$cyan$short_id$normal  $magenta$slug$normal — \"$message\"  $dim($contact; GitHub: $tracking)$normal"
-        set -a feedback_rows (string join \t -- "$slug" "$display")
+        set -a __snfeedback_rows (string join \t -- "$slug" "$display")
+    end
+end
+
+function __snfeedback_pick
+    set -g __snfeedback_selected_slug
+
+    __snfeedback_collect picker
+    or return
+    set -l feedback_rows $__snfeedback_rows
+    if test (count $feedback_rows) -eq 0
+        return 1
     end
 
     set -l selection
@@ -223,6 +242,14 @@ function __snfeedback_main
     if test (count $argv) -gt 1
         __snfeedback_usage
         return 1
+    end
+    if test (count $argv) -eq 1; and test "$argv[1]" = --list
+        __snfeedback_collect list
+        or return
+        for row in $__snfeedback_rows
+            string split -m 1 -f 2 \t -- "$row"
+        end
+        return 0
     end
 
     if not git rev-parse --is-inside-work-tree >/dev/null 2>&1

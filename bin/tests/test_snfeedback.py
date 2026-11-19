@@ -159,6 +159,43 @@ else:
         ])
         self.assertEqual(self.calls(), ["sentry", "gh", "fzf", "claude"])
 
+    def test_list_prints_plain_rows_without_picking_or_launching(self):
+        for command in ("fzf", "claude"):
+            (self.bin / command).unlink()
+        result = self.run_command("--list")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(result.stdout.splitlines(), [
+            'PODHAVEN-FD  podhaven:2004 — "Synthetic new report"  '
+            "(new@example.com; GitHub: jubishop/podhaven#42 intake)",
+            'PODHAVEN-FC  podhaven:2003 — "Synthetic closed report"  '
+            "(anonymous; GitHub: jubishop/podhaven#50 closed)",
+            'PODHAVEN-FB  podhaven:2002 — "Synthetic title fallback"  '
+            "(anonymous; GitHub: jubishop/podhaven#61 analyzed)",
+            'PODHAVEN-FA  podhaven:2001 — "Synthetic old report"  (old@example.com; GitHub: untracked)',
+        ])
+        self.assertEqual(self.calls(), ["sentry", "gh"])
+
+    def test_list_of_nothing_succeeds(self):
+        self.write("sentry.json", {"data": [], "hasMore": False})
+        result = self.run_command("--list")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "No unresolved Sentry feedback found.\n")
+
+    def test_list_failures_stop(self):
+        for command, message in (
+            ("sentry", "could not fetch unresolved PodHaven feedback"),
+            ("gh", "could not fetch PodHaven GitHub issues"),
+        ):
+            with self.subTest(command=command):
+                self.env["SNFEEDBACK_FAIL"] = command
+                self.assert_stopped(self.run_command("--list"), message)
+        del self.env["SNFEEDBACK_FAIL"]
+        payload = self.read("sentry.json")
+        payload["hasMore"] = True
+        self.write("sentry.json", payload)
+        self.assert_stopped(self.run_command("--list"), "refusing to show a partial list")
+
     def test_picker_launches_selected_row(self):
         self.env["SNFEEDBACK_SELECT"] = "2"
         self.assert_launched(self.run_command(), "podhaven:2002")

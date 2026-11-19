@@ -68,25 +68,9 @@ instructions given to `fix-issue` as this skill's triage notes.
 ## Step 0: No reference given? List unresolved issues
 
 When no issue reference is given or obvious from the conversation, list the
-unresolved issues instead of asking for one:
-
-```bash
-sentry issue list artisanal-software/podhaven \
-  --query 'is:unresolved !issue.category:feedback !has:diagnostic-run' \
-  --period 365d --limit 1000 --sort new --fresh --json \
-  --fields id,shortId,title,level,count,userCount
-```
-
-Like the daily checker, this skips issues whose only events came from the
-`bin/integration` probes, which tag each event `diagnostic-run`. Fetch GitHub
-issues in `jubishop/podhaven` once, closed ones included, and match each
-Sentry issue to its tracking issue as `bin/snissue` does, by the rules in
-Step 2. Present the entries newest first, one line each, and let the user
-choose one:
-`PODHAVEN-XX  <numeric-id> — <title> (<level>; <N> events; <N> users;
-GitHub: jubishop/podhaven#N intake|analyzed|closed, or untracked)`. Treat
-anything typed with the pick as triage notes. If nothing is unresolved, say so
-and stop.
+unresolved issues with `bin/snissue --list` instead of asking for one, and let
+the user choose a row. Treat anything typed with the pick as triage notes. If
+nothing is unresolved, say so and stop.
 
 ## Step 1: Resolve the reference
 

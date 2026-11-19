@@ -441,9 +441,10 @@ Mac.
 Run `bin/snfeedback` to select unresolved user feedback, or `bin/snissue` to
 select an unresolved issue that is not feedback. Both show the newest items
 first, with activity within the last 365 days. They use `fzf` when installed
-and a numbered prompt otherwise. Both are fish scripts, so they require fish.
-Listing requires authenticated `sentry` and `gh` commands plus `jq`; analysis
-requires Claude Code (`claude`).
+and a numbered prompt otherwise. With `--list`, they print the rows and exit
+instead, which is how the analysis skills list them. Both are fish scripts, so
+they require fish. Listing requires authenticated `sentry` and `gh` commands
+plus `jq`; analysis requires Claude Code (`claude`).
 
 `bin/snissue` shows severity, available event and user counts, and the state
 of the GitHub issue that tracks the Sentry issue. It accepts a Sentry issue
