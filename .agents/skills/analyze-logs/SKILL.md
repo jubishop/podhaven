@@ -24,7 +24,7 @@ Analyze with `scripts/log_summary.py "$LOG_PATH"`, whose `--help` gives its scop
 4. Analyze app and widget logs separately, then compare them with `--compare-other`.
 5. Resolve a MetricKit diagnostic's call stack with `scripts/symbolicate_metrickit.py`.
 
-[The log format](references/podhaven-log-format.md) gives the entry fields, how each file is truncated and rate-limited, and the MetricKit payload.
+[The log format](references/podhaven-log-format.md) gives the entry fields, how each file is truncated and rate-limited, and MetricKit entries.
 
 ## OS unified log
 

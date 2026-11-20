@@ -679,8 +679,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--around",
         type=parse_time_arg,
-        help="Restrict to MetricKit entries within --window-ms of this time "
-        "(datetime string, ISO-8601 with optional timezone, or epoch ms).",
+        help="Restrict to MetricKit log entries within --window-ms of this time. "
+        "A raw diagnostic file has no log time, so it never matches.",
     )
     parser.add_argument(
         "--window-ms",
