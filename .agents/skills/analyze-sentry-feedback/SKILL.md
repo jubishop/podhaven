@@ -114,25 +114,17 @@ bash .agents/scripts/sentry-cli/fetch_feedback_bundle.sh <slug> \
   --out "$FEEDBACK_WORK/bundle"
 ```
 
-Keep `FEEDBACK_WORK` for the later steps. The bundle holds `issue.json`, the
-feedback event as `event_<id>.json`, `activities.json`, `notes.json`, and
-`attachments.json`. A missing activities or notes file means that evidence is
-unavailable, not empty.
-
-Take from them the verbatim message, the contact, the submission time
-(`dateCreated`), every note and activity after submission in time order, and
-the event's tags: `release`, `environment`, `git-commit-hash`,
-`log-session-id`, device, OS, and the user's `id`, the device's IDFV.
-PodHaven's form links no error event and records no breadcrumbs, so the
-attachments and the errors near the report carry the evidence. Show the user
-a short header: slug, submission time, reporter or "anonymous", release and
-environment, and the message, quoted verbatim.
+Keep `FEEDBACK_WORK` for the later steps. The helper's summary gives the
+facts later steps use, such as the reporter's `user.id`, which is the
+device's IDFV, and the Sentry activity after submission; show the user its
+header and the message verbatim. PodHaven's form links no error event and
+records no breadcrumbs, so the attachments and the errors near the report
+carry the evidence.
 
 When the feedback resembles a known or already-fixed bug, test the reporter's
 build against the fix as
 [PodHaven correlation](../analyze-sentry-issue/references/podhaven-correlation.md#builds-and-known-fixes)
-describes, and state each result in the report. A recurrence on a build that
-contains the fix means the fix is incomplete, not that the build is stale.
+describes, and state each result in the report.
 
 ## Step 3: Find the reporter's errors before the report
 
@@ -159,9 +151,7 @@ The feedback event carries the reporter's full `log.ndjson` and
 `widget-log.ndjson`, the bounded `recent-log.ndjson` and
 `recent-widget-log.ndjson` that every PodHaven event attaches, and a
 `screenshot.jpg` or `screenshot-<n>.jpg` for each photo the reporter added.
-Download them all into a fresh path, handling partial downloads as
-[PodHaven correlation](../analyze-sentry-issue/references/podhaven-correlation.md#attachments-and-ndjson-logs)
-describes:
+Download them all into a fresh path:
 
 ```bash
 ATTACHMENT_DIR="$(mktemp -d "$FEEDBACK_WORK/attempt.XXXXXX")/attachments"
@@ -170,18 +160,16 @@ bash .agents/scripts/sentry-cli/download_event_attachments.sh \
   --dir "$ATTACHMENT_DIR" --all
 ```
 
-Look at the screenshots. Analyze the logs through `analyze-logs`; the
-downloaded paths satisfy its source requirement. The report is almost always
-about the last app launch before submission, the one whose entries carry the
-event's `log-session-id` as their `sessionID`, so keep the analysis to it.
-Check the widget log whenever widget behavior is plausible, such as the home
-or lock screen, Up Next, artwork, or a widget that won't update.
+Look at the screenshots, and handle partial downloads and analyze the logs as
+[PodHaven correlation](../analyze-sentry-issue/references/podhaven-correlation.md#attachments-and-ndjson-logs)
+describes. The report is almost always about the last app launch before
+submission, the one whose entries carry the event's `log-session-id` as their
+`sessionID`, so keep the analysis to it.
 
 The app writes and uploads these files; Sentry only carries them. A log that
 is missing, empty, or ends far from the submission time therefore reflects the
 app's logging or attachment behavior, and any fix for it belongs there. Say
-how it limits the timeline. If the event has no log attachments, report that
-rather than substituting other logs, unless the user supplies their paths.
+how it limits the timeline.
 
 ## Step 5: Synthesize
 

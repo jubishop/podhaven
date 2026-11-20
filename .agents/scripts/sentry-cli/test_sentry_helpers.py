@@ -51,6 +51,9 @@ if args[:2] == ["issue", "view"]:
         "lastSeen": "2025-01-03T03:04:05Z",
         "org": "artisanal-software",
         "project": {"slug": project},
+        **({"metadata": {"message": "First line\\nSecond line", "name": "Example Reporter",
+                         "contact_email": "reporter@example.com"}}
+           if os.environ.get("FAKE_SENTRY_FEEDBACK_DETAILS") == "1" else {}),
     }))
     raise SystemExit(0)
 
@@ -64,6 +67,12 @@ if args[:2] == ["issue", "events"]:
             "title": "Example failure",
             "entries": [{"type": "exception", "data": {"values": [{"type": "ExampleError", "value": "failed"}]}}],
             "tags": [],
+            **({"tags": [{"key": key, "value": value} for key, value in (
+                    ("release", "example-release"), ("environment", "testFlight"),
+                    ("git-commit-hash", "abc123"), ("log-session-id", "session-1"),
+                    ("device", "iPhone18,1"), ("os", "iOS 27.0.1"))],
+                "user": {"id": "user-1"}}
+               if os.environ.get("FAKE_SENTRY_FEEDBACK_DETAILS") == "1" else {}),
         }]}))
     raise SystemExit(0)
 
@@ -88,8 +97,18 @@ if args and args[0] == "api":
                  "contexts": {"feedback": {"message": "Example feedback"}}}]
     elif endpoint.endswith("/activities/"):
         body = {"activity": [{"id": "activity-1", "type": "set_unresolved"}]}
+        if os.environ.get("FAKE_SENTRY_FEEDBACK_DETAILS") == "1":
+            body = {"activity": [
+                {"id": "activity-2", "type": "set_resolved", "dateCreated": "2025-01-04T00:00:00Z",
+                 "user": {"name": "Example Developer"}},
+                {"id": "note-1", "type": "note", "dateCreated": "2025-01-03T04:00:00Z",
+                 "user": {"name": "Example Developer"}, "data": {"text": "Turned out\\nto be X"}},
+            ]}
     elif endpoint.endswith("/notes/"):
         body = [{"id": "note-1", "text": "Example note"}]
+        if os.environ.get("FAKE_SENTRY_FEEDBACK_DETAILS") == "1":
+            body = [{"id": "note-1", "type": "note", "dateCreated": "2025-01-03T04:00:00Z",
+                     "user": {"name": "Example Developer"}, "data": {"text": "Turned out\\nto be X"}}]
     else:
         raise SystemExit(f"unsupported fake API endpoint: {endpoint}")
     response = {"status": 200, "statusText": "OK", "body": body}
@@ -350,6 +369,40 @@ raise SystemExit(2)
                                  {"activity": [{"id": "activity-1", "type": "set_unresolved"}]})
                 self.assertEqual(json.loads((output / "notes.json").read_text()),
                                  [{"id": "note-1", "text": "Example note"}])
+
+    def test_feedback_fetch_summarizes_triage_facts(self) -> None:
+        result = self.run_script(
+            "fetch_feedback_bundle.sh", "podhaven:123", "--out", str(self.root / "feedback"),
+            extra_environment={"FAKE_SENTRY_FEEDBACK_DETAILS": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for line in (
+            "  Reporter: Example Reporter <reporter@example.com>",
+            "  Release: example-release  Env: testFlight",
+            "  Commit: abc123  Log session: session-1",
+            "  Device: iPhone18,1  OS: iOS 27.0.1",
+            "  User ID: user-1",
+            "> First line\n> Second line",
+            "Activity:\n"
+            "  2025-01-03T04:00:00Z  Example Developer: note: Turned out\n    to be X\n"
+            "  2025-01-04T00:00:00Z  Example Developer: set_resolved\n",
+        ):
+            self.assertIn(line, result.stdout)
+
+    def test_feedback_fetch_marks_missing_triage_facts(self) -> None:
+        result = self.run_script(
+            "fetch_feedback_bundle.sh", "podhaven:123", "--out", str(self.root / "feedback"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for line in ("  Reporter: anonymous", "  Commit: unknown  Log session: unknown",
+                     "  User ID: unknown", "  unknown  Sentry: set_unresolved"):
+            self.assertIn(line, result.stdout)
+
+        result = self.run_script(
+            "fetch_feedback_bundle.sh", "podhaven:123", "--out", str(self.root / "unavailable"),
+            extra_environment={"FAKE_SENTRY_API_MATCH": "/issues/123/",
+                               "FAKE_SENTRY_API_MODE": "exit"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Activity: unavailable", result.stdout)
 
     def test_required_api_responses_fail_clearly(self) -> None:
         cases = (
