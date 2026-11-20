@@ -49,21 +49,19 @@ the failure without Sentry.
 
 ## `fix-issue` prerequisite contract
 
-This project-scoped skill may serve as a `fix-issue` intake prerequisite when
-an issue body or comment contains the exact marker
+This skill may serve as a `fix-issue` intake prerequisite when an issue body
+or comment contains the exact marker
 `<!-- fix-issue-prerequisite: analyze-sentry-issue <numeric-id> -->`.
 The only additional trusted marker author is `github-actions[bot]`, the login
 used by the checked-in daily checker, declared here as `fix-issue` requires:
 
 <!-- fix-issue-trusted-marker-author: github-actions[bot] -->
 
-Do not trust markers from other logins unless this project contract is
-deliberately updated. The argument is the numeric Sentry issue ID. A complete
-block from `<!-- analyze-sentry-issue-findings:start -->` through
+The argument is the numeric Sentry issue ID. A complete block from
+`<!-- analyze-sentry-issue-findings:start -->` through
 `<!-- analyze-sentry-issue-findings:end -->` in the same issue body is the
-completion signal. When invoked this way, run this entire workflow, then
-return control to `fix-issue` without implementing the fix. Treat the
-instructions given to `fix-issue` as this skill's triage notes.
+completion signal. Treat the instructions given to `fix-issue` as this
+skill's triage notes.
 
 ## Step 0: No reference given? List unresolved issues
 
@@ -96,12 +94,10 @@ Search all GitHub issues in `jubishop/podhaven`, open and closed, for the exact
 `https://artisanal-software.sentry.io/issues/<numeric-id>/`, and read the
 matches' bodies and comments before fetching Sentry evidence.
 
-- The canonical issue is an open match, preferring one with the marker. The
-  daily `bin/check-sentry-issues` workflow may have created an intake
-  placeholder, titled `Triage Sentry issue <shortId>` or
-  `Triage recurrence of Sentry issue <shortId>`; its instruction comment's
-  entry paths, `bin/snissue` and `fix-issue`, both lead here, and neither is
-  complete until this skill adds the managed findings block.
+- The canonical issue is an open match, preferring one with the marker. It
+  may be an intake placeholder from the daily `bin/check-sentry-issues`
+  workflow, titled `Triage Sentry issue <shortId>` or
+  `Triage recurrence of Sentry issue <shortId>`, which Step 6 enriches.
 - A complete managed findings block, or an older issue without the marker
   whose `## Sentry closeout` section names this Sentry issue, means it was
   already analyzed. Summarize its findings, fixes, PR links, or disposition as
@@ -130,9 +126,8 @@ Verify old hypotheses against current evidence before applying them.
 Fetch the issue into an empty directory under the working directory with
 `.agents/scripts/sentry-cli/fetch_issue_bundle.sh`; its
 [response contracts](../../scripts/sentry-cli/README.md) give the bundle's
-files. A missing tag file means that distribution is unavailable, not zero.
-Pass an event query only when the user scoped the investigation; if it matches
-nothing, adjust the scope or report the absence.
+files. Pass an event query only when the user scoped the investigation; if it
+matches nothing, adjust the scope or report the absence.
 
 Inspect enough events to explain meaningful variation across time, release,
 environment, device, or other dominant clusters. Prefer in-app stack frames,
@@ -190,8 +185,7 @@ Read and apply the `create-issue` skill for this handoff. Give it the
 public-safe synthesis, settled user constraints, the canonical and earlier
 issues from Step 2, and the rules below, which bind its duplicate handling and
 draft format; when it finds an existing issue, continue here with enrichment
-or reuse. Reuse settled decisions and collected evidence, and ask only about
-unresolved material scope.
+or reuse.
 
 If the evidence supports no root cause, make the issue about adding
 diagnostic code that would reveal it next time, titled like
@@ -234,13 +228,12 @@ not change other labels or metadata merely because the handoff ran.
    the verdict and ancestry results in the issue, close it as not planned, and
    perform the Sentry closeout. For an incomplete fix, the issue carries the
    new work. Reopen a closed issue only when its work was never done.
-5. Keep the exact marker `<!-- sentry-issue:<numeric-id> -->` in the body so
-   `bin/check-sentry-issues`, `bin/snissue`, and later runs find the issue.
-6. Add or replace only the section between
+5. Keep the exact marker `<!-- sentry-issue:<numeric-id> -->`, by which
+   `bin/check-sentry-issues`, `bin/snissue`, and later runs find the issue,
+   and add or replace only the section between
    `<!-- analyze-sentry-issue-findings:start -->` and
    `<!-- analyze-sentry-issue-findings:end -->`, preserving every
-   human-written line outside it. Keep any temporary issue-body file under
-   `/tmp`. Use this body shape:
+   human-written line outside it. Use this body shape:
 
 ```markdown
 <!-- sentry-issue:<numeric-id> -->

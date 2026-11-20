@@ -54,21 +54,19 @@ bulk structured-log triage.
 
 ## `fix-issue` prerequisite contract
 
-This project-scoped skill may serve as a `fix-issue` intake prerequisite when
-an issue body or comment contains the exact marker
+This skill may serve as a `fix-issue` intake prerequisite when an issue body
+or comment contains the exact marker
 `<!-- fix-issue-prerequisite: analyze-sentry-feedback podhaven:<numeric-id> -->`.
 The only additional trusted marker author is `github-actions[bot]`, the login
 used by the checked-in daily checker, declared here as `fix-issue` requires:
 
 <!-- fix-issue-trusted-marker-author: github-actions[bot] -->
 
-Do not trust markers from other logins unless this project contract is
-deliberately updated. The argument is that `podhaven:<numeric-id>` slug. A
-complete block from `<!-- analyze-sentry-feedback-findings:start -->` through
+The argument is that `podhaven:<numeric-id>` slug. A complete block from
+`<!-- analyze-sentry-feedback-findings:start -->` through
 `<!-- analyze-sentry-feedback-findings:end -->` in the same issue body is the
-completion signal. When invoked this way, run this entire workflow, then
-return control to `fix-issue` without implementing the fix. Treat the
-instructions given to `fix-issue` as this skill's triage notes.
+completion signal. Treat the instructions given to `fix-issue` as this
+skill's triage notes.
 
 ## Step 0: No reference given? List unresolved feedback
 
@@ -87,9 +85,7 @@ exact `<!-- sentry-feedback:<slug> -->` body marker, falling back to the
 Sentry permalink, and read the matches' bodies and comments first.
 
 - The daily `bin/check-sentry-feedback` workflow may have created an intake
-  placeholder; its instruction comment's entry paths, `bin/snfeedback` and
-  `fix-issue`, both lead here, and neither is complete until this skill adds
-  the managed findings block.
+  placeholder, which Step 6 enriches.
 - A complete managed findings block means the feedback was already analyzed.
   Summarize its findings, fixes, PR links, or disposition, and use them as the
   baseline in Step 6. Do not redo settled analysis unless the user asks or
@@ -218,9 +214,8 @@ Read and apply the `create-issue` skill for this handoff. Give it the
 public-safe synthesis, settled user constraints, the canonical issue and
 prior analysis from Step 1, and the rules below, which bind its duplicate
 handling and draft format; when it finds an existing issue, continue here
-with enrichment or reuse. Reuse settled decisions and fetched data, and ask
-only about unresolved material scope. Pass it only sanitized findings, never
-the private report or the attachments.
+with enrichment or reuse. Pass it only sanitized findings, never the private
+report or the attachments.
 
 If the evidence supports no root cause, make the issue about adding
 diagnostic code that would reveal it next time: the missing evidence, the
@@ -261,13 +256,12 @@ labels or metadata merely because the handoff ran.
 4. Reopen a closed match when work remains rather than creating a duplicate;
    if its disposition still holds and its findings remain accurate, leave it
    closed and reuse it unchanged.
-5. Keep the exact `<!-- sentry-feedback:<slug> -->` marker in the body so
-   `bin/check-sentry-feedback` and later runs find the issue.
-6. Add or replace only the section between
+5. Keep the exact `<!-- sentry-feedback:<slug> -->` marker, by which
+   `bin/check-sentry-feedback` and later runs find the issue, and add or
+   replace only the section between
    `<!-- analyze-sentry-feedback-findings:start -->` and
    `<!-- analyze-sentry-feedback-findings:end -->`, preserving every
-   human-written line outside it. Keep any temporary issue-body file under
-   `/tmp`. Use this body shape:
+   human-written line outside it. Use this body shape:
 
 ```markdown
 <!-- sentry-feedback:<slug> -->
