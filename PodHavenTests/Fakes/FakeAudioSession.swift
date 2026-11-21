@@ -21,10 +21,12 @@ actor FakeAudioSession {
   }
 
   private(set) var activeCalls: [Bool] = []
+  private(set) var deactivationOptions: [AVAudioSession.SetActiveOptions] = []
   private(set) var active: Bool = false
   nonisolated let activationError = ThreadSafe<(any Error & Sendable)?>(nil)
-  func setActive(_ active: Bool) {
+  func setActive(_ active: Bool, options: AVAudioSession.SetActiveOptions) {
     activeCalls.append(active)
+    if !active { deactivationOptions.append(options) }
     self.active = active
   }
 

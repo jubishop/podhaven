@@ -171,6 +171,35 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
   }
 
+  @Test("interruption notifications missing their type or options are ignored")
+  func interruptionNotificationsMissingKeysAreIgnored() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+    try await beginInterruption()
+    try await PlayHelpers.waitFor(.paused)
+    let playCount = avPlayer.playCallCount
+
+    let continuation = notifier.continuation(for: AVAudioSession.interruptionNotification)
+    continuation.yield(Notification(name: AVAudioSession.interruptionNotification))
+    continuation.yield(
+      Notification(
+        name: AVAudioSession.interruptionNotification,
+        userInfo: [
+          AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.ended.rawValue
+        ]
+      )
+    )
+    // Notifications are handled in order, so a later interruption's pause shows
+    // the malformed ones were handled.
+    try await beginInterruption()
+    #expect(avPlayer.playCallCount == playCount)
+
+    endInterruption(shouldResume: true)
+    try await PlayHelpers.waitFor(.playing)
+  }
+
   // MARK: - Helpers
 
   private func beginInterruption() async throws {

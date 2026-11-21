@@ -46,6 +46,10 @@ import Testing
       let (podcastEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes(
         Create.unsavedEpisode(currentTime: resumeTime)
       )
+      await episodeAssetLoader.respond(
+        to: podcastEpisode.episode.mediaURL,
+        data: (true, .seconds(240))
+      )
 
       try await queue.unshift(queuedEpisode.id)
       try await PlayHelpers.load(podcastEpisode)
@@ -243,6 +247,10 @@ import Testing
     let (interruptedEpisode, replacementEpisode) = try await Create.twoPodcastEpisodes(
       Create.unsavedEpisode(currentTime: resumeTime)
     )
+    await episodeAssetLoader.respond(
+      to: interruptedEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
+    )
 
     try await PlayHelpers.load(interruptedEpisode)
     try await PlayHelpers.waitFor(resumeTime)
@@ -300,6 +308,10 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode(
       Create.unsavedEpisode(currentTime: resumeTime)
     )
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
+    )
 
     try await PlayHelpers.load(podcastEpisode)
     try await PlayHelpers.waitFor(resumeTime)
@@ -344,7 +356,10 @@ import Testing
       { @MainActor in "Expected an alert after the failed recovery load" }
     )
 
-    await episodeAssetLoader.clearCustomHandler(for: podcastEpisode.episode)
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
+    )
     await playManager.play()
 
     try await PlayHelpers.waitFor(.playing)
@@ -810,6 +825,10 @@ import Testing
     let resumeTime = CMTime.seconds(123)
     let podcastEpisode = try await Create.podcastEpisode(
       Create.unsavedEpisode(currentTime: resumeTime)
+    )
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
     )
 
     try await PlayHelpers.load(podcastEpisode)

@@ -49,11 +49,17 @@ enum CommandCenter: Sendable {
     let commandCenter = Container.shared.mpRemoteCommandCenter()
     let continuation = Container.shared.commandCenterStream().continuation
 
+    // Each command waits for the one before it so they're handled in arrival order.
+    let latestCommand = ThreadSafe<Task<Void, Never>?>(nil)
     let yield: @Sendable (Command) -> Void = { command in
       log.debug("Remote command received: \(command)")
-      Task {
-        await appLauncher.prepareForPlayback()
-        continuation.yield(command)
+      latestCommand { latest in
+        let previous = latest
+        latest = Task {
+          await previous?.value
+          await appLauncher.prepareForPlayback()
+          continuation.yield(command)
+        }
       }
     }
 

@@ -2,6 +2,7 @@
 
 import AVFoundation
 import Foundation
+import Logging
 
 extension PlayManager {
   // MARK: - Seeking
@@ -19,9 +20,19 @@ extension PlayManager {
   }
 
   func seek(to time: CMTime) async {
+    guard time.isNumeric else {
+      Self.log.warning("seek: ignoring non-numeric target \(time)")
+      return
+    }
     cancelWidgetRouteRecovery(reason: "userSeek")
-    NowPlayingInfo.setCurrentTime(time)
-    await podAVPlayer.seek(to: time)
+    let currentTime = await podAVPlayer.currentTime().safe
+    let duration = sharedState.onDeck?.duration.safe ?? .zero
+    // The duration is an estimate, so it stops capping seeks once playback runs past it.
+    let target =
+      duration > .zero && currentTime <= duration
+      ? time.clamped(to: .zero...duration) : max(time, .zero)
+    NowPlayingInfo.setCurrentTime(target)
+    await podAVPlayer.seek(to: target)
   }
 
   // MARK: - Chapter Navigation

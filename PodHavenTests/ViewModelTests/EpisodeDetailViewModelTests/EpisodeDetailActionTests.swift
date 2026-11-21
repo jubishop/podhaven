@@ -38,6 +38,10 @@ import Testing
         )
       )
     )
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
+    )
     let startTime = 120
     let startCMTime = CMTime.seconds(Double(startTime))
     let viewModel = EpisodeDetailViewModel(
@@ -107,7 +111,10 @@ import Testing
     )
     #expect(avPlayer.seekRequests.filter { $0 == startCMTime }.isEmpty)
 
-    await episodeAssetLoader.clearCustomHandler(for: podcastEpisode.episode)
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
+    )
     viewModel.disappear()
     viewModel.appear()
 

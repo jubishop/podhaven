@@ -16,14 +16,19 @@ enum AudioInterruption {
       let userInfo = notification.userInfo,
       let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
       let type = AVAudioSession.InterruptionType(rawValue: typeValue)
-    else { Assert.fatal("Interruption: \(notification) is invalid") }
+    else {
+      log.warning("Ignoring invalid interruption notification: \(notification)")
+      return .ignore
+    }
 
     switch type {
     case .began:
       return .began
     case .ended:
-      guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt
-      else { Assert.fatal("Interruption options: \(userInfo) is invalid") }
+      guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else {
+        log.warning("Ignoring interruption end without options: \(userInfo)")
+        return .ignore
+      }
 
       let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
       return .ended(shouldResume: options.contains(.shouldResume))
