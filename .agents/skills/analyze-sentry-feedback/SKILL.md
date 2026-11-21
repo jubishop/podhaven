@@ -80,27 +80,21 @@ triage notes. If nothing is unresolved, say so and stop.
 Tell the user the feedback slug in one line before fetching, echoing any
 triage notes so they know the notes were picked up.
 
-Search all GitHub issues in `jubishop/podhaven`, open and closed, for the
-exact `<!-- sentry-feedback:<slug> -->` body marker, falling back to the
-Sentry permalink, and read the matches' bodies and comments first.
+List the feedback's tracking issues with `bin/snfeedback --track <slug>`, and
+read their bodies and comments first. The first listed is canonical: report
+any others as duplicates and update only it. With none, Step 6 creates one.
 
-- The daily `bin/check-sentry-feedback` workflow may have created an intake
-  placeholder, which Step 6 enriches.
-- A complete managed findings block means the feedback was already analyzed.
-  Summarize its findings, fixes, PR links, or disposition, and use them as the
-  baseline in Step 6. Do not redo settled analysis unless the user asks or
-  current Sentry evidence materially differs; say exactly what changed when it
-  does.
-- If several issues match, prefer the exact-marker issue, report the
-  duplicates, and update only that canonical issue. If none matches, Step 6
-  creates one.
+- An `intake` issue lacks the findings block, such as the daily
+  `bin/check-sentry-feedback` placeholder, which Step 6 enriches.
+- An `analyzed` issue was already triaged. Summarize its findings, fixes, PR
+  links, or disposition, and use them as the baseline in Step 6. Do not redo
+  settled analysis unless the user asks or current Sentry evidence materially
+  differs; say exactly what changed when it does.
 - Search earlier feedback and error issues by symptom too:
   `gh issue list --repo jubishop/podhaven --state all --search 'label:sentry-feedback,sentry-issue <symptom>'`.
-  jubishop/podhaven#760 through jubishop/podhaven#770 hold the triage logs of
-  feedback analyzed before GitHub tracking. For error issues, search their
-  Sentry record terms too, because Sentry purges old issues and files a
-  recurrence under a new short ID. Verify old hypotheses against current
-  evidence before applying them.
+  For error issues, search their Sentry record terms too, because Sentry
+  purges old issues and files a recurrence under a new short ID. Verify old
+  hypotheses against current evidence before applying them.
 
 ## Step 2: Fetch the feedback
 

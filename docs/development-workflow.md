@@ -442,7 +442,9 @@ Run `bin/snfeedback` to select unresolved user feedback, or `bin/snissue` to
 select an unresolved issue that is not feedback. Both show the newest items
 first, with activity within the last 365 days. They use `fzf` when installed
 and a numbered prompt otherwise. With `--list`, they print the rows and exit
-instead, which is how the analysis skills list them. Both are fish scripts, so
+instead, which is how the analysis skills list them. `bin/snfeedback --track
+<reference>` prints every issue tracking one feedback item, canonical first,
+for `analyze-sentry-feedback` to start from. Both are fish scripts, so
 they require fish. Listing requires authenticated `sentry` and `gh` commands
 plus `jq`; analysis requires Claude Code (`claude`).
 
