@@ -66,5 +66,66 @@ import Testing
     #expect(final.cachedURL == cachedEpisode.cachedURL)
     #expect(final.cacheStatus == .cached)
     #expect(final.saveInCache)
+    #expect(Container.shared.alert().config?.title == "Error")
+  }
+
+  @Test("unsaveSelectedEpisodesFromCache alerts when bulk unsave throws")
+  func unsaveSelectedEpisodesFromCacheAlertsOnFailure() async throws {
+    let cachedEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "ep1",
+      cachedFilename: "ep1.mp3",
+      saveInCache: true
+    )
+    let viewModel = try await makeViewModelSelecting(cachedEpisode.id)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.updateSaveInCacheBulkError(InjectedRepoError())
+
+    viewModel.unsaveSelectedEpisodesFromCache()
+
+    let alert = Container.shared.alert()
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Error" },
+      { "unsaveSelectedEpisodesFromCache never alerted on the failed unsave" }
+    )
+    let final = try #require(try await repo.episode(cachedEpisode.id))
+    #expect(final.saveInCache)
+  }
+
+  @Test("uncacheSelectedEpisodes alerts when clearing a cached file fails")
+  func uncacheSelectedEpisodesAlertsOnClearFailure() async throws {
+    let cachedEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "ep1",
+      cachedFilename: "ep1.mp3",
+      saveInCache: true
+    )
+    let cachedURL = try #require(cachedEpisode.cachedURL)
+    let fileManager = try #require(Container.shared.fileManager() as? FakeFileManager)
+    fileManager.setRemoveItemError(InjectedRepoError(), for: cachedURL.rawValue)
+    let viewModel = try await makeViewModelSelecting(cachedEpisode.id)
+
+    viewModel.uncacheSelectedEpisodes()
+
+    let alert = Container.shared.alert()
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Error" },
+      { "uncacheSelectedEpisodes never alerted on the failed cache clear" }
+    )
+    #expect(fileManager.fileExists(at: cachedURL.rawValue))
+  }
+
+  // MARK: - Helpers
+
+  private func makeViewModelSelecting(_ episodeID: Episode.ID) async throws
+    -> EpisodesListViewModel
+  {
+    let listables = try await repo.db.read { db in
+      try ListablePodcastEpisode
+        .request(filter: AppDB.noOp, order: Episode.Columns.id.asc)
+        .fetchAll(db)
+    }
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Test")
+    try await EpisodesListTestHelpers.loadEntries(into: viewModel, episodes: listables)
+    EpisodesListTestHelpers.select(viewModel, ids: [episodeID])
+    return viewModel
   }
 }

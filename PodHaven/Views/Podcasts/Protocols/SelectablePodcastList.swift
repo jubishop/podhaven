@@ -29,6 +29,7 @@ import Logging
 
 extension SelectablePodcastList {
   private var repo: any Databasing { Container.shared.repo() }
+  private var alert: Alert { Container.shared.alert() }
 
   nonisolated private static var log: Logger { Log.as(LogSubsystem.ViewProtocols.podcastList) }
 
@@ -79,6 +80,8 @@ extension SelectablePodcastList {
           "deleteSelectedPodcasts: failed to delete \(savedPodcastIDs.count) podcasts",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -106,6 +109,8 @@ extension SelectablePodcastList {
           "subscribeSelectedPodcasts: failed to subscribe \(podcastIDs.count) podcasts",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
         return
       }
 
@@ -139,6 +144,8 @@ extension SelectablePodcastList {
           "unsubscribeSelectedPodcasts: failed to unsubscribe \(savedPodcastIDs.count) podcasts",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -155,6 +162,7 @@ extension SelectablePodcastList {
     )
 
     let log = Self.log
+    let alert = self.alert
     Task {
       do {
         try await Container.shared.repo().addTag(tagID, toPodcasts: podcastIDs)
@@ -163,6 +171,8 @@ extension SelectablePodcastList {
           "applyTagToSelectedPodcasts: failed for \(podcastIDs.count) podcasts, tag \(tagID)",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -179,6 +189,7 @@ extension SelectablePodcastList {
     )
 
     let log = Self.log
+    let alert = self.alert
     Task {
       do {
         _ = try await Container.shared.repo().removeTag(tagID, fromPodcasts: podcastIDs)
@@ -187,6 +198,8 @@ extension SelectablePodcastList {
           "removeTagFromSelectedPodcasts: failed for \(podcastIDs.count) podcasts, tag \(tagID)",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
