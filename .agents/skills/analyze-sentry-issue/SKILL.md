@@ -89,21 +89,17 @@ continue from the GitHub history in Step 2 alone.
 
 ## Step 2: Find the tracking issue and history
 
-Search all GitHub issues in `jubishop/podhaven`, open and closed, for the exact
-`<!-- sentry-issue:<numeric-id> -->` marker and for links to
-`https://artisanal-software.sentry.io/issues/<numeric-id>/`, and read the
-matches' bodies and comments before fetching Sentry evidence.
+List the tracking issues with `bin/snissue --track <numeric-id>`, and read
+their bodies and comments before fetching Sentry evidence. The first listed is
+canonical when open; report other open matches as duplicates.
 
-- The canonical issue is an open match, preferring one with the marker. It
-  may be an intake placeholder from the daily `bin/check-sentry-issues`
-  workflow, titled `Triage Sentry issue <shortId>` or
-  `Triage recurrence of Sentry issue <shortId>`, which Step 6 enriches.
-- A complete managed findings block, or an older issue without the marker
-  whose `## Sentry closeout` section names this Sentry issue, means it was
-  already analyzed. Summarize its findings, fixes, PR links, or disposition as
-  the baseline for Steps 5 and 6. Do not redo settled analysis unless the user
-  asks or current Sentry evidence materially differs; say exactly what changed
-  when it does.
+- An `intake` issue, such as the daily `bin/check-sentry-issues` placeholder
+  titled `Triage Sentry issue <shortId>` or
+  `Triage recurrence of Sentry issue <shortId>`, is what Step 6 enriches.
+- An `analyzed` issue was already triaged. Summarize its findings, fixes, PR
+  links, or disposition as the baseline for Steps 5 and 6. Do not redo settled
+  analysis unless the user asks or current Sentry evidence materially differs;
+  say exactly what changed when it does.
 - If only closed issues match while the Sentry issue is unresolved, it has
   recurred. Collect their fix commits and PRs for Step 4.
 - Issues that only mention the short ID are related history, not tracking.
@@ -219,7 +215,7 @@ not change other labels or metadata merely because the handoff ran.
    root cause or confidence, a changed resolution or verification plan, a new
    recurrence, or missing or incorrect Sentry record and closeout sections.
    Rewording, formatting, a rerun timestamp, or repeated evidence is not
-   material. A material update to an older issue adds the marker together
+   material. A material update to a `link` match adds the marker together
    with a complete managed block. With nothing material, make no GitHub writes
    beyond a missing label, and report `reused unchanged`.
 4. For a recurrence, never reopen a closed issue whose fix shipped; its PR and

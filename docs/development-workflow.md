@@ -442,11 +442,12 @@ Run `bin/snfeedback` to select unresolved user feedback, or `bin/snissue` to
 select an unresolved issue that is not feedback. Both show the newest items
 first, with activity within the last 365 days. They use `fzf` when installed
 and a numbered prompt otherwise. With `--list`, they print the rows and exit
-instead, which is how the analysis skills list them. `bin/snfeedback --track
-<reference>` prints every issue tracking one feedback item, canonical first,
-for `analyze-sentry-feedback` to start from. Both are fish scripts, so
-they require fish. Listing requires authenticated `sentry` and `gh` commands
-plus `jq`; analysis requires Claude Code (`claude`).
+instead, which is how the analysis skills list them. With `--track
+<reference>`, they print every issue tracking one item, canonical first, for
+the analysis skills to start from; `bin/snissue --track` takes a numeric ID or
+issue URL and needs no Sentry access. Both are fish scripts, so they require
+fish. Listing requires authenticated `sentry` and `gh` commands plus `jq`;
+analysis requires Claude Code (`claude`).
 
 `bin/snissue` shows severity, available event and user counts, and the state
 of the GitHub issue that tracks the Sentry issue. It accepts a Sentry issue
@@ -480,7 +481,8 @@ check a partial Sentry list.
 The pickers and checkers match an issue by its marker or a link to the Sentry
 item; the pickers show it as intake, analyzed, closed, or untracked. Error issues
 analyzed before the marker existed count as analyzed when their body has a
-`## Sentry closeout` section.
+`## Sentry closeout` section. `bin/_sentry_issue_tracking.jq` holds the
+error-issue rule for `bin/check-sentry-issues` and `bin/snissue`.
 
 The controlled `bin/integration` probes behind the `bin/sentry-*-smoke`
 commands report to the production Sentry project, so the smokes can verify

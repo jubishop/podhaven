@@ -263,9 +263,10 @@ else:
                 self.assertTrue('scope.setTag(value: run, key: "diagnostic-run")' in probe.read_text(),
                                 "Sentry intake skips probe events only by their diagnostic-run tag")
 
-    def test_skill_lists_issues_through_the_picker(self):
+    def test_skill_lists_and_tracks_issues_through_the_picker(self):
         skill = (ROOT / ".agents/skills/analyze-sentry-issue/SKILL.md").read_text()
         self.assertIn("`bin/snissue --list`", skill)
+        self.assertIn("`bin/snissue --track <numeric-id>`", skill)
 
     def test_skill_trusts_the_checker_comment_author(self):
         skill = (ROOT / ".agents/skills/analyze-sentry-issue/SKILL.md").read_text()
