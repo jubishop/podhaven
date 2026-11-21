@@ -79,14 +79,11 @@ stderr so JSON output stays valid.
 One worker per checkout hashes indexed inputs, skips unchanged work, coalesces
 bursts of requests, and runs again when files change mid-refresh. When inputs
 change, it runs QMD's `update`, `embed`, and `cleanup`, so each successful
-refresh leaves no embedding chunks for replaced or removed pages. Lookups
-during cleanup wait or refuse, as during the rest of a refresh. QMD stores
-vectors in blocks of 1024 and frees a block only once none of its vectors are
-current, so an index can stay larger than a fresh build. To reclaim that
-space, delete `.cache/qmd/index.sqlite` and run `bin/qmd-index`, which
-rebuilds it. Avoid direct `qmd update`, `qmd embed`, and `qmd cleanup`, which
-bypass this coordination. Logs rotate at about 1 MB and keep one previous
-file.
+refresh leaves no embedding chunks for replaced or removed pages, and cleanup
+also repacks partly empty vector storage. Lookups during cleanup wait or
+refuse, as during the rest of a refresh. Avoid direct `qmd update`,
+`qmd embed`, and `qmd cleanup`, which bypass this coordination. Logs rotate
+at about 1 MB and keep one previous file.
 
 ## Worktrees and models
 
