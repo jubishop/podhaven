@@ -219,4 +219,49 @@ import Testing
     #expect(viewModel.previewActions == [.playPause])
     #expect(!viewModel.addableActions.contains(.transcribe))
   }
+
+  // Regression: editing the list while Transcribe was hidden wrote the filtered
+  // list back to settings, dropping Transcribe for good.
+  @Test("editing while device support is unknown keeps the hidden Transcribe action")
+  func editingWhileSupportUnknownKeepsTranscribe() async throws {
+    let userSettings = Container.shared.userSettings()
+    userSettings.$episodeSwipeActions.new([.playPause, .transcribe])
+    let viewModel = EpisodeSwipeSettingsViewModel()
+    #expect(viewModel.actions == [.playPause])
+
+    viewModel.add(.rate)
+    #expect(viewModel.actions == [.playPause, .rate])
+    #expect(userSettings.episodeSwipeActions == [.playPause, .transcribe, .rate])
+    #expect(!viewModel.canAddMore)
+
+    viewModel.move(from: IndexSet(integer: 1), to: 0)
+    #expect(viewModel.actions == [.rate, .playPause])
+    #expect(userSettings.episodeSwipeActions == [.rate, .transcribe, .playPause])
+
+    viewModel.delete(at: IndexSet(integer: 1))
+    #expect(viewModel.actions == [.rate])
+    #expect(userSettings.episodeSwipeActions == [.rate, .transcribe])
+
+    await TranscriptionHelpers.prepareAvailability()
+
+    try await Wait.until(
+      { @MainActor in viewModel.actions == [.rate, .transcribe] },
+      { @MainActor in
+        "Expected Transcribe to return once support is confirmed; got \(viewModel.actions)"
+      }
+    )
+  }
+
+  @Test("adding to the Play/Pause fallback keeps Play/Pause and the hidden Transcribe action")
+  func addingToFallbackKeepsPlayPauseAndTranscribe() {
+    let userSettings = Container.shared.userSettings()
+    userSettings.$episodeSwipeActions.new([.transcribe])
+    let viewModel = EpisodeSwipeSettingsViewModel()
+    #expect(viewModel.actions == [.playPause])
+
+    viewModel.add(.rate)
+
+    #expect(viewModel.actions == [.playPause, .rate])
+    #expect(userSettings.episodeSwipeActions == [.transcribe, .playPause, .rate])
+  }
 }

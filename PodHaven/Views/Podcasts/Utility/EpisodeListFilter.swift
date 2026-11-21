@@ -18,11 +18,17 @@ import GRDB
     self.episodeList = episodeList
   }
 
+  private enum Activity {
+    case active
+    case suspended
+  }
+
   private var filterText = ""
   private var podcastID: Podcast.ID?
   private var baseFilter: (@Sendable (ListedEpisode) -> Bool)?
   private var searchFilter: (@Sendable (ListedEpisode) -> Bool)?
   private var observationTask: Task<Void, Never>?
+  private var activity = Activity.active
 
   func apply(text: String) {
     filterText = text
@@ -45,17 +51,20 @@ import GRDB
     restart()
   }
 
+  // Frees the live DB observation while off-screen. Queries that settle while
+  // suspended are kept but start no observation until resume().
   func cancel() {
+    activity = .suspended
     observationTask?.cancel()
     observationTask = nil
   }
 
-  // cancel() frees the live DB observation while off-screen; on reappear the
-  // query is unchanged so refresh() (which only restarts on a podcast swap)
-  // leaves it dead. resume() revives the saved-podcast FTS observation cancel()
-  // tore down. The unsaved in-memory filter needs no revival — its searchFilter
-  // survives cancel().
+  // cancel() leaves the saved-podcast FTS observation dead, and refresh() only
+  // restarts on a podcast swap, so resume() revives it for the current query.
+  // The unsaved in-memory filter needs no revival — its searchFilter survives
+  // cancel().
   func resume() {
+    activity = .active
     guard observationTask == nil, podcastID != nil, !filterText.isEmpty else { return }
     restart()
   }
@@ -85,14 +94,10 @@ import GRDB
     }
 
     guard let podcastID else {
-      let terms = text.lowercased().split(separator: /\s+/).map(String.init)
-      searchFilter = { episode in
-        let searchable = episode.searchableString.lowercased()
-        return terms.allSatisfy { searchable.contains($0) }
-      }
-      updateEpisodeFilter()
+      applyInMemorySearch(text)
       return
     }
+    guard activity == .active else { return }
 
     let filter = Episode.Columns.podcastId == podcastID && Episode.matchesText(allWordsIn: text)
     observationTask = Task { [weak self] in
@@ -112,7 +117,19 @@ import GRDB
           "EpisodeListFilter: text filter failed for podcast \(podcastID)",
           error
         )
+        guard !Task.isCancelled else { return }
+        observationTask = nil
+        applyInMemorySearch(text)
       }
     }
+  }
+
+  private func applyInMemorySearch(_ text: String) {
+    let terms = text.lowercased().split(separator: /\s+/).map(String.init)
+    searchFilter = { episode in
+      let searchable = episode.searchableString.lowercased()
+      return terms.allSatisfy { searchable.contains($0) }
+    }
+    updateEpisodeFilter()
   }
 }

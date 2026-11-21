@@ -67,4 +67,63 @@ import Testing
     #expect(final.cacheStatus == .cached)
     #expect(final.saveInCache)
   }
+
+  // Regression: the row action kept going after unsaving failed, clearing the
+  // cache of an episode still marked saved and alerting a second time.
+  @Test("uncacheEpisode leaves the cache file alone when unsaving throws")
+  func uncacheEpisodePreservesCacheOnUnsaveFailure() async throws {
+    let cachedEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "ep1",
+      cachedFilename: "ep1.mp3",
+      saveInCache: true
+    )
+    let cachedURL = try #require(cachedEpisode.cachedURL)
+    let fileManager = try #require(Container.shared.fileManager() as? FakeFileManager)
+    #expect(fileManager.fileExists(at: cachedURL.rawValue))
+
+    let listable = try await repo.db.read { db in
+      try #require(
+        try ListablePodcastEpisode
+          .request(filter: Episode.Columns.id == cachedEpisode.id)
+          .fetchOne(db)
+      )
+    }
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Test")
+
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.updateSaveInCacheError(InjectedRepoError())
+    fakeRepo.clearAllCalls()
+
+    viewModel.uncacheEpisode(listable)
+
+    try await Wait.until(
+      { (try? fakeRepo.expectCalls(methodName: "updateSaveInCache")) != nil },
+      { "uncacheEpisode never invoked updateSaveInCache" }
+    )
+
+    // The buggy path keeps going after the throw and runs clearCache, which
+    // records updateCachedFilename on its way to clearing the file. Poll for
+    // that side effect; a timeout means the early-return fix held.
+    do {
+      try await Wait.until(
+        maxAttempts: 50,
+        delay: .milliseconds(20),
+        priority: .userInitiated,
+        { (try? fakeRepo.expectCalls(methodName: "updateCachedFilename")) != nil },
+        { "regression: clearCache ran despite updateSaveInCache throwing" }
+      )
+      Issue.record("regression: clearCache ran despite updateSaveInCache throwing")
+    } catch {
+      // Expected timeout under the fixed implementation.
+    }
+    withExtendedLifetime(viewModel) {}
+
+    try fakeRepo.expectNoCall(methodName: "updateCachedFilename")
+    #expect(fileManager.fileExists(at: cachedURL.rawValue))
+
+    let final = try #require(try await repo.episode(cachedEpisode.id))
+    #expect(final.cachedURL == cachedEpisode.cachedURL)
+    #expect(final.cacheStatus == .cached)
+    #expect(final.saveInCache)
+  }
 }

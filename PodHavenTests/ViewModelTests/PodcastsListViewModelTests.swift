@@ -10,7 +10,9 @@ import Testing
 
 @Suite("of PodcastsListViewModel tests", .container)
 @MainActor final class PodcastsListViewModelTests {
+  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
   @Test("selectedPodcastsTagIntersection collapses to common tags across selection")
@@ -179,6 +181,82 @@ import Testing
       let fakeRepo = try #require(repo as? FakeRepo)
       try fakeRepo.expectNoCall(methodName: "delete")
     }
+  }
+
+  // MARK: - Queueing the latest episode
+
+  // Regression: with no latest episode, both actions did nothing and said nothing.
+  @Test("queueing the latest episode of a podcast with no episodes tells the user")
+  func queueLatestEpisodeWithoutEpisodesAlerts() async throws {
+    try await LogCapture.withSink { sink in
+      let podcastID =
+        try await repo.insertSeries(
+          UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(title: "Empty"))
+        )
+        .id
+      let entries = try await observatory.listablePodcastsWithEpisodeMetadata().get()
+      let podcast = try #require(entries.first { $0.id == podcastID }).podcast
+      let viewModel = PodcastsListViewModel(title: "Test")
+      let alert = alert
+
+      viewModel.queueLatestEpisodeToTop(podcast)
+      try await Wait.until(
+        { @MainActor in alert.config != nil },
+        { @MainActor in "Expected queueing to the top to report the missing episode" }
+      )
+
+      alert.config = nil
+      viewModel.queueLatestEpisodeToBottom(podcast)
+      try await Wait.until(
+        { @MainActor in alert.config != nil },
+        { @MainActor in "Expected queueing to the bottom to report the missing episode" }
+      )
+      withExtendedLifetime(viewModel) {}
+
+      let notices = sink.captured()
+        .filter { $0.level == .notice && $0.message.contains("no episode to queue") }
+      #expect(notices.count == 2)
+      let fakeQueue = try #require(queue as? FakeQueue)
+      try fakeQueue.expectNoCall(methodName: "unshift")
+      try fakeQueue.expectNoCall(methodName: "append")
+    }
+  }
+
+  // MARK: - Loading
+
+  // Regression: a failed podcast observation fell through to the empty-state
+  // message, as if no podcast matched the filters.
+  @Test("a failed podcast observation reports a load failure, not an empty list")
+  func failedObservationReportsFailure() async throws {
+    let viewModel = PodcastsListViewModel(
+      title: "Broken",
+      filter: { $0.filter(sql: "no_such_column = 1") }
+    )
+
+    await viewModel.execute()
+
+    #expect(viewModel.loadingState == .failed)
+  }
+
+  @Test("a loaded podcast observation reports loaded")
+  func loadedObservationReportsLoaded() async throws {
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(title: "Loaded"))
+    )
+    let viewModel = PodcastsListViewModel(title: "Loaded")
+    #expect(viewModel.loadingState == .loading)
+
+    let execution = Task { await viewModel.execute() }
+    defer { execution.cancel() }
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.loadingState == .loaded && viewModel.podcastList.allEntries.count == 1
+      },
+      { @MainActor in
+        "Expected the observation to load; got \(viewModel.loadingState)"
+      }
+    )
   }
 
   // MARK: - Subscribing a selection

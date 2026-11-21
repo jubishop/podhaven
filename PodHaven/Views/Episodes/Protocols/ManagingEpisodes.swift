@@ -209,6 +209,7 @@ extension ManagingEpisodes {
         Self.log.caughtError("uncacheEpisode: failed to unsave episode \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
+        return
       }
 
       do {

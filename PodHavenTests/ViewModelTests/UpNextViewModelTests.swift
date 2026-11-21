@@ -385,7 +385,7 @@ import Testing
     )
   }
 
-  // replaceQueueWithSelected resolves `selectedPodcastEpisodes` for every
+  // replaceQueueWithSelected resolves `resolvedPodcastEpisodes` for every
   // selected row and atomically rebuilds the queue from that list. If rec
   // resolution silently dropped a row, the queue would narrow rather than
   // crash — so assert both halves of a mixed selection land at distinct

@@ -17,6 +17,10 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   private var afterMarkFinishedHandler: AfterMarkFinished?
   private var beforeCurrentTimeUpdate: (@Sendable () async -> Void)?
 
+  // One-shot error to throw from `updateSaveInCache(_ episodeID:saveInCache:)`.
+  // Cleared on use so subsequent calls reach the real repo.
+  nonisolated let updateSaveInCacheError = ThreadSafe<(any Error & Sendable)?>(nil)
+
   // One-shot error to throw from `updateSaveInCache(_ episodeIDs:saveInCache:)`.
   // Cleared on use so subsequent calls reach the real repo.
   nonisolated let updateSaveInCacheBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
@@ -847,6 +851,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       methodName: "updateSaveInCache",
       parameters: (episodeID: episodeID, saveInCache: saveInCache)
     )
+    if let injected = updateSaveInCacheError({ error in
+      let captured = error
+      error = nil
+      return captured
+    }) {
+      throw injected
+    }
     return try await repo.updateSaveInCache(episodeID, saveInCache: saveInCache)
   }
 
