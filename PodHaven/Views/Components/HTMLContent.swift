@@ -78,13 +78,16 @@ enum HTMLContent {
     guard plainText.contains(":") else { return }
 
     let matches = unsafe plainText.matches(of: Timestamp.regex)
+    var measuredIndex = plainText.startIndex
+    var measuredOffset = 0
     for match in matches {
       guard let url = Timestamp.url(for: plainText[match.range]) else { continue }
 
       let characters = attributed.characters
-      let lowerOffset = plainText.distance(from: plainText.startIndex, to: match.range.lowerBound)
+      measuredOffset += plainText.distance(from: measuredIndex, to: match.range.lowerBound)
+      measuredIndex = match.range.lowerBound
       let length = plainText.distance(from: match.range.lowerBound, to: match.range.upperBound)
-      let lowerBound = characters.index(characters.startIndex, offsetBy: lowerOffset)
+      let lowerBound = characters.index(characters.startIndex, offsetBy: measuredOffset)
       let upperBound = characters.index(lowerBound, offsetBy: length)
       let linkRange = lowerBound..<upperBound
 
@@ -148,7 +151,7 @@ enum HTMLContent {
     }
 
     while index < text.endIndex {
-      if text[index] == "<", let tagEnd = text[index...].firstIndex(of: ">") {
+      if text[index] == "<", let tagEnd = Self.tagEnd(in: text, startingAt: index) {
         let tagString = String(text[index...tagEnd])
         if let listTag = ListTag(tagString: tagString) {
           switch listTag {
@@ -203,7 +206,7 @@ enum HTMLContent {
   private static func handleBlockTags(_ text: String) -> String {
     text
       .replacingOccurrences(
-        of: "<(div|h[1-6]|section|article|header|footer|blockquote)[^>]*>",
+        of: "<(div|h[1-6]|section|article|header|footer|blockquote)[^<>]*>",
         with: "\n",
         options: [.regularExpression, .caseInsensitive]
       )
@@ -218,12 +221,12 @@ enum HTMLContent {
     var result = text
     result = result.replacingOccurrences(of: "</p>", with: "\n", options: .caseInsensitive)
     result = result.replacingOccurrences(
-      of: "^\\s*<p[^>]*>",
+      of: "^\\s*<p[^<>]*>",
       with: "",
       options: [.regularExpression, .caseInsensitive]
     )
     result = result.replacingOccurrences(
-      of: "<p[^>]*>",
+      of: "<p[^<>]*>",
       with: "\n",
       options: [.regularExpression, .caseInsensitive]
     )
@@ -232,7 +235,7 @@ enum HTMLContent {
 
   private static func handleLineBreaks(_ text: String) -> String {
     text.replacingOccurrences(
-      of: "<br\\s*/?\\s*>",
+      of: "<br\\s*+/?\\s*+>",
       with: "\n",
       options: [.regularExpression, .caseInsensitive]
     )
@@ -241,7 +244,7 @@ enum HTMLContent {
   private static func cleanupWhitespace(_ text: String) -> String {
     text
       .replacingOccurrences(of: "\n[ \t]+", with: "\n", options: .regularExpression)
-      .replacingOccurrences(of: "[ \t]+\n", with: "\n", options: .regularExpression)
+      .replacingOccurrences(of: "(?<![ \t])[ \t]+\n", with: "\n", options: .regularExpression)
       .replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
   }
@@ -286,12 +289,22 @@ enum HTMLContent {
   private static func parseTag(from text: String, startingAt index: String.Index) -> (
     String.Index, HTMLTag
   )? {
-    guard let tagEnd = text[index...].firstIndex(of: ">") else { return nil }
+    guard let tagEnd = Self.tagEnd(in: text, startingAt: index) else { return nil }
 
     let tagString = String(text[index...tagEnd])
     let tag = HTMLTag(tagString: tagString)
 
     return (tagEnd, tag)
+  }
+
+  // A tag can't contain "<", so finding where one ends never rescans the text
+  // after an unclosed bracket.
+  private static func tagEnd(in text: String, startingAt index: String.Index) -> String.Index? {
+    guard
+      let end = text[text.index(after: index)...].firstIndex(where: { $0 == ">" || $0 == "<" }),
+      text[end] == ">"
+    else { return nil }
+    return end
   }
 
   // MARK: - AttributedString Building
@@ -324,30 +337,46 @@ enum HTMLContent {
       return attributedString
     }
 
-    let fullRange = NSRange(plainText.startIndex..<plainText.endIndex, in: plainText)
-    let matches = linkDetector.matches(in: plainText, options: [], range: fullRange)
-    guard !matches.isEmpty else { return attributedString }
-
     var result = attributedString
-    for match in matches {
-      guard let url = match.url, let textRange = Range(match.range, in: plainText) else { continue }
+    var measuredIndex = plainText.startIndex
+    var measuredOffset = 0
+    var windowStart = plainText.startIndex
+    while windowStart < plainText.endIndex {
+      // NSDataDetector slows with the square of the links in one scan, so scan
+      // windows that end at whitespace, where no link continues.
+      let windowLimit =
+        plainText.index(windowStart, offsetBy: linkDetectionWindow, limitedBy: plainText.endIndex)
+        ?? plainText.endIndex
+      let windowEnd =
+        plainText[windowLimit...].firstIndex(where: \.isWhitespace) ?? plainText.endIndex
+      let window = plainText[windowStart..<windowEnd]
+      windowStart = windowEnd
 
-      let leading = plainText[textRange].prefix(8).lowercased()
-      guard leading.hasPrefix("http://") || leading.hasPrefix("https://") else { continue }
+      let windowText = String(window)
+      let windowRange = NSRange(windowText.startIndex..<windowText.endIndex, in: windowText)
+      for match in linkDetector.matches(in: windowText, options: [], range: windowRange) {
+        guard let url = match.url, let textRange = Range(match.range, in: window) else { continue }
 
-      let characters = result.characters
-      let lowerOffset = plainText.distance(from: plainText.startIndex, to: textRange.lowerBound)
-      let length = plainText.distance(from: textRange.lowerBound, to: textRange.upperBound)
-      let lowerBound = characters.index(characters.startIndex, offsetBy: lowerOffset)
-      let upperBound = characters.index(lowerBound, offsetBy: length)
-      let linkRange = lowerBound..<upperBound
+        let leading = plainText[textRange].prefix(8).lowercased()
+        guard leading.hasPrefix("http://") || leading.hasPrefix("https://") else { continue }
 
-      guard result[linkRange].link == nil else { continue }
-      result[linkRange].link = url
+        let characters = result.characters
+        measuredOffset += plainText.distance(from: measuredIndex, to: textRange.lowerBound)
+        measuredIndex = textRange.lowerBound
+        let length = plainText.distance(from: textRange.lowerBound, to: textRange.upperBound)
+        let lowerBound = characters.index(characters.startIndex, offsetBy: measuredOffset)
+        let upperBound = characters.index(lowerBound, offsetBy: length)
+        let linkRange = lowerBound..<upperBound
+
+        guard result[linkRange].link == nil else { continue }
+        result[linkRange].link = url
+      }
     }
 
     return result
   }
+
+  private static let linkDetectionWindow = 16 * 1024
 
   private static let linkDetector: NSDataDetector = {
     do {

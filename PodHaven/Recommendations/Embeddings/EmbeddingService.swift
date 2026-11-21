@@ -112,6 +112,8 @@ enum EmbeddingService {
   private nonisolated(unsafe) static let urlRegex = /https?:\/\/\S+/
   private nonisolated(unsafe) static let whitespaceRunRegex = /\s+/
 
+  static let cleanTextByteLimit = 64 * 1024
+
   // Hydrating full Episode rows is ~125 MB for the full library; chunking
   // lets BG-task expiry preserve work already done instead of paying a
   // multi-second hydration pass up front.
@@ -745,10 +747,21 @@ enum EmbeddingService {
   static func cleanText(_ text: String) -> String {
     // Decode entities first so e.g. `&lt;script&gt;` becomes `<script>` and
     // is then stripped by the tag pass.
-    var result = text.decodingHTMLEntities().strippingHTMLTags()
+    var result = prefixWithinCleanTextByteLimit(text).decodingHTMLEntities().strippingHTMLTags()
     unsafe result.replace(urlRegex, with: "")
     unsafe result.replace(Timestamp.regex, with: "")
     unsafe result.replace(whitespaceRunRegex, with: " ")
     return result.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private static func prefixWithinCleanTextByteLimit(_ text: String) -> String {
+    let utf8 = text.utf8
+    guard
+      var end = utf8.index(utf8.startIndex, offsetBy: cleanTextByteLimit, limitedBy: utf8.endIndex)
+    else { return text }
+    while end.samePosition(in: text.unicodeScalars) == nil {
+      end = utf8.index(before: end)
+    }
+    return String(text.unicodeScalars[..<end])
   }
 }

@@ -171,12 +171,15 @@ enum PodcastFeedError: Error, LocalizedError, CustomNSError, Sendable {
 struct PodcastFeed: Sendable, Stringable {
   private static let log = Log.as(LogSubsystem.Feed.podcast)
 
+  static let downloadByteLimit = 32 * 1024 * 1024
+
   // MARK: - Static Parsing Methods
 
   static func parse(_ url: FeedURL) async throws -> PodcastFeed {
     let data: Data
     do {
-      data = try await Container.shared.podcastFeedSession().validatedData(from: url.rawValue)
+      data = try await Container.shared.podcastFeedSession()
+        .validatedData(from: url.rawValue, byteLimit: downloadByteLimit)
     } catch let error as HTTPStatusError where error.statusCode == 404 || error.statusCode == 410 {
       throw PodcastFeedError.unavailable(error)
     }
