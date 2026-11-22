@@ -1,11 +1,11 @@
 {
-  "version": "4.4.1",
+  "version": "4.4.2",
   "source": "https://github.com/jubishop/project-starter",
-  "ref": "v4.4.1",
+  "ref": "v4.4.2",
   "managed": {
     "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
     "bin/_checks.py": "209149ca26f0cc3690cc1e68abf9ad4ec8be648f6f84d824f4d0d5db6cce6130",
-    "bin/_knowledge.py": "5a2f1f58dfd0f6f77c0750f7d254480e36332ab392054a103682da60a0f3619b",
+    "bin/_knowledge.py": "a26c1d7e6ace66700ba1b0291fcf57c2e4eb7581a551acdfe12ae7e7b7666ef5",
     "bin/check": "1eb794b0695f4840553f89d5be40060c58a749e9b3a261ac6992b5617c3ab57f",
     "bin/doctor": "bafccb584f6e9fb9fe161d3021f9d3832dc1e51ccabb9bee5794b0222894b79f",
     "bin/hooks/post-checkout": "521c755dea87b8f54d29aa4cad151d636f3bea6803720a05af137f11f35fe795",
@@ -20,7 +20,7 @@
     "bin/setup": "22a1ba1d1cf981957dad1fce20da692d276b864e5e1bf0aa9d70fcc336c6332b",
     "docs/foundation/README.md": "5cdcb3fb3d0d56c1e029f0febf2e596fb5f48ec1a899d22a0ef54c2458e97666",
     "docs/foundation/engineering-policy.md": "199d78723d428c50e6db8dcd3e069ef03bed24d276b7be616a966ae98a6bdb5d",
-    "docs/foundation/knowledge-search.md": "9fc322e2a3cde4d25b032d6f5e01684e857fbd3180dfc5758fed88254fc96400"
+    "docs/foundation/knowledge-search.md": "0a77ed5ef4b98847433255e57f7f3043f7e8f0c947601fcecdb3d5998d2f4b45"
   },
   "blocks": {
     "AGENTS.md": "3251f8ec9a9e97af8e26ea983163a49d35e748f2b95290b360887ee21bd90adb",

@@ -456,8 +456,11 @@ class Knowledge:
 
     def refresh(self, force):
         previous = read_json(self.cache / "state.json")
+        # The collections whose pages the index may hold, which a failed refresh can add to. State written before
+        # the engine recorded them names only the last success's.
+        held = set(previous.get("indexed", (previous.get("last_success") or {}).get("counts", {})))
         result = {"finished_at": stamp(), "status": "failed", "exit_code": 1,
-                  "last_success": previous.get("last_success")}
+                  "last_success": previous.get("last_success"), "indexed": sorted(held)}
         changed_during_run = False
         try:
             rendered = self.config()
@@ -472,6 +475,15 @@ class Knowledge:
             unchanged = (not force and prior.get("fingerprint") == before and
                          (self.cache / "index.sqlite").is_file() and previous.get("status") == "success")
             if not unchanged:
+                configured = set(rendered["collections"])
+                if held - configured:
+                    # QMD keeps a collection's pages and vectors until qmd collection remove deletes them, and the
+                    # configuration this renders drops a collection without it, so rebuild. A write-ahead log a
+                    # crashed QMD left beside the index could be replayed into the new one.
+                    for name in ("index.sqlite", "index.sqlite-wal", "index.sqlite-shm"):
+                        (self.cache / name).unlink(missing_ok=True)
+                    held = set()
+                result["indexed"] = sorted(held | configured)
                 # Cleanup drops vectors of replaced or removed pages, which update and embed keep.
                 for command in ("update", "embed", "cleanup"):
                     with self.command_environment() as env:

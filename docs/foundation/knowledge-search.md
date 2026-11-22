@@ -80,10 +80,13 @@ One worker per checkout hashes indexed inputs, skips unchanged work, coalesces
 bursts of requests, and runs again when files change mid-refresh. When inputs
 change, it runs QMD's `update`, `embed`, and `cleanup`, so each successful
 refresh leaves no embedding chunks for replaced or removed pages, and cleanup
-also repacks partly empty vector storage. Lookups during cleanup wait or
-refuse, as during the rest of a refresh. Avoid direct `qmd update`,
-`qmd embed`, and `qmd cleanup`, which bypass this coordination. Logs rotate
-at about 1 MB and keep one previous file.
+also repacks partly empty vector storage. QMD keeps a collection's pages and
+vectors after the configuration drops it, so when a collection leaves
+`.config/knowledge.json`, renamed ones included, the refresh deletes the
+index and rebuilds it. Lookups during cleanup wait or refuse, as during the
+rest of a refresh. Avoid direct `qmd update`, `qmd embed`, and `qmd cleanup`,
+which bypass this coordination. Logs rotate at about 1 MB and keep one
+previous file.
 
 ## Worktrees and models
 
