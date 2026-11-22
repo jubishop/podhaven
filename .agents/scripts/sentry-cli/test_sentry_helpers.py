@@ -561,6 +561,7 @@ raise SystemExit(2)
         self.assertEqual(explore[1:4], ["artisanal-software/podhaven", "--dataset", "errors"])
         for option, value in (("--query", "user.id:user-1"), ("--period", "90d"), ("--limit", "3")):
             self.assertEqual(explore[explore.index(option) + 1], value)
+        self.assertIn("--sort=-timestamp", explore)
 
     def test_related_error_search_requires_a_period_before_requests(self) -> None:
         result = self.run_script("search_related_errors.sh", "--query", "user.id:user-1")
