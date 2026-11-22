@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -141,6 +142,14 @@ if args and args[0] == "api":
     raise SystemExit(0)
 
 if args and args[0] == "explore" and "errors" in args:
+    if "FAKE_SENTRY_ERROR_ROWS" in os.environ:
+        from datetime import datetime
+        start, end = (datetime.fromisoformat(bound)
+                      for bound in args[args.index("--period") + 1].split(".."))
+        rows = [row for row in json.loads(os.environ["FAKE_SENTRY_ERROR_ROWS"])
+                if start <= datetime.fromisoformat(row["timestamp"]) <= end]
+        print(json.dumps({"data": rows}))
+        raise SystemExit(0)
     print(json.dumps({"data": [{"issue": "PODHAVEN-ABC", "title": "Example failure",
                                 "timestamp": "2025-01-03T03:04:05Z", "user.id": "user-1"}]}))
     raise SystemExit(0)
@@ -559,6 +568,76 @@ raise SystemExit(2)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Usage: search_related_errors.sh", result.stderr)
         self.assertFalse(self.call_log.exists())
+
+    def search_feedback_bundle(
+        self, offsets: dict[str, int], user: bool = True
+    ) -> tuple[subprocess.CompletedProcess[str], list[tuple[str, str]], Path]:
+        bundle = self.root / "bundle"
+        bundle.mkdir()
+        event = {"id": "event-1", "dateCreated": "2025-01-03T03:04:05Z",
+                 "tags": [{"key": "release", "value": "example-release"},
+                          {"key": "environment", "value": "testFlight"}],
+                 **({"user": {"id": "user-1"}} if user else {})}
+        (bundle / "events.json").write_text(json.dumps({"data": [event]}))
+        submitted = datetime(2025, 1, 3, 3, 4, 5, tzinfo=timezone.utc)
+        rows = [{"issue": issue, "title": f"{issue} failure",
+                 "timestamp": (submitted + timedelta(seconds=seconds)).isoformat()}
+                for issue, seconds in offsets.items()]
+        result = self.run_script(
+            "search_related_errors.sh", "--bundle", str(bundle),
+            extra_environment={"FAKE_SENTRY_ERROR_ROWS": json.dumps(rows)})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        searches = [(call[call.index("--period") + 1], call[call.index("--query") + 1])
+                    for call in self.calls() if call[:1] == ["explore"]]
+        return result, searches, bundle
+
+    def test_related_error_bundle_search_lists_the_nearest_errors_in_the_narrow_window(self) -> None:
+        result, searches, bundle = self.search_feedback_bundle(
+            {"A": -30, "B": 40, "C": -180, "D": -540, "E": -300, "F": -420, "G": -1200})
+
+        self.assertEqual(searches, [("2025-01-03T02:54:05Z..2025-01-03T03:05:05Z", "user.id:user-1")])
+        self.assertIn("same-user", result.stdout)
+        lines = [line.split() for line in result.stdout.splitlines() if line.startswith("  ")]
+        self.assertEqual([(line[0], line[2]) for line in lines[:5]],
+                         [("-0m30s", "A"), ("+0m40s", "B"), ("-3m00s", "C"), ("-5m00s", "E"),
+                          ("-7m00s", "F")])
+        self.assertIn("1 more", result.stdout)
+        self.assertNotIn("D failure", result.stdout)
+        self.assertEqual(len(json.loads((bundle / "related.json").read_text())["data"]), 6)
+
+    def test_related_error_bundle_search_widens_the_start_when_the_narrow_window_is_empty(self) -> None:
+        result, searches, _ = self.search_feedback_bundle({"G": -1200})
+
+        self.assertEqual([period for period, _ in searches],
+                         ["2025-01-03T02:54:05Z..2025-01-03T03:05:05Z",
+                          "2025-01-03T02:34:05Z..2025-01-03T03:05:05Z"])
+        self.assertIn("-20m00s", result.stdout)
+        self.assertIn("G failure", result.stdout)
+
+    def test_related_error_bundle_search_names_the_windows_when_nothing_matches(self) -> None:
+        result, searches, _ = self.search_feedback_bundle({"H": -2400})
+
+        self.assertEqual(len(searches), 2)
+        self.assertIn("Matched 0 events", result.stdout)
+        self.assertIn("2025-01-03T02:34:05Z..2025-01-03T03:05:05Z", result.stdout)
+        self.assertNotIn("H failure", result.stdout)
+
+    def test_related_error_bundle_search_falls_back_to_the_release_without_a_user_id(self) -> None:
+        result, searches, _ = self.search_feedback_bundle({"A": -30}, user=False)
+
+        self.assertEqual([query for _, query in searches],
+                         ["release:example-release environment:testFlight"])
+        self.assertIn("release-wide", result.stdout)
+        self.assertIn("A failure", result.stdout)
+
+    def test_related_error_bundle_search_rejects_an_explicit_window_or_query(self) -> None:
+        for option, value in (("--period", "90d"), ("--query", "user.id:user-1")):
+            with self.subTest(option=option):
+                result = self.run_script(
+                    "search_related_errors.sh", "--bundle", str(self.root), option, value)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("--bundle", result.stderr)
+                self.assertFalse(self.call_log.exists())
 
     def test_structured_log_window_is_a_total_duration(self) -> None:
         spec = importlib.util.spec_from_file_location(

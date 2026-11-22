@@ -118,22 +118,17 @@ describes, and state each result in the report.
 
 ## Step 3: Find the reporter's errors before the report
 
-Reporters usually write just after something went wrong, so search for
-error events from 10 minutes before submission to 1 minute after, widening
-the start to 30 minutes only when that finds nothing:
+Reporters usually write just after something went wrong, so list the errors
+nearest the submission, the reporter's own or, without a reporter ID, the
+release's:
 
 ```bash
 bash .agents/scripts/sentry-cli/search_related_errors.sh \
-  --period '<start>..<end>' --query 'user.id:<id>' \
-  --out "$FEEDBACK_WORK/related.json"
+  --bundle "$FEEDBACK_WORK/bundle"
 ```
 
-Without a reporter `user.id`, query `release:<release>
-environment:<environment>` instead and label the matches release-wide. Keep
-about the five nearest, each with its short ID, title, time, and whether the
-reporter's ID is on the event. Several distinct errors just before a report
-usually mean one failure with several symptoms. When nothing turns up, say so
-with the window searched.
+Several distinct errors just before a report usually mean one failure with
+several symptoms. When nothing turns up, say so with the window searched.
 
 ## Step 4: Analyze the reporter's attachments
 
@@ -185,8 +180,9 @@ these parts, omitting any with nothing to say:
 - **Prior analysis** from the tracking issue.
 - **Sentry follow-ups:** each note or activity after submission as
   `<PT time> — <author>: <verbatim text>`, or "None", naming any unavailable.
-- **Related Sentry issues,** newest first, with time, short ID, title, error
-  type, event count, and same-user or release-wide, plus the window searched.
+- **Related Sentry issues,** nearest the submission first, with time, short
+  ID, title, error type, event count, and same-user or release-wide, plus the
+  window searched.
 - **Timeline (PT):** five to fifteen log lines, widget lines marked
   `[widget]`, enough to support the conclusion.
 - **Findings:** direct observations; the inferred root cause with confidence
