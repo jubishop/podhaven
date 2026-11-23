@@ -535,9 +535,13 @@ def base_blobs(root, base):
     adds = any(base_mode == "000000" for base_mode, _, _ in checked)
     names = sorted({name for base_mode, mode, name in checked
                     if base_mode not in ("000000", "160000") and (mode != "000000" or adds)})
-    probe = subprocess.run(["git", "cat-file", "--batch-check=%(objectname)"], cwd=root, env=environment, check=True,
-                           capture_output=True, text=True, input="".join(name + "\n" for name in names))
-    return sorted(excluded), [line.split()[0] for line in probe.stdout.splitlines() if line.endswith(" missing")]
+    if not names:
+        return sorted(excluded), []
+    # List the objects the clone has rather than ask for each name: Git 2.43, Ubuntu 24.04's, ends a batch check at
+    # the first object a partial clone lacks, even with lazy fetching off, where newer Git reports it missing.
+    present = subprocess.run(["git", "cat-file", "--batch-all-objects", "--unordered", "--batch-check=%(objectname)"],
+                             cwd=root, env=environment, check=True, capture_output=True, text=True).stdout.split()
+    return sorted(excluded), sorted(set(names).difference(present))
 
 
 def check_whitespace(root):

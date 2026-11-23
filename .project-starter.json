@@ -1,10 +1,10 @@
 {
-  "version": "4.4.2",
+  "version": "4.4.3",
   "source": "https://github.com/jubishop/project-starter",
-  "ref": "v4.4.2",
+  "ref": "v4.4.3",
   "managed": {
     "LICENSE.project-starter": "93d5102cea84447b5ce6254e9f4a917d232cc101af0fc8c4bd31171d0740e71b",
-    "bin/_checks.py": "209149ca26f0cc3690cc1e68abf9ad4ec8be648f6f84d824f4d0d5db6cce6130",
+    "bin/_checks.py": "9782ddce3afdf2f1d0fba2834151d93aa05b09b2a6d4acd113ab3886b794e040",
     "bin/_knowledge.py": "a26c1d7e6ace66700ba1b0291fcf57c2e4eb7581a551acdfe12ae7e7b7666ef5",
     "bin/check": "1eb794b0695f4840553f89d5be40060c58a749e9b3a261ac6992b5617c3ab57f",
     "bin/doctor": "bafccb584f6e9fb9fe161d3021f9d3832dc1e51ccabb9bee5794b0222894b79f",
