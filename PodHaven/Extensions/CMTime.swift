@@ -20,14 +20,14 @@ extension CMTime:
   }
 
   // Floor of the second-count, returning 0 for any non-positive, indefinite,
-  // or non-finite time. Use when feeding integer-second math (e.g. bitmap
-  // chunk indices) where negatives, NaN, or +∞ would silently corrupt
-  // results.
+  // or non-finite time and saturating at Int.max. Use when feeding
+  // integer-second math (e.g. bitmap chunk indices) where negatives, NaN, or
+  // +∞ would silently corrupt results.
   var positiveFiniteSeconds: Int {
     guard isValid, !isIndefinite else { return 0 }
     let s = seconds
     guard s.isFinite, s > 0 else { return 0 }
-    return Int(s.rounded(.down))
+    return Int(exactly: s.rounded(.down)) ?? Int.max
   }
 
   // MARK: - Creation Helpers

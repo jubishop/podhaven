@@ -4,7 +4,7 @@ status: current
 
 # Development workflow
 
-This repository keeps knowledge as Markdown and uses optional QMD search.
+This repository keeps knowledge as Markdown and searches it with QMD.
 Each checkout has its own index. Git hooks refresh it in the background.
 
 ## First setup
@@ -19,15 +19,13 @@ bin/doctor-xcode           # macOS
 bin/check --full
 ```
 
-Setup requires Git and Python 3.9 or later. Checks also require ShellCheck,
-available through the operating system's package manager; `bin/check --full`
-also requires actionlint, fish, and Ruby. The local memory
-audit also requires Claude Code, GitHub CLI, QMD, ripgrep, and QMD's Node.js or Bun runtime.
-Its tests use fake services and do not make model requests.
-QMD and direnv are optional. Missing optional tools produce clear notices; an installed but
-failing QMD returns an error. Install QMD using its
-[official instructions](https://github.com/tobi/qmd#installation).
-`bin/doctor` reports the installed QMD version.
+Setup needs Git, Python 3, and QMD, plus direnv when the project has an
+`.envrc`; see [required tools](foundation/knowledge-search.md#required-tools).
+Install QMD using its
+[official instructions](https://github.com/tobi/qmd#installation);
+`bin/doctor` reports the installed QMD version. Checks also require
+ShellCheck, available through the operating system's package manager;
+`bin/check --full` also requires actionlint, fish, and Ruby.
 
 Setup validates configuration, activates bundled hooks when no existing
 integration would be displaced, prepares caches, and waits for the initial
@@ -281,9 +279,10 @@ For focused application tests, use My Mac by default with
 running zero tests.
 
 Run focused tests with `bin/with-my-mac-lock env -u SDKROOT xcodebuild test ...`
-so they take the [My Mac test lock](#my-mac-test-lock) and Xcode selects the
-SDK for the requested destination; `bin/test-all` takes the lock and clears
-inherited `SDKROOT` itself.
+so they take a [validation slot](#validation-slots) and the
+[My Mac test lock](#my-mac-test-lock), and Xcode selects the SDK for the
+requested destination; `bin/test-all` takes both and clears inherited `SDKROOT`
+itself.
 
 Run `bin/test-all --preflight` to check the Xcode, Swift, and macOS versions
 without running tests. Release commands run this preflight too.
@@ -314,7 +313,16 @@ those that focused runs and Xcode's own test action leave behind.
 
 Each attempt retains logs, its `.xcresult` bundle, diagnostic reports, and
 `run.json` under `.cache/test-all/`. The report records the revision, local
-changes, toolchain, destination, and outcome. A new attempt keeps only the
+changes, toolchain, destination, and outcome. Its `phases` record each phase
+the run reached: tooling, Swift lint, macros, and the three `xcodebuild test`
+phases, each with its result validation. For each, it records the 1-, 5-, and
+15-minute load averages and the core count at the phase's start and end, and
+the peak 1-minute load sampled every `LOAD_SAMPLE_SECONDS` while it ran. A
+phase whose peak exceeded twice the core count is `saturated`. When a
+saturated phase fails, including when a check of its output fails, the failure
+output and the report's `saturation` field say that the failure may be
+load-induced. The flag only informs: the run still fails, and `--ensure` and
+`--verify` never reuse it. A new attempt keeps only the
 newest evidence directories, up to `RETAINED_RUNS` in `bin/test-all` (five,
 counting itself), and removes older ones. That bound always keeps the newest
 earlier run, which reuse and comparison need, and leaves other entries alone.
@@ -380,14 +388,66 @@ of waiting on itself. If a holder hangs, stop its run, including its
 `xcodebuild`, to release the lock. Xcode's own test action does not take the
 lock.
 
+#### Validation slots
+
+**Decision — 2026-11-09:** Concurrent sessions queue for machine-wide
+validation slots instead of saturating the Mac. That day, about ten sessions
+each ran `bin/test-all` at once, load averages reached 289–510 on 18 cores, and
+every run failed with timeouts that said nothing about the code under test.
+The My Mac test lock serializes only the `xcodebuild test` phases; the tooling
+phase, whose `bin/tests` fakes start thousands of short-lived processes, was
+the largest source of load.
+
+`PODHAVEN_VALIDATION_SLOTS` sets how many heavy runs do their work at once on
+this Mac, as a positive integer that defaults to 2; any other value fails with
+a clear error. Set it outside the repository, such as in a shell profile, so
+every checkout on the Mac shares one count. These runs take a slot:
+
+- `bin/test-all`, from before its first phase until it exits.
+  `bin/test-all --preflight`, `--verify`, and an `--ensure` run that reuses
+  evidence do no heavy work and take no slot.
+- `bin/check --full`, through `bin/check-application`, including in the
+  [tooling pre-push gate](#tooling-pre-push-gate). A pass that `bin/check`
+  reuses runs no checks and takes no slot.
+- Focused runs under `bin/with-my-mac-lock`.
+
+The fast `bin/check`, `bin/lint-swift-format`, and the macro `swift test` take
+no slot when run on their own.
+
+Each slot is an advisory file lock, `~/.cache/podhaven/validation-slot-<n>.lock`,
+which holds a one-line record of its holder's process ID, start time, command,
+and checkout. The system releases a slot when its holder exits or is killed,
+so no stale slot outlives a run. While every slot is held, a run prints each
+holder, polls for a free slot at a short interval, and waits without a time
+limit; it says which slot it took. Every run waits, whether interactive or
+unattended.
+
+A nested run reuses the slot it runs inside instead of waiting on itself. The
+holder exports `PODHAVEN_VALIDATION_SLOT`, which names the slot's file and
+holder process, because managed `bin/check` starts `bin/check-application`
+without passing it any descriptor. A child reuses that slot only when the
+slot's record names that process and the slot is still locked. So the tooling
+phase of `bin/test-all` runs inside the run's own slot.
+
+Runs take their slot before the My Mac test lock and never wait for a slot
+while holding that lock, so a focused run and `bin/test-all` can't deadlock.
+They also take it before an Xcode or SwiftPM build limit kept outside the
+repository: nothing that holds such a build slot waits for a validation slot.
+The limit uses only this repository's lock files, so it works the same on any
+Mac.
+
 ## Sentry triage commands
 
 Run `bin/snfeedback` to select unresolved user feedback, or `bin/snissue` to
 select an unresolved issue that is not feedback. Both show the newest items
 first, with activity within the last 365 days. They use `fzf` when installed
-and a numbered prompt otherwise. Both are fish scripts, so they require fish.
-Listing requires authenticated `sentry` and `gh` commands plus `jq`; analysis
-requires Claude Code (`claude`).
+and a numbered prompt otherwise. With `--list`, they print the rows and exit
+instead, which is how the analysis skills list them. With `--track
+<reference>`, they print every issue tracking one item, canonical first, for
+the analysis skills to start from; `bin/snissue --track` takes a numeric ID or
+issue URL and needs no Sentry access. Both are fish scripts, so they require
+fish. Listing requires authenticated `sentry` and `gh` commands plus `jq`;
+analysis requires Claude Code (`claude`).
 
 `bin/snissue` shows severity, available event and user counts, and the state
 of the GitHub issue that tracks the Sentry issue. It accepts a Sentry issue
@@ -421,7 +481,8 @@ check a partial Sentry list.
 The pickers and checkers match an issue by its marker or a link to the Sentry
 item; the pickers show it as intake, analyzed, closed, or untracked. Error issues
 analyzed before the marker existed count as analyzed when their body has a
-`## Sentry closeout` section.
+`## Sentry closeout` section. `bin/_sentry_issue_tracking.jq` holds the
+error-issue rule for `bin/check-sentry-issues` and `bin/snissue`.
 
 The controlled `bin/integration` probes behind the `bin/sentry-*-smoke`
 commands report to the production Sentry project, so the smokes can verify
@@ -504,8 +565,8 @@ does not require building the Swift app.
 skill tests and the shell tests in `bin/tests`, instead of reusing an earlier
 pass.
 `bin/check --full` alone is not a full test run.
-`bin/tests` covers the knowledge worker and cache ownership and artifact
-repair; Project Starter tests the shared memory audit. `bin/smoke-knowledge` checks real QMD retrieval and
+`bin/tests` covers cache ownership and artifact repair; Project Starter tests
+the knowledge tools. `bin/smoke-knowledge` checks real QMD retrieval and
 linked-worktree isolation in disposable repositories. It reuses
 `~/.cache/qmd/models` and does not publish changes.
 
@@ -520,10 +581,23 @@ Run one suite with `python3 -B -m unittest discover -s bin/tests -p 'test_deploy
 which keeps the guard importable; a dotted `bin.tests` module name fails to
 import it instead of running unguarded.
 
-`.project-starter.json` records the installed Project Starter release, the
-hashes of its managed files, and the enabled `memory-audit` feature. Update
-them with Project Starter's `bin/sync`. PodHaven overrides no managed file:
-its Xcode preparation runs from the project-owned `bin/setup-application`.
+Tooling tests run fixture commands through `bin/tests/hang_guard.py`, with
+`hang_guard.run`, or `start` and `finish` for a command the test talks to
+while it runs, instead of choosing their own timeouts. Fixture commands start
+many fake commands, each a fresh interpreter, so a loaded machine can slow a
+run far past its usual time although nothing hangs. The shared `HANG_LIMIT`
+therefore only stops a real hang, and machine load never decides a test's
+outcome. Each command starts in its own session; on a timeout, the helper
+kills that whole process group and waits for it to end, so the test reports
+one `TimeoutExpired` and its temporary directory still cleans up. Keep a short
+wait only where its expiry is the assertion. Give each subtest that runs a
+release or gate command its own fixture, so one interrupted or failed run
+can't fail the subtests after it.
+
+`.project-starter.json` records the installed Project Starter release and the
+hashes of its managed files. Update them with Project Starter's `bin/sync`.
+PodHaven overrides no managed file: its Xcode preparation runs from the
+project-owned `bin/setup-application`.
 
 ### Tooling pre-push gate
 
@@ -570,33 +644,14 @@ gated SSH push from failing that way:
 
 ## Scheduled memory audit
 
-A weekly local job checks every active [memory](../memory/README.md) note
-against the code and GitHub evidence, archives or updates stale notes, and
-commits validated changes to `main`. It is Project Starter's shared
-[memory audit](foundation/memory-audit.md) feature, whose page covers
-installing, running, inspecting, and stopping it, and its model, validation,
-and failure handling. PodHaven's `memoryAudit` settings in
-`.config/knowledge.json` add:
+Home's nightly guidance review, `~/docs/guidance-review.md`, audits
+PodHaven's [memory](../memory/README.md) notes against the code and GitHub
+evidence when they come due, in place of Project Starter's weekly memory
+audit, which 4.0.0 retired. That page covers when it runs, its model and
+billing, how its changes land, and its failures.
 
-- **Schedule:** the default Saturday at 06:00 in the Mac's local time zone.
-  Audits on the same Mac take turns through the feature's shared lock.
-- **Failure issue:** a new `Memory audit failing` issue gets the
-  `memory-audit-failure` label.
-- **Index:** archiving a note removes its entry from the README's
-  "Active notes" list.
-- **Context:** the prompt records that this Claude Code job replaced the paid
-  OpenRouter audit and the later Codex job, that it bills PodHaven's own API
-  key with a subscription fallback, and that the Sentry Intake GitHub
-  workflow, which uses no model, stays in use.
-
-Audits bill PodHaven's own Anthropic API key, set as
-`MEMORY_AUDIT_ANTHROPIC_API_KEY` in the primary checkout's `.env` (mode 600),
-and fall back to the Claude subscription when the API refuses it, as the
-feature's [API key](foundation/memory-audit.md#api-key) section describes. The
-key is separate from Screenr's. The
+It bills memory-note audits to `ANTHROPIC_MEMORY_AUDIT_API_KEY` in `~/.env`,
+the key every adopter's memory-note audits share. The same line in the
+primary checkout's `.env`, even with an empty value, would override the
+shared key for PodHaven, so that file sets none. The
 [model selection](../memory/memory-audit-model-selection.md) note records why.
-
-Run `bin/memory-audit install` in the primary checkout to register or update
-the LaunchAgent, and
-`launchctl print gui/$(id -u)/com.jubishop.podhaven.memory-audit` to inspect
-it.

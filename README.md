@@ -92,7 +92,8 @@ bin/with-my-mac-lock env -u SDKROOT xcodebuild test -hideShellScriptEnvironment 
 bin/check-swift-results .cache/FocusedTests.xcresult --build-log .cache/focused-tests.log
 ```
 Use a new result-bundle path for each run. `bin/with-my-mac-lock` waits for any
-other My Mac test run on this Mac to finish first.
+other My Mac test run on this Mac to finish first, and for a free
+[validation slot](docs/development-workflow.md#validation-slots).
 </details>
 
 ## App Version and TestFlight

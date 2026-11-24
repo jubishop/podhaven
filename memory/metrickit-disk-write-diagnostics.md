@@ -35,13 +35,12 @@ The separate, real perf inefficiency the same investigation surfaced — the
 `.including(all:)` full-episode prefetch on every refresh cycle — was tracked in
 issue #502, which is now **closed**. The prefetch is no longer on the refresh
 path: `RefreshManager.performRefresh` loads stale podcasts with
-`repo.allPodcasts(...)` (`PodHaven/Feed/RefreshManager.swift:55`,
-`PodHaven/Database/Repo.swift:40`), and `Repo.allPodcastSeries` no longer
+`repo.allPodcasts(...)` (`PodHaven/Feed/RefreshManager.swift`,
+`PodHaven/Database/Repo.swift`), and `Repo.allPodcastSeries` no longer
 exists. The `.including(all: Podcast.episodes)` prefetch remains only in the
-`Repo.podcastSeries` readers (`Repo.swift:74`, `:86`), which `RefreshManager.swift`
-does not call. The snapshot links no PR to #502, so the change that closed it is
-unidentified. It was CPU/memory hygiene (OOM-jetsam family, cf. #274) and never
-moved the disk-write diagnostic.
+`Repo.podcastSeries` readers, which `RefreshManager.swift` does not call. Commit b0f2cc23 (#510, "Load refresh merge episodes lazily")
+made the change. It was CPU/memory hygiene (OOM-jetsam family, cf. #274) and
+never moved the disk-write diagnostic.
 
 ## MetricKit delivery gotcha
 

@@ -117,7 +117,7 @@ struct CacheFileStore: Sendable {
     at sourceURL: URL,
     for episodeID: Episode.ID,
     cachedFilename: String,
-    duration: CMTime
+    duration: CMTime?
   ) async throws -> CacheFileStorage? {
     let cachedURL = CacheManager.resolveCachedFilepath(for: cachedFilename)
 
@@ -127,17 +127,17 @@ struct CacheFileStore: Sendable {
         try Episode
         .filter(Episode.Columns.cachedFilename == cachedFilename)
         .fetchCount(db)
+      var assignments = [
+        Episode.Columns.cachedFilename.set(to: cachedFilename),
+        Episode.Columns.downloading.set(to: false),
+      ]
+      if let duration { assignments.append(Episode.Columns.duration.set(to: duration)) }
       let updated =
         try Episode
         .withID(episodeID)
         .filter(Episode.Columns.cachedFilename == nil)
         .filter(Episode.Columns.downloading == true)
-        .updateAll(
-          db,
-          Episode.Columns.duration.set(to: duration),
-          Episode.Columns.cachedFilename.set(to: cachedFilename),
-          Episode.Columns.downloading.set(to: false)
-        )
+        .updateAll(db, assignments)
       guard updated > 0 else { return nil }
 
       if fileManager.fileExists(at: cachedURL.rawValue) {

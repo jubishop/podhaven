@@ -2,11 +2,22 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import Testing
 
 @testable import PodHaven
 
 private final class SilenceSchedulerBundle: NSObject {}
+
+private final class CommitCounter: TransactionObserver, Sendable {
+  private let count = ThreadSafe(0)
+
+  func callAsFunction() -> Int { count() }
+  func observes(eventsOfKind _: DatabaseEventKind) -> Bool { false }
+  func databaseDidChange(with _: DatabaseEvent) {}
+  func databaseDidCommit(_: Database) { count { $0 += 1 } }
+  func databaseDidRollback(_: Database) {}
+}
 
 @Suite("Silence analysis scheduling", .container)
 struct SilenceSchedulerTests {
@@ -155,6 +166,35 @@ struct SilenceSchedulerTests {
     )
     #expect(content.failureCount == 2)
     #expect(try content.map == nil)
+  }
+
+  @Test("a background grant writes each file's state a bounded number of times")
+  func boundedWrites() async throws {
+    let fileCount = 8
+    for _ in 0..<fileCount {
+      _ = try await cache(try await Create.podcastEpisode(), playable: false)
+    }
+    Container.shared.userSettings().$silenceMode.new(.balanced)
+    let scheduler = Container.shared.bgTaskScheduler() as! FakeBGTaskScheduler
+    Container.shared.silenceProcessor().register()
+    try await Wait.until(maxAttempts: 200) {
+      scheduler.pendingIdentifiers.contains(identifier)
+    } _: {
+      "No background work was requested"
+    }
+    let commits = CommitCounter()
+    let db = Container.shared.appDB().unsafeTestDB
+    db.add(transactionObserver: commits)
+    defer { db.remove(transactionObserver: commits) }
+    let failures = try await LogCapture.withSink { sink in
+      let task = try #require(scheduler.launchTask(withIdentifier: identifier))
+      try await task.completed.wait()
+      #expect(task.completionResults == [true])
+      return sink.captured().filter { $0.message.contains("Silence analysis failed for") }
+    }
+    #expect(failures.count == fileCount)
+    let writes = commits()
+    #expect(writes <= 2 * fileCount)
   }
 
   @Test("an expired background grant never publishes analysis")

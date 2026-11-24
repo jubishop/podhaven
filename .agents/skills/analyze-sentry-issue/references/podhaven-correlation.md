@@ -4,9 +4,9 @@ Load only the sections relevant to the issue being diagnosed.
 
 ## Builds and known fixes
 
-PodHaven releases use a value such as
-`com.artisanalsoftware.PodHaven@1.0+498`. Build `NNN` normally maps to git tag
-`v1.0bNNN`; prefer the event's `git-commit-hash` when present.
+Release `com.artisanalsoftware.PodHaven@<version>+<build>` maps to git tag
+`v<version>b<build>`, such as `v1.7.1b595`; prefer the event's
+`git-commit-hash` when present.
 
 Search repository memory and closed GitHub issues for matching failures and
 concrete fix commits. Use
@@ -42,9 +42,9 @@ limiting the first search to the Sentry timestamp.
 
 Use PodHaven structured logs when a representative event has `user.id` or a
 trace ID and the timeline can add evidence that attachments do not provide.
-PodHaven error events often use `environment:testFlight`, while structured logs
-usually use `environment:deployed`; do not copy the event environment into the
-log query without first confirming it on log rows.
+Logs sent before the app finishes detecting its environment carry `deployed`
+rather than the event's `testFlight` or `appStore`, so do not copy the event
+environment into the log query without first confirming it on log rows.
 
 Prefer a `user.id` query, optionally narrowed by release. Fall back to the trace
 ID when user correlation returns nothing. Choose a fetch period that covers the

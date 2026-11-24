@@ -3,10 +3,10 @@
 import json
 import os
 from pathlib import Path
-import subprocess
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -20,9 +20,9 @@ class TestFlightTests(unittest.TestCase):
                     "ASC_KEY_ID": "", "ASC_ISSUER_ID": "", **env}
         if "PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS" not in env:
             settings.pop("PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS", None)
-        result = subprocess.run(["ruby", str(ROOT / "bin/tests/testflight_fakes.rb"),
+        result = hang_guard.run(["ruby", str(ROOT / "bin/tests/testflight_fakes.rb"),
                                  str(ROOT / "fastlane/Fastfile")], env=settings,
-                                text=True, capture_output=True, timeout=15)
+                                text=True, capture_output=True)
         return result, json.loads(result.stdout)
 
     def test_waits_for_exact_build_submits_and_verifies_assignment(self):

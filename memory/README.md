@@ -85,9 +85,8 @@ error accepted as noise.
 ## Active notes
 
 Link every active note from the list below, one list item per note. When the
-weekly [memory audit](../docs/development-workflow.md#scheduled-memory-audit)
-archives a note, it removes that note's entry after validating its proposal;
-the model cannot edit this README.
+[memory audit](../docs/development-workflow.md#scheduled-memory-audit)
+archives a note, it removes that note's entry.
 
 - [Build variants: Development / Debug / Release](build-variants-dev-debug-release.md): PodHaven's three app build variants — Development (.dev), Debug (.debug), Release (production) — their bundle IDs, isolated on-disk data directories, which scheme action builds each, and how runtime environment (separate axis) drives logging.
 - [CarPlay artwork test observability](carplay-artwork-test-observability.md): CPListItem.image returns CarPlay's downscaled copy, and Nuke memory-cache hits did not reach the pipeline delegate; observe row artwork size through a recording ImagePipeline delegate on a cache miss
@@ -98,7 +97,7 @@ the model cannot edit this README.
 - [FTS5 sync triggers don't survive a source-table rebuild](fts5-sync-triggers-and-table-rebuilds.md): Rebuilding the episode/podcast tables silently breaks the FTS5 search index; the rebuild must recreate the \*_fts virtual tables.
 - [Listable projection purity](listable-projection-purity.md): Keep ListableEpisode/ListablePodcastEpisode as rendering-only projections; don't add columns just to make an unrelated caller simpler
 - [Lucide icon asset resync](lucide-icon-asset-resync.md): Re-syncing vendored Lucide icons must preserve filter/fingerprint/waves rawValues, which are persisted in tag.icon and smartList.icon
-- [Memory-audit model selection](memory-audit-model-selection.md): Run memory audits locally with Claude Code and Sonnet, billed to PodHaven's own Anthropic API key with automatic fallback to the Claude subscription.
+- [Memory-audit model selection](memory-audit-model-selection.md): Run memory audits locally with Claude Code and Sonnet, billed to the Anthropic API key all memory audits share, with automatic fallback to the Claude subscription.
 - [Metrickit disk write diagnostics](metrickit-disk-write-diagnostics.md): Why we drop MXDiskWriteException MetricKit diagnostics in Sentry, and why PODHAVEN-3W recurrences are not a PR #355 regression
 - [Observation broadcast viewmodel](observation-broadcast-viewmodel.md): Broadcast notifies SwiftUI synchronously for main-actor writes (#399) and one main-turn late for off-main writes; that timing decides whether a @Broadcasted value can be read through an @Observable viewModel computed property
 - [\`OPMLViewModel\` must be a \`.cached\` Container factory](opml-viewmodel-cached-factory.md): OPMLViewModel must be a .cached Container factory so ShareService and OPMLView share one instance, or the OPML import-progress sheet never appears.

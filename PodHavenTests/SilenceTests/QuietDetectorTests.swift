@@ -54,6 +54,28 @@ struct QuietDetectorTests {
     #expect(map.high[1].start == 5)
   }
 
+  @Test("audio decoded past the estimated duration clips quiet intervals to it")
+  func pastEstimatedDuration() throws {
+    var detector = QuietDetector()
+    var frames = 0
+    for (count, sample): (Int, Float) in [(500, 0.5), (800, 0), (200, 0.5), (300, 0), (200, 0.5)] {
+      try detector.consume(
+        samples: [Float](repeating: sample, count: count),
+        channels: 1,
+        sampleRate: 1000,
+        time: Double(frames) / 1000
+      )
+      frames += count
+    }
+    let map = try detector.finish(duration: 1)
+    #expect(map.isValid)
+    #expect(map.high == map.medium)
+    #expect(map.high == map.low)
+    #expect(map.high.count == 1)
+    #expect(abs(map.high[0].start - 0.5) < 0.001)
+    #expect(map.high[0].end == 1)
+  }
+
   @Test("invalid samples reject analysis")
   func invalid() {
     for sample: Float in [.nan, .infinity, -.infinity] {
