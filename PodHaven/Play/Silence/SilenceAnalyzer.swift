@@ -148,6 +148,17 @@ enum SilenceAnalyzer {
     _ url: URL,
     progress: @Sendable (_ processedSeconds: Double, _ totalSeconds: Double) -> Void
   ) async throws -> SilenceMap {
+    // copyNextSampleBuffer needs a free cooperative-pool thread to make progress, so decoding on
+    // the pool deadlocks once every pool thread is blocked.
+    try await withTaskExecutorPreference(DispatchQueue(label: "podhaven.silence.analysis")) {
+      try await decode(url, progress: progress)
+    }
+  }
+
+  @concurrent private static func decode(
+    _ url: URL,
+    progress: @Sendable (_ processedSeconds: Double, _ totalSeconds: Double) -> Void
+  ) async throws -> SilenceMap {
     try Task.checkCancellation()
     guard url.isFileURL else { throw SilenceAnalysisError.invalidAudio }
     let asset = AVURLAsset(url: url)
