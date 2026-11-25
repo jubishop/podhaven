@@ -131,10 +131,11 @@ bin/shipit --notes "Improved playback reliability."
 ```
 
 The command checks the existing external Everyone group before building. After
-upload, it checks processing every 30 seconds for up to two hours, adds the notes,
-submits for beta review when needed, and verifies the group assignment. Testers
-are notified when Apple makes the build available. Apple beta review can remain
-pending after the command finishes. Notes must be nonblank and at most 4000 bytes.
+upload, it checks processing every 30 seconds for up to two hours, or for
+`PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS`, adds the notes, submits for beta review
+when needed, and verifies the group assignment. Testers are notified when Apple
+makes the build available. Apple beta review can remain pending after the
+command finishes. Notes must be nonblank and at most 4000 bytes.
 
 If processing times out or distribution fails after upload, rerun the same command
 from the same clean commit. It reuses the uploaded build. A single local upload
@@ -143,24 +144,26 @@ receipt in Git's metadata directory supports retries; each new upload replaces i
 `bin/shipit` increments the build number automatically. If Apple closes a version
 for external beta review, use `bin/version` to set a higher app version, commit it,
 and upload a new build. Each upload publishes its Git tag and GitHub release
-before distribution; after upload, a failure prints the exact command that
-retries without another upload. The generated GitHub release summary remains
-separate from the TestFlight notes.
+before distribution, with the notes as the tag message; after upload, a failure
+prints the exact command that retries without another upload. Each build's
+archive and logs stay in `build/release/<tag>/`, which keeps the newest three.
 
 Other options:
 
 | Option | Behavior |
 | --- | --- |
 | `-h`, `--help` | Show usage without building or uploading. |
+| `--distribute-only` | Distribute the newest uploaded TestFlight build with its tag's notes, without building. `--reuse` is an alias. |
+| `--add-tester EMAIL`, `--remove-tester EMAIL`, `--testers` | Add, remove, or list the testers in Everyone, without a release. |
 | `-f`, `--force` | Allow a branch other than `main`. A clean working tree is still required. |
-| `--api-key PATH --api-key-id ID --api-issuer-id ID` | Authenticate with an App Store Connect API key. Supply all three options together. |
+| `--api-key PATH --api-key-id ID --api-issuer-id ID` | The App Store Connect API key. Supply all three options together. |
 
-The API key options can also be set with `ASC_KEY_PATH`, `ASC_KEY_ID`, and
-`ASC_ISSUER_ID`. Keep private keys outside the repository. Without a key, uploads
-use Xcode's Apple ID login. Distribution uses Fastlane's own Apple ID login and
-may request two-factor authentication; `FASTLANE_USER` selects the Apple ID.
-An App Manager or Admin role is needed for external distribution. Fastlane is
-required; install it with `brew install fastlane`.
+Every App Store Connect request uses an API key, from those options or from
+`ASC_KEY_PATH`, `ASC_KEY_ID`, and `ASC_ISSUER_ID`; there is no Apple ID login.
+Keep private keys outside the repository. An App Manager or Admin role is needed
+for external distribution. Only one release command runs at a time in a clone.
+Fastlane is required; see the
+[pinned version](docs/releases.md#release-tooling).
 
 `bin/shipit` and `bin/deploy.sh` are aliases and accept the same options.
 
@@ -220,10 +223,9 @@ same command. It retains the chosen version, notes, and exact build across
 retries, including after a failed version push. See
 [Versioning and releases](docs/releases.md) for the complete workflow and retry rules.
 
-Fastlane is required (`brew install fastlane`). Authentication uses the same
-`--api-key`, `--api-key-id`, and `--api-issuer-id` options and `ASC_*` environment
-variables described above. Without a key, it uses Fastlane's Apple ID login.
-Use `bin/appstore --help` for all options.
+Fastlane is required. Authentication uses the same API key options and `ASC_*`
+environment variables described above, and processing has the same two-hour
+wait. Use `bin/appstore --help` for all options.
 
 ## Project Architecture
 
