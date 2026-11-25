@@ -3,6 +3,7 @@
 
 import argparse
 import calendar
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -14,10 +15,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 sys.dont_write_bytecode = True
 from _my_mac_lock import my_mac_lock
+from _validation_slot import HOLDER_VARIABLE, validation_slot
 
 ROOT = Path(__file__).resolve().parents[1]
 DESTINATION = "platform=macOS,name=My Mac"
@@ -30,6 +33,7 @@ SAMPLE_GAP_SECONDS = 60
 SAMPLE_SECONDS = 10
 SAMPLE_TIMEOUT_SECONDS = 120
 POLL_SECONDS = 1
+LOAD_SAMPLE_SECONDS = 5
 TEST_HOST = "com.artisanalsoftware.PodHaven.debug"
 # Timing suites each run alone in their own test host after the other app tests, so
 # no other test's work counts against their budgets: (result bundle, log, suite).
@@ -170,6 +174,45 @@ def run(command, output, name, *, check=True, require_unittest=False, pass_fds=(
     return returncode
 
 
+def load_sample():
+    return {"at": datetime.now(timezone.utc).isoformat(),
+            "load_averages": [round(load, 2) for load in os.getloadavg()], "cores": os.cpu_count()}
+
+
+@contextmanager
+def phase(report, name):
+    """Record the host's load at the start and end of a phase and its peak 1-minute load while the phase runs.
+
+    A phase fails when its command fails or a check of its output does. When the peak exceeded twice the core
+    count, the report says the failure may be load-induced; it still fails."""
+    record = {"result": "failed", "start": load_sample()}
+    report.setdefault("phases", {})[name] = record
+    peak = record["start"]["load_averages"][0]
+    finished = threading.Event()
+
+    def sample():
+        nonlocal peak
+        while not finished.wait(LOAD_SAMPLE_SECONDS):
+            peak = max(peak, os.getloadavg()[0])
+
+    sampler = threading.Thread(target=sample, daemon=True)
+    sampler.start()
+    try:
+        yield
+        record["result"] = "passed"
+    finally:
+        finished.set()
+        sampler.join()
+        record["end"] = load_sample()
+        record["peak_load_1m"] = round(max(peak, record["end"]["load_averages"][0]), 2)
+        cores = record["end"]["cores"]
+        record["saturated"] = record["peak_load_1m"] > 2 * cores
+        if record["result"] == "failed" and record["saturated"]:
+            report["saturation"] = (f"The host was saturated during {name}: its 1-minute load peaked at "
+                                    f"{record['peak_load_1m']}, above twice its {cores} cores, "
+                                    "so this failure may be load-induced.")
+
+
 def test_host_data():
     for metadata in (Path.home() / "Library/Containers").glob("*/.com.apple.containermanagerd.metadata.plist"):
         try:
@@ -262,6 +305,7 @@ def main():
     if args.revision and not (args.ensure or args.verify):
         parser.error("--revision requires --ensure or --verify")
     output = None
+    held = ExitStack()
     report = {"schema": 1, "result": "failed", "started_at": datetime.now(timezone.utc).isoformat(),
               "destination": DESTINATION}
     try:
@@ -295,46 +339,52 @@ def main():
             if args.verify:
                 raise RuntimeError("No valid full local test evidence for this clean revision and toolchain; run bin/test-all")
         check_macro_pins()
+        held.enter_context(validation_slot(f"bin/test-all in {ROOT}"))
+        TEST_ENVIRONMENT[HOLDER_VARIABLE] = os.environ[HOLDER_VARIABLE]
         cache = ROOT / ".cache/test-all"
         cache.mkdir(parents=True, exist_ok=True)
         output = Path(tempfile.mkdtemp(prefix=datetime.now().strftime("%Y%m%d-%H%M%S-"), dir=cache))
         print(f"Test evidence: {output}", flush=True)
         prune_evidence(cache, output)
 
-        run([str(ROOT / "bin/check"), "--full", "--no-reuse"], output, "tooling", require_unittest=True)
-
-        run([str(ROOT / "bin/lint-swift-format")], output, "swift-lint")
-        run(["xcrun", "swift", "test", "--package-path", "PodHavenMacros"], output, "macros")
-        macro_log = (output / "macros.log").read_text(errors="replace")
-        if re.search(r"(?:^|\s)warning:", macro_log, re.I):
-            raise RuntimeError(f"Macro tests emitted warnings; see {output / 'macros.log'}")
-        if not re.search(r"Executed [1-9]\d* tests?", macro_log):
-            raise RuntimeError(f"No executed macro tests found; see {output / 'macros.log'}")
-        if re.search(r"\b[1-9]\d* (?:tests? )?skipped\b", macro_log, re.I):
-            raise RuntimeError(f"Macro tests were skipped; see {output / 'macros.log'}")
+        with phase(report, "tooling"):
+            run([str(ROOT / "bin/check"), "--full", "--no-reuse"], output, "tooling", require_unittest=True)
+        with phase(report, "swift-lint"):
+            run([str(ROOT / "bin/lint-swift-format")], output, "swift-lint")
+        with phase(report, "macros"):
+            run(["xcrun", "swift", "test", "--package-path", "PodHavenMacros"], output, "macros")
+            macro_log = (output / "macros.log").read_text(errors="replace")
+            if re.search(r"(?:^|\s)warning:", macro_log, re.I):
+                raise RuntimeError(f"Macro tests emitted warnings; see {output / 'macros.log'}")
+            if not re.search(r"Executed [1-9]\d* tests?", macro_log):
+                raise RuntimeError(f"No executed macro tests found; see {output / 'macros.log'}")
+            if re.search(r"\b[1-9]\d* (?:tests? )?skipped\b", macro_log, re.I):
+                raise RuntimeError(f"Macro tests were skipped; see {output / 'macros.log'}")
 
         with my_mac_lock(f"bin/test-all in {ROOT}") as lock:
             earlier_entries = test_host_temporary_entries(test_host_data())
             try:
                 for bundle_name, log_name, validation_name, selection, validation_options in SWIFT_PHASES:
-                    bundle = output / f"{bundle_name}.xcresult"
-                    test_status = run([
-                        "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
-                        "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
-                        "-skipMacroValidation", "-resultBundlePath", str(bundle), *selection,
-                        "LM_FORCE_LINK_GENERATION=YES",
-                    ], output, log_name, check=False, pass_fds=(lock,), watch_host=True)
-                    samples = "".join(f"\nTest host sample: {path}"
-                                      for path in sorted(output.glob(f"{log_name}-host-*.sample.txt")))
-                    if not bundle.is_dir():
-                        raise RuntimeError(f"Swift tests did not produce a result bundle (exit code {test_status}); "
-                                           f"see {output / (log_name + '.log')} for the launch or build failure{samples}")
-                    validation_status = run([
-                        str(ROOT / "bin/check-swift-results"), str(bundle),
-                        "--build-log", str(output / f"{log_name}.log"), *validation_options,
-                    ], output, validation_name, check=False)
-                    if test_status or validation_status:
-                        raise RuntimeError(f"Swift tests or evidence validation failed ({log_name}){samples}")
+                    with phase(report, log_name):
+                        bundle = output / f"{bundle_name}.xcresult"
+                        test_status = run([
+                            "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
+                            "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
+                            "-skipMacroValidation", "-resultBundlePath", str(bundle), *selection,
+                            "LM_FORCE_LINK_GENERATION=YES",
+                        ], output, log_name, check=False, pass_fds=(lock,), watch_host=True)
+                        samples = "".join(f"\nTest host sample: {path}"
+                                          for path in sorted(output.glob(f"{log_name}-host-*.sample.txt")))
+                        if not bundle.is_dir():
+                            raise RuntimeError(f"Swift tests did not produce a result bundle (exit code "
+                                               f"{test_status}); see {output / (log_name + '.log')} for the "
+                                               f"launch or build failure{samples}")
+                        validation_status = run([
+                            str(ROOT / "bin/check-swift-results"), str(bundle),
+                            "--build-log", str(output / f"{log_name}.log"), *validation_options,
+                        ], output, validation_name, check=False)
+                        if test_status or validation_status:
+                            raise RuntimeError(f"Swift tests or evidence validation failed ({log_name}){samples}")
             finally:
                 remove_finished_coverage_directories(test_host_data())
             data = test_host_data()
@@ -357,11 +407,14 @@ def main():
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         report["error"] = str(error)
         print(f"error: {error}", file=sys.stderr)
+        if "saturation" in report:
+            print(report["saturation"], file=sys.stderr)
         return 1
     finally:
         if output:
             report["finished_at"] = datetime.now(timezone.utc).isoformat()
             (output / "run.json").write_text(json.dumps(report, indent=2) + "\n")
+        held.close()
 
 
 if __name__ == "__main__":

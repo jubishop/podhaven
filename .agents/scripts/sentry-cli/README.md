@@ -22,6 +22,7 @@ The bundle files retain these payload shapes:
 | `attachments.json` | List of attachment metadata |
 | `activities.json` | Object with an `activity` list |
 | `notes.json` | List of notes |
+| `related.json` | Native `explore --json` object from `search_related_errors.sh --bundle`'s last search |
 
 Tag distributions, activities, and notes are optional evidence. A failed
 request prints its error and an unavailable warning, omits that payload file,

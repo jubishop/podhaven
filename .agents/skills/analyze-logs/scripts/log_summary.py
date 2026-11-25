@@ -45,6 +45,11 @@ URL_ERROR_CODES: dict[int, tuple[str, str]] = {
     -1017: ("cannotParseResponse", "A task couldn't parse the response."),
 }
 URL_ERROR_PATTERN = re.compile(r"NSURLErrorDomain(?:\s+error)?[^-\d]*(?P<code>-\d+)")
+TIME_FORMATS_HELP = (
+    "Times accept YYYY-MM-DD, YYYY-MM-DD HH:MM[:SS], MM/DD HH:MM in the current year, "
+    "ISO-8601 with an optional zone, such as a Sentry timestamp, or epoch milliseconds. "
+    "Times without a zone are Pacific."
+)
 
 
 def parse_time_arg(s: str) -> int:
@@ -91,6 +96,10 @@ class Entry:
     file: str
     function: str
     line: int
+    session_id: str | None
+    version: str | None
+    build_number: str | None
+    git_commit_hash: str | None
 
 
 @dataclass
@@ -138,7 +147,8 @@ class Report:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Summarize PodHaven NDJSON logs and optionally filter or compare them."
+        description="Summarize PodHaven NDJSON logs and optionally filter or compare them.",
+        epilog=TIME_FORMATS_HELP,
     )
     parser.add_argument(
         "path",
@@ -153,7 +163,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--compare-other",
-        help="Compare the first log file to another log file using the same scope and filters.",
+        help=(
+            "Compare the first log file to another log file using the same scope and filters; "
+            "--session scopes the other file to that session's time range."
+        ),
     )
     parser.add_argument(
         "--min-level",
@@ -174,7 +187,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--match",
-        help="Case-insensitive text filter across message, metadata, and structural fields.",
+        help="Case-insensitive text filter across message, metadata, structural fields, sessionID, and build.",
     )
     parser.add_argument(
         "--subsystem",
@@ -217,7 +230,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--session",
         type=int,
-        help="Restrict the active view to a single detected session by number (see --sessions).",
+        help="Restrict the active view to one session by its --sessions number.",
     )
     parser.add_argument(
         "--top",
@@ -249,7 +262,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sessions",
         action="store_true",
-        help="Detect and list app sessions (launch boundaries) with problem counts.",
+        help=(
+            "List each process launch with its build and problem counts: one per sessionID, "
+            "or split at launch messages for entries written before sessionID existed."
+        ),
     )
     parser.add_argument(
         "--call-sites",
@@ -321,6 +337,11 @@ def range_summary(entries: list[Entry]) -> dict[str, Any] | None:
     }
 
 
+def optional_text(payload: dict[str, Any], key: str) -> str | None:
+    value = payload.get(key)
+    return None if value is None else str(value)
+
+
 def parse_entry(line_number: int, raw_line: str) -> Entry:
     payload: dict[str, Any] = json.loads(raw_line)
     metadata = payload.get("metadata")
@@ -340,6 +361,10 @@ def parse_entry(line_number: int, raw_line: str) -> Entry:
         file=str(payload.get("file", "")),
         function=str(payload.get("function", "")),
         line=int(payload.get("line", 0)),
+        session_id=optional_text(payload, "sessionID"),
+        version=optional_text(payload, "version"),
+        build_number=optional_text(payload, "buildNumber"),
+        git_commit_hash=optional_text(payload, "gitCommitHash"),
     )
 
 
@@ -381,24 +406,31 @@ def scope_description(args: argparse.Namespace) -> str | None:
     return ", ".join(parts) if parts else None
 
 
-def apply_scope(entries: list[Entry], args: argparse.Namespace) -> list[Entry]:
+def select_session(entries: list[Entry], number: int) -> list[Entry]:
+    sessions = detect_sessions(entries)
+    if not 1 <= number <= len(sessions):
+        print(
+            f"error: session {number} not found "
+            f"({len(sessions)} sessions detected; run --sessions to list them)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return sessions[number - 1]
+
+
+def apply_scope(
+    entries: list[Entry], args: argparse.Namespace, session_range: dict[str, Any] | None = None
+) -> list[Entry]:
     scoped_entries = entries
 
-    if args.session is not None and scoped_entries:
-        sessions = detect_sessions(scoped_entries)
-        match = next((s for s in sessions if s["number"] == args.session), None)
-        if match is None:
-            print(
-                f"error: session {args.session} not found "
-                f"({len(sessions)} sessions detected; run --sessions to list them)",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+    if session_range is not None:
         scoped_entries = [
             entry
             for entry in scoped_entries
-            if match["start_ms"] <= entry.timestamp_ms <= match["end_ms"]
+            if session_range["start_ms"] <= entry.timestamp_ms <= session_range["end_ms"]
         ]
+    elif args.session is not None and scoped_entries:
+        scoped_entries = select_session(scoped_entries, args.session)
 
     if args.after is not None and scoped_entries:
         cutoff_ms = parse_time_arg(args.after)
@@ -493,6 +525,10 @@ def entry_matches(entry: Entry, args: argparse.Namespace, min_level: int | None)
                 entry.category,
                 entry.file,
                 entry.function,
+                entry.session_id or "",
+                entry.version or "",
+                entry.build_number or "",
+                entry.git_commit_hash or "",
                 json.dumps(entry.metadata or {}, sort_keys=True),
             ]
         ).casefold()
@@ -690,9 +726,11 @@ def serialize_issue_group(group: IssueGroup) -> dict[str, Any]:
     }
 
 
-def build_report(path: Path, args: argparse.Namespace) -> Report:
+def build_report(
+    path: Path, args: argparse.Namespace, session_range: dict[str, Any] | None = None
+) -> Report:
     file_entries, parse_errors = load_entries(path)
-    active_entries = apply_scope(file_entries, args)
+    active_entries = apply_scope(file_entries, args, session_range)
     min_level = LEVEL_VALUES[args.min_level] if args.min_level else None
     filtered = filters_applied(args)
     selected_entries = [
@@ -1064,50 +1102,61 @@ def print_comparison(left: Report, right: Report, args: argparse.Namespace) -> N
         print("    none")
 
 
-def detect_sessions(entries: list[Entry], gap_threshold_ms: int = 5000) -> list[dict[str, Any]]:
-    """Detect app sessions by looking for launch-related log entries."""
-    session_starts: list[tuple[int, int]] = []  # (timestamp_ms, index)
+def is_launch_entry(entry: Entry) -> bool:
+    return (
+        (entry.subsystem == "PodHaven" and entry.category == "AppLauncher")
+        or (entry.subsystem == "Database" and "creating" in entry.message and "AppDB" in entry.message)
+        or ("configureLogging" in entry.message)
+    )
 
-    for i, e in enumerate(entries):
-        is_launch = (
-            (e.subsystem == "PodHaven" and e.category == "AppLauncher")
-            or (e.subsystem == "Database" and "creating" in e.message and "AppDB" in e.message)
-            or ("configureLogging" in e.message)
-        )
-        if not is_launch:
+
+def detect_sessions(entries: list[Entry], gap_threshold_ms: int = 5000) -> list[list[Entry]]:
+    """Group entries into process launches, in order of first appearance.
+
+    Entries group by sessionID. Entries without one, written before the field existed,
+    start a session at a launch message more than gap_threshold_ms after the current
+    one's start; those before any launch message belong to no session."""
+    sessions: list[list[Entry]] = []
+    by_id: dict[str, list[Entry]] = {}
+    legacy: list[Entry] | None = None
+
+    for entry in entries:
+        if entry.session_id is not None:
+            legacy = None
+            session = by_id.get(entry.session_id)
+            if session is None:
+                session = by_id[entry.session_id] = []
+                sessions.append(session)
+            session.append(entry)
             continue
-        if not session_starts or e.timestamp_ms - session_starts[-1][0] > gap_threshold_ms:
-            session_starts.append((e.timestamp_ms, i))
-
-    if not session_starts:
-        return []
-
-    sessions: list[dict[str, Any]] = []
-    for j, (start_ts, start_idx) in enumerate(session_starts):
-        if j + 1 < len(session_starts):
-            end_idx = session_starts[j + 1][1] - 1
-        else:
-            end_idx = len(entries) - 1
-
-        session_entries = entries[start_idx : end_idx + 1]
-        level_counts = Counter(e.level for e in session_entries)
-        end_ts = entries[end_idx].timestamp_ms
-        duration_ms = end_ts - start_ts
-
-        sessions.append({
-            "number": j + 1,
-            "start_ms": start_ts,
-            "start_pt": format_timestamp(start_ts),
-            "end_ms": end_ts,
-            "end_pt": format_timestamp(end_ts),
-            "duration_ms": duration_ms,
-            "duration_human": format_duration(duration_ms),
-            "entry_count": len(session_entries),
-            "warnings": level_counts.get(4, 0),
-            "errors": level_counts.get(5, 0) + level_counts.get(6, 0),
-        })
+        if is_launch_entry(entry) and (
+            legacy is None or entry.timestamp_ms - legacy[0].timestamp_ms > gap_threshold_ms
+        ):
+            legacy = []
+            sessions.append(legacy)
+        if legacy is not None:
+            legacy.append(entry)
 
     return sessions
+
+
+def summarize_sessions(sessions: list[list[Entry]]) -> list[dict[str, Any]]:
+    summaries: list[dict[str, Any]] = []
+    for number, session in enumerate(sessions, start=1):
+        first = session[0]
+        level_counts = Counter(entry.level for entry in session)
+        summaries.append({
+            "number": number,
+            "session_id": first.session_id,
+            "version": first.version,
+            "build_number": first.build_number,
+            "git_commit_hash": first.git_commit_hash,
+            **(range_summary(session) or {}),
+            "entry_count": len(session),
+            "warnings": level_counts[4],
+            "errors": level_counts[5] + level_counts[6],
+        })
+    return summaries
 
 
 def print_sessions(sessions: list[dict[str, Any]]) -> None:
@@ -1124,6 +1173,11 @@ def print_sessions(sessions: list[dict[str, Any]]) -> None:
             f"  Session {s['number']}: {s['start_pt']} "
             f"({s['duration_human']}, {s['entry_count']:,} entries){prob_str}"
         )
+        if s["session_id"] is not None:
+            print(
+                f"    {s['version']} ({s['build_number']}) {s['git_commit_hash']}, "
+                f"session {s['session_id']}"
+            )
 
 
 def _locate_script() -> Path:
@@ -1157,7 +1211,7 @@ def main() -> int:
         if not file_entries:
             print("No entries found.")
             return 0
-        sessions = detect_sessions(file_entries)
+        sessions = summarize_sessions(detect_sessions(file_entries))
         if not sessions:
             print("No session boundaries detected.")
             return 0
@@ -1175,7 +1229,11 @@ def main() -> int:
         if not comparison_path.exists():
             print(f"Comparison log file not found: {comparison_path}", file=sys.stderr)
             return 1
-        comparison_report = build_report(comparison_path, args)
+        # Session numbers are per file, so the other file takes this session's time range.
+        session_range = None
+        if args.session is not None:
+            session_range = range_summary(select_session(primary_report.file_entries, args.session))
+        comparison_report = build_report(comparison_path, args, session_range)
 
     if args.json_output:
         payload: dict[str, Any] = {"primary": report_to_dict(primary_report, args)}

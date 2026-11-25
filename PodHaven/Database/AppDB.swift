@@ -45,11 +45,24 @@ struct AppDB {
     Self.log.debug("creating inMemory AppDB")
     do {
       let dbQueue = try DatabaseQueue(configuration: makeConfiguration())
-      return AppDB(dbQueue, migrate: migrate)
+      if migrate { try migratedInMemoryTemplate.backup(to: dbQueue) }
+      return AppDB(dbQueue, migrate: false)
     } catch {
       Assert.fatal("Failed to initialize inMemory AppDB queue: \(ErrorKit.message(for: error))")
     }
   }
+
+  // Copying one migrated database is far cheaper than rerunning every migration per database. A
+  // fresh container keeps migrations from reading or changing the caller's defaults.
+  private static let migratedInMemoryTemplate: DatabaseQueue = {
+    do {
+      let template = try DatabaseQueue(configuration: makeConfiguration())
+      Container.$shared.withValue(Container()) { Schema.migrate(template) }
+      return template
+    } catch {
+      Assert.fatal("Failed to initialize inMemory AppDB template: \(ErrorKit.message(for: error))")
+    }
+  }()
   #endif
 
   private static let sqlitePath: String =
