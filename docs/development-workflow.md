@@ -136,10 +136,12 @@ DerivedData, so preparation moves those in the clone's `workspace-state.json`
 and in each package checkout's Git alternates and origin into the clone. It
 refuses a clone whose checkouts or artifacts don't match that metadata, as
 when the seed was caught mid-update, and Xcode then resolves the checkout's
-packages afresh. Builds never update the seed, so
-a clone fetches only what its pins need beyond it. Preparation also replaces a
-checkout's earlier link to the seed with a clone once that checkout's
-DerivedData is idle, and makes a missing seed from a private package folder.
+packages afresh. Builds in a clone never update the seed, so a clone fetches
+only what its pins need beyond it. Preparation also replaces a checkout's
+earlier link to the seed with a clone once that checkout's DerivedData is idle
+and the clone verifies. Until then the link stays, because checkouts still
+linking the seed may read paths it recorded through that link. Preparation
+makes a missing seed from a private package folder.
 It copies missing per-user workspace settings from the primary checkout and
 preserves existing settings. It does not start a warm-up build.
 

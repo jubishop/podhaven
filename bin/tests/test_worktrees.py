@@ -292,16 +292,22 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(switched.read_text(), "// switched")
 
     @unittest.skipUnless(sys.platform == "darwin", "Xcode preparation is macOS-only")
-    def test_prepare_makes_a_shared_link_private_once_its_checkout_is_idle(self):
+    def test_prepare_keeps_a_shared_link_until_its_checkout_is_idle_and_its_clone_is_ready(self):
         linked = self.linked_checkout()
-        self.seed(self.shared)
         folder = self.packages(linked)
+        # Checkouts that still link the seed read the paths it recorded through this link.
+        self.seed(folder)
         folder.parent.mkdir(parents=True)
         folder.symlink_to(self.shared, target_is_directory=True)
         self.open.side_effect = lambda path: path == folder.parent
         self.assertIn("in use", self.prepare(linked))
         self.assertEqual(folder.resolve(), self.shared)
         self.open.side_effect = None
+        lock = self.shared / "checkouts/Factory/.git/index.lock"
+        lock.touch()
+        self.assertIn("stay shared until", self.prepare(linked))
+        self.assertEqual(folder.resolve(), self.shared)
+        lock.unlink()
         self.prepare(linked)
         self.assertFalse(folder.is_symlink())
         self.assertEqual(json.loads((folder / "workspace-state.json").read_text())["object"]["artifacts"][0]["path"],
@@ -324,6 +330,16 @@ class CacheTests(unittest.TestCase):
                 folder = self.packages(linked)
                 self.assertFalse(folder.exists() or folder.is_symlink())
                 self.assertEqual(list(folder.parent.iterdir()), [])
+
+    @unittest.skipUnless(sys.platform == "darwin", "Xcode preparation is macOS-only")
+    def test_a_link_to_a_missing_seed_leaves_packages_for_xcode_to_resolve(self):
+        linked = self.linked_checkout()
+        shutil.rmtree(self.shared)
+        folder = self.packages(linked)
+        folder.parent.mkdir(parents=True)
+        folder.symlink_to(self.shared, target_is_directory=True)
+        self.prepare(linked)
+        self.assertFalse(folder.exists() or folder.is_symlink())
 
     def test_cleanup_agent_runs_the_default_python_that_follows_updates(self):
         home, tools = self.base / "home", self.base / "tools"

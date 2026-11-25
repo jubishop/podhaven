@@ -294,6 +294,8 @@ def clone_packages(paths, target):
                 if (repository / "index.lock").exists() or (repository / "HEAD").read_text().strip() != revision:
                     raise ValueError("The seed's " + subpath + " checkout was mid-update")
             atomic_json(state_path, state)
+        if target.is_symlink():
+            target.unlink()
         staging.rename(target)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
@@ -312,13 +314,21 @@ def make_packages_private(paths, directory):
             print("Packages stay shared while this checkout's DerivedData is in use; bin/prep-worktree retries: "
                   + str(directory))
             return
-        packages.unlink()
-    elif packages.exists() or not paths["packages"].is_dir():
+        if not packages.is_dir():
+            packages.unlink()
+    elif packages.exists():
+        return
+    if not paths["packages"].is_dir():
         return
     try:
         clone_packages(paths, packages)
     except (OSError, ValueError) as error:
-        print("Xcode will resolve packages afresh in " + str(packages) + ": " + str(error))
+        if packages.is_symlink():
+            # Checkouts that still link the seed may read paths it recorded through this link.
+            print("Packages stay shared until bin/prep-worktree can clone the seed into " + str(packages) + ": "
+                  + str(error))
+        else:
+            print("Xcode will resolve packages afresh in " + str(packages) + ": " + str(error))
 
 
 def prepare_xcode(root):
