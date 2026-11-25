@@ -282,6 +282,7 @@ struct RefreshScheduler: Sendable {
     defer { finishRefresh() }
 
     try await refreshManager.performRefresh(
+      trigger: .scheduled,
       stalenessThreshold: path.isExpensive
         ? refreshPolicy.cellStalenessThreshold
         : refreshPolicy.wifiStalenessThreshold,

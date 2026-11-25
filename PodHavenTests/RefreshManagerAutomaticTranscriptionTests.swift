@@ -22,29 +22,12 @@ actor RefreshManagerAutomaticTranscriptionTests {
   @Test("refreshSeries queues newly fetched episodes for automatic transcription")
   func refreshSeriesQueuesAutomaticTranscription() async throws {
     await transcriptionQueue.waitUntilLoaded()
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    let feedURL = FeedURL(URL(string: "https://example.com/automatic-transcription.rss")!)
-    let podcastFeed = try await PodcastFeed.parse(data, from: feedURL)
-    let basePodcast = try podcastFeed.toUnsavedPodcast()
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: try UnsavedPodcast(
-          feedURL: basePodcast.feedURL,
-          title: basePodcast.title,
-          image: basePodcast.image,
-          description: basePodcast.description,
-          link: basePodcast.link,
-          alwaysTranscribeNewEpisodes: true
-        ),
-        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-      )
+    let podcastSeries = try await NewEpisodeFeed.insertSeries(
+      feedURL: URL(string: "https://example.com/automatic-transcription.rss")!,
+      alwaysTranscribeNewEpisodes: true
     )
     let existingEpisodeIDs = Set(podcastSeries.episodes.map(\.id))
-    let updatedData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
-    )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: NewEpisodeFeed.data)
 
     try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
@@ -74,31 +57,12 @@ actor RefreshManagerAutomaticTranscriptionTests {
     let refreshManager = Container.shared.refreshManager()
     await transcriptionQueue.waitUntilLoaded()
 
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    let feedURL = FeedURL(
-      URL(string: "https://example.com/cancelled-automatic-transcription.rss")!
-    )
-    let podcastFeed = try await PodcastFeed.parse(data, from: feedURL)
-    let basePodcast = try podcastFeed.toUnsavedPodcast()
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: try UnsavedPodcast(
-          feedURL: basePodcast.feedURL,
-          title: basePodcast.title,
-          image: basePodcast.image,
-          description: basePodcast.description,
-          link: basePodcast.link,
-          alwaysTranscribeNewEpisodes: true
-        ),
-        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-      )
+    let podcastSeries = try await NewEpisodeFeed.insertSeries(
+      feedURL: URL(string: "https://example.com/cancelled-automatic-transcription.rss")!,
+      alwaysTranscribeNewEpisodes: true
     )
     let existingEpisodeIDs = Set(podcastSeries.episodes.map(\.id))
-    let updatedData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
-    )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: NewEpisodeFeed.data)
 
     let refreshTask = Task {
       try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
@@ -140,28 +104,11 @@ actor RefreshManagerAutomaticTranscriptionTests {
     let fillerEpisodeIDs = fillerSeries.episodes.map(\.id)
     try await transcriptionQueue.enqueue(fillerEpisodeIDs)
 
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    let feedURL = FeedURL(URL(string: "https://example.com/full-automatic-transcription.rss")!)
-    let podcastFeed = try await PodcastFeed.parse(data, from: feedURL)
-    let basePodcast = try podcastFeed.toUnsavedPodcast()
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: try UnsavedPodcast(
-          feedURL: basePodcast.feedURL,
-          title: basePodcast.title,
-          image: basePodcast.image,
-          description: basePodcast.description,
-          link: basePodcast.link,
-          alwaysTranscribeNewEpisodes: true
-        ),
-        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-      )
+    let podcastSeries = try await NewEpisodeFeed.insertSeries(
+      feedURL: URL(string: "https://example.com/full-automatic-transcription.rss")!,
+      alwaysTranscribeNewEpisodes: true
     )
-    let updatedData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
-    )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: NewEpisodeFeed.data)
 
     try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 

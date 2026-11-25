@@ -44,6 +44,7 @@ struct SilenceMap: Codable, Equatable, Sendable {
 }
 
 private struct QuietRun {
+  private static let minimumLength = 0.04
   let threshold: Float
   var intervals: [QuietInterval] = []
   private var quietStart: Double?
@@ -61,8 +62,16 @@ private struct QuietRun {
   mutating func finish(at end: Double) {
     guard let start = quietStart else { return }
     quietStart = nil
-    guard end - start >= 0.04 else { return }
+    guard end - start >= Self.minimumLength else { return }
     intervals.append(QuietInterval(start: start, end: end))
+  }
+
+  func clipped(to duration: Double) -> [QuietInterval] {
+    intervals.compactMap { interval in
+      let end = min(interval.end, duration)
+      guard end - interval.start >= Self.minimumLength else { return nil }
+      return QuietInterval(start: interval.start, end: end)
+    }
   }
 }
 
@@ -117,14 +126,14 @@ struct QuietDetector {
   }
 
   mutating func finish(duration: Double) throws -> SilenceMap {
-    high.finish(at: min(windowStart, duration))
-    medium.finish(at: min(windowStart, duration))
-    low.finish(at: min(windowStart, duration))
+    high.finish(at: windowStart)
+    medium.finish(at: windowStart)
+    low.finish(at: windowStart)
     let map = SilenceMap(
       duration: duration,
-      high: high.intervals,
-      medium: medium.intervals,
-      low: low.intervals
+      high: high.clipped(to: duration),
+      medium: medium.clipped(to: duration),
+      low: low.clipped(to: duration)
     )
     guard map.intervalCount <= SilenceMap.maximumIntervals else {
       throw SilenceAnalysisError.tooManyIntervals
@@ -136,6 +145,17 @@ struct QuietDetector {
 
 enum SilenceAnalyzer {
   @concurrent static func analyze(
+    _ url: URL,
+    progress: @Sendable (_ processedSeconds: Double, _ totalSeconds: Double) -> Void
+  ) async throws -> SilenceMap {
+    // copyNextSampleBuffer needs a free cooperative-pool thread to make progress, so decoding on
+    // the pool deadlocks once every pool thread is blocked.
+    try await withTaskExecutorPreference(DispatchQueue(label: "podhaven.silence.analysis")) {
+      try await decode(url, progress: progress)
+    }
+  }
+
+  @concurrent private static func decode(
     _ url: URL,
     progress: @Sendable (_ processedSeconds: Double, _ totalSeconds: Double) -> Void
   ) async throws -> SilenceMap {

@@ -1,6 +1,6 @@
 require "pilot"
 require "pilot/options"
-require "fastlane_core/build_watcher"
+require_relative "connect"
 
 module PodHavenAppStore
   UI = FastlaneCore::UI
@@ -25,15 +25,12 @@ module PodHavenAppStore
       UI.user_error!("An exact uploaded build number is required for submission.")
     end
 
-    key_path = ENV.fetch("ASC_KEY_PATH", "")
-    unless key_path.empty?
-      Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.create(
-        key_id: ENV.fetch("ASC_KEY_ID"), issuer_id: ENV.fetch("ASC_ISSUER_ID"), filepath: key_path
-      )
-    end
+    timeout = PodHavenConnect.processing_timeout if %w[preflight submit].include?(mode)
+
+    PodHavenConnect.login!
     manager = Pilot::BuildManager.new
     manager.start(FastlaneCore::Configuration.create(Pilot::Options.available_options, {
-      app_identifier: "com.artisanalsoftware.PodHaven", app_platform: "ios", username: ENV["FASTLANE_USER"]
+      app_identifier: "com.artisanalsoftware.PodHaven", app_platform: "ios"
     }))
     app = manager.app
     if mode == "base"
@@ -48,11 +45,7 @@ module PodHavenAppStore
       return
     end
     if mode == "submit"
-      build = FastlaneCore::BuildWatcher.wait_for_build_processing_to_be_complete(
-        app_id: app.id, platform: "IOS", app_version: number, build_version: options[:build].to_s,
-        poll_interval: 30, timeout_duration: 1800, select_latest: false,
-        wait_for_build_beta_detail_processing: true, return_spaceship_testflight_build: false
-      )
+      build = PodHavenConnect.wait_for_build(app, number, options[:build].to_s, timeout, "nothing was submitted")
       unless Gem::Version.new(build.app_version) == Gem::Version.new(number) && build.version == options[:build].to_s &&
              build.platform == "IOS" && build.app_id == app.id
         UI.user_error!("Apple returned a different app, version, platform, or build. Nothing was submitted.")

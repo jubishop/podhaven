@@ -18,7 +18,7 @@ extension Container {
         let (isPlayable, duration) = try await asset.load(.isPlayable, .duration)
         return await EpisodeAsset(
           isPlayable: isPlayable,
-          duration: duration.safe,
+          duration: duration,
           playerItemFactory: { AVPlayerItem(asset: asset) }
         )
       }
@@ -216,7 +216,11 @@ struct PodAVPlayerPlaybackSnapshot {
       )
     }
 
-    try await repo.updateDuration(podcastEpisode.id, duration: episodeAsset.duration)
+    if let duration = episodeAsset.duration {
+      try await repo.updateDuration(podcastEpisode.id, duration: duration)
+    } else {
+      Self.log.debug("loadAsset: asset has no known duration; keeping the stored one")
+    }
     guard let updatedPodcastEpisode = try await repo.podcastEpisode(podcastEpisode.id) else {
       throw PodAVPlayerError.episodeNotFoundAfterUpdate(
         podcastEpisode.id,

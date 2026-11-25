@@ -299,12 +299,11 @@ import UIKit
   func backgroundRefreshCachesNewlyQueuedEpisodes() async throws {
     let fakeBGTaskScheduler = fakeBGTaskScheduler
     let session = session
-    let podcastSeries = try await makeStaleSubscribedSeries(queueAllEpisodes: .onTop)
-    let responseData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
+    let podcastSeries = try await NewEpisodeFeed.insertSeries(
+      lastUpdate: 5.hoursAgo,
+      queueAllEpisodes: .onTop
     )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: responseData)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: NewEpisodeFeed.data)
     fakeApplication.applicationState = .background
     // Only the refresh's handoff, not the queue observation, can start downloads.
     fakeObservatory.holdNextQueuedPodcastEpisodesDelivery()
@@ -429,11 +428,57 @@ import UIKit
     #expect(requests == [cellularStaleSeries.podcast.feedURL.rawValue])
   }
 
+  @Test("cellular background refreshes reach a healthy feed behind more failing feeds than fit")
+  func cellularBackgroundRefreshBacksOffFailingFeeds() async throws {
+    let fakeBGTaskScheduler = fakeBGTaskScheduler
+    let fakeNetworkPathMonitor = fakeNetworkPathMonitor
+    let session = session
+    fakeNetworkPathMonitor.withholdInitialPath()
+    let failingCount = 8
+    for index in 0..<failingCount {
+      _ = try await makeStaleSubscribedSeries(
+        feedData: SyntheticFeed.rss(index: index, episodes: 1),
+        feedURL: SyntheticFeed.url(index),
+        lastUpdate: 10.hoursAgo
+      )
+      await session.respond(to: SyntheticFeed.url(index)) { url in
+        (Data(), URL.response(url, statusCode: 503))
+      }
+    }
+    let healthySeries = try await makeStaleSubscribedSeries(
+      feedData: SyntheticFeed.rss(index: failingCount, episodes: 1),
+      feedURL: SyntheticFeed.url(failingCount),
+      lastUpdate: 5.hoursAgo
+    )
+    await SyntheticFeed.respond(session, episodes: 2)
+    fakeApplication.applicationState = .background
+    refreshScheduler.register()
+    let identifier = try #require(fakeBGTaskScheduler.submissions.first?.identifier)
+
+    let firstTask = try #require(fakeBGTaskScheduler.launchTask(withIdentifier: identifier))
+    try await fakeNetworkPathMonitor.waitForStart()
+    fakeNetworkPathMonitor.update(FakeNetworkPath(isExpensive: true))
+    try await Wait.until(
+      { firstTask.completionResults == [true] },
+      { "Expected first background refresh to complete, got \(firstTask.completionResults)" }
+    )
+    #expect(Set(await session.requests) == Set((0..<failingCount).map(SyntheticFeed.url)))
+
+    let secondTask = try #require(fakeBGTaskScheduler.launchTask(withIdentifier: identifier))
+    try await Wait.until(
+      { secondTask.completionResults == [true] },
+      { "Expected second background refresh to complete, got \(secondTask.completionResults)" }
+    )
+
+    let secondRequests = await session.requests.dropFirst(failingCount)
+    #expect(Array(secondRequests) == [healthySeries.podcast.feedURL.rawValue])
+    #expect(try await repo.podcastSeries(healthySeries.podcast.id)?.episodes.count == 2)
+  }
+
   private func makeStaleSubscribedSeries(
     feedData: Data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS),
     feedURL: URL = URL(string: "https://example.com/feed.rss")!,
-    lastUpdate: Date = 5.hoursAgo,
-    queueAllEpisodes: QueueAllEpisodes = .never
+    lastUpdate: Date = 5.hoursAgo
   ) async throws -> PodcastSeries {
     let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
     let basePodcast = try podcastFeed.toUnsavedPodcast()
@@ -444,8 +489,7 @@ import UIKit
       description: basePodcast.description,
       link: basePodcast.link,
       lastUpdate: lastUpdate,
-      subscriptionDate: Date(),
-      queueAllEpisodes: queueAllEpisodes
+      subscriptionDate: Date()
     )
 
     return try await repo.insertSeries(

@@ -416,6 +416,7 @@ import Testing
     let importRequestCount = await feedSession.requests.count
 
     try await refreshManager.performRefresh(
+      trigger: .scheduled,
       stalenessThreshold: .hours(1),
       filter: Podcast.subscribed
     )

@@ -2,11 +2,11 @@ import json
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -90,10 +90,10 @@ else:
         path.chmod(0o755)
 
     def run_command(self, *arguments, input=None):
-        return subprocess.run(
+        return hang_guard.run(
             [FISH, "--no-config", str(SCRIPT), *arguments],
             cwd=ROOT / "PodHavenTests", env=self.env,
-            input=input, text=True, capture_output=True, timeout=15,
+            input=input, text=True, capture_output=True,
         )
 
     def assert_launched(self, result, slug):
@@ -158,6 +158,94 @@ else:
             "api", "--paginate", "--slurp", "repos/jubishop/podhaven/issues?state=all&per_page=100",
         ])
         self.assertEqual(self.calls(), ["sentry", "gh", "fzf", "claude"])
+
+    def test_list_prints_plain_rows_without_picking_or_launching(self):
+        for command in ("fzf", "claude"):
+            (self.bin / command).unlink()
+        result = self.run_command("--list")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(result.stdout.splitlines(), [
+            'PODHAVEN-FD  podhaven:2004 — "Synthetic new report"  '
+            "(new@example.com; GitHub: jubishop/podhaven#42 intake)",
+            'PODHAVEN-FC  podhaven:2003 — "Synthetic closed report"  '
+            "(anonymous; GitHub: jubishop/podhaven#50 closed)",
+            'PODHAVEN-FB  podhaven:2002 — "Synthetic title fallback"  '
+            "(anonymous; GitHub: jubishop/podhaven#61 analyzed)",
+            'PODHAVEN-FA  podhaven:2001 — "Synthetic old report"  (old@example.com; GitHub: untracked)',
+        ])
+        self.assertEqual(self.calls(), ["sentry", "gh"])
+
+    def test_list_of_nothing_succeeds(self):
+        self.write("sentry.json", {"data": [], "hasMore": False})
+        result = self.run_command("--list")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "No unresolved Sentry feedback found.\n")
+
+    def test_list_failures_stop(self):
+        for command, message in (
+            ("sentry", "could not fetch unresolved PodHaven feedback"),
+            ("gh", "could not fetch PodHaven GitHub issues"),
+        ):
+            with self.subTest(command=command):
+                self.env["SNFEEDBACK_FAIL"] = command
+                self.assert_stopped(self.run_command("--list"), message)
+        del self.env["SNFEEDBACK_FAIL"]
+        payload = self.read("sentry.json")
+        payload["hasMore"] = True
+        self.write("sentry.json", payload)
+        self.assert_stopped(self.run_command("--list"), "refusing to show a partial list")
+
+    def test_track_lists_every_tracking_issue_canonical_first(self):
+        for command in ("fzf", "claude"):
+            (self.bin / command).unlink()
+        for reference, feedback, expected in (
+            ("2004", {"id": "2004", "shortId": "PODHAVEN-FD", "permalink": PERMALINK + "2004"}, [
+                "Tracking issues for podhaven:2004 (PODHAVEN-FD), canonical first:",
+                "jubishop/podhaven#42 open intake marker",
+                "jubishop/podhaven#99 open analyzed link",
+            ]),
+            ("PodHaven:2003", {"id": "2003", "shortId": "PODHAVEN-FC", "permalink": PERMALINK + "2003"}, [
+                "Tracking issues for podhaven:2003 (PODHAVEN-FC), canonical first:",
+                "jubishop/podhaven#50 closed analyzed marker",
+            ]),
+            (PERMALINK + "2001", {"id": "2001", "permalink": PERMALINK + "2001"}, [
+                "No tracking issue for podhaven:2001 (PODHAVEN-?).",
+            ]),
+        ):
+            with self.subTest(reference=reference):
+                (self.directory / "calls").unlink(missing_ok=True)
+                self.write("sentry.json", feedback)
+                result = self.run_command("--track", reference)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(result.stderr, "")
+                self.assertEqual(result.stdout.splitlines(), expected)
+                self.assertEqual(self.read("sentry.args"), [
+                    "issue", "view", f"artisanal-software/{feedback['id']}",
+                    "--fresh", "--json", "--fields", "id,shortId,permalink",
+                ])
+                self.assertEqual(self.read("gh.args"), [
+                    "api", "--paginate", "--slurp", "repos/jubishop/podhaven/issues?state=all&per_page=100",
+                ])
+                self.assertEqual(self.calls(), ["sentry", "gh"])
+
+    def test_track_failures_stop(self):
+        self.assert_stopped(self.run_command("--track"), "Usage: snfeedback")
+        self.assert_stopped(self.run_command("--track", "PODHAVEN-3K"), "not a PodHaven feedback slug")
+        self.assertFalse((self.directory / "calls").exists())
+        self.write("sentry.json", {"id": "2005", "permalink": PERMALINK + "2005"})
+        self.assert_stopped(self.run_command("--track", "2004"), "sentry returned invalid feedback data")
+        self.write("sentry.json", {"id": "2004", "permalink": PERMALINK + "2004"})
+        for command, message in (
+            ("sentry", "could not fetch PodHaven feedback podhaven:2004 from Sentry"),
+            ("gh", "could not fetch PodHaven GitHub issues"),
+        ):
+            with self.subTest(command=command):
+                self.env["SNFEEDBACK_FAIL"] = command
+                self.assert_stopped(self.run_command("--track", "2004"), message)
+        del self.env["SNFEEDBACK_FAIL"]
+        self.write("gh.json", {"error": "synthetic failure"})
+        self.assert_stopped(self.run_command("--track", "2004"), "invalid issue data")
 
     def test_picker_launches_selected_row(self):
         self.env["SNFEEDBACK_SELECT"] = "2"
