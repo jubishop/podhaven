@@ -24,7 +24,9 @@ fixed bounds, checking the row count against a `count()` aggregate:
 sentry api "organizations/artisanal-software/events/?dataset=logs&field=sentry.item_id&field=timestamp&field=message&field=release&field=user.id&query=<query>&sort=-timestamp&per_page=1000&start=<iso>&end=<iso>" --json
 ```
 
-The response wraps the rows as `.body.data`. A window with more rows than
-`per_page` needs the cursor from the `Link` header. `fetch_sentry_logs.sh`
-pages aggregates rather than raw rows and rejects a repeated group; in that
-check, its total matched the events API's.
+The response wraps the rows as `.body.data` and drops the response headers. A
+window with more rows than `per_page` needs the next cursor from the `Link`
+header, which only `--verbose` prints, or an offset cursor,
+`cursor=0:<offset>:0`. `fetch_sentry_logs.sh` pages aggregates rather than raw
+rows and rejects a repeated group; in that check, its total matched the events
+API's.
