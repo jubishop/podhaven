@@ -62,11 +62,6 @@ class CacheTests(unittest.TestCase):
         (folder / "Build/object.o").write_bytes(b"x" * 8192)
         return folder
 
-    def metadata(self, folder):
-        path = self.shared / "workspace-state.json"
-        path.write_text(json.dumps({"object": {"artifacts": [{"path": str(folder / "SourcePackages/artifacts/sentry/Sentry.xcframework")} ]}}))
-        return path
-
     def seed(self, alias):
         """Fill the shared seed as SwiftPM leaves it: paths recorded through whichever folder resolved them."""
         shutil.rmtree(self.shared)
@@ -114,16 +109,18 @@ class CacheTests(unittest.TestCase):
             caches.prepare_xcode(checkout)
         return output.getvalue()
 
-    def test_repairs_shared_artifact_before_removing_orphan(self):
+    def test_cleanup_leaves_the_seed_metadata_as_swiftpm_wrote_it(self):
+        # Every checkout's packages are private, so none reads the paths the seed recorded through a removed cache.
         folder = self.cache()
-        state = self.metadata(folder)
+        state = self.shared / "workspace-state.json"
+        state.write_text(json.dumps({"object": {"artifacts": [
+            {"path": str(folder / "SourcePackages/artifacts/sentry/Sentry.xcframework")}]}}))
+        before = state.read_bytes()
         result = caches.sweep(self.repo, apply=True)
         self.assertEqual(result["removed"], [str(folder)])
-        self.assertFalse(folder.exists())
-        target = json.loads(state.read_text())["object"]["artifacts"][0]["path"]
-        self.assertEqual(target, str(self.artifact))
-        self.assertEqual(Path(target).read_text(), "Keep the shared artifact")
         self.assertGreater(result["removed_cache_bytes"], 0)
+        self.assertEqual(state.read_bytes(), before)
+        self.assertTrue(self.artifact.is_file())
         self.assertEqual(caches.sweep(self.repo, apply=True)["removed"], [])
 
     def test_cleanup_waits_for_the_shared_preparation_lock(self):
@@ -138,7 +135,6 @@ class CacheTests(unittest.TestCase):
 
     def test_partial_deletion_preserves_ownership_for_automatic_retry(self):
         folder = self.cache()
-        self.metadata(folder)
         with patch.object(caches.shutil, "rmtree", side_effect=PermissionError("Busy build directory")):
             report = caches.sweep(self.repo, apply=True)
         self.assertFalse(report["removed"])
@@ -147,14 +143,11 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(caches.sweep(self.repo, apply=True)["removed"], [str(folder)])
         self.assertTrue(self.artifact.is_file())
 
-    def test_dry_run_preserves_cache_and_metadata(self):
+    def test_dry_run_preserves_cache(self):
         folder = self.cache()
-        state = self.metadata(folder)
-        before = state.read_bytes()
         result = caches.sweep(self.repo)
         self.assertEqual(result["candidates"], [str(folder)])
         self.assertEqual(result["removed"], [])
-        self.assertEqual(state.read_bytes(), before)
         self.assertTrue(folder.is_dir())
         self.assertFalse(caches.layout(self.repo)["state"].exists())
 
@@ -201,58 +194,14 @@ class CacheTests(unittest.TestCase):
         self.assertTrue(unknown.is_dir())
         self.assertTrue(self.artifact.is_file())
 
-    def test_busy_builds_and_open_files_defer_without_metadata_writes(self):
+    def test_busy_builds_and_open_files_defer(self):
         folder = self.cache()
-        state = self.metadata(folder)
-        before = state.read_bytes()
         self.busy.return_value = True
         self.assertFalse(caches.sweep(self.repo, apply=True)["removed"])
         self.busy.return_value = False
         self.open.return_value = True
         self.assertFalse(caches.sweep(self.repo, apply=True)["removed"])
-        self.assertEqual(state.read_bytes(), before)
         self.assertTrue(folder.exists())
-
-    def test_repairs_seed_paths_recorded_through_a_cache_whose_packages_became_private(self):
-        # The seed keeps paths a checkout recorded through its link after preparation gives it a private clone.
-        folder = self.cache()
-        state = self.metadata(folder)
-        (folder / "SourcePackages").unlink()
-        shutil.copytree(self.shared, folder / "SourcePackages")
-        result = caches.sweep(self.repo, apply=True)
-        self.assertEqual(result["removed"], [str(folder)])
-        self.assertEqual(json.loads(state.read_text())["object"]["artifacts"][0]["path"], str(self.artifact))
-        # A link to anything but the seed still proves nothing about the seed's contents.
-        foreign = self.cache(self.repo / "worktrees/foreign")
-        (foreign / "SourcePackages").unlink()
-        shutil.copytree(self.shared, self.base / "elsewhere")
-        (foreign / "SourcePackages").symlink_to(self.base / "elsewhere", target_is_directory=True)
-        content = self.metadata(foreign).read_text()
-        result = caches.sweep(self.repo, apply=True)
-        self.assertFalse(result["removed"])
-        self.assertEqual(state.read_text(), content)
-        self.assertTrue(foreign.exists())
-
-    def test_idle_xcode_still_blocks_shared_metadata_repair(self):
-        folder = self.cache()
-        self.metadata(folder)
-        self.busy.side_effect = lambda include_ide=False: include_ide
-        result = caches.sweep(self.repo, apply=True)
-        self.assertFalse(result["removed"])
-        self.assertIn("waiting for Xcode", result["deferred"][0]["reason"])
-
-    def test_malformed_metadata_missing_artifact_and_escaping_path_defer(self):
-        folder = self.cache()
-        state = self.metadata(folder)
-        for content in ("broken JSON", json.dumps({"path": str(folder / "SourcePackages/missing")}),
-                        json.dumps({"path": str(folder / "SourcePackages/../outside")})):
-            with self.subTest(content=content):
-                state.write_text(content)
-                result = caches.sweep(self.repo, apply=True)
-                self.assertFalse(result["removed"])
-                self.assertTrue(result["deferred"])
-                self.assertEqual(state.read_text(), content)
-                self.assertTrue(folder.exists())
 
     @unittest.skipUnless(sys.platform == "darwin", "Xcode preparation is macOS-only")
     def test_prepare_gives_each_checkout_private_packages_cloned_from_the_shared_seed(self):

@@ -161,18 +161,11 @@ installer refuses to write the agent until
 Cleanup only removes a DerivedData folder when its plist and path hash identify
 an absent checkout owned by this clone, or, before Xcode has written that plist,
 when its name is the path hash of a recorded checkout that is gone. Its private
-packages go with it. Registered worktrees, existing checkout directories, and
-unrelated caches are preserved.
+packages go with it. Registered worktrees, existing checkout directories,
+unrelated caches, the seed, and QMD model weights are preserved.
 Preparation and cleanup share a filesystem lock. Build-process and open-file
 checks also guard deletion; Xcode does not take our lock. Ambiguous activity
 causes deferral and a later automatic retry.
-
-Before deletion, cleanup checks the seed's SwiftPM artifact paths for checkouts
-that still link it. A path through an orphan's `SourcePackages` is replaced
-with its existing target in the seed, verified as the same file while that
-folder still links the seed. Repair requires Xcode and
-package users to be closed. Unverifiable references defer cleanup. The seed and
-QMD model weights are retained.
 
 Inspect candidates with `bin/prune-worktree-caches --dry-run`. Use `bin/doctor-xcode`
 to read the latest removal totals, deferred reasons, errors, whether this
@@ -767,7 +760,7 @@ does not require building the Swift app.
 skill tests and the shell tests in `bin/tests`, instead of reusing an earlier
 pass.
 `bin/check --full` alone is not a full test run.
-`bin/tests` covers cache ownership and artifact repair; Project Starter tests
+`bin/tests` covers cache ownership and package cloning; Project Starter tests
 the knowledge tools. `bin/smoke-knowledge` checks real QMD retrieval and
 linked-worktree isolation in disposable repositories. It reuses
 `~/.cache/qmd/models` and does not publish changes.

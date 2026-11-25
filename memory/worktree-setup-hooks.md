@@ -10,23 +10,13 @@ Use the [development workflow](../docs/development-workflow.md) for maintained s
 
 ## Stale SwiftPM artifact paths
 
-Since jubishop/podhaven#1012, each checkout holds a private clone of the seed, and preparation moves the clone's recorded paths into it, including paths through a deleted custom DerivedData such as a repro's (jubishop/podhaven#1017). This failure now reaches only a checkout that still links the seed; `bin/prep-worktree` gives it a clone.
+Since jubishop/podhaven#1012, each checkout holds a private clone of the seed, and preparation moves the clone's recorded paths into it, including paths through a deleted custom DerivedData such as a repro's (jubishop/podhaven#1017). This failure now reaches only a checkout that still links the seed; `bin/prep-worktree` gives it a clone. Cleanup leaves the seed's recorded paths alone, since a checkout with private packages never reads them (jubishop/podhaven#1052).
 
 When cleanup deletes a removed worktree's DerivedData, the shared clone's `workspace-state.json` may still record Sentry xcframework paths through that deleted DerivedData. Every remaining worktree then fails with `error: There is no XCFramework found at '~/Library/Developer/Xcode/DerivedData/PodHaven-<hash>/SourcePackages/artifacts/sentry-cocoa/Sentry/Sentry.xcframework'` even though the artifacts still exist under `~/Library/Developer/SharedSourcePackages/PodHaven/artifacts/`.
 
-Automatic cleanup repairs this. `bin/_worktrees.py` rewrites `workspace-state.json` references from the deleted DerivedData to the shared clone during orphan-cache removal (`artifact_references`, applied by `sweep` before it deletes each orphaned cache). It verifies each replacement target and defers the repair while Xcode or package users hold the shared cache. `bin/post-worktree-remove` and the installed cleanup agent both run `bin/prune-worktree-caches --apply`, so a stale path should persist only when that cleanup was deferred or failed. Check `.cache/worktree-cleanup/last-error.json` first.
-
-Manual fix, when cleanup has not run: rewrite the stale prefix in `~/Library/Developer/SharedSourcePackages/PodHaven/workspace-state.json` to point at the shared clone itself:
-
-```sh
-sed -i '' "s|<stale DerivedData path>/SourcePackages|$HOME/Library/Developer/SharedSourcePackages/PodHaven|g" workspace-state.json
-```
-
 `xcodebuild -resolvePackageDependencies` does not fix it — resolution succeeds but never re-checks artifact paths. This can recur whenever SwiftPM re-resolves from a worktree that is later removed.
 
-After rewriting `workspace-state.json`, validate it with `jq empty`; `plutil -lint`
-was not a reliable JSON check for this file on this machine. To prove the
-repair without repeating release side effects, use a warning-free
+To prove a fix without repeating release side effects, use a warning-free
 `xcodebuild build-for-testing` or archive-only run with
 `-hideShellScriptEnvironment`, and confirm that Xcode copies and signs the
 Sentry framework. Run the full deploy only when the release path itself must

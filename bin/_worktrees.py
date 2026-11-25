@@ -119,40 +119,6 @@ def cache_owner(folder, named):
     return project.parent.resolve()
 
 
-def artifact_references(value, folder, packages):
-    """Return verified canonical replacements; refuse unrelated cache references."""
-    changed = False
-    if isinstance(value, dict):
-        result = {}
-        for key, child in value.items():
-            result[key], edited = artifact_references(child, folder, packages)
-            changed |= edited
-        return result, changed
-    if isinstance(value, list):
-        result = []
-        for child in value:
-            item, edited = artifact_references(child, folder, packages)
-            result.append(item)
-            changed |= edited
-        return result, changed
-    if isinstance(value, str) and value.startswith(str(folder) + os.sep):
-        source = Path(value)
-        alias = folder / "SourcePackages"
-        # A folder made private after recording these paths no longer shares files with the seed to compare.
-        linked = alias.is_symlink()
-        if not source.is_relative_to(alias) or (linked and alias.resolve() != packages):
-            raise ValueError("Shared metadata references an unshared cache path")
-        relative = source.relative_to(alias)
-        if ".." in relative.parts:
-            raise ValueError("Shared metadata contains a path traversal")
-        target = (packages / relative).resolve()
-        if (not target.is_relative_to(packages) or not target.exists()
-                or (linked and not (source.exists() and os.path.samefile(source, target)))):
-            raise ValueError("Cannot verify the shared artifact replacement")
-        return str(target), True
-    return value, False
-
-
 def allocated_bytes(folder):
     total = 0
     for directory, _, files in os.walk(folder, followlinks=False):
@@ -187,26 +153,13 @@ def sweep(root, apply=False):
             try:
                 if build_activity() or path_in_use(folder):
                     raise ValueError("Build or open-file activity; automatic cleanup will retry")
-                # Checkouts that still link the seed may record paths through this cache's link; move those first.
-                state = paths["packages"] / "workspace-state.json"
-                before = state.read_bytes() if state.exists() else None
-                parsed = json.loads(before) if before is not None else {}
-                updated, changed = artifact_references(parsed, folder, paths["packages"])
-                if changed and (build_activity(include_ide=True) or path_in_use(paths["packages"])):
-                    raise ValueError("Shared metadata needs repair; waiting for Xcode and package users to close")
                 if not apply:
                     continue
-                # Repeat ownership, activity, and metadata checks immediately before mutation.
+                # Repeat ownership and activity checks immediately before mutation.
                 if owner.exists() or str(owner) in registered_worktrees(root) or cache_owner(folder, named) != owner:
                     raise ValueError("Checkout or cache ownership changed during inspection")
-                if build_activity(include_ide=changed) or path_in_use(folder):
+                if build_activity() or path_in_use(folder):
                     raise ValueError("Build or cache activity started; automatic cleanup will retry")
-                if (state.read_bytes() if state.exists() else None) != before:
-                    raise ValueError("SwiftPM metadata changed during inspection")
-                if changed:
-                    atomic_json(state, updated)
-                    if json.loads(state.read_bytes()) != updated:
-                        raise ValueError("Shared metadata repair readback failed")
                 size = allocated_bytes(folder)
                 # Retain ownership evidence if a partial deletion fails, so a
                 # later automatic attempt can safely finish the same cache.
