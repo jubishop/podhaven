@@ -4,7 +4,6 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
-import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -357,26 +356,14 @@ import Testing
       let podcastEpisode = try await Create.podcastEpisode(
         Create.unsavedEpisode(cachedFilename: "widget-route-recovery.mp3")
       )
-      let loadStarted = AsyncSemaphore(value: 0)
-      let finishLoad = AsyncSemaphore(value: 0)
-      Container.shared.configureAudioSession.context(.test) {
-        {
-          loadStarted.signal()
-          await finishLoad.wait()
-          return true
-        }
-      }
-      Container.shared.configureAudioSession.reset(.scope)
+      PlayHelpers.failAudioSessionConfiguration()
       let loading = Task { try await playManager.load(podcastEpisode) }
-      defer {
-        loading.cancel()
-        finishLoad.signal()
-      }
-      await loadStarted.wait()
+      defer { loading.cancel() }
+      try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
 
       let result = try await PlayPauseIntent(playing: true).perform()
       withExtendedLifetime(result) {}
-      finishLoad.signal()
+      try await PlayHelpers.recoverAudioSessionConfiguration()
       #expect(try await loading.value)
       try await PlayHelpers.waitFor(.playing)
 
