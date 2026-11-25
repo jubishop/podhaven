@@ -534,9 +534,9 @@ run no tests.
   fixed path keeps its DerivedData warm. The lane's `origin/HEAD` names this
   checkout's, so `bin/check`'s whitespace check reads the same changes there.
   It then runs that checkout's `bin/test-all` in the host's desktop session
-  under `nice`, where signing works. The mirror keeps the newest `MIRROR_REFS` commits pushed to it, and
-  the lane keeps only its latest run's files, so the host's disk use stays
-  bounded.
+  under `nice`, where signing works. The mirror keeps the newest
+  `MIRROR_REFS` commits pushed to it, and the lane keeps only its latest
+  run's files, so the host's disk use stays bounded.
 - **Locks:** the lane holds the host's scheduled-jobs lock through
   `lockf -t 0`, so a held lock is a busy lane, and the host's own jobs, such
   as its Xcode updates and nightly test runs, can't start under a run. The

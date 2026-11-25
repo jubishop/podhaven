@@ -164,6 +164,9 @@ elif name == 'sample':
 elif name == 'check' and '--no-reuse' not in args and (base / 'check-passed').exists():
     print('Reused the application checks that passed earlier; bin/check --full --no-reuse runs them again.')
 elif name in ('check', 'lint-swift-format'):
+    if name == 'check' and os.environ.get('TEST_KILL_GATE'):
+        # bin/test-all, which runs this check, dies before it writes its report.
+        os.kill(os.getppid(), signal.SIGKILL)
     while name == 'check' and os.environ.get('TEST_HOLD_TOOLING') and not pathlib.Path(
             os.environ['TEST_HOLD_TOOLING']).exists():
         time.sleep(0.05)

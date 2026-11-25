@@ -35,8 +35,11 @@ env = {key: value for key, value in os.environ.items() if not key.startswith('TE
 env.update({'TEST_' + key[len('TEST_REMOTE_'):]: value for key, value in os.environ.items()
             if key.startswith('TEST_REMOTE_')})
 env.update(HOME=str(base / 'remote-home'), PATH=str(base / 'remote-commands') + os.pathsep + os.environ['PATH'])
+# A connection that fails once the run there starts: the client exits, and the session's streams close with it.
+lost = os.environ.get('TEST_SSH_CONNECTION_LOST') and command.startswith('lockf ')
+streams = subprocess.PIPE if lost else None
 session = subprocess.Popen(['/bin/zsh', '-c', command], cwd=env['HOME'], env=env, stdin=subprocess.PIPE,
-                           start_new_session=True)
+                           stdout=streams, stderr=streams, start_new_session=True)
 # A dropped connection that never closed: the session's input stays open and hears nothing more.
 dropped = os.environ.get('TEST_SSH_SILENT_DROP') and command.startswith('lockf ')
 
@@ -54,6 +57,14 @@ def forward():
 
 
 threading.Thread(target=forward, daemon=True).start()
+if lost:
+    for line in session.stderr:
+        sys.stderr.buffer.write(line)
+        sys.stderr.buffer.flush()
+        if b'Running tooling;' in line:
+            break
+    print(f'Connection to {host} closed by remote host.', file=sys.stderr, flush=True)
+    sys.exit(255)
 sys.exit(session.wait())
 '''
 SUDO = r'''
@@ -285,6 +296,18 @@ class SecondMacTests(TestAllFixture):
                     f"Running on this Mac: the second Mac, {HOST}, can't run it: {reason}\n"), result.stdout)
                 self.assertEqual(self.lane_attempts(), [])
 
+    def test_a_mirror_that_cannot_take_the_commit_leaves_the_run_on_this_mac(self):
+        # A damaged mirror refuses the push.
+        self.mirror.mkdir(parents=True)
+        (self.mirror / "HEAD").write_text("damaged")
+        result = self.run_all()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(result.stdout.startswith(
+            f"Running on this Mac: the second Mac, {HOST}, can't run it: sending the commit to it failed: fatal: "
+            "'Library/Caches/podhaven/test-lanes/mirror.git' does not appear to be a git repository\n"), result.stdout)
+        self.assertEqual(set(self.owners()), {self.repo.resolve()})
+        self.assertEqual(self.lane_attempts(), [])
+
     def test_a_signing_failure_there_asks_the_host_to_renew_and_runs_here(self):
         request = self.remote_home / "Library/Application Support/home-infra/mac-mini/signing-renewal-requested"
         result = self.run_all(TEST_REMOTE_SIGNING_FAILURE="1")
@@ -301,6 +324,33 @@ class SecondMacTests(TestAllFixture):
         self.assertNotIn("remote", json.loads((local / "run.json").read_text()))
         result = self.run_all("--verify")
         self.assertEqual(result.stdout, f"Verified full local test evidence: {local}\n")
+
+    def test_a_run_there_that_ends_without_a_report_runs_here(self):
+        reason = f"the second Mac, {HOST}, ended its run with exit status 3 and no report"
+        # A lane that can't be prepared sends no evidence.
+        self.lane.parent.mkdir(parents=True)
+        self.lane.write_text("not a checkout")
+        result = self.run_all()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Could not prepare the second Mac's lane: ", result.stderr)
+        self.assertIn(f"Running on this Mac: {reason}\n", result.stdout)
+        self.assertEqual(self.owners(), [self.repo.resolve()] * 3)
+        self.assertEqual(len(self.evidence()), 1)
+        self.assertNotIn("remote", self.report())
+        # A run there that dies sends the logs it wrote, which come back without a report.
+        self.lane.unlink()
+        shutil.rmtree(self.repo / ".cache")
+        (self.base / "events").unlink()
+        result = self.run_all(TEST_REMOTE_KILL_GATE="1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"Running on this Mac: {reason}\n", result.stdout)
+        self.assertEqual(self.owners(), [self.repo.resolve()] * 3)
+        attempt, local = self.evidence()
+        report = json.loads((attempt / "run.json").read_text())
+        self.assertEqual((report["result"], report["error"], report["remote"]), ("failed", reason, {"host": HOST}))
+        self.assertTrue((attempt / "tooling.log").is_file())
+        self.assertNotIn("remote", json.loads((local / "run.json").read_text()))
+        self.assertEqual(self.run_all("--verify").stdout, f"Verified full local test evidence: {local}\n")
 
     def test_a_run_that_fails_there_fails_without_running_here(self):
         request = self.remote_home / "Library/Application Support/home-infra/mac-mini/signing-renewal-requested"
@@ -391,6 +441,18 @@ class SecondMacTests(TestAllFixture):
         hang_guard.wait(run)
         self.wait_for_free_lane(60)
         self.assertTrue(self.lane_free())
+
+    def test_a_connection_lost_during_a_run_there_runs_it_here(self):
+        result = self.run_all(TEST_SSH_CONNECTION_LOST="1", TEST_REMOTE_HOLD_TOOLING=str(self.base / "never"))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"Connection to {HOST} closed by remote host.\n", result.stderr)
+        self.assertIn(f"Running on this Mac: the connection to the second Mac, {HOST}, failed during its run\n",
+                      result.stdout)
+        self.assertEqual(self.owners(), [self.repo.resolve()] * 3)
+        self.assertEqual(len(self.evidence()), 1)
+        self.assertNotIn("remote", self.report())
+        # The host heard its input end, so it stopped its run, which frees the lane.
+        self.wait_for_free_lane(60)
 
     def test_heartbeats_keep_a_long_run_there_going_and_a_silent_drop_stops_it(self):
         self.set_constants("_test_lane.py", HEARTBEAT_SECONDS=0.1)

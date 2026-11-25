@@ -96,7 +96,11 @@ class SecondMac:
                                     text=True, timeout=PUSH_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired:
             return f"sending the commit to it took over {PUSH_TIMEOUT_SECONDS} seconds"
-        return f"sending the commit to it failed: {last_line(result.stderr)}" if result.returncode else None
+        if not result.returncode:
+            return None
+        # git's first line names the cause, such as the connection's or the mirror's; its last is generic advice.
+        lines = result.stderr.strip().splitlines()
+        return f"sending the commit to it failed: {lines[0].strip() if lines else 'no output'}"
 
     def attempt(self, revision, base, output):
         """Run bin/test-all in the host's lane unless another run holds the lane, which leaves self.holder naming it.
