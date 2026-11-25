@@ -82,8 +82,8 @@ def app_log_candidates(*, variant: str) -> list[LogCandidate]:
             _stat_candidate(
                 "simulator (booted)",
                 sim_data / rel,
-                "Run `xcrun simctl get_app_container booted "
-                f"{bundle} data`; Share sheet on Simulator does not reach the Mac.",
+                "Settings → Debug → Share Logs saves it to ~/Desktop on this Mac; "
+                f"or run `xcrun simctl get_app_container booted {bundle} data`.",
             )
         )
     else:
@@ -103,7 +103,7 @@ def app_log_candidates(*, variant: str) -> list[LogCandidate]:
         _stat_candidate(
             "my mac (Designed for iPhone)",
             mac_container / mac_rel,
-            "Settings → Debug → Save on Mac; or copy from this host path.",
+            "Settings → Debug → Share Logs saves a copy; or copy from this host path.",
         )
     )
 

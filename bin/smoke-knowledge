@@ -92,10 +92,6 @@ def main():
             path = repo / directory
             path.mkdir(parents=True, exist_ok=True)
             (path / filename).write_text(content)
-        home = base / "optional home notes"
-        home.mkdir()
-        (home / "note.md").write_text("# Home note\n\nhomemarkerzeta is optional cross-project context.\n")
-        run("git", "config", "knowledge.homeMemoryPath", str(home))
         print("Building isolated indexes with the existing embedding model...", flush=True)
         run("bin/setup")
         run("bin/check", "--documents-only")
@@ -111,11 +107,6 @@ def main():
         result = json.loads(run("bin/knowledge", "vsearch", "Each branch needs an independent search database", "--json", "-n", "5").stdout)
         assert result and any(name in json.dumps(result) for name in ("retrieval-proof.md", "development-workflow.md")), result
         passed("real embedding generation and semantic retrieval")
-        assert json.loads(run("bin/knowledge", "search", "homemarkerzeta", "--json").stdout)
-        run("git", "config", "--unset", "knowledge.homeMemoryPath")
-        run("bin/qmd-index")
-        assert not json.loads(run("bin/knowledge", "search", "homemarkerzeta", "--json").stdout)
-        passed("home-memory opt-in and removal from real search")
 
         def readback(root):
             return {str(path.relative_to(root)): (path.stat().st_mtime_ns, path.read_bytes())

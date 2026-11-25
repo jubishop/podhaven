@@ -9,6 +9,9 @@ import Testing
 
 extension Container: @retroactive AutoRegistering {
   public func autoRegister() {
+    // Debug circular-dependency checks hold one process-wide lock across every resolution,
+    // serializing concurrent tests behind each other's dependency construction.
+    manager.circularDependencyTesting = false
     LogCapture.installOnce()
     sentryLogger.context(.test) { FakeSentryLogger() }.scope(.cached)
     appHangTracking.context(.test) { FakeAppHangTracking() }.scope(.cached)

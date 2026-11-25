@@ -54,14 +54,6 @@ files, processes, and data clear ownership and validating independence. Keep
 sequential execution where interference remains, and never hide failures with
 retries or weaker assertions.
 
-### Flaky tests
-
-Never ignore a flaky test. Fix it on the spot when the fix fits the current
-change. When it doesn't, such as when it lies outside the pull request's
-scope, file a GitHub issue for it right away, without waiting to be asked, or
-reuse the one that already tracks it, so a later agent can fix it. Name that
-issue when reporting the work.
-
 ## File organization
 
 Keep each file focused on one responsibility or feature area. About 1,000
@@ -77,9 +69,10 @@ reader task. Split a page when it mixes independent topics or readers must
 scan unrelated material, not because of its length. Move complete topics into
 descriptively named pages, leave a short overview and links, and update
 indexes and incoming links. Keep each rule or decision in one authoritative
-place with its reasons, evidence, dates, and status. Keep indexes and
-automatically loaded instructions short and link to details. Preserve
-generated and tool-managed formats.
+place with its reasons, evidence, dates, and status, across repositories too:
+for a system another repository owns, link to that repository's page rather
+than restating its facts. Keep indexes and automatically loaded instructions
+short and link to details. Preserve generated and tool-managed formats.
 
 ## Validation checkout isolation
 
@@ -145,33 +138,22 @@ Keep document and foundation checks independent of application runtimes.
 
 ## Kinds of change
 
-How a change reaches the default branch depends on what it touches:
-
-1. **Text** is not code: Markdown, including docs, memory, and agent
-   instructions, and the prose of AI skills. Commit it directly on the default
-   branch and push it without a pull request once
-   `bin/check --documents-only` passes. It needs no tests or other checks.
-2. **Development code** doesn't run in production: tests, CI workflows, hooks,
-   check scripts, development and deploy tooling, scripts in AI skills, and the
-   configuration they read. Run the [checks](#checks) it needs, then commit it
-   directly on the default branch and push it, without a pull request.
-3. **Production code** runs when the application executes: its code, the
-   configuration it reads, its dependencies, and whatever starts it, such as
-   service units or schedules. Run its checks and deliver it through a pull
-   request.
-
-A change that spans kinds follows the strictest kind it touches, and an
-uncertain change is treated as the stricter kind. A project's own rules take
-precedence, for example to require a pull request for a document that defines
-what its application may do, or to allow direct pushes of production code.
+`~/AGENTS.md`'s Kinds of change says how text, development code, and
+production code reach the default branch. Here, text needs
+`bin/check --documents-only`, which the [pre-push hook](#pre-push-hook)
+enforces, and a Project Starter sync takes the route [hosted CI](#hosted-ci)
+describes. A project may set its own rule instead, for example to require a
+pull request for a document that defines what its application may do, or to
+allow direct pushes of production code.
 
 ## Checks
 
 | Command | Runs |
 | --- | --- |
-| `bin/check --documents-only` | Managed-file hashes, document metadata, index coverage, local links, and heading anchors. |
+| `bin/check --documents-only` | Managed-file hashes, document metadata, index coverage, local links, heading anchors, and the frontmatter fields Agent Skills runtimes read in each `.agents/skills/<name>/SKILL.md`. |
 | `bin/check` | The documents-only checks, plus Python syntax, ShellCheck, and Git whitespace checks. ShellCheck lints `.envrc` and each `bin/` script whose shebang names `sh`, `bash`, `dash`, or `ksh`, in that dialect. |
 | `bin/check --full` | The `bin/check` checks, then the project's executable `bin/check-application`, when present. |
+| `bin/check --fetch-base` | No checks; in a GitHub Actions partial clone, it fetches what the whitespace checks read, as [hosted CI](#hosted-ci) describes. |
 
 Put application typechecking, lint, tests, and builds in
 `bin/check-application`. Only `--full` runs it, after the foundation checks
@@ -180,6 +162,16 @@ startup; they should finish well under a second on a small repository.
 
 A project's `.shellcheckrc` configures ShellCheck, such as
 `external-sources=true` to follow the files its scripts source.
+
+The whitespace checks read the checkout's own changes: staged changes, and
+the working tree compared with where the branch left `origin`'s default
+branch, so they catch errors already committed on the branch. Before anything
+is fetched or pushed, every commit counts. In [hosted CI](#hosted-ci), a pull
+request's commits count from where it left its base branch, and a push's from
+the commit it replaced. Content already on the default branch never fails
+them. A clone without that history checks only uncommitted changes. Exempt a
+file whose format needs such whitespace with `-whitespace` in
+`.gitattributes`.
 
 Choose checks by the change and its stage:
 
@@ -204,11 +196,22 @@ change. Report focused and full results separately.
 `bin/check --full` reuses a passing `bin/check-application` run on its own: when
 the checkout has no uncommitted or untracked changes, and that run passed in
 the last 12 hours for the same tree and environment (the platform, `python3`
-and `node` versions, and the packages in `.venv` and `node_modules`), it says
-which commit passed and skips the application checks. A reused result counts
-as a successful `bin/check --full` for that tree. Worktrees of a repository
-share the record, and `bin/check --full --no-reuse` runs the application checks
-regardless.
+and `node` versions, the packages in `.venv` and `node_modules`, and the
+values of the variables below), it says which commit passed and skips the
+application checks. A reused result counts as a successful `bin/check --full`
+for that tree. Worktrees of a repository share the record, and
+`bin/check --full --no-reuse` runs the application checks regardless. In
+GitHub Actions, `bin/check --full` neither reuses nor records a pass, so a CI
+result always comes from running the checks on its revision, even on a
+self-hosted runner whose checkout keeps `.git` between jobs.
+
+List in `checks.applicationEnvironment` in `.config/knowledge.json` each
+environment variable that changes which application checks run or what runs
+them, such as `["NVR_PYTHON"]` for a variable naming the Python that runs a
+host's tests. A pass then stands only for runs where each listed variable has
+the same value, or is unset as it was. The record keeps a digest, never the
+values. Never list the whole environment or a variable that changes on every
+run, such as a temporary path, since no pass would match.
 
 ### Pre-push hook
 
@@ -242,13 +245,40 @@ read, use a `paths` filter instead: `'**'`, then `'!**.md'`, then those
 pages. A workflow skipped by a path filter reports no status, so do not make
 it a required check.
 
-When hosted CI cannot run only because the Actions quota is exhausted or
-GitHub is rate limiting, run `bin/check --full` locally on the exact revision
-being delivered. A pass satisfies the merge or release gate. Record the
-blocker, revision, commands, and result, and report CI as unavailable, not
-passed. This does not cover failing or unexplained runs, or checks that
-cannot run locally, and it never bypasses enforced branch protection or
-required approvals.
+Give `actions/checkout` `fetch-depth: 0` in each job that runs `bin/check` or
+`bin/check --full`, so the [whitespace checks](#checks) can reach the commits
+the run adds. In a pull request or push run, a checkout too shallow to reach
+them fails those checks instead of passing without reading them.
+
+A job whose checkout is a partial clone, which any `sparse-checkout` or
+`filter` makes, leaves the files it didn't check out on GitHub, including the
+base's version of the files the run changes. `bin/check` fetches none of
+them, since `persist-credentials: false` leaves its step no token. Give such
+a job a step that runs before the one that runs `bin/check`, under the same
+conditions:
+
+```yaml
+- name: Fetch the base files the whitespace check reads
+  env:
+    GH_TOKEN: ${{ github.token }}
+  run: bin/check --fetch-base
+```
+
+It fetches from `origin` only the base's version of each file the run
+changes, leaving out paths the sparse checkout's patterns exclude, even one
+where an earlier step writes a file, such as a `.env` for tests. A file the
+run deletes adds no lines, so it fetches that file's base only when the run
+also adds a file, for Git's rename detection to compare. It hands the token
+to that one fetch without writing it to the checkout's config. The whitespace
+checks then skip the excluded paths. Without the step, they fail with this
+fix instead of asking for credentials. Outside such a checkout,
+`bin/check --fetch-base` fetches nothing.
+
+When hosted CI is unavailable rather than failed, as the `fix-ci` skill's
+Unavailable hosted CI section defines, follow that skill. The local
+equivalent of a job that runs `bin/check --full` is `bin/check --full` on the
+exact revision being delivered, and its pass satisfies the merge or release
+gate under [checks](#checks).
 
 `.project-starter.json` records the hashes of managed files. Change those
 files through Project Starter releases, or record an override with its reason;
@@ -260,17 +290,31 @@ A Project Starter sync writes text and development code that Project
 Starter's release checks already exercised, so it goes directly to the default
 branch without further checks; the [pre-push hook](#pre-push-hook) still
 checks the pages it changes. With no manual follow-up, commit only the
-synced files, with `[skip ci]` in the message so
-GitHub Actions starts no push workflows, and push from a checkout with no
-other unpushed commits. Never bypass enforced branch protection.
+synced files, with `[skip ci]` in the message, such as at the end of its
+subject, so GitHub Actions starts no push workflows. End the message with any
+`syncCommitTrailers` the project records, which `bin/sync` prints after the
+sync, in its final trailer paragraph;
+[deployment decisions](#deployment-decisions) says which projects record
+them. Push from a checkout with no other unpushed commits. Never bypass
+enforced branch protection.
 
 ## Deployment decisions
 
-Documentation, agent instructions, task setup, comments, and other
-nonfunctional changes may be pushed without a deployment or release. A
+Documentation, agent instructions, comments, and other nonfunctional
+changes may be pushed without a deployment or release. A
 Project Starter sync with no manual follow-up needs no deployment. Assess every change since the last successful release.
 Deploy when behavior, dependencies, assets, migrations, configuration, or
 operations change, when uncertain, or when asked. A project that deploys on
 push documents its supported skip mechanism and a manual override for edits a
 path filter cannot classify. When skipping, record the reason and the last
 deployed revision.
+
+A project whose deployment reads skip trailers from every commit since its
+last deployment records them for Project Starter sync commits and the home
+guidance review's audit commits too: such a commit without them makes the
+next push deploy, even when that push's own commit skips. When the project
+starts deciding deployment this way, record them, mapping each trailer name
+to a one-line value, as `syncCommitTrailers` in `.project-starter.json` for a
+sync with no manual follow-up, and in `~/bin/guidance-review`'s
+`ADOPTER_SETTINGS` for the audits' commits, as `~/docs/guidance-review.md`
+describes.

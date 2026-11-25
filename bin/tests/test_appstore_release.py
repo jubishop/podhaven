@@ -3,10 +3,10 @@
 import json
 import os
 from pathlib import Path
-import subprocess
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -19,9 +19,9 @@ class AppStoreReleaseTests(unittest.TestCase):
                        "ASC_KEY_PATH": "", "ASC_KEY_ID": "", "ASC_ISSUER_ID": "", **env}
         if "APPSTORE_BUILD" not in env:
             environment.pop("APPSTORE_BUILD", None)
-        result = subprocess.run(["ruby", str(ROOT / "bin/tests/appstore_fakes.rb"),
+        result = hang_guard.run(["ruby", str(ROOT / "bin/tests/appstore_fakes.rb"),
                                  str(ROOT / "fastlane/appstore.rb")], env=environment,
-                                text=True, capture_output=True, timeout=10)
+                                text=True, capture_output=True)
         return result, json.loads(result.stdout)
 
     def writes(self, events):

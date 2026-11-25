@@ -2,11 +2,11 @@ import json
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -93,9 +93,9 @@ else:
         path.chmod(0o755)
 
     def run_check(self, script=SCRIPT, **environment):
-        return subprocess.run(
+        return hang_guard.run(
             ["/bin/bash", str(script)], cwd=ROOT, env={**self.env, **environment},
-            text=True, capture_output=True, timeout=30,
+            text=True, capture_output=True,
         )
 
     def test_creates_intake_for_untracked_issue_ignoring_mentions_and_pull_requests(self):
@@ -263,9 +263,10 @@ else:
                 self.assertTrue('scope.setTag(value: run, key: "diagnostic-run")' in probe.read_text(),
                                 "Sentry intake skips probe events only by their diagnostic-run tag")
 
-    def test_skill_lists_the_same_issues_as_the_checker(self):
+    def test_skill_lists_and_tracks_issues_through_the_picker(self):
         skill = (ROOT / ".agents/skills/analyze-sentry-issue/SKILL.md").read_text()
-        self.assertIn("--query 'is:unresolved !issue.category:feedback !has:diagnostic-run'", skill)
+        self.assertIn("`bin/snissue --list`", skill)
+        self.assertIn("`bin/snissue --track <numeric-id>`", skill)
 
     def test_skill_trusts_the_checker_comment_author(self):
         skill = (ROOT / ".agents/skills/analyze-sentry-issue/SKILL.md").read_text()

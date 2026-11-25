@@ -172,6 +172,7 @@ import Testing
 
   @Test("episode failing after recovery makes audio session inactive")
   func episodeFailingMakesAudioSessionInactive() async throws {
+    Container.shared.fakeContinuousClock().freeze()
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
 
@@ -734,6 +735,32 @@ import Testing
     try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
     try await PlayHelpers.waitFor(.playing)
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitForQueue([queuedEpisode])
+  }
+
+  @Test("play during a failing persisted restore keeps the episode on deck and out of Up Next")
+  func playDuringFailingPersistedRestoreKeepsEpisodeOnDeckAndOutOfUpNext() async throws {
+    let (podcastEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+    try await queue.unshift(queuedEpisode.id)
+    sharedState.currentEpisodeID = podcastEpisode.id
+    let assetStarted = AsyncSemaphore(value: 0)
+    let failAsset = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.respond(to: podcastEpisode.episode.mediaURL) { _ in
+      assetStarted.signal()
+      await failAsset.wait()
+      throw TestError.assetLoadFailure(podcastEpisode)
+    }
+    let start = Task { await playManager.start() }
+    defer { failAsset.signal() }
+    await assetStarted.wait()
+
+    await playManager.play()
+    failAsset.signal()
+    await start.value
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.paused)
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
     try await PlayHelpers.waitForQueue([queuedEpisode])
   }
 
