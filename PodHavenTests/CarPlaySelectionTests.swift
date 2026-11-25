@@ -71,7 +71,10 @@ import Testing
     #expect(controller.alerts.isEmpty)
   }
 
-  @Test("newer selection wins when the old repository lookup finishes last")
+  @Test(
+    "newer selection wins when the old repository lookup finishes last",
+    .timeLimit(.minutes(5))
+  )
   func reversedLookup() async throws {
     let first = try await Create.podcastEpisode()
     let second = try await Create.podcastEpisode()
@@ -81,10 +84,15 @@ import Testing
     repo.pendingPodcastEpisodeFetchSuspend(true)
     let old = ThreadSafe(0)
     let latest = ThreadSafe(0)
+    let latestCompleted = AsyncLatch<Void>()
     rows[0].handler?(rows[0]) { old { $0 += 1 } }
     try await repo.waitForPodcastEpisodeFetchSuspended()
-    rows[1].handler?(rows[1]) { latest { $0 += 1 } }
-    try await Wait.until({ latest() == 1 }, { "Newer selection must finish" })
+    rows[1].handler?(rows[1]) {
+      latest { $0 += 1 }
+      latestCompleted.open()
+    }
+    try await latestCompleted.wait()
+    #expect(latest() == 1, "Newer selection must finish once")
     #expect(old() == 1)
     await repo.resumeAllPodcastEpisodeFetchSuspensions()
     #expect(
