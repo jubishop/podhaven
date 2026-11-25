@@ -2,12 +2,14 @@
 # Shared scaffolding for bin/check-sentry-feedback and bin/check-sentry-issues.
 # A checker sets LABEL, COMMENT_MARKER, ANALYSIS_SKILL, TRIAGE_COMMAND, and
 # SENTRY_DETAILS, then calls intake_start before matching its Sentry items.
+# A new issue starts at INTAKE_PRIORITY until its analysis sets the real one.
 
 # shellcheck source=.agents/scripts/sentry-cli/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.agents/scripts/sentry-cli/lib.sh"
 
 GH_REPO="${GH_REPO:-jubishop/podhaven}"
 DRY_RUN="${DRY_RUN:-false}"
+INTAKE_PRIORITY="p2"
 TRACKED=0
 COMMENTS_ADDED=0
 
@@ -143,7 +145,7 @@ intake_create() {
   local issue_url
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    echo "Would create issue: $title$note"
+    echo "Would create issue: $title$note with labels $LABEL, $INTAKE_PRIORITY"
     intake_comment "the new issue for $link_text" "$argument" "$link_text" "$permalink"
     return
   fi
@@ -152,6 +154,7 @@ intake_create() {
     --repo "$GH_REPO" \
     --title "$title" \
     --label "$LABEL" \
+    --label "$INTAKE_PRIORITY" \
     --body-file "$body_path")"
   printf -v "$counter" '%s' "$((${!counter} + 1))"
   intake_comment "$issue_url" "$argument" "$link_text" "$permalink"
