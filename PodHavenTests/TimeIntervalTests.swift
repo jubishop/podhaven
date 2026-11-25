@@ -126,4 +126,14 @@ struct TimeIntervalTests {
     #expect(TimeInterval.seconds(-9096).playbackTimeFormat == "-2:31:36")
     #expect(TimeInterval.seconds(-36000).playbackTimeFormat == "-10:00:00")
   }
+
+  // MARK: - Unrepresentable Seconds
+
+  @Test("formats are zero when the seconds don't fit in Int")
+  func testFormatsOfUnrepresentableSeconds() {
+    for interval in [TimeInterval.nan, .infinity, TimeInterval(Int.max)] {
+      #expect(interval.compactReadableFormat == "0s")
+      #expect(interval.playbackTimeFormat == "0:00")
+    }
+  }
 }

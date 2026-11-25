@@ -58,9 +58,10 @@ extension TimeInterval {
   }
 
   private var formattedParts: (Int, Int, Int) {
-    let hours = abs(Int(self) / 3600)
-    let minutes = abs((Int(self) % 3600) / 60)
-    let seconds = abs(Int(self) % 60)
+    let totalSeconds = Int(exactly: rounded(.towardZero)) ?? 0
+    let hours = abs(totalSeconds / 3600)
+    let minutes = abs((totalSeconds % 3600) / 60)
+    let seconds = abs(totalSeconds % 60)
 
     return (hours, minutes, seconds)
   }
