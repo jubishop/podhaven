@@ -280,21 +280,17 @@ Keep the feedback unresolved in Sentry while this issue remains open.
 
 - When this issue's work is done, resolve [Sentry feedback `<slug>`](<permalink>)
   (`<shortId>`, numeric issue ID `<numeric-id>`) with
-  `sentry issue resolve <numeric-id>`.
+  `sentry issue resolve <numeric-id>`. Read it back with
+  `sentry issue view <numeric-id> --fresh --json --fields id,status,statusDetails`
+  and verify `status: resolved` before reporting completion.
 - <one bullet per related Sentry issue the fix also resolves, if any> Also
-  update [Sentry issue `<related shortId>`](<related permalink>) (numeric
-  issue ID `<related numeric-id>`). When a merged commit fixes it, resolve it
-  in that commit, so only builds that contain the fix can regress it:
-  `sentry issue resolve <related numeric-id> --in @commit:jubishop/podhaven@<merge-commit-sha>`.
-  Sentry silently ignores this for an issue that is already resolved, so run
-  `sentry issue unresolve <related numeric-id>` first in that case. If Sentry
-  rejects the commit, or no commit fixes it, use `--in @next`. When
-  the error is accepted as expected behavior, archive it instead with
-  `sentry issue archive <related numeric-id> --until auto`.
-- Read each back with `sentry issue view <numeric-id> --fresh --json --fields id,status,statusDetails`
-  and verify every matching ID has `status: resolved`, or `status: ignored`
-  after archiving, before reporting completion. For a commit resolution, also
-  verify that `statusDetails.inCommit.id` is the merge commit.
+  close [Sentry issue `<related shortId>`](<related permalink>) (numeric
+  issue ID `<related numeric-id>`) with
+  `.agents/scripts/sentry-cli/close_sentry_issue.sh <related numeric-id>` and
+  the mode that fits, which fails unless Sentry recorded the closure:
+  - `--commit <merge-commit-sha>` when a merged commit fixes it.
+  - `--next` when no commit fixes it.
+  - `--archive` when the error is accepted as expected behavior.
 - For PR-backed work, `fix-issue` must carry this obligation, identifiers,
   links, and verification into the PR's `Do After Merging` section. The
   `after-merge` agent completes it as tracking closeout after confirming
