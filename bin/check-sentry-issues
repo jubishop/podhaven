@@ -22,8 +22,8 @@ while IFS= read -r sentry_issue; do
   ISSUE_MARKER="<!-- sentry-issue:$ID -->"
   BODY_PATH="$WORK_DIR/issue-body.md"
 
-  MATCHES="$(jq -c -L "$(dirname "${BASH_SOURCE[0]}")" --arg id "$ID" \
-    'include "_sentry_issue_tracking"; sentry_issue_tracking($id)' \
+  MATCHES="$(jq -c -L "$(dirname "${BASH_SOURCE[0]}")" --arg id "$ID" --arg owner "${GH_REPO%%/*}" \
+    'include "_sentry_tracking"; sentry_issue_tracking($id; $owner)' \
     "$ISSUES_JSON")"
   OPEN_MATCH="$(jq -c 'first(.[] | select(.state == "open")) // empty' <<< "$MATCHES")"
 
