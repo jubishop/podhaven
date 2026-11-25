@@ -278,8 +278,9 @@ For focused application tests, use My Mac by default with
 `-only-testing:PodHavenTests/SomeSuite`; method filters can report success while
 running zero tests.
 
-Run focused tests with `bin/with-my-mac-lock env -u SDKROOT xcodebuild test ...`
-so they take a [validation slot](#validation-slots) and the
+Run focused tests with `bin/with-my-mac-lock env -u SDKROOT xcodebuild test ...`,
+with the test-build flags listed below, so they take a
+[validation slot](#validation-slots) and the
 [My Mac test lock](#my-mac-test-lock), and Xcode selects the SDK for the
 requested destination; `bin/test-all` takes both and clears inherited `SDKROOT`
 itself.
@@ -352,11 +353,15 @@ service data, or installed models. Run the relevant smoke tests when those
 integrations change; they do not replace the automated suite.
 
 Retain the `.xcresult` bundle and raw `xcodebuild` log for local runs.
-Pass `-hideShellScriptEnvironment` and `LM_FORCE_LINK_GENERATION=YES` to test
-builds. The latter runs App Intents extraction even when a dynamic package's
-dependency file does not list App Intents. It confirms that there are no
-relevant symbols instead of emitting a skipped-extraction warning; it does
-not suppress warnings or bypass metadata validation.
+Pass `-hideShellScriptEnvironment`, `-skipMacroValidation`, and
+`LM_FORCE_LINK_GENERATION=YES` to test builds, as the
+[suite command](../README.md#run-a-specific-test-suite) does. Without
+`-skipMacroValidation`, the build stops at package macros Xcode hasn't been
+told to trust. `LM_FORCE_LINK_GENERATION=YES` runs App Intents extraction even
+when a dynamic package's dependency file does not list App Intents. It
+confirms that there are no relevant symbols instead of emitting a
+skipped-extraction warning; it does not suppress warnings or bypass metadata
+validation.
 
 Run `bin/check-swift-results <bundle.xcresult> --build-log <xcodebuild.log>`
 after focused tests, adding `--full` for the complete suite. This gate requires
