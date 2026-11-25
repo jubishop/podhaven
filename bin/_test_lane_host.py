@@ -9,10 +9,10 @@ the mirror that bin/test-all pushes the commit to.
 run REVISION BASE HOLDER runs once lockf holds the host's scheduled-jobs lock. It records HOLDER in the lock file,
 checks out REVISION in the lane's checkout with only that commit's files, points the lane's origin/HEAD at BASE, the
 primary Mac's origin/HEAD, or at nothing when BASE is empty, so bin/check's whitespace check starts where it would
-there, and runs that checkout's bin/test-all in the desktop session under nice. It prefixes each line of the run's output with 1 or 2 for the stream it came from and
-writes it to stderr, then writes the run's evidence folder to stdout as a tar archive. bin/test-all writes a line to
-stdin every few seconds; when stdin ends or goes quiet for HEARTBEAT_TIMEOUT_SECONDS, the connection is gone, so it
-stops the run, and lockf then releases the lock."""
+there, and runs that checkout's bin/test-all in the desktop session under nice. It prefixes each line of the run's
+output with 1 or 2 for the stream it came from and writes it to stderr, then writes the run's evidence folder to stdout
+as a tar archive. bin/test-all writes a line to stdin every few seconds; when stdin ends or goes quiet for
+HEARTBEAT_TIMEOUT_SECONDS, the connection is gone, so it stops the run, and lockf then releases the lock."""
 
 import json
 import os

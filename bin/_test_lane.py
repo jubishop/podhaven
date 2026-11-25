@@ -89,8 +89,9 @@ class SecondMac:
         """Send commits to the host's mirror, returning why that failed, or None."""
         environment = {**self.environment, "GIT_SSH_COMMAND": shlex.join(["ssh", *SSH_OPTIONS])}
         try:
+            # The mirror refuses a push that updates one ref twice.
             result = subprocess.run(["git", "push", "--quiet", "--no-verify", f"{self.host}:{host_side.MIRROR}",
-                                     *(f"+{commit}:{host_side.REFS}{commit}" for commit in commits)],
+                                     *(f"+{commit}:{host_side.REFS}{commit}" for commit in dict.fromkeys(commits))],
                                     cwd=self.root, env=environment, stdin=subprocess.DEVNULL, capture_output=True,
                                     text=True, timeout=PUSH_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired:

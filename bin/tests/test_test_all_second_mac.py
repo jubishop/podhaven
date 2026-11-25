@@ -358,13 +358,15 @@ class SecondMacTests(TestAllFixture):
             return subprocess.run(["git", "rev-parse", "--verify", "--quiet", "refs/remotes/origin/HEAD"],
                                   cwd=self.lane, capture_output=True, text=True).stdout.strip()
 
-        base = self.git("rev-parse", "HEAD~1")
-        self.git("update-ref", "refs/remotes/origin/HEAD", base)
-        self.assertEqual(self.run_all().returncode, 0)
-        self.assertEqual(lane_default(), base)
-        self.git("update-ref", "-d", "refs/remotes/origin/HEAD")
-        self.assertEqual(self.run_all().returncode, 0)
-        self.assertEqual(lane_default(), "")
+        # The default branch's own commit, as a release from it tests, is the commit under test too.
+        for base in (self.git("rev-parse", "HEAD~1"), self.git("rev-parse", "HEAD"), ""):
+            with self.subTest(base=base):
+                self.git("update-ref", *(("refs/remotes/origin/HEAD", base) if base
+                                         else ("-d", "refs/remotes/origin/HEAD")))
+                result = self.run_all()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn("Running on this Mac", result.stdout)
+                self.assertEqual(lane_default(), base)
 
     def test_the_mirror_keeps_the_newest_commits_and_the_one_under_test(self):
         self.set_constants("_test_lane_host.py", MIRROR_REFS=1)
