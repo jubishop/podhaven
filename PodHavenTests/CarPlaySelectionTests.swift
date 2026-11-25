@@ -185,6 +185,7 @@ import Testing
 
   @Test(
     "failed media and refused audio activation complete with a native error",
+    .timeLimit(.minutes(5)),
     arguments: [false, true]
   )
   func loadFailure(refuseAudio: Bool) async throws {
@@ -198,9 +199,14 @@ import Testing
         .respond(to: episode.episode.mediaURL, error: URLError(.cannotLoadFromNetwork))
     }
     let count = ThreadSafe(0)
-    rows[0].handler?(rows[0]) { count { $0 += 1 } }
+    let completed = AsyncLatch<Void>()
+    rows[0].handler?(rows[0]) {
+      count { $0 += 1 }
+      completed.open()
+    }
     if refuseAudio { try await PlayHelpers.advanceAudioSessionRetryBackoff() }
-    try await Wait.until({ count() == 1 }, { "Failed selection must complete" })
+    try await completed.wait()
+    #expect(count() == 1, "Failed selection must complete once")
     #expect(controller.alerts.count == 1)
     #expect(controller.pushed.isEmpty)
   }

@@ -28,7 +28,7 @@ import Testing
     }
   }
 
-  @Test("a disconnected request cannot navigate after reconnection")
+  @Test("a disconnected request cannot navigate after reconnection", .timeLimit(.minutes(5)))
   func disconnect() async throws {
     let file = Container.shared.siriCatalogFile()
     Container.shared.appDB().startSiriCatalog(file)
@@ -41,9 +41,11 @@ import Testing
     let repo = Container.shared.repo() as! FakeRepo
     repo.pendingPodcastEpisodeFetchSuspend(true)
     let codes = ThreadSafe<[Int]>([])
+    let completed = AsyncLatch<Void>()
     Container.shared.siriPlayback().handler
       .handle(intent: SiriTestIntent.named("Pending Siri")) { response in
         codes { $0.append(response.code.rawValue) }
+        completed.open()
       }
     try await repo.waitForPodcastEpisodeFetchSuspended()
     coordinator.disconnect(old)
@@ -52,7 +54,7 @@ import Testing
     new.completions[0](true, nil)
     defer { coordinator.disconnect(new) }
     await repo.resumeAllPodcastEpisodeFetchSuspensions()
-    try await Wait.until({ !codes().isEmpty }, { "Siri callback never completed" })
+    try await completed.wait()
     #expect(codes() == [INPlayMediaIntentResponseCode.success.rawValue])
     #expect(old.pushed.isEmpty)
     #expect(new.pushed.isEmpty)
