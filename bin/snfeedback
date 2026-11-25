@@ -54,29 +54,11 @@ end
 
 # Prints "<number>\t<state>\t<analyzed|intake>\t<marker|link>" for each issue tracking the slug, canonical first.
 function __snfeedback_matches --argument-names slug permalink
-    printf '%s\n' $__snfeedback_issues_json | jq -r \
-        --arg issue_marker "<!-- sentry-feedback:$slug -->" \
-        --arg analysis_start_marker '<!-- analyze-sentry-feedback-findings:start -->' \
-        --arg analysis_end_marker '<!-- analyze-sentry-feedback-findings:end -->' \
-        --arg permalink "$permalink" '
-            [.[][] | select(has("pull_request") | not)] as $issues
-            | ($issues | map(select((.body // "") | contains($issue_marker)) | . + {match: "marker"}))
-                + ($issues | map(select(
-                    ((.body // "") | contains($issue_marker) | not)
-                    and $permalink != ""
-                    and ((.body // "") | contains($permalink))
-                ) | . + {match: "link"}))
-            | .[]
-            | [
-                (.number | tostring),
-                .state,
-                (if (
-                    ((.body // "") | contains($analysis_start_marker))
-                    and ((.body // "") | contains($analysis_end_marker))
-                ) then "analyzed" else "intake" end),
-                .match
-            ]
-            | @tsv'
+    printf '%s\n' $__snfeedback_issues_json | jq -r -L "$__snfeedback_bin" --arg slug "$slug" --arg permalink "$permalink" '
+        include "_sentry_feedback_tracking";
+        [.[][]] | sentry_feedback_tracking($slug; $permalink)[]
+        | [.number, .state, (if .analyzed then "analyzed" else "intake" end), .match]
+        | @tsv'
 end
 
 # Sets __snfeedback_rows to "<slug>\t<display>" rows, newest first; list rows are plain, with full issue references.
@@ -353,5 +335,6 @@ function __snfeedback_main
     claude --dangerously-skip-permissions "/analyze-sentry-feedback $slug"
 end
 
+set -g __snfeedback_bin (path resolve (path dirname (status filename)))
 __snfeedback_main $argv
 exit $status
