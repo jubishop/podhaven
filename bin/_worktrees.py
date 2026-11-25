@@ -138,13 +138,16 @@ def artifact_references(value, folder, packages):
     if isinstance(value, str) and value.startswith(str(folder) + os.sep):
         source = Path(value)
         alias = folder / "SourcePackages"
-        if not source.is_relative_to(alias) or not alias.is_symlink() or alias.resolve() != packages:
+        # A folder made private after recording these paths no longer shares files with the seed to compare.
+        linked = alias.is_symlink()
+        if not source.is_relative_to(alias) or (linked and alias.resolve() != packages):
             raise ValueError("Shared metadata references an unshared cache path")
         relative = source.relative_to(alias)
         if ".." in relative.parts:
             raise ValueError("Shared metadata contains a path traversal")
         target = (packages / relative).resolve()
-        if not target.is_relative_to(packages) or not target.exists() or not source.exists() or not os.path.samefile(source, target):
+        if (not target.is_relative_to(packages) or not target.exists()
+                or (linked and not (source.exists() and os.path.samefile(source, target)))):
             raise ValueError("Cannot verify the shared artifact replacement")
         return str(target), True
     return value, False

@@ -213,6 +213,26 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(state.read_bytes(), before)
         self.assertTrue(folder.exists())
 
+    def test_repairs_seed_paths_recorded_through_a_cache_whose_packages_became_private(self):
+        # The seed keeps paths a checkout recorded through its link after preparation gives it a private clone.
+        folder = self.cache()
+        state = self.metadata(folder)
+        (folder / "SourcePackages").unlink()
+        shutil.copytree(self.shared, folder / "SourcePackages")
+        result = caches.sweep(self.repo, apply=True)
+        self.assertEqual(result["removed"], [str(folder)])
+        self.assertEqual(json.loads(state.read_text())["object"]["artifacts"][0]["path"], str(self.artifact))
+        # A link to anything but the seed still proves nothing about the seed's contents.
+        foreign = self.cache(self.repo / "worktrees/foreign")
+        (foreign / "SourcePackages").unlink()
+        shutil.copytree(self.shared, self.base / "elsewhere")
+        (foreign / "SourcePackages").symlink_to(self.base / "elsewhere", target_is_directory=True)
+        content = self.metadata(foreign).read_text()
+        result = caches.sweep(self.repo, apply=True)
+        self.assertFalse(result["removed"])
+        self.assertEqual(state.read_text(), content)
+        self.assertTrue(foreign.exists())
+
     def test_idle_xcode_still_blocks_shared_metadata_repair(self):
         folder = self.cache()
         self.metadata(folder)

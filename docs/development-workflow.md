@@ -133,9 +133,10 @@ Each checkout gets private DerivedData at Xcode's default path, and its
 `~/Library/Developer/SharedSourcePackages/PodHaven`. SwiftPM records absolute
 paths through whichever folder resolved them, even a since-deleted custom
 DerivedData, so preparation moves those in the clone's `workspace-state.json`
-and in each package checkout's Git alternates and origin into the clone. It refuses a clone whose checkouts or artifacts
-don't match that metadata, as when the seed was caught mid-update, and Xcode
-then resolves the checkout's packages afresh. Builds never update the seed, so
+and in each package checkout's Git alternates and origin into the clone. It
+refuses a clone whose checkouts or artifacts don't match that metadata, as
+when the seed was caught mid-update, and Xcode then resolves the checkout's
+packages afresh. Builds never update the seed, so
 a clone fetches only what its pins need beyond it. Preparation also replaces a
 checkout's earlier link to the seed with a clone once that checkout's
 DerivedData is idle, and makes a missing seed from a private package folder.
@@ -165,8 +166,9 @@ checks also guard deletion; Xcode does not take our lock. Ambiguous activity
 causes deferral and a later automatic retry.
 
 Before deletion, cleanup checks the seed's SwiftPM artifact paths for checkouts
-that still link it. A path through an orphan's `SourcePackages` link is replaced
-with its verified, existing target in the seed. Repair requires Xcode and
+that still link it. A path through an orphan's `SourcePackages` is replaced
+with its existing target in the seed, verified as the same file while that
+folder still links the seed. Repair requires Xcode and
 package users to be closed. Unverifiable references defer cleanup. The seed and
 QMD model weights are retained.
 
