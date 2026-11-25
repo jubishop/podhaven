@@ -11,7 +11,10 @@ import Testing
 @Suite("of PodcastsListViewModel tests", .container)
 @MainActor final class PodcastsListViewModelTests {
   @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.repo) private var repo
+
+  private var session: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
 
   @Test("selectedPodcastsTagIntersection collapses to common tags across selection")
   func selectedPodcastsTagIntersectionAcrossSelection() async throws {
@@ -276,6 +279,38 @@ import Testing
     #expect(failures.count == 1, "\(captured.map(\.message))")
     let podcasts = try await repo.allPodcasts(AppDB.noOp)
     #expect(podcasts.allSatisfy { !$0.subscribed })
+  }
+
+  // MARK: - Refreshing
+
+  @Test("refreshPodcasts refreshes only the listed stale podcasts")
+  func refreshPodcastsRefreshesOnlyListedPodcasts() async throws {
+    var listedIDs: Set<Podcast.ID> = []
+    for index in 0..<3 {
+      let podcast = try await Create.podcast(
+        feedURL: FeedURL(SyntheticFeed.url(index)),
+        title: SyntheticFeed.title(index),
+        lastUpdate: 2.hoursAgo
+      )
+      await session.respond(
+        to: SyntheticFeed.url(index),
+        data: SyntheticFeed.rss(index: index, episodes: 1)
+      )
+      if index < 2 {
+        listedIDs.insert(podcast.id)
+      }
+    }
+    let viewModel = PodcastsListViewModel(title: "Test")
+    try await loadEntries(
+      into: viewModel,
+      podcasts: try await observatory.listablePodcastsWithEpisodeMetadata().get()
+        .filter { listedIDs.contains($0.id) }
+    )
+
+    try await viewModel.refreshPodcasts()
+
+    let requests = await session.requests
+    #expect(Set(requests) == [SyntheticFeed.url(0), SyntheticFeed.url(1)], "\(requests)")
   }
 
   // MARK: - Helpers

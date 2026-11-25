@@ -31,7 +31,7 @@ private struct HostedTextView: View {
   }
 }
 
-@Suite("Hosted test window lifecycle", .container)
+@Suite("Hosted test window lifecycle", .container, .timeLimit(.minutes(5)))
 @MainActor struct HostedTestWindowTests {
   @Test("window scopes finish appearance before inspection and disappearance before returning")
   func balancedLifecycle() async throws {
@@ -70,12 +70,8 @@ private struct HostedTextView: View {
       try #require(!sceneWindows.isEmpty)
       let blankRendering = try Self.render(window)
 
-      application.perform(NSSelectorFromString("hide:"), with: nil)
       defer { application.perform(NSSelectorFromString("unhideWithoutActivation")) }
-      try await Wait.until(
-        { @MainActor in application.value(forKey: "isHidden") as? Bool == true },
-        { "The app did not hide" }
-      )
+      try await Self.hide(application)
       #expect(
         sceneWindows.allSatisfy { $0.value(forKey: "isVisible") as? Bool == true },
         "Hiding the app took the hosted scene's window off screen"
@@ -88,6 +84,28 @@ private struct HostedTextView: View {
       )
       #expect(window.windowScene?.activationState == .foregroundActive)
     }
+  }
+
+  @Test(
+    "a test host hidden before the helper runs is unhidden",
+    .enabled(if: ProcessInfo.processInfo.isiOSAppOnMac, "Only an app on a Mac can be hidden")
+  )
+  func hiddenHostUnhides() async throws {
+    let scene = try #require(
+      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+    )
+    let application = try #require(macApplication)
+    // Keep the scene's window, which other hosted tests share, on screen through the hide.
+    try await keepTestSceneOnScreen(scene)
+    defer { application.perform(NSSelectorFromString("unhideWithoutActivation")) }
+    try await Self.hide(application)
+
+    try await keepTestSceneOnScreen(scene)
+    #expect(
+      application.value(forKey: "isHidden") as? Bool == false,
+      "The test host stayed hidden"
+    )
+    #expect(scene.activationState == .foregroundActive)
   }
 
   @Test(
@@ -143,6 +161,21 @@ private struct HostedTextView: View {
         )
       }
     }
+  }
+
+  private static func hide(_ application: NSObject) async throws {
+    let (hides, continuation) = AsyncStream.makeStream(of: Void.self)
+    let observer = NotificationCenter.default.addObserver(
+      forName: NSNotification.Name("NSApplicationDidHideNotification"),
+      object: application,
+      queue: nil
+    ) { _ in continuation.yield() }
+    defer { NotificationCenter.default.removeObserver(observer) }
+    application.perform(NSSelectorFromString("hide:"), with: nil)
+    // An accessory app hides at once, and an app another test already hid posts no new hide.
+    guard application.value(forKey: "isHidden") as? Bool != true else { return }
+    var iterator = hides.makeAsyncIterator()
+    try #require(await iterator.next() != nil, "The app did not hide")
   }
 
   private static func render(_ window: UIWindow) throws -> Data {

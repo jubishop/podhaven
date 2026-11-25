@@ -73,11 +73,32 @@ func keepTestSceneOnScreen(_ scene: UIWindowScene) async throws {
     let styleMask = try #require(window.value(forKey: "styleMask") as? UInt)
     window.setValue(styleMask & ~miniaturizable, forKey: "styleMask")
   }
-  guard scene.activationState == .background else { return }
+  // Unhide a hidden test host, and bring back windows its hide took off screen even before the
+  // scene reaches the background.
+  let hidden = application.value(forKey: "isHidden") as? Bool == true
+  let hiddenOffScreen =
+    hidden && windows.contains { $0.value(forKey: "isVisible") as? Bool != true }
+  if hidden {
+    application.perform(NSSelectorFromString("unhideWithoutActivation"))
+  }
+  guard hiddenOffScreen || scene.activationState == .background else { return }
   for window in windows {
     window.perform(NSSelectorFromString("deminiaturize:"), with: nil)
     window.perform(NSSelectorFromString("orderFrontRegardless"))
   }
+  // After a hide, UIKit treats the returned window as off screen until it checks the window again,
+  // as it does on every active-Space change.
+  let workspace = try #require(
+    (NSClassFromString("NSWorkspace") as? NSObject.Type)?.value(forKey: "sharedWorkspace")
+      as? NSObject
+  )
+  let workspaceNotifications = try #require(
+    workspace.value(forKey: "notificationCenter") as? NotificationCenter
+  )
+  workspaceNotifications.post(
+    name: NSNotification.Name("NSWorkspaceActiveSpaceDidChangeNotification"),
+    object: workspace
+  )
   try await Wait.until(
     { @MainActor in scene.activationState != .background },
     { "The test host's scene did not return to the foreground" }

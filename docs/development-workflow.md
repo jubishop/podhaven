@@ -255,8 +255,11 @@ accessory app's windows can join another app's full-screen Space, so the test
 host becomes one, without a Dock icon or menu bar, and its window then appears
 over a full-screen app during a run. It also brings back a minimized or hidden
 window without activating the app, which covers a window minimized another
-way, such as with Minimize All. A test that builds its own window in that
-scene calls `keepTestSceneOnScreen` first.
+way, such as with Minimize All, and a test host hidden before its first
+hosted test, which it also unhides. After a hide, UIKit treats the returned
+window as off screen until it next checks the window, so the helper then posts
+an active-Space change, which makes UIKit check it. A test that builds its own
+window in that scene calls `keepTestSceneOnScreen` first.
 
 ### Current-revision Swift validation
 
@@ -303,9 +306,11 @@ For focused application tests, use My Mac by default with
 `-only-testing:PodHavenTests/SomeSuite`; method filters can report success while
 running zero tests.
 
-Run focused tests with `bin/with-my-mac-lock env -u SDKROOT xcodebuild test ...`
-so they take a [validation slot](#validation-slots) and the
-[My Mac test lock](#my-mac-test-lock), and Xcode selects the SDK for the
+Run focused tests with the README's
+[suite command](../README.md#run-a-specific-test-suite), which passes the
+test-build flags listed below. Its `bin/with-my-mac-lock env -u SDKROOT` prefix
+takes a [validation slot](#validation-slots) and the
+[My Mac test lock](#my-mac-test-lock), and lets Xcode select the SDK for the
 requested destination; `bin/test-all` takes both and clears inherited `SDKROOT`
 itself.
 
@@ -377,11 +382,15 @@ service data, or installed models. Run the relevant smoke tests when those
 integrations change; they do not replace the automated suite.
 
 Retain the `.xcresult` bundle and raw `xcodebuild` log for local runs.
-Pass `-hideShellScriptEnvironment` and `LM_FORCE_LINK_GENERATION=YES` to test
-builds. The latter runs App Intents extraction even when a dynamic package's
-dependency file does not list App Intents. It confirms that there are no
-relevant symbols instead of emitting a skipped-extraction warning; it does
-not suppress warnings or bypass metadata validation.
+Pass `-hideShellScriptEnvironment`, `-skipMacroValidation`, and
+`LM_FORCE_LINK_GENERATION=YES` to test builds, as the
+[suite command](../README.md#run-a-specific-test-suite) does. Without
+`-skipMacroValidation`, the build stops at package macros Xcode hasn't been
+told to trust. `LM_FORCE_LINK_GENERATION=YES` runs App Intents extraction even
+when a dynamic package's dependency file does not list App Intents. It
+confirms that there are no relevant symbols instead of emitting a
+skipped-extraction warning; it does not suppress warnings or bypass metadata
+validation.
 
 Run `bin/check-swift-results <bundle.xcresult> --build-log <xcodebuild.log>`
 after focused tests, adding `--full` for the complete suite. This gate requires
@@ -442,10 +451,25 @@ no slot when run on their own.
 Each slot is an advisory file lock, `~/.cache/podhaven/validation-slot-<n>.lock`,
 which holds a one-line record of its holder's process ID, start time, command,
 and checkout. The system releases a slot when its holder exits or is killed,
-so no stale slot outlives a run. While every slot is held, a run prints each
-holder, polls for a free slot at a short interval, and waits without a time
-limit; it says which slot it took. Every run waits, whether interactive or
-unattended.
+so no stale slot outlives a run. Every run waits without a time limit, whether
+interactive or unattended, and says which slot it took.
+
+**Decision — 2026-11-24:** Waiting runs take free slots in the order they
+began waiting, so a run is never passed over. Before, whichever waiter polled
+first after a release won, and on 2026-11-24 one run waited 15 minutes
+while four that began waiting later took slots ahead of it. A run that finds
+no slot free, or earlier runs still waiting, holds the lock on a numbered
+ticket in `~/.cache/podhaven/validation-queue/` until it takes a slot, so a
+waiter that exits or is killed leaves the queue at once, and the next run to
+look deletes its file. Only the oldest live waiter takes a free slot. A short
+lock, `~/.cache/podhaven/validation-queue.lock`, guards the queue; nothing
+waits for anything else while holding it. A waiting run polls at a short
+interval and prints the holders and how many earlier runs wait ahead of it,
+then each slot's new holder and its new place whenever they change.
+
+A run from a checkout that predates the queue ignores it and can still take a
+freed slot ahead of the queue, but every run takes a slot through the same
+lock, so no slot ever has two holders.
 
 A nested run reuses the slot it runs inside instead of waiting on itself. The
 holder exports `PODHAVEN_VALIDATION_SLOT`, which names the slot's file and

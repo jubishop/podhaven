@@ -1,9 +1,10 @@
 require "pilot"
 require "pilot/options"
-require "fastlane_core/build_watcher"
+require_relative "connect"
 
 module PodHavenTestFlight
   UI = FastlaneCore::UI
+  APP_IDENTIFIER = "com.artisanalsoftware.PodHaven".freeze
 
   def self.run(options)
     base = options[:base].to_s == "true"
@@ -11,24 +12,12 @@ module PodHavenTestFlight
     UI.user_error!("TestFlight notes must not be blank.") if notes.strip.empty? && !base
     UI.user_error!("TestFlight notes must be at most 4000 bytes.") if notes.bytesize > 4000
 
-    timeout = ENV.fetch("PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS", "7200")
-    unless timeout.match?(/\A[1-9][0-9]*\z/)
-      UI.user_error!("PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS must be a positive whole number of seconds.")
-    end
-
-    key_path = ENV.fetch("ASC_KEY_PATH", "")
-    unless key_path.empty?
-      Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.create(
-        key_id: ENV.fetch("ASC_KEY_ID"),
-        issuer_id: ENV.fetch("ASC_ISSUER_ID"),
-        filepath: key_path
-      )
-    end
+    timeout = PodHavenConnect.processing_timeout
+    PodHavenConnect.login!
 
     config = FastlaneCore::Configuration.create(Pilot::Options.available_options, {
-      app_identifier: "com.artisanalsoftware.PodHaven",
+      app_identifier: APP_IDENTIFIER,
       app_platform: "ios",
-      username: ENV["FASTLANE_USER"],
       distribute_only: true,
       distribute_external: true,
       changelog: notes,
@@ -40,10 +29,7 @@ module PodHavenTestFlight
     manager = Pilot::BuildManager.new
     manager.start(config)
     app = manager.app
-    groups = app.get_beta_groups(filter: { name: "Everyone", isInternalGroup: "false" })
-    groups = groups.select { |group| group.name == "Everyone" && group.is_internal_group == false }
-    UI.user_error!("Expected exactly one external TestFlight group named Everyone.") unless groups.length == 1
-    group = groups.first
+    group = everyone(app)
     if base
       tested, pending = latest_tested_build(group)
       File.write(ENV.fetch("PODHAVEN_TESTFLIGHT_BASE_PATH"), tested ? tested.version : "")
@@ -61,27 +47,7 @@ module PodHavenTestFlight
       UI.success("Confirmed the external Everyone group, App Store Connect login, and beta review availability.") if result == :ready
       return
     end
-    begin
-      build = FastlaneCore::BuildWatcher.wait_for_build_processing_to_be_complete(
-        app_id: app.id,
-        platform: "IOS",
-        app_version: version,
-        build_version: number,
-        poll_interval: 30,
-        timeout_duration: timeout.to_i,
-        select_latest: false,
-        wait_for_build_beta_detail_processing: true,
-        return_spaceship_testflight_build: false
-      )
-    rescue FastlaneCore::Interface::FastlaneCrash => error
-      raise unless error.message == "FastlaneCore::BuildWatcher exceeded the '#{timeout.to_i}' seconds, Stopping now!"
-      UI.user_error!(
-        "Apple has not made #{version} (#{number}) ready for TestFlight after #{timeout} seconds. " \
-        "The upload is preserved; no distribution was attempted. Check TestFlight's Build Uploads in " \
-        "App Store Connect for processing errors. If it is still processing, rerun the same command; " \
-        "it reuses the upload. Set PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS to allow a longer wait."
-      )
-    end
+    build = PodHavenConnect.wait_for_build(app, version, number, timeout, "no distribution was attempted")
     unless Gem::Version.new(build.app_version) == Gem::Version.new(version) && build.version == number &&
            build.app_id == app.id && build.platform == "IOS"
       UI.user_error!("Apple returned a different app, platform, version, or build; no distribution was attempted.")
@@ -119,6 +85,122 @@ module PodHavenTestFlight
       UI.user_error!("Assigned to Everyone, but external testing needs attention: #{state}.")
     end
     UI.success("Confirmed #{version} (#{number}) in Everyone: #{state.tr('_', ' ').downcase}.")
+  end
+
+  def self.everyone(app)
+    groups = app.get_beta_groups(filter: { name: "Everyone", isInternalGroup: "false" })
+    groups = groups.select { |group| group.name == "Everyone" && group.is_internal_group == false }
+    UI.user_error!("Expected exactly one external TestFlight group named Everyone.") unless groups.length == 1
+    groups.first
+  end
+
+  # The tester options: remove, then add, then list, so a listing shows the changes.
+  def self.manage_testers
+    PodHavenConnect.login!
+    manager = Pilot::BuildManager.new
+    manager.start(FastlaneCore::Configuration.create(Pilot::Options.available_options, {
+      app_identifier: APP_IDENTIFIER, app_platform: "ios"
+    }))
+    app = manager.app
+    group = everyone(app)
+    ENV.fetch("PODHAVEN_TESTERS_REMOVE", "").split("\n").reject(&:empty?).each { |email| remove_tester(group, email) }
+    ENV.fetch("PODHAVEN_TESTERS_ADD", "").split("\n").reject(&:empty?).each { |email| add_tester(app, group, email) }
+    list_testers(group) if ENV["PODHAVEN_TESTERS_LIST"] == "true"
+  end
+
+  # Spaceship's tester model omits the state attribute, so these read the raw resources.
+  def self.testers(filter)
+    Spaceship::ConnectAPI.get_beta_testers(filter: filter, limit: 200).all_pages.flat_map { |page| page.body.fetch("data") }
+  end
+
+  # The team's tester with this email, or the group's when a group is given. Apple ignores case in emails.
+  def self.tester(email, group = nil)
+    filter = { email: email }
+    filter[:betaGroups] = group.id if group
+    testers(filter).find { |found| found.dig("attributes", "email").to_s.casecmp?(email) }
+  end
+
+  # Apple lists a tester who left, or was removed from the app, as REVOKED.
+  def self.member?(found)
+    !found.nil? && found.dig("attributes", "state") != "REVOKED"
+  end
+
+  # A tester the team already has, such as one shared with another app, joins Everyone; anyone else is created in it.
+  # Apple's documentation doesn't say whether either emails the invitation, so an uninvited tester gets one here.
+  def self.add_tester(app, group, email)
+    found = tester(email, group)
+    added = !member?(found)
+    if added
+      existing = tester(email)
+      if existing
+        UI.message("Adding #{email}, already a TestFlight tester on the team, to Everyone.")
+        Spaceship::ConnectAPI.add_beta_tester_to_group(beta_group_id: group.id, beta_tester_ids: [existing.fetch("id")])
+      else
+        UI.message("Adding #{email} to Everyone.")
+        Spaceship::ConnectAPI.post_beta_tester_assignment(beta_group_ids: [group.id], attributes: { email: email })
+      end
+      found = tester(email, group)
+      UI.user_error!("App Store Connect does not list #{email} in Everyone. Run bin/testflight --add-tester #{email} again.") unless found
+    end
+    state = found.dig("attributes", "state")
+    if %w[NOT_INVITED REVOKED].include?(state)
+      UI.message("App Store Connect lists #{email} as #{state}, so sending TestFlight's invitation.")
+      Spaceship::ConnectAPI.test_flight_request_client.post("v1/betaTesterInvitations", {
+        data: {
+          type: "betaTesterInvitations",
+          relationships: {
+            app: { data: { type: "apps", id: app.id } },
+            betaTester: { data: { type: "betaTesters", id: found.fetch("id") } }
+          }
+        }
+      })
+      UI.success("#{email} is in Everyone and invited to TestFlight.")
+    elsif added
+      UI.success("#{email} is in Everyone; TestFlight lists them as #{state}.")
+    else
+      UI.success("#{email} is already in Everyone as #{state}; nothing changed.")
+    end
+  end
+
+  # Takes the email out of Everyone only, so the tester stays on the team and in other groups and apps.
+  def self.remove_tester(group, email)
+    found = tester(email, group)
+    unless member?(found)
+      UI.success("#{email} is not in Everyone; nothing changed.")
+      return
+    end
+    UI.message("Removing #{email} from Everyone.")
+    Spaceship::ConnectAPI.delete_beta_tester_from_beta_groups(beta_tester_id: found.fetch("id"), beta_group_ids: [group.id])
+    if member?(tester(email, group))
+      UI.user_error!("App Store Connect still lists #{email} in Everyone. Run bin/testflight --remove-tester #{email} again.")
+    end
+    UI.success("#{email} is no longer in Everyone.")
+  end
+
+  # Everyone's testers, those with an email first.
+  def self.list_testers(group)
+    found = testers(betaGroups: group.id).map do |resource|
+      attributes = resource.fetch("attributes")
+      name = [attributes["firstName"], attributes["lastName"]].reject { |part| part.to_s.empty? }.join(" ")
+      { email: attributes["email"].to_s, name: name, state: attributes["state"], invite: attributes["inviteType"] }
+    end
+    if found.empty?
+      UI.message("Everyone has no testers.")
+      return
+    end
+    UI.message("Everyone has #{found.length} #{found.length == 1 ? 'tester' : 'testers'}:")
+    found.sort_by { |each| [each[:email].empty? ? 1 : 0, (each[:email].empty? ? each[:name] : each[:email]).downcase] }
+         .each do |each|
+      who = if each[:email].empty?
+              "#{each[:name].empty? ? 'No name' : each[:name]} (no email)"
+            elsif each[:name].empty?
+              each[:email]
+            else
+              "#{each[:name]} <#{each[:email]}>"
+            end
+      joined = each[:invite] == "PUBLIC_LINK" ? "joined through the public link" : "invited by email"
+      UI.message("#{who}: #{each[:state] || 'no state'}, #{joined}")
+    end
   end
 
   def self.latest_tested_build(group)
@@ -200,7 +282,7 @@ module PodHavenTestFlight
   def self.request_next_version(version, previous)
     path = ENV.fetch("PODHAVEN_TESTFLIGHT_NEXT_VERSION_PATH", "")
     if path.empty?
-      UI.user_error!("Apple is reviewing #{version} (#{previous.version}). Run testflight without --reuse to build and upload the next patch version.")
+      UI.user_error!("Apple is reviewing #{version} (#{previous.version}). Run testflight without --distribute-only to build and upload the next patch version.")
     end
     parts = version.split(".").map(&:to_i)
     parts[-1] += 1

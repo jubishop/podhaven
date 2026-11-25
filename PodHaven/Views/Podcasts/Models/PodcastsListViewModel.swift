@@ -148,7 +148,7 @@ class PodcastsListViewModel:
     try await refreshManager.performRefresh(
       trigger: .user,
       stalenessThreshold: .minutes(1),
-      filter: podcastList.filteredEntryIDs.contains(Podcast.Columns.feedURL)
+      filter: podcastList.filteredEntryIDs.contains(Podcast.Columns.id)
     )
   }
 }
