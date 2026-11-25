@@ -81,14 +81,25 @@ final class SentryEnvelopeCapture {
     defer { withExtendedLifetime(self) {} }
     let body: Data
     do {
-      body = try await Wait.forValue { [requests] in requests().first }
+      // Sentry stores the envelope before uploading it, and the upload can stall: its operation
+      // queue runs at background QoS, and a connectivity drain off the transport queue can make
+      // the capture's drain give up. Until a request arrives, read the cached copy instead.
+      body = try await Wait.forValue { [requests, cache] in
+        if let body = requests().first { return body }
+        let envelopes = (FileManager.default.subpaths(atPath: cache.path) ?? [])
+          .filter { $0.hasSuffix(".json") && $0.contains("/envelopes/") }
+        guard let envelope = envelopes.min() else { return nil }
+        return FileManager.default.contents(atPath: cache.appending(path: envelope).path)
+      }
     } catch {
       let paths = FileManager.default.enumerator(atPath: cache.path)?.allObjects ?? []
       let tasks = await session.allTasks
       let taskStates = tasks.map { task in
         "state=\(task.state.rawValue) sent=\(task.countOfBytesSent) received=\(task.countOfBytesReceived) error=\(String(describing: task.error))"
       }
-      Issue.record("No envelope request for \(host); cache entries: \(paths); tasks: \(taskStates)")
+      Issue.record(
+        "No envelope request or cached envelope for \(host); cache entries: \(paths); tasks: \(taskStates)"
+      )
       throw error
     }
     var data = body
