@@ -3,8 +3,9 @@
 
 The managed pre-push hook runs this after its document checks, with Git's arguments and standard input.
 Tooling is every path under bin/ and .agents/, whose tests read skill prose, and every other non-Markdown
-path outside the application targets. Each revision is checked in a disposable linked worktree, so
-uncommitted edits neither hide nor cause a failure, and bin/check --full reuses a recent pass for its tree.
+path outside the application targets except Project Starter's manifest, which every bin/check mode compares
+with the managed files. Each revision is checked in a disposable linked worktree, so uncommitted edits neither
+hide nor cause a failure, and bin/check --full reuses a recent pass for its tree.
 Git opens an SSH connection before this hook and leaves it idle, so a full run can outlast it; over SSH without
 a keepalive, the gate keeps a full run's recorded pass and refuses the push so that a retry reuses it at once."""
 import os
@@ -18,6 +19,7 @@ from _checks import pass_record
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLING = ("bin/", ".agents/")
+MANIFEST = ".project-starter.json"
 APPLICATION = ("PodHaven/", "PodHaven.xcodeproj/", "PodHavenIntents/", "PodHavenMacros/", "PodHavenShare/",
                "PodHavenTests/", "PodHavenWidget/")
 # Git exports repository selectors and -c settings to hooks; the checks must see a plain environment.
@@ -43,7 +45,8 @@ def changes_tooling(remote, commit):
         paths = git("diff", "--no-renames", "--name-only", "-z", remote, commit).stdout
     else:
         paths = git("log", "-m", "--no-renames", "--name-only", "-z", "--format=", commit, "--not", "--remotes").stdout
-    return any(path.startswith(TOOLING) or not (path.endswith(".md") or path.startswith(APPLICATION))
+    return any(path.startswith(TOOLING)
+               or not (path.endswith(".md") or path == MANIFEST or path.startswith(APPLICATION))
                for path in paths.split("\0") if path)
 
 
