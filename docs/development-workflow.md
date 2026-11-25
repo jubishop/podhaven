@@ -373,6 +373,19 @@ takes a [validation slot](#validation-slots) and the
 requested destination; `bin/test-all` takes both and clears inherited `SDKROOT`
 itself.
 
+Keep each test host of a repeated focused run, such as a flaky test's
+50-iteration acceptance run, under 100 presented alerts. A My Mac host keeps
+every AppKit window alive until its Swift Testing run ends, each alert's
+`_NSAlertPanel` included: XCTest waits out the run in one autorelease pool it
+never drains, and on each turn of that wait, AppKit's UIKit event handling lists
+the app's windows, autoreleasing every live one into that pool. Past 100 live
+windows, AppKit logs `NSWindow has detected an excessive live window count`,
+which `bin/check-swift-results` rejects (jubishop/podhaven#1054). So split the
+iterations across runs, each with its own result bundle and check, such as two
+runs of `-test-iterations 25` for `SheetAlertPresentationTests`, which presents
+two alerts per iteration. `-test-repetition-relaunch-enabled YES` doesn't help:
+each relaunched host runs every Swift Testing iteration again.
+
 Run `bin/test-all --preflight` to check the Xcode, Swift, and macOS versions
 without running tests. Release commands run this preflight too.
 
