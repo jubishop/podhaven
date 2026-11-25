@@ -180,6 +180,23 @@ class PrePushApplicationTests(unittest.TestCase):
         self.assertEqual(self.remote_head("feature"), skill)
         self.assertEqual(len(self.check_calls()), 2)
 
+    def test_skips_project_starter_syncs_that_change_no_tooling(self):
+        self.assertEqual(self.push("main").returncode, 0)
+        (self.repo / ".project-starter.json").write_text('{"version": "1.0.0"}\n')
+        (self.repo / "README.md").write_text("# Notes\n\nSynced notes.\n")
+        self.commit("Sync Project Starter 1.0.0")
+        result = self.push("main")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.check_calls()), 1)
+        # A sync that also changes bin/ still runs the tooling tests.
+        (self.repo / ".project-starter.json").write_text('{"version": "1.1.0"}\n')
+        (self.repo / "bin/synced").write_text("")
+        sync = self.commit("Sync Project Starter 1.1.0")
+        result = self.push("main")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.remote_head(), sync)
+        self.assertEqual(len(self.check_calls()), 2)
+
     def test_reuses_a_recent_pass_for_the_pushed_tree(self):
         subprocess.run([str(self.repo / "bin/check"), "--full"], cwd=self.repo, env=self.env, text=True,
                        capture_output=True, check=True)

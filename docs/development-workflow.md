@@ -809,10 +809,13 @@ cannot run. Uncommitted edits neither hide nor cause a failure.
 
 Tooling is every path under `bin/` and `.agents/`, including pages, because
 tooling tests read skill prose, and every other non-Markdown path outside the
-application targets. Pushes that change only application targets or other
-Markdown skip the gate; application changes reach `main` through pull requests
-validated by `bin/test-all`. A new branch counts only its commits that no
-remote-tracking branch holds.
+application targets except `.project-starter.json`. No tooling test depends on
+that manifest's contents, and every `bin/check` mode compares it with the
+managed files, so a Project Starter sync that changes no other tooling skips
+the gate. Pushes that change only application targets or other Markdown skip
+it too; application changes reach `main` through pull requests validated by
+`bin/test-all`. A new branch counts only its commits that no remote-tracking
+branch holds.
 
 The gate reuses a recent passing `bin/check --full` for the same tree, so
 running `bin/check --full` on the final clean commit before pushing makes the
