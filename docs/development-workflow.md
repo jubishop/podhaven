@@ -230,8 +230,11 @@ accessory app's windows can join another app's full-screen Space, so the test
 host becomes one, without a Dock icon or menu bar, and its window then appears
 over a full-screen app during a run. It also brings back a minimized or hidden
 window without activating the app, which covers a window minimized another
-way, such as with Minimize All. A test that builds its own window in that
-scene calls `keepTestSceneOnScreen` first.
+way, such as with Minimize All, and a test host hidden before its first
+hosted test, which it also unhides. After a hide, UIKit treats the returned
+window as off screen until it next checks the window, so the helper then posts
+an active-Space change, which makes UIKit check it. A test that builds its own
+window in that scene calls `keepTestSceneOnScreen` first.
 
 ### Current-revision Swift validation
 
