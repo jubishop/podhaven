@@ -49,8 +49,8 @@ end
 # Prints "<number>\t<open|closed>\t<analyzed|intake>\t<marker|link>" for each issue tracking the ID, canonical first.
 function __snissue_matches --argument-names id
     printf '%s\n' $__snissue_issues_json | jq -r -L "$__snissue_bin" --arg id "$id" '
-        include "_sentry_issue_tracking";
-        sentry_issue_tracking($id)[]
+        include "_sentry_tracking";
+        sentry_issue_tracking($id; "jubishop")[]
         | [.number, .state, (if .analyzed then "analyzed" else "intake" end), .match]
         | @tsv'
 end

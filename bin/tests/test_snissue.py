@@ -14,6 +14,9 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "bin/snissue"
 FISH = shutil.which("fish")
 FINDINGS = "<!-- analyze-sentry-issue-findings:start -->\n<!-- analyze-sentry-issue-findings:end -->"
+BY_BOT = {"user": {"login": "github-actions[bot]", "type": "Bot"}}
+BY_OWNER = {"user": {"login": "JubiShop", "type": "User"}}
+BY_STRANGER = {"user": {"login": "stranger", "type": "User"}}
 
 
 class SentryIssueLauncherTests(unittest.TestCase):
@@ -39,20 +42,20 @@ class SentryIssueLauncherTests(unittest.TestCase):
             "hasMore": False,
         })
         self.write("gh.json", [[
-            {"number": 90, "state": "open", "title": "PODHAVEN-AC", "body": "<!-- sentry-issue:1003 -->",
+            {"number": 90, "state": "open", **BY_BOT, "title": "PODHAVEN-AC", "body": "<!-- sentry-issue:1003 -->",
              "pull_request": {}},
-            {"number": 91, "state": "open", "title": "PODHAVEN-AC0", "body": ""},
-            {"number": 92, "state": "open", "title": "", "body": "https://artisanal-software.sentry.io/issues/10030/"},
-            {"number": 93, "state": "open", "title": "PODHAVEN-AC", "body": "Reference only"},
-            {"number": 41, "state": "closed", "title": "Earlier fix",
+            {"number": 91, "state": "open", **BY_BOT, "title": "PODHAVEN-AC0", "body": ""},
+            {"number": 92, "state": "open", **BY_BOT, "title": "", "body": "https://artisanal-software.sentry.io/issues/10030/"},
+            {"number": 93, "state": "open", **BY_BOT, "title": "PODHAVEN-AC", "body": "Reference only"},
+            {"number": 41, "state": "closed", **BY_BOT, "title": "Earlier fix",
              "body": "<!-- sentry-issue:1001 -->\n" + FINDINGS},
         ], [
-            {"number": 42, "state": "closed", "title": "Tracked issue",
+            {"number": 42, "state": "closed", **BY_OWNER, "title": "Tracked issue",
              "body": "https://artisanal-software.sentry.io/issues/1003/?query=is%3Aunresolved"},
-            {"number": 43, "state": "open", "title": "Investigate PODHAVEN-AA", "body": None},
-            {"number": 44, "state": "open", "title": "Triage Sentry issue PODHAVEN-AB",
+            {"number": 43, "state": "open", **BY_BOT, "title": "Investigate PODHAVEN-AA", "body": None},
+            {"number": 44, "state": "open", **BY_BOT, "title": "Triage Sentry issue PODHAVEN-AB",
              "body": "<!-- sentry-issue:1002 -->\n<!-- analyze-sentry-issue-findings:start -->"},
-            {"number": 45, "state": "open", "title": "Legacy analysis",
+            {"number": 45, "state": "open", **BY_OWNER, "title": "Legacy analysis",
              "body": "https://artisanal-software.sentry.io/issues/1001/\n\n## Sentry closeout\n"},
         ]])
 
@@ -201,14 +204,14 @@ else:
             (self.bin / command).unlink()
         link = "https://artisanal-software.sentry.io/issues/1004/"
         self.write("gh.json", [[
-            {"number": 60, "state": "open", "body": f"See {link}"},
-            {"number": 59, "state": "closed", "body": "<!-- sentry-issue:1004 -->\n" + FINDINGS},
-            {"number": 58, "state": "open", "body": "<!-- sentry-issue:1004 -->"},
-            {"number": 61, "state": "open", "body": "<!-- sentry-issue:1004 -->", "pull_request": {}},
+            {"number": 60, "state": "open", **BY_OWNER, "body": f"See {link}"},
+            {"number": 59, "state": "closed", **BY_BOT, "body": "<!-- sentry-issue:1004 -->\n" + FINDINGS},
+            {"number": 58, "state": "open", **BY_BOT, "body": "<!-- sentry-issue:1004 -->"},
+            {"number": 61, "state": "open", **BY_BOT, "body": "<!-- sentry-issue:1004 -->", "pull_request": {}},
         ], [
-            {"number": 57, "state": "closed", "body": f"{link}\n\n## Sentry closeout\n"},
-            {"number": 56, "state": "open", "body": "<!-- sentry-issue:1004 -->\n" + FINDINGS},
-            {"number": 55, "state": "open", "body": "Mentions PODHAVEN-AD and issues/10040/ only"},
+            {"number": 57, "state": "closed", **BY_OWNER, "body": f"{link}\n\n## Sentry closeout\n"},
+            {"number": 56, "state": "open", **BY_BOT, "body": "<!-- sentry-issue:1004 -->\n" + FINDINGS},
+            {"number": 55, "state": "open", **BY_BOT, "body": "Mentions PODHAVEN-AD and issues/10040/ only"},
         ]])
         tracked = [
             "Tracking issues for Sentry issue 1004, canonical first:",
@@ -243,16 +246,35 @@ else:
         self.env["SNISSUE_FAIL"] = "gh"
         self.assert_stopped(self.run_command("--track", "1003"), "could not fetch PodHaven GitHub issues")
         del self.env["SNISSUE_FAIL"]
-        for payload in ({"error": "synthetic failure"}, [[{"state": "open", "body": "<!-- sentry-issue:1003 -->"}]]):
+        for payload in ({"error": "synthetic failure"}, [[{"state": "open", **BY_BOT, "body": "<!-- sentry-issue:1003 -->"}]]):
             with self.subTest(payload=payload):
                 self.write("gh.json", payload)
                 self.assert_stopped(self.run_command("--track", "1003"), "invalid issue data")
 
+    def test_issues_from_other_accounts_never_track(self):
+        link = "https://artisanal-software.sentry.io/issues/1003/"
+        self.write("gh.json", [[
+            {"number": 95, "state": "open", **BY_STRANGER, "body": "<!-- sentry-issue:1003 -->\n" + FINDINGS},
+            {"number": 94, "state": "open", **BY_STRANGER, "body": f"See {link}"},
+            {"number": 93, "state": "open", "user": {"login": "github-actions", "type": "User"},
+             "body": "<!-- sentry-issue:1003 -->"},
+            {"number": 92, "state": "open", "user": None, "body": "<!-- sentry-issue:1003 -->"},
+            {"number": 42, "state": "closed", **BY_OWNER, "body": link},
+        ]])
+        self.assert_launched(self.run_command(), "1003")
+        self.assertIn("GitHub: #42 closed", self.read("picker.json")[0])
+        result = self.run_command("--track", "1003")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [
+            "Tracking issues for Sentry issue 1003, canonical first:",
+            "jubishop/podhaven#42 closed intake link",
+        ])
+
     def test_mentions_and_pull_requests_do_not_track(self):
         self.write("gh.json", [[
-            {"number": 90, "state": "open", "title": "", "body": "<!-- sentry-issue:1003 -->",
+            {"number": 90, "state": "open", **BY_BOT, "title": "", "body": "<!-- sentry-issue:1003 -->",
              "pull_request": {}},
-            {"number": 93, "state": "open", "title": "PODHAVEN-AC", "body": "Reference only"},
+            {"number": 93, "state": "open", **BY_BOT, "title": "PODHAVEN-AC", "body": "Reference only"},
         ]])
         self.assert_launched(self.run_command(), "1003")
         self.assertIn("GitHub: untracked", self.read("picker.json")[0])

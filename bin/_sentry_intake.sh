@@ -69,7 +69,7 @@ intake_start() {
   gh api --paginate --slurp \
     "repos/$GH_REPO/issues?state=all&per_page=100" \
     > "$WORK_DIR/all-issues.json"
-  jq '[.[][] | {number, state, body, labels: [.labels[]?.name]}
+  jq '[.[][] | {number, state, body, labels: [.labels[]?.name], user: (.user // {} | {login, type})}
     + (if has("pull_request") then {pull_request} else {} end)]' \
     "$WORK_DIR/all-issues.json" \
     > "$ISSUES_JSON"
@@ -132,8 +132,8 @@ intake_track() {
   gh api --paginate --slurp \
     "repos/$GH_REPO/issues/$number/comments?per_page=100" \
     > "$comments_path"
-  if ! jq -e --arg marker "<!-- $COMMENT_MARKER:$argument -->" \
-    'any(.[][]; (.body // "") | contains($marker))' \
+  if ! jq -e -L "$(dirname "${BASH_SOURCE[0]}")" --arg marker "<!-- $COMMENT_MARKER:$argument -->" \
+    'include "_sentry_tracking"; any(.[][]; sentry_intake_bot and ((.body // "") | contains($marker)))' \
     "$comments_path" >/dev/null; then
     intake_comment "$number" "$argument" "$link_text" "$permalink"
   fi
