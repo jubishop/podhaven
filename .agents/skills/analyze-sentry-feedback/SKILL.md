@@ -227,8 +227,11 @@ Sentry and is retrievable; proof that it was generated locally is not
 enough.
 
 Every feedback issue carries the `sentry-feedback` label: add it whenever the
-canonical issue lacks it, even when nothing else changes. Do not change other
-labels or metadata merely because the handoff ran.
+canonical issue lacks it, even when nothing else changes. Intake starts every
+issue at `p2`; set exactly one of `p1`, `p2`, or `p3` from the findings, as
+`create-issue` defines them, with a stale build, expected behavior, or polish
+at `p3`, and remove any other priority label. Do not change other labels or
+metadata merely because the handoff ran.
 
 1. With no matching issue, create one in `jubishop/podhaven` with a concise
    action-oriented title, such as `Add diagnostics for <symptom>` for the
@@ -242,7 +245,8 @@ labels or metadata merely because the handoff ran.
    verification plan, or missing or incorrect Sentry closeout and
    merge-handoff instructions. Rewording, formatting, a rerun timestamp, or
    repeated evidence is not material. With nothing material, make no GitHub
-   writes beyond a missing label, and report `reused unchanged`.
+   writes beyond a missing label or a wrong priority, and report
+   `reused unchanged`.
 4. Reopen a closed match when work remains rather than creating a duplicate;
    if its disposition still holds and its findings remain accurate, leave it
    closed and reuse it unchanged.
@@ -328,7 +332,7 @@ permalink is `https://artisanal-software.sentry.io/issues/<numeric-id>/`. Omit
 the related-issue bullet when the fix resolves no other Sentry issue. Read
 back any created or changed issue, enrichment and reopening included, and
 verify its title, sanitized body, marker, complete findings block, Sentry
-record and closeout, state, and label.
+record and closeout, state, label, and priority.
 
 If the GitHub write fails, deliver the report and the exact blocker, such as
 a needed `gh auth login`, but create no local ledger or other fallback file.
