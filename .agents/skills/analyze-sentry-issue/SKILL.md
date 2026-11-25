@@ -102,7 +102,10 @@ canonical when open; report other open matches as duplicates.
   say exactly what changed when it does.
 - If only closed issues match while the Sentry issue is unresolved, it has
   recurred. Collect their fix commits and PRs for Step 4.
-- Issues that only mention the short ID are related history, not tracking.
+- Only issues opened by the intake's `github-actions[bot]` or the owner,
+  `jubishop`, track; the list leaves out the rest. Other issues that carry
+  the marker or link, or only mention the short ID, are related history at
+  most.
 
 Search for the same failure under other IDs too, since a purged issue's
 recurrence gets a new short ID, using its signature: exception type, top
