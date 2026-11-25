@@ -220,6 +220,25 @@ import Testing
     #expect(!viewModel.addableActions.contains(.transcribe))
   }
 
+  @Test("a Transcribe action the device can't support doesn't hold a slot")
+  func unsupportedTranscribeHoldsNoSlot() async {
+    let userSettings = Container.shared.userSettings()
+    userSettings.$episodeSwipeActions.new([.transcribe, .playPause, .rate])
+    let viewModel = EpisodeSwipeSettingsViewModel()
+
+    await TranscriptionHelpers.prepareAvailability(
+      modelManager: FakeSpeechModelManager(supportedIdentifiers: [])
+    )
+
+    #expect(viewModel.actions == [.playPause, .rate])
+    #expect(viewModel.canAddMore)
+
+    viewModel.add(.cache)
+
+    #expect(viewModel.actions == [.playPause, .rate, .cache])
+    #expect(userSettings.episodeSwipeActions == [.playPause, .rate, .cache])
+  }
+
   // Regression: editing the list while Transcribe was hidden wrote the filtered
   // list back to settings, dropping Transcribe for good.
   @Test("editing while device support is unknown keeps the hidden Transcribe action")
