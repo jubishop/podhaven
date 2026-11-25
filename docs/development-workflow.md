@@ -430,6 +430,12 @@ lock also holds a display-sleep assertion with
 off and keeps it on until the run exits, or for `bin/with-my-mac-lock`, until
 its command exits. A nested run reuses the assertion with the lock.
 
+A screen saver or a locked screen doesn't background hosted tests while the
+display is on, so runs hold neither off. On 2026-11-24, hosted suites passed
+under a screen saver started before and during their run, and a full
+`bin/test-all` passed on a Mac whose screen stayed locked with a password
+while its display was on (jubishop/podhaven#1061).
+
 #### Validation slots
 
 **Decision — 2026-11-09:** Concurrent sessions queue for machine-wide
