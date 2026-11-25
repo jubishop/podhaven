@@ -32,7 +32,10 @@ import Testing
     )
   }
 
-  @Test("duplicate taps share lookup and playback and finish both callbacks once")
+  @Test(
+    "duplicate taps share lookup and playback and finish both callbacks once",
+    .timeLimit(.minutes(5))
+  )
   func duplicates() async throws {
     let episode = try await Create.podcastEpisode()
     let (coordinator, controller, rows) = try await connect([episode])
@@ -40,14 +43,24 @@ import Testing
     let repo = Container.shared.repo() as! FakeRepo
     repo.pendingPodcastEpisodeFetchSuspend(true)
     let count = ThreadSafe(0)
+    let firstCompleted = AsyncLatch<Void>()
+    let secondCompleted = AsyncLatch<Void>()
     let row = rows[0]
     let handler = try #require(row.handler)
-    handler(row) { count { $0 += 1 } }
+    handler(row) {
+      count { $0 += 1 }
+      firstCompleted.open()
+    }
     try await repo.waitForPodcastEpisodeFetchSuspended()
-    handler(row) { count { $0 += 1 } }
+    handler(row) {
+      count { $0 += 1 }
+      secondCompleted.open()
+    }
     #expect(count() == 0)
     await repo.resumeAllPodcastEpisodeFetchSuspensions()
-    try await Wait.until({ count() == 2 }, { "Both callbacks must complete" })
+    try await firstCompleted.wait()
+    try await secondCompleted.wait()
+    #expect(count() == 2, "Both callbacks must complete once")
     #expect(controller.pushed.count == 1)
     #expect(controller.topTemplate === CPNowPlayingTemplate.shared)
     #expect(
