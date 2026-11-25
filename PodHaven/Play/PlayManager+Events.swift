@@ -27,7 +27,7 @@ extension PlayManager {
 
     if status == .stopped {
       do {
-        try Container.shared.setAudioSessionActive()(false)
+        try audioSession.setActive(false, options: [])
       } catch {
         Self.log.caughtError(
           "setStatus: failed to deactivate audio session",
@@ -101,7 +101,7 @@ extension PlayManager {
     let avPlayerCurrentTime = await podAVPlayer.currentTime()
     let avPlayerPlaybackStatus = await podAVPlayer.playbackStatus()
     let applicationState = await Container.shared.uiApplication().applicationState
-    let routeOutputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType.rawValue)
+    let routeOutputs = audioSession.currentRouteOutputs.map(\.rawValue)
     let infoCenter = Container.shared.mpNowPlayingInfoCenter()
     let nowPlayingElapsed =
       infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double
@@ -246,7 +246,7 @@ extension PlayManager {
     beginMediaServicesRecovery(interruptedEpisodeID: interruptedEpisodeID)
     Self.log.debug("handleMediaServicesReset: preserved interrupted playback for user action")
 
-    let audioSessionConfigured = await Container.shared.configureAudioSession()()
+    let audioSessionConfigured = await Self.configureAudioSession()
     let resumeEpisode: (id: Episode.ID, title: String)?
     if let preservedOnDeck {
       resumeEpisode = (preservedOnDeck.id, preservedOnDeck.title)
@@ -377,12 +377,11 @@ extension PlayManager {
           let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue)
         else { continue }
 
-        let session = AVAudioSession.sharedInstance()
         let previousRoute =
           notification.userInfo?[AVAudioSessionRouteChangePreviousRouteKey]
           as? AVAudioSessionRouteDescription
         let previousOutputs = previousRoute?.outputs.map(\.portType.rawValue) ?? []
-        let currentOutputs = session.currentRoute.outputs.map(\.portType.rawValue)
+        let currentOutputs = audioSession.currentRouteOutputs.map(\.rawValue)
         Self.log.info(
           """
           Audio route changed

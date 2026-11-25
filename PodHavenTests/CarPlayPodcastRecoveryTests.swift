@@ -253,7 +253,10 @@ import Testing
     #expect(scene.controller.delegate == nil)
   }
 
-  @Test("artwork and playback failures leave text and native retryable selection usable")
+  @Test(
+    "artwork and playback failures leave text and native retryable selection usable",
+    .timeLimit(.minutes(5))
+  )
   func artworkAndPlaybackFailure() async throws {
     let imageURL = URL.valid()
     Container.shared.fakeDataLoader().respond(to: imageURL, error: TestError.simulatedFailure)
@@ -276,11 +279,13 @@ import Testing
     let row = try #require(CarPlayPodcastScene.rows(detail).first { $0.text == "Playable row" })
     #expect(row.image == nil)
     let completion = ThreadSafe(0)
-    row.handler?(row) { completion { $0 += 1 } }
-    try await Wait.until(
-      { completion() == 1 },
-      { "Playback failure must complete the native spinner" }
-    )
+    let completed = AsyncLatch<Void>()
+    row.handler?(row) {
+      completion { $0 += 1 }
+      completed.open()
+    }
+    try await completed.wait()
+    #expect(completion() == 1, "Playback failure must complete the native spinner once")
     #expect(row.handler != nil)
     #expect(scene.controller.alerts.count == 1)
     #expect(scene.controller.topTemplate === detail)

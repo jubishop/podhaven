@@ -350,6 +350,36 @@ import Testing
     }
   }
 
+  @Test("a widget play during a cached load recovers buffering after the load")
+  func widgetPlayDuringCachedLoadRecoversBuffering() async throws {
+    try await LogCapture.withSink { sink in
+      let podcastEpisode = try await Create.podcastEpisode(
+        Create.unsavedEpisode(cachedFilename: "widget-route-recovery.mp3")
+      )
+      PlayHelpers.failAudioSessionConfiguration()
+      let loading = Task { try await playManager.load(podcastEpisode) }
+      defer { loading.cancel() }
+      try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
+
+      let result = try await PlayPauseIntent(playing: true).perform()
+      withExtendedLifetime(result) {}
+      try await PlayHelpers.recoverAudioSessionConfiguration()
+      #expect(try await loading.value)
+      try await PlayHelpers.waitFor(.playing)
+
+      avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
+      try await PlayHelpers.waitFor(.waiting)
+      try await sleeper.waitForSleepRequests(for: .seconds(1))
+      await sleeper.advanceTime(by: .seconds(1))
+
+      try await PlayHelpers.waitFor(.playing)
+      #expect(avPlayer.playCallCount == 2)
+      #expect(
+        sink.captured().count { $0.message.contains("event=widgetRouteRecoveryAttempt") } == 1
+      )
+    }
+  }
+
   @Test(
     "playing then paused without progress preserves the original recovery deadline",
     arguments: [false, true]

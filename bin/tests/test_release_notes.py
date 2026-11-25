@@ -11,6 +11,7 @@ import tempfile
 import threading
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -94,8 +95,8 @@ class ReleaseNotesTests(unittest.TestCase):
                         "Co-authored-by: Someone <someone@example.invalid>", f"2026-10-{24 + day}T12:00:00-07:00")
 
     def run_notes(self, *args, **env):
-        return subprocess.run([str(self.repo / "bin/release-notes"), *args], cwd=self.repo,
-                              env={**self.env, **env}, text=True, capture_output=True, timeout=15)
+        return hang_guard.run([str(self.repo / "bin/release-notes"), *args], cwd=self.repo,
+                              env={**self.env, **env}, text=True, capture_output=True)
 
     def llm_calls(self):
         path = self.base / "llm-calls"
@@ -167,15 +168,15 @@ class ReleaseNotesTests(unittest.TestCase):
             self.commit("PodHaven/Player.swift", "🐛 fix: Another fix")
         controller, terminal = pty.openpty()
         try:
-            process = subprocess.Popen([str(self.repo / "bin/release-notes"), *args],
+            process = hang_guard.start([str(self.repo / "bin/release-notes"), *args],
                                        cwd=self.repo, env={**self.env, **env}, stdin=terminal, stderr=terminal,
                                        stdout=subprocess.PIPE, text=True)
             os.close(terminal)
             os.write(controller, answer)
             drain = threading.Thread(target=self.drain, args=(controller,), daemon=True)
             drain.start()
-            stdout, _ = process.communicate(timeout=15)
-            drain.join(timeout=5)
+            stdout, _ = hang_guard.finish(process)
+            drain.join(timeout=hang_guard.HANG_LIMIT)
         finally:
             os.close(controller)
         return process.returncode, stdout

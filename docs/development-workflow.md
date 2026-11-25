@@ -4,7 +4,7 @@ status: current
 
 # Development workflow
 
-This repository keeps knowledge as Markdown and uses optional QMD search.
+This repository keeps knowledge as Markdown and searches it with QMD.
 Each checkout has its own index. Git hooks refresh it in the background.
 
 ## First setup
@@ -19,15 +19,13 @@ bin/doctor-xcode           # macOS
 bin/check --full
 ```
 
-Setup requires Git and Python 3.9 or later. Checks also require ShellCheck,
-available through the operating system's package manager; `bin/check --full`
-also requires actionlint, fish, and Ruby. The local memory
-audit also requires Claude Code, GitHub CLI, QMD, ripgrep, and QMD's Node.js or Bun runtime.
-Its tests use fake services and do not make model requests.
-QMD and direnv are optional. Missing optional tools produce clear notices; an installed but
-failing QMD returns an error. Install QMD using its
-[official instructions](https://github.com/tobi/qmd#installation).
-`bin/doctor` reports the installed QMD version.
+Setup needs Git, Python 3, and QMD, plus direnv when the project has an
+`.envrc`; see [required tools](foundation/knowledge-search.md#required-tools).
+Install QMD using its
+[official instructions](https://github.com/tobi/qmd#installation);
+`bin/doctor` reports the installed QMD version. Checks also require
+ShellCheck, available through the operating system's package manager;
+`bin/check --full` also requires actionlint, fish, and Ruby.
 
 Setup validates configuration, activates bundled hooks when no existing
 integration would be displaced, prepares caches, and waits for the initial
@@ -122,11 +120,30 @@ that the [tooling pre-push gate](#tooling-pre-push-gate) relies on.
 `bin/setup`, `bin/prep-worktree`, and the Git hook that sets up each new
 worktree all run it.
 
-Each checkout gets private DerivedData at Xcode's default path. Its
-`SourcePackages` link points to the shared `~/Library/Developer/SharedSourcePackages/PodHaven`
-folder. Preparation copies missing per-user workspace settings from the primary
-checkout and preserves existing settings. It does not start a warm-up build.
-Independent package directories are preserved for inspection.
+**Decision — 2026-11-24:** The user chose to give each checkout packages of
+its own, cloned from a shared seed (jubishop/podhaven#1012). When checkouts
+shared one package folder, a checkout pinning other revisions switched its
+package checkouts under another checkout's build, which then failed or
+compiled the wrong revision. Failing fast once a build found the folder
+switched would still fail builds, and serializing resolution can't hold raw
+`xcodebuild` or Xcode.
+
+Each checkout gets private DerivedData at Xcode's default path, and its
+`SourcePackages` is an APFS copy-on-write clone of the seed,
+`~/Library/Developer/SharedSourcePackages/PodHaven`. SwiftPM records absolute
+paths through whichever folder resolved them, even a since-deleted custom
+DerivedData, so preparation moves those in the clone's `workspace-state.json`
+and in each package checkout's Git alternates and origin into the clone. It
+refuses a clone whose checkouts or artifacts don't match that metadata, as
+when the seed was caught mid-update, and Xcode then resolves the checkout's
+packages afresh. Builds in a clone never update the seed, so a clone fetches
+only what its pins need beyond it. Preparation also replaces a checkout's
+earlier link to the seed with a clone once that checkout's DerivedData is idle
+and the clone verifies. Until then the link stays, because checkouts still
+linking the seed may read paths it recorded through that link. Preparation
+makes a missing seed from a private package folder.
+It copies missing per-user workspace settings from the primary checkout and
+preserves existing settings. It does not start a warm-up build.
 
 `bin/install-cleanup-agent` installs an idempotent macOS LaunchAgent from the
 primary checkout. It runs at login/load and once each hour while the user is
@@ -142,28 +159,56 @@ installer refuses to write the agent until
 `uv python install --default` has created that interpreter.
 
 Cleanup only removes a DerivedData folder when its plist and path hash identify
-an absent checkout owned by this clone. Registered worktrees, existing checkout
-directories, unrelated caches, and independent package caches are preserved.
+an absent checkout owned by this clone, or, before Xcode has written that plist,
+when its name is the path hash of a recorded checkout that is gone. Its private
+packages go with it. Registered worktrees, existing checkout directories,
+unrelated caches, the seed, and QMD model weights are preserved.
 Preparation and cleanup share a filesystem lock. Build-process and open-file
 checks also guard deletion; Xcode does not take our lock. Ambiguous activity
 causes deferral and a later automatic retry.
 
-Before deletion, cleanup checks shared SwiftPM artifact paths. A path through
-an orphan's `SourcePackages` link is replaced with its verified, existing shared
-target. Repair requires Xcode and package users to be closed. Unverifiable
-references defer cleanup. Shared packages and QMD model weights are retained.
-
 Inspect candidates with `bin/prune-worktree-caches --dry-run`. Use `bin/doctor-xcode`
-to read the latest removal totals, deferred reasons, errors, package-link health,
-and hourly job state. The latest report replaces its predecessor under the
-common Git directory's `knowledge/xcode/cleanup.json`; fatal errors use a single
+to read the latest removal totals, deferred reasons, errors, whether this
+checkout's packages are private, and hourly job state. The latest report
+replaces its predecessor under the common Git directory's
+`knowledge/xcode/cleanup.json`; fatal errors use a single
 `.cache/worktree-cleanup/last-error.json`. Hourly output does not accumulate logs.
 Caches with no trustworthy ownership metadata require manual investigation.
 
 If Xcode uses custom cache locations, set absolute local Git values before setup:
-`knowledge.xcodeDerivedDataPath` and `knowledge.xcodePackagesPath`. The shared
-package location must stay outside DerivedData. These overrides also support
-isolated integration tests; they do not change Xcode's own preferences.
+`knowledge.xcodeDerivedDataPath` and `knowledge.xcodePackagesPath`, the seed.
+The seed must stay outside DerivedData, on the same APFS volume. These
+overrides also support isolated integration tests; they do not change Xcode's
+own preferences.
+
+### Compilation cache
+
+Every target compiles with Xcode's compilation cache, which the project's
+build configurations enable and `bin/tests/test_xcode_project.py` keeps any
+target from overriding. The cache keys each explicit module by its inputs'
+content. Without it, Xcode keeps a module whose inputs look older than it,
+and a binary package's headers keep the times they were packaged with. So
+after sentry-cocoa's pin changed, a focused or Xcode build of `PodHavenTests`
+on DerivedData that had built the other pin compiled against that pin's
+Sentry module and failed until its module caches were removed
+(jubishop/podhaven#1069). Only the app target, which already cached, was
+spared.
+
+On this Mac on 2026-11-25, at 1-minute loads of 5–22 on 18 cores, with
+`build-for-testing`, caching every target built two switches each way between
+sentry-cocoa fb53f5d9 and 5c9d0765 in 25–47 seconds, without removing any
+cache; removing the build database and module caches, then building, took
+41–53 seconds. It made an incremental build after a one-file test edit
+16.5 seconds instead of 14.6, and a build recompiling every test file 30
+seconds instead of 22. After a build that the cache served, as after a pin
+switch or a full run, the next edit recompiles the whole target, as it already
+did for the app: about 31 seconds for the tests. A build with nothing to
+compile still takes about 7 seconds. Resetting the caches in
+`bin/with-my-mac-lock` when `Package.resolved` changes would cost nothing
+between pin changes, which are rare, but was rejected, since Xcode builds and
+builds outside the lock would still fail. The shared cache,
+`~/Library/Developer/Xcode/DerivedData/CompilationCache.noindex`, stays
+within Xcode's default limit, half the disk's free space.
 
 ### Validation checkout isolation
 
@@ -173,9 +218,9 @@ Xcode's synchronized target folders define application sources, and
 static checks use this checkout's Git file list; tooling tests are discovered
 under `bin/tests`. Preserve these boundaries when extending the commands.
 
-Keep mutable test data and build output separate between checkouts. Preserve
-the supported package sharing and per-checkout DerivedData described above;
-do not share mutable build output to save setup time.
+Keep mutable test data, packages, and build output separate between checkouts,
+as the per-checkout DerivedData and package clones described above do; do not
+share them to save setup time.
 
 ## Diagnostics
 
@@ -232,8 +277,11 @@ accessory app's windows can join another app's full-screen Space, so the test
 host becomes one, without a Dock icon or menu bar, and its window then appears
 over a full-screen app during a run. It also brings back a minimized or hidden
 window without activating the app, which covers a window minimized another
-way, such as with Minimize All. A test that builds its own window in that
-scene calls `keepTestSceneOnScreen` first.
+way, such as with Minimize All, and a test host hidden before its first
+hosted test, which it also unhides. After a hide, UIKit treats the returned
+window as off screen until it next checks the window, so the helper then posts
+an active-Space change, which makes UIKit check it. A test that builds its own
+window in that scene calls `keepTestSceneOnScreen` first.
 
 ### Current-revision Swift validation
 
@@ -269,6 +317,43 @@ thread's own CPU time, which other tests' main-actor work would inflate. Every
 phase must pass with zero skipped tests and validated diagnostics; their logs
 and result bundles are retained in the same evidence directory.
 
+Each run compiles every project source again, so its logs show warnings in
+files that an earlier build, such as a focused run's, compiled and an
+incremental build would skip (jubishop/podhaven#1007). Before the macro tests,
+`bin/test-all` removes the macro package's own build folder,
+`PodHavenMacros/.build/out/Intermediates.noindex/PodHavenMacros.build`.
+Before its first `xcodebuild test` phase, it reads Xcode's intermediates
+folder, `OBJROOT`, from the build settings and removes the project's and the
+macro package's folders there, `PodHaven.build` and `PodHavenMacros.build`,
+with Xcode's explicit module caches, `SwiftExplicitPrecompiledModules` and
+`ExplicitPrecompiledModules`, and before them its build database,
+`XCBuildData`. The package clone and the dependencies' builds stay. A build
+that doesn't remake a removed folder fails the run, since the tools then build
+where `bin/test-all` doesn't look. The compilation cache replays
+a cached compile's warnings, so they show either way. `swift test` colors its
+diagnostics even in a file, so the macro check strips terminal escapes before
+it looks for warnings; before, it missed the compiler's colored warnings.
+
+Before every target compiled with the
+[compilation cache](#compilation-cache), a checkout whose DerivedData had
+built another sentry-cocoa pin compiled the tests against stale Sentry
+modules and failed, with `has been modified since the module file` or
+`missing required module` errors, until the module caches went. Full runs
+still remove them, at about 3 seconds, so they don't rely on that setting. A
+module cache removed while the build database remains breaks every later
+build, so the database goes first.
+
+On this Mac on 2026-11-24 and 25, at 1-minute loads of 12–20 on 18 cores, the
+removal made the build about 30 seconds longer than one with nothing to
+compile, 34–38.5 seconds against 7; the module caches and build database add
+about 3 of those. A build after the pin change took 49–53 seconds. The macro
+build took about 1.5 seconds longer, and reading the build settings takes 2–3
+seconds. Removing only the Swift object folders saved nothing. Recompiling
+only files that no checked build compiled at their current content was
+rejected: a file's warnings depend on other files, as when one deprecates an
+API another calls, so a file can gain a warning without changing, and an
+incremental build then needn't compile it again.
+
 My Mac also runs hosted UI tests that the iOS Simulator skips. Use additional
 simulator checks when a change needs environment-specific coverage. Development
 checks use local targets; physical-device testing belongs to separate release
@@ -280,10 +365,13 @@ For focused application tests, use My Mac by default with
 `-only-testing:PodHavenTests/SomeSuite`; method filters can report success while
 running zero tests.
 
-Run focused tests with `bin/with-my-mac-lock env -u SDKROOT xcodebuild test ...`
-so they take the [My Mac test lock](#my-mac-test-lock) and Xcode selects the
-SDK for the requested destination; `bin/test-all` takes the lock and clears
-inherited `SDKROOT` itself.
+Run focused tests with the README's
+[suite command](../README.md#run-a-specific-test-suite), which passes the
+test-build flags listed below. Its `bin/with-my-mac-lock env -u SDKROOT` prefix
+takes a [validation slot](#validation-slots) and the
+[My Mac test lock](#my-mac-test-lock), and lets Xcode select the SDK for the
+requested destination; `bin/test-all` takes both and clears inherited `SDKROOT`
+itself.
 
 Run `bin/test-all --preflight` to check the Xcode, Swift, and macOS versions
 without running tests. Release commands run this preflight too.
@@ -314,7 +402,16 @@ those that focused runs and Xcode's own test action leave behind.
 
 Each attempt retains logs, its `.xcresult` bundle, diagnostic reports, and
 `run.json` under `.cache/test-all/`. The report records the revision, local
-changes, toolchain, destination, and outcome. A new attempt keeps only the
+changes, toolchain, destination, and outcome. Its `phases` record each phase
+the run reached: tooling, Swift lint, macros, and the three `xcodebuild test`
+phases, each with its result validation. For each, it records the 1-, 5-, and
+15-minute load averages and the core count at the phase's start and end, and
+the peak 1-minute load sampled every `LOAD_SAMPLE_SECONDS` while it ran. A
+phase whose peak exceeded twice the core count is `saturated`. When a
+saturated phase fails, including when a check of its output fails, the failure
+output and the report's `saturation` field say that the failure may be
+load-induced. The flag only informs: the run still fails, and `--ensure` and
+`--verify` never reuse it. A new attempt keeps only the
 newest evidence directories, up to `RETAINED_RUNS` in `bin/test-all` (five,
 counting itself), and removes older ones. That bound always keeps the newest
 earlier run, which reuse and comparison need, and leaves other entries alone.
@@ -344,17 +441,22 @@ service data, or installed models. Run the relevant smoke tests when those
 integrations change; they do not replace the automated suite.
 
 Retain the `.xcresult` bundle and raw `xcodebuild` log for local runs.
-Pass `-hideShellScriptEnvironment` and `LM_FORCE_LINK_GENERATION=YES` to test
-builds. The latter runs App Intents extraction even when a dynamic package's
-dependency file does not list App Intents. It confirms that there are no
-relevant symbols instead of emitting a skipped-extraction warning; it does
-not suppress warnings or bypass metadata validation.
+Pass `-hideShellScriptEnvironment`, `-skipMacroValidation`, and
+`LM_FORCE_LINK_GENERATION=YES` to test builds, as the
+[suite command](../README.md#run-a-specific-test-suite) does. Without
+`-skipMacroValidation`, the build stops at package macros Xcode hasn't been
+told to trust. `LM_FORCE_LINK_GENERATION=YES` runs App Intents extraction even
+when a dynamic package's dependency file does not list App Intents. It
+confirms that there are no relevant symbols instead of emitting a
+skipped-extraction warning; it does not suppress warnings or bypass metadata
+validation.
 
 Run `bin/check-swift-results <bundle.xcresult> --build-log <xcodebuild.log>`
 after focused tests, adding `--full` for the complete suite. This gate requires
 passing tests, zero skipped tests, complete priority arguments, zero build diagnostics and raw
 build warnings, and no framework runtime diagnostics in exported test output.
-The sole approved exception is the exact transitional Sentry callback warning
+The only approved exceptions are the exact Sentry deprecation warnings for the
+transitional hint callback and the App Hang tracking pause and resume calls,
 described in [recovered-hang diagnostics](sentry-recovered-hang-diagnostics.md).
 Intentional application warning/error logs from error-path tests remain
 available and are distinct from compiler and framework diagnostics.
@@ -380,14 +482,165 @@ of waiting on itself. If a holder hangs, stop its run, including its
 `xcodebuild`, to release the lock. Xcode's own test action does not take the
 lock.
 
+UIKit on the Mac sends every scene to the background while the displays
+sleep, which fails every hosted test running then, so a run that takes the
+lock also holds a display-sleep assertion with
+`caffeinate -d -u -w <its process ID>`. That wakes a display that is already
+off and keeps it on until the run exits, or for `bin/with-my-mac-lock`, until
+its command exits. A nested run reuses the assertion with the lock.
+
+A screen saver or a locked screen doesn't background hosted tests while the
+display is on, so runs hold neither off. On 2026-11-24, hosted suites passed
+under a screen saver started before and during their run, and a full
+`bin/test-all` passed on a Mac whose screen stayed locked with a password
+while its display was on (jubishop/podhaven#1061).
+
+#### Validation slots
+
+**Decision — 2026-11-09:** Concurrent sessions queue for machine-wide
+validation slots instead of saturating the Mac. That day, about ten sessions
+each ran `bin/test-all` at once, load averages reached 289–510 on 18 cores, and
+every run failed with timeouts that said nothing about the code under test.
+The My Mac test lock serializes only the `xcodebuild test` phases; the tooling
+phase, whose `bin/tests` fakes start thousands of short-lived processes, was
+the largest source of load.
+
+`PODHAVEN_VALIDATION_SLOTS` sets how many heavy runs do their work at once on
+this Mac, as a positive integer that defaults to 2; any other value fails with
+a clear error. Set it outside the repository, such as in a shell profile, so
+every checkout on the Mac shares one count. These runs take a slot:
+
+- `bin/test-all`, from before its first phase until it exits.
+  `bin/test-all --preflight`, `--verify`, and an `--ensure` run that reuses
+  evidence do no heavy work and take no slot.
+- `bin/check --full`, through `bin/check-application`, including in the
+  [tooling pre-push gate](#tooling-pre-push-gate). A pass that `bin/check`
+  reuses runs no checks and takes no slot.
+- Focused runs under `bin/with-my-mac-lock`.
+
+The fast `bin/check`, `bin/lint-swift-format`, and the macro `swift test` take
+no slot when run on their own.
+
+Each slot is an advisory file lock, `~/.cache/podhaven/validation-slot-<n>.lock`,
+which holds a one-line record of its holder's process ID, start time, command,
+and checkout. The system releases a slot when its holder exits or is killed,
+so no stale slot outlives a run. Every run waits without a time limit, whether
+interactive or unattended, and says which slot it took.
+
+**Decision — 2026-11-24:** Waiting runs take free slots in the order they
+began waiting, so a run is never passed over. Before, whichever waiter polled
+first after a release won, and on 2026-11-24 one run waited 15 minutes
+while four that began waiting later took slots ahead of it. A run that finds
+no slot free, or earlier runs still waiting, holds the lock on a numbered
+ticket in `~/.cache/podhaven/validation-queue/` until it takes a slot, so a
+waiter that exits or is killed leaves the queue at once, and the next run to
+look deletes its file. Only the oldest live waiter takes a free slot. A short
+lock, `~/.cache/podhaven/validation-queue.lock`, guards the queue; nothing
+waits for anything else while holding it. A waiting run polls at a short
+interval and prints the holders and how many earlier runs wait ahead of it,
+then each slot's new holder and its new place whenever they change.
+
+A run from a checkout that predates the queue ignores it and can still take a
+freed slot ahead of the queue, but every run takes a slot through the same
+lock, so no slot ever has two holders.
+
+A nested run reuses the slot it runs inside instead of waiting on itself. The
+holder exports `PODHAVEN_VALIDATION_SLOT`, which names the slot's file and
+holder process, because managed `bin/check` starts `bin/check-application`
+without passing it any descriptor. A child reuses that slot only when the
+slot's record names that process and the slot is still locked. So the tooling
+phase of `bin/test-all` runs inside the run's own slot.
+
+Runs take their slot before the My Mac test lock and never wait for a slot
+while holding that lock, so a focused run and `bin/test-all` can't deadlock.
+They also take it before an Xcode or SwiftPM build limit kept outside the
+repository: nothing that holds such a build slot waits for a validation slot.
+The limit uses only this repository's lock files, so it works the same on any
+Mac.
+
+#### Second Mac
+
+**Decision — 2026-11-10:** `bin/test-all` sends a run to a second Mac whenever
+that Mac's lane is free, not only when this Mac is busy, to take load off this
+Mac, whose load comes from all its sessions. Runs there are somewhat slower,
+which the owner accepted. The second Mac is the Mac mini that the private
+jubishop/home-infra repository keeps as a test host; its `memory/mac-mini.md`
+covers the host's toolchain, signing, and scheduled jobs.
+
+The Git config value `podhaven.testHost` names the host as an SSH destination,
+such as `mac-mini`. Set it in the primary checkout with
+`git config podhaven.testHost mac-mini`, so every worktree shares it; the
+repository is public, so the destination stays out of it. With no value set,
+`bin/test-all` runs here as it always has.
+
+A run can go to the second Mac only when its checkout is clean, since only a
+commit can be sent there; with or without `--ensure` and `--revision`, that
+covers the full runs before a push, merge, or release. A run over uncommitted
+changes, one under `bin/with-my-mac-lock`, and focused runs stay here. So do
+`--preflight`, `--verify`, and an `--ensure` run that reuses evidence, which
+run no tests.
+
+- **Choosing a lane:** a run takes the second Mac's lane when it is free,
+  otherwise this Mac's when it is, and otherwise waits, saying who holds each,
+  and takes whichever frees first. This Mac's lane is free when its My Mac test
+  lock is and a [validation slot](#validation-slots) is free with no run
+  waiting. The run prints which Mac it uses, and why when it stays here.
+- **The lane:** the run pushes its commit, and the tip of origin's default
+  branch, to a mirror on the host,
+  `~/Library/Caches/podhaven/test-lanes/mirror.git`, and runs
+  `bin/_test_lane_host.py` there over SSH. That checks the commit out in the
+  lane's own worktree, `test-lanes/lane-1`, with every untracked and ignored
+  file removed, so the run sees only the commit's files while the lane's
+  fixed path keeps its DerivedData warm. The lane's `origin/HEAD` names this
+  checkout's, so `bin/check`'s whitespace check reads the same changes there.
+  It then runs that checkout's `bin/test-all` in the host's desktop session
+  under `nice`, where signing works. The mirror keeps the newest
+  `MIRROR_REFS` commits pushed to it, and the lane keeps only its latest
+  run's files, so the host's disk use stays bounded.
+- **Locks:** the lane holds the host's scheduled-jobs lock through
+  `lockf -t 0`, so a held lock is a busy lane, and the host's own jobs, such
+  as its Xcode updates and nightly test runs, can't start under a run. The
+  host runs one test lane at a time, PodHaven's or Screenr's: on 2026-11-24 a
+  PodHaven run beside a Screenr check didn't show a second lane safe, as
+  home-infra's page records, and jubishop/home-infra#220 measures again. A run
+  there holds no validation slot or My Mac test lock on this Mac. The host's
+  `bin/test-all` takes that Mac's own, so the stalled-host sampling, the test
+  host's temporary-directory check, and every other check run there as here.
+- **Evidence:** the run's output streams back as it runs, with the host's
+  evidence paths shown as this checkout's, and its logs, result bundles, and
+  samples come back into this checkout's `.cache/test-all`. The `run.json`
+  there records the run under `remote`, with the host and that run's own
+  checkout state and toolchain. A run there passes only when it tested exactly
+  this commit's files with this Mac's Xcode, Swift, and macOS, and its files
+  match its report. This checkout must stay unchanged until the run ends, as
+  for a run here. `--ensure` and `--verify` then reuse it like evidence from
+  this Mac.
+- **Falling back:** when the host is unreachable, has no one logged in at its
+  desktop, refuses commands in its desktop session, runs another Xcode, Swift,
+  or macOS than this Mac, or can't take the commit, the run stays here and
+  says why. It also comes back here when the connection fails during the run,
+  or the run ends without a report. A run there that failed only to sign,
+  such as for a profile a new extension needs, asks the host to renew its
+  signing, by creating the request file its renewal job watches, and runs
+  here. Any other failure there fails the run, as it would here.
+- **Long runs:** SSH keepalives end the client when the host stops answering,
+  and the run writes a heartbeat to the session every `HEARTBEAT_SECONDS`.
+  When the session's input ends or the heartbeat stops for
+  `HEARTBEAT_TIMEOUT_SECONDS`, the host stops its run, and `lockf` then
+  releases the lane, so a dropped connection never holds it.
+
 ## Sentry triage commands
 
 Run `bin/snfeedback` to select unresolved user feedback, or `bin/snissue` to
 select an unresolved issue that is not feedback. Both show the newest items
 first, with activity within the last 365 days. They use `fzf` when installed
-and a numbered prompt otherwise. Both are fish scripts, so they require fish.
-Listing requires authenticated `sentry` and `gh` commands plus `jq`; analysis
-requires Claude Code (`claude`).
+and a numbered prompt otherwise. With `--list`, they print the rows and exit
+instead, which is how the analysis skills list them. With `--track
+<reference>`, they print every issue tracking one item, canonical first, for
+the analysis skills to start from; `bin/snissue --track` takes a numeric ID or
+issue URL and needs no Sentry access. Both are fish scripts, so they require
+fish. Listing requires authenticated `sentry` and `gh` commands plus `jq`;
+analysis requires Claude Code (`claude`).
 
 `bin/snissue` shows severity, available event and user counts, and the state
 of the GitHub issue that tracks the Sentry issue. It accepts a Sentry issue
@@ -410,7 +663,9 @@ issue is one user's submission, and new feedback arrives under a new slug with
 its own tracking issue. A feedback item's tracking issue, open or closed,
 therefore stays its record for good, and the checker reports it as already
 tracked. Both checkers share `bin/_sentry_intake.sh` and fail rather than
-check a partial Sentry list.
+check a partial Sentry list. Each new intake issue starts at `p2`, and its
+analysis skill then sets `p1`, `p2`, or `p3` from the findings; the checkers
+never change the priority of an issue that already tracks an item.
 
 | | Feedback | Error issues |
 | --- | --- | --- |
@@ -421,7 +676,8 @@ check a partial Sentry list.
 The pickers and checkers match an issue by its marker or a link to the Sentry
 item; the pickers show it as intake, analyzed, closed, or untracked. Error issues
 analyzed before the marker existed count as analyzed when their body has a
-`## Sentry closeout` section.
+`## Sentry closeout` section. `bin/_sentry_issue_tracking.jq` holds the
+error-issue rule for `bin/check-sentry-issues` and `bin/snissue`.
 
 The controlled `bin/integration` probes behind the `bin/sentry-*-smoke`
 commands report to the production Sentry project, so the smokes can verify
@@ -435,12 +691,14 @@ instructions. Sentry drops events after its retention period and drops an
 issue once they all age out; a recurrence then gets a new short ID, so later
 triage finds the history by the record's signature. Once the work is done, an
 agent resolves the linked Sentry item, in the fix's commit when there is one,
-or archives an error accepted as noise, and reads back its status. For
-PR-backed work, `fix-issue` carries that task into `Do After Merging` for the
-`after-merge` agent to execute and verify after GitHub closure. For issue-only
-work, the agent that finishes the work does it before closing the issue or
-handing closure to a caller that owns it, because that caller may not touch
-Sentry. Never delete a Sentry issue; its history goes with it.
+or archives an error accepted as noise, and reads back its status;
+`.agents/scripts/sentry-cli/close_sentry_issue.sh` does both for an error
+issue. For PR-backed work, `fix-issue` carries that task into
+`Do After Merging` for the `after-merge` agent to execute and verify after
+GitHub closure. For issue-only work, the agent that finishes the work does it
+before closing the issue or handing closure to a caller that owns it, because
+that caller may not touch Sentry. Never delete a Sentry issue; its history
+goes with it.
 
 ## Checks and project extensions
 
@@ -504,8 +762,8 @@ does not require building the Swift app.
 skill tests and the shell tests in `bin/tests`, instead of reusing an earlier
 pass.
 `bin/check --full` alone is not a full test run.
-`bin/tests` covers the knowledge worker and cache ownership and artifact
-repair; Project Starter tests the shared memory audit. `bin/smoke-knowledge` checks real QMD retrieval and
+`bin/tests` covers cache ownership and package cloning; Project Starter tests
+the knowledge tools. `bin/smoke-knowledge` checks real QMD retrieval and
 linked-worktree isolation in disposable repositories. It reuses
 `~/.cache/qmd/models` and does not publish changes.
 
@@ -520,10 +778,23 @@ Run one suite with `python3 -B -m unittest discover -s bin/tests -p 'test_deploy
 which keeps the guard importable; a dotted `bin.tests` module name fails to
 import it instead of running unguarded.
 
-`.project-starter.json` records the installed Project Starter release, the
-hashes of its managed files, and the enabled `memory-audit` feature. Update
-them with Project Starter's `bin/sync`. PodHaven overrides no managed file:
-its Xcode preparation runs from the project-owned `bin/setup-application`.
+Tooling tests run fixture commands through `bin/tests/hang_guard.py`, with
+`hang_guard.run`, or `start` and `finish` for a command the test talks to
+while it runs, instead of choosing their own timeouts. Fixture commands start
+many fake commands, each a fresh interpreter, so a loaded machine can slow a
+run far past its usual time although nothing hangs. The shared `HANG_LIMIT`
+therefore only stops a real hang, and machine load never decides a test's
+outcome. Each command starts in its own session; on a timeout, the helper
+kills that whole process group and waits for it to end, so the test reports
+one `TimeoutExpired` and its temporary directory still cleans up. Keep a short
+wait only where its expiry is the assertion. Give each subtest that runs a
+release or gate command its own fixture, so one interrupted or failed run
+can't fail the subtests after it.
+
+`.project-starter.json` records the installed Project Starter release and the
+hashes of its managed files. Update them with Project Starter's `bin/sync`.
+PodHaven overrides no managed file: its Xcode preparation runs from the
+project-owned `bin/setup-application`.
 
 ### Tooling pre-push gate
 
@@ -538,10 +809,13 @@ cannot run. Uncommitted edits neither hide nor cause a failure.
 
 Tooling is every path under `bin/` and `.agents/`, including pages, because
 tooling tests read skill prose, and every other non-Markdown path outside the
-application targets. Pushes that change only application targets or other
-Markdown skip the gate; application changes reach `main` through pull requests
-validated by `bin/test-all`. A new branch counts only its commits that no
-remote-tracking branch holds.
+application targets except `.project-starter.json`. No tooling test depends on
+that manifest's contents, and every `bin/check` mode compares it with the
+managed files, so a Project Starter sync that changes no other tooling skips
+the gate. Pushes that change only application targets or other Markdown skip
+it too; application changes reach `main` through pull requests validated by
+`bin/test-all`. A new branch counts only its commits that no remote-tracking
+branch holds.
 
 The gate reuses a recent passing `bin/check --full` for the same tree, so
 running `bin/check --full` on the final clean commit before pushing makes the
@@ -570,33 +844,14 @@ gated SSH push from failing that way:
 
 ## Scheduled memory audit
 
-A weekly local job checks every active [memory](../memory/README.md) note
-against the code and GitHub evidence, archives or updates stale notes, and
-commits validated changes to `main`. It is Project Starter's shared
-[memory audit](foundation/memory-audit.md) feature, whose page covers
-installing, running, inspecting, and stopping it, and its model, validation,
-and failure handling. PodHaven's `memoryAudit` settings in
-`.config/knowledge.json` add:
+Home's nightly guidance review, `~/docs/guidance-review.md`, audits
+PodHaven's [memory](../memory/README.md) notes against the code and GitHub
+evidence when they come due, in place of Project Starter's weekly memory
+audit, which 4.0.0 retired. That page covers when it runs, its model and
+billing, how its changes land, and its failures.
 
-- **Schedule:** the default Saturday at 06:00 in the Mac's local time zone.
-  Audits on the same Mac take turns through the feature's shared lock.
-- **Failure issue:** a new `Memory audit failing` issue gets the
-  `memory-audit-failure` label.
-- **Index:** archiving a note removes its entry from the README's
-  "Active notes" list.
-- **Context:** the prompt records that this Claude Code job replaced the paid
-  OpenRouter audit and the later Codex job, that it bills PodHaven's own API
-  key with a subscription fallback, and that the Sentry Intake GitHub
-  workflow, which uses no model, stays in use.
-
-Audits bill PodHaven's own Anthropic API key, set as
-`MEMORY_AUDIT_ANTHROPIC_API_KEY` in the primary checkout's `.env` (mode 600),
-and fall back to the Claude subscription when the API refuses it, as the
-feature's [API key](foundation/memory-audit.md#api-key) section describes. The
-key is separate from Screenr's. The
+It bills memory-note audits to `ANTHROPIC_MEMORY_AUDIT_API_KEY` in `~/.env`,
+the key every adopter's memory-note audits share. The same line in the
+primary checkout's `.env`, even with an empty value, would override the
+shared key for PodHaven, so that file sets none. The
 [model selection](../memory/memory-audit-model-selection.md) note records why.
-
-Run `bin/memory-audit install` in the primary checkout to register or update
-the LaunchAgent, and
-`launchctl print gui/$(id -u)/com.jubishop.podhaven.memory-audit` to inspect
-it.

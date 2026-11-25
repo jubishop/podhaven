@@ -82,13 +82,17 @@ struct SiriResolutionDiagnosticsTests {
   @Test("failed real resolution sends bounded attributed summaries without private metadata")
   @MainActor func failureEnvelope() async throws {
     let file = Container.shared.siriCatalogFile()
+    // IDs too long to turn up by chance in the diagnostics' numbers, such as a timestamp's
+    // fraction, so finding one means it leaked.
     try file.write(
       SiriCatalog(podcasts: [
         .init(
-          id: 735930,
+          id: 7_359_300_000_000_000_001,
           feed: "https://private.invalid/feed",
           title: "Private album",
-          episodes: [.init(id: 735931, guid: "private-guid", title: "Private title")]
+          episodes: [
+            .init(id: 7_359_310_000_000_000_001, guid: "private-guid", title: "Private title")
+          ]
         )
       ])
     )
@@ -133,7 +137,7 @@ struct SiriResolutionDiagnosticsTests {
     let json = String(decoding: eventData + data, as: UTF8.self)
     for privateValue in [
       "Private title", "Private album", "Private missing query", "private.invalid", "private-guid",
-      "735930", "735931",
+      "7359300000000000001", "7359310000000000001",
     ] {
       #expect(!json.contains(privateValue))
     }

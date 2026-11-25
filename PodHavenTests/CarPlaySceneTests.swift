@@ -70,7 +70,7 @@ import Testing
       await Container.shared.fakeEpisodeAssetLoader().responseCount(for: episode.episode.mediaURL)
         == 0
     )
-    #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)
+    #expect(Container.shared.fakeAudioSession().activeCalls.isEmpty)
     #expect((Container.shared.avPlayer() as! FakeAVPlayer).current == nil)
 
     let observatory = Container.shared.observatory() as! FakeObservatory
@@ -88,16 +88,17 @@ import Testing
 
   @Test(
     "slow or failed saved-media restoration does not block reconnect",
+    .timeLimit(.minutes(5)),
     arguments: [false, true]
   )
   func pendingMediaRestoration(fails: Bool) async throws {
     let episode = try await Create.podcastEpisode()
     episode.id.store(to: Container.shared.standardDefaults(), forKey: "currentEpisodeID")
-    let entered = ThreadSafe(false)
+    let entered = AsyncLatch<Void>()
     let gate = AsyncSemaphore(value: 0)
     await Container.shared.fakeEpisodeAssetLoader()
       .respond(to: episode.episode.mediaURL) { _ in
-        entered(true)
+        entered.open()
         await gate.wait()
         if fails { throw URLError(.cannotLoadFromNetwork) }
         return (true, .seconds(30))
@@ -105,7 +106,7 @@ import Testing
     let launcher = Container.shared.appLauncher()
     let startup = Task { await launcher.prepareForPlayback() }
     defer { gate.signal() }
-    try await Wait.until({ entered() }, { "Saved media was not requested" })
+    try await entered.wait()
 
     let coordinator = Container.shared.carPlayCoordinator()
     let oldController = FakeCarPlayInterfaceController()
@@ -152,7 +153,7 @@ import Testing
     )
     _ = try observatory.expectCalls(methodName: "smartLists")
     _ = try observatory.expectCalls(methodName: "tags")
-    #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)
+    #expect(Container.shared.fakeAudioSession().activeCalls.isEmpty)
   }
 
   @Test(
@@ -170,7 +171,7 @@ import Testing
     let avPlayer = Container.shared.avPlayer() as! FakeAVPlayer
     let current = avPlayer.current
     let status = avPlayer.timeControlStatus
-    let audioCalls = await Container.shared.fakeAudioSession().activeCalls
+    let audioCalls = Container.shared.fakeAudioSession().activeCalls
     let coordinator = Container.shared.carPlayCoordinator()
 
     for _ in 0..<5 {
@@ -186,7 +187,7 @@ import Testing
     #expect(avPlayer.current === current)
     #expect(avPlayer.timeControlStatus == status)
     #expect(Container.shared.sharedState().onDeck?.id == episode.id)
-    #expect(await Container.shared.fakeAudioSession().activeCalls == audioCalls)
+    #expect(Container.shared.fakeAudioSession().activeCalls == audioCalls)
   }
 
   @Test("late completion and old disconnect cannot mutate a replacement connection")
@@ -307,7 +308,7 @@ import Testing
       }
       coordinator.disconnect(controller)
       #expect(sharedState.scenePhase == .inactive)
-      #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)
+      #expect(Container.shared.fakeAudioSession().activeCalls.isEmpty)
     }
   }
 }

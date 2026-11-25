@@ -1,15 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-# Archive and upload PodHaven, then distribute it to Everyone in TestFlight.
+# Archive and upload PodHaven, then distribute it to Everyone in TestFlight, or change or list Everyone's testers.
 #
 # Usage:
-#   ./bin/deploy.sh                         # Uses Xcode-session Apple ID
-#   ./bin/deploy.sh --api-key <path> \      # Uses App Store Connect API key
-#     --api-key-id <id> \
-#     --api-issuer-id <issuer>
-#   ASC_KEY_PATH=<path> ASC_KEY_ID=<id> ASC_ISSUER_ID=<issuer> ./bin/deploy.sh
-#   ./bin/shipit --notes "What changed"     # Use these notes instead of generated ones
+#   bin/testflight                          # Generated notes; ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID name the API key
+#   bin/testflight --notes "What changed"   # Use these notes instead of generated ones
+#   bin/testflight --distribute-only        # Distribute the newest uploaded build with its tag's notes
+#   bin/testflight --add-tester EMAIL       # Also --remove-tester EMAIL and --testers
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -22,18 +20,39 @@ API_KEY_PATH="${ASC_KEY_PATH:-}"
 API_KEY_ID="${ASC_KEY_ID:-}"
 API_ISSUER_ID="${ASC_ISSUER_ID:-}"
 FORCE=false
-REUSE=false
+DISTRIBUTE_ONLY=false
 TESTFLIGHT_NOTES=""
-NOTES_GENERATED=false
+NOTES_GIVEN=false
+ADD_TESTERS=""
+REMOVE_TESTERS=""
+LIST_TESTERS=false
 TESTFLIGHT_BASE_PATH=""
 APPSTORE_RELEASE=""
 ORIGINAL_ARGS=("$@")
 NEXT_TESTFLIGHT_VERSION_PATH=""
+# The newest RELEASES_KEPT tags' folders under build/release keep their archive and logs.
+RELEASES="$PROJECT_DIR/build/release"
+RELEASES_KEPT=3
+
+# Prints a tester flag's email in lowercase, since Apple matches emails without regard to case.
+tester_email() {
+  local email="$2"
+  email="${email#"${email%%[![:space:]]*}"}"
+  email="${email%"${email##*[![:space:]]}"}"
+  email=$(printf '%s' "$email" | tr '[:upper:]' '[:lower:]')
+  if [[ ! "$email" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; then
+    echo "error: $1 needs an email address, such as friend@example.com, not \"$2\"." >&2
+    return 1
+  fi
+  printf '%s\n' "$email"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
       cat <<'HELP'
-Usage: bin/testflight [--reuse] [--notes "What changed"] [-f] [API key options]
+Usage: bin/testflight [--distribute-only] [--notes "What changed"] [-f] [API key options]
+       bin/testflight [--add-tester EMAIL] [--remove-tester EMAIL] [--testers] [API key options]
 
 Tests, archives, uploads, and distributes the build to the external Everyone group.
 TestFlight uploads require a current app version with exactly two dots, such as 2.1.1.
@@ -44,28 +63,38 @@ Fresh archives and uploads require valid full local test evidence for the clean 
 Fresh archives send their debug files to Sentry and stop before upload if any app binary lacks DWARF there.
 Without --notes, llm summarizes the app changes since the newest build in testing for Everyone,
 before any version change. In a terminal, it asks to use them, edit them in $VISUAL or $EDITOR, or stop.
+The notes are the build's tag message, so distributing a tagged build again reuses them.
 If that build is already the one to distribute, the command publishes its missing tag or release and stops.
 --notes TEXT: use these "What to Test" notes instead.
 Distribution waits for processing and submits for beta review when needed.
 Repeating the command retries distribution of the same uploaded commit.
 Cancels one older waiting beta review before upload. If Apple has started
 review, advances the patch version, validates, and uploads with the same notes.
---reuse: distribute the highest-numbered local TestFlight build tag, even after new commits.
+--distribute-only: distribute the highest-numbered local TestFlight build tag, even after new commits,
+         with its tag's notes unless --notes is given. --reuse is an alias.
          Requires a matching upload receipt or published tag.
          Stops if the upload cannot be confirmed; never builds, uploads, or pushes.
 -f, --force: allow a branch other than main (a clean working tree is still required).
---api-key PATH --api-key-id ID --api-issuer-id ID: use an App Store Connect API key.
-API keys can also use ASC_KEY_PATH, ASC_KEY_ID, and ASC_ISSUER_ID.
-Without an API key, uploads use Xcode's login; distribution uses Fastlane's Apple ID login.
-Use FASTLANE_USER to select that Apple ID. Fastlane may request two-factor authentication.
+--api-key PATH --api-key-id ID --api-issuer-id ID: the App Store Connect API key.
+Every App Store Connect request uses the API key, from these options or from
+ASC_KEY_PATH, ASC_KEY_ID, and ASC_ISSUER_ID; there is no Apple ID login.
 -h, --help: show this help.
 
+The tester options change or list Everyone's testers without a release. They repeat and combine,
+but not with --notes, --distribute-only, or --force, and need only the API key:
+--add-tester EMAIL: add EMAIL to Everyone; TestFlight emails them an invitation.
+--remove-tester EMAIL: take EMAIL out of Everyone; they stay on the team and in other groups.
+--testers: list Everyone's testers.
+Adding someone already in Everyone, or removing someone who isn't, changes nothing.
+
 Processing is checked every 30 seconds for up to two hours. Apple beta review may take longer.
-PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS overrides this wait with a positive whole number of seconds.
-If processing times out, the upload is preserved. Check Build Uploads in App Store Connect,
-then rerun the command; no new upload is needed.
+PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS overrides this wait with a positive whole number of seconds,
+for bin/appstore too. If processing times out, the upload is preserved. Check Build Uploads in
+App Store Connect, then rerun the command; no new upload is needed.
 Each upload publishes its Git tag and GitHub release before distribution.
 After upload, a failure prints the command that retries without another upload.
+Each build's archive and logs stay in build/release/<tag>; the newest three tags' folders are kept.
+Only one release command runs at a time in this clone; bin/appstore holds the same lock.
 bin/shipit and bin/deploy.sh accept the same options.
 App Store uploads use bin/appstore instead.
 HELP
@@ -77,10 +106,28 @@ HELP
         exit 1
       fi
       TESTFLIGHT_NOTES="$2"
+      NOTES_GIVEN=true
       shift 2
       ;;
-    --reuse)
-      REUSE=true
+    --distribute-only|--reuse)
+      DISTRIBUTE_ONLY=true
+      shift
+      ;;
+    --add-tester|--remove-tester)
+      if [[ $# -lt 2 ]]; then
+        echo "error: $1 needs an email address, such as friend@example.com." >&2
+        exit 1
+      fi
+      email=$(tester_email "$1" "$2") || exit 1
+      if [[ "$1" == --add-tester ]]; then
+        [[ $'\n'"$ADD_TESTERS" == *$'\n'"$email"$'\n'* ]] || ADD_TESTERS+="$email"$'\n'
+      else
+        [[ $'\n'"$REMOVE_TESTERS" == *$'\n'"$email"$'\n'* ]] || REMOVE_TESTERS+="$email"$'\n'
+      fi
+      shift 2
+      ;;
+    --testers)
+      LIST_TESTERS=true
       shift
       ;;
     --appstore-release)
@@ -121,8 +168,23 @@ HELP
   esac
 done
 
-if [[ "$REUSE" == true && -n "$APPSTORE_RELEASE" ]]; then
-  echo 'error: --reuse cannot be combined with --appstore-release.' >&2
+TESTER_MODE=false
+if [[ -n "$ADD_TESTERS$REMOVE_TESTERS" || "$LIST_TESTERS" == true ]]; then
+  TESTER_MODE=true
+  if [[ "$NOTES_GIVEN" == true || "$DISTRIBUTE_ONLY" == true || "$FORCE" == true || -n "$APPSTORE_RELEASE" ]]; then
+    echo 'error: --add-tester, --remove-tester, and --testers change or list testers without a release; leave out --notes, --distribute-only, and --force.' >&2
+    exit 1
+  fi
+  while IFS= read -r email; do
+    if [[ -n "$email" ]] && [[ $'\n'"$REMOVE_TESTERS" == *$'\n'"$email"$'\n'* ]]; then
+      echo "error: Both --add-tester and --remove-tester name ${email}." >&2
+      exit 1
+    fi
+  done <<< "$ADD_TESTERS"
+fi
+
+if [[ "$DISTRIBUTE_ONLY" == true && -n "$APPSTORE_RELEASE" ]]; then
+  echo 'error: --distribute-only cannot be combined with --appstore-release.' >&2
   exit 1
 fi
 
@@ -131,31 +193,47 @@ if [[ -n "$APPSTORE_RELEASE" && -n "$TESTFLIGHT_NOTES" ]]; then
   exit 1
 fi
 
-AUTH_FLAGS=()
-auth_value_count=0
-[[ -n "$API_KEY_PATH" ]] && ((auth_value_count += 1))
-[[ -n "$API_KEY_ID" ]] && ((auth_value_count += 1))
-[[ -n "$API_ISSUER_ID" ]] && ((auth_value_count += 1))
-
-if (( auth_value_count > 0 && auth_value_count < 3 )); then
-  echo "error: App Store Connect API auth requires ASC_KEY_PATH, ASC_KEY_ID, and ASC_ISSUER_ID." >&2
-  echo "error: Or pass --api-key, --api-key-id, and --api-issuer-id." >&2
+# bin/appstore passes its public notes, which become the upload's tag message.
+if [[ -n "$APPSTORE_RELEASE" && ! "${PODHAVEN_APPSTORE_NOTES:-}" =~ [^[:space:]] ]]; then
+  echo 'error: App Store uploads need the notes bin/appstore passes; run bin/appstore instead.' >&2
   exit 1
 fi
 
-if (( auth_value_count == 3 )); then
-  if [[ ! -f "$API_KEY_PATH" ]]; then
-    echo "error: App Store Connect API key not found: $API_KEY_PATH" >&2
-    exit 1
-  fi
+# App Store Connect requests use the API key only: an Apple ID login can ask for a two-factor code.
+if [[ -z "$API_KEY_PATH" || -z "$API_KEY_ID" || -z "$API_ISSUER_ID" ]]; then
+  echo "error: App Store Connect requests need an API key: set ASC_KEY_PATH, ASC_KEY_ID, and ASC_ISSUER_ID." >&2
+  echo "error: Or pass --api-key, --api-key-id, and --api-issuer-id." >&2
+  exit 1
+fi
+if [[ ! -f "$API_KEY_PATH" ]]; then
+  echo "error: App Store Connect API key not found: $API_KEY_PATH" >&2
+  exit 1
+fi
+API_KEY_PATH="$(cd "$(dirname "$API_KEY_PATH")" && pwd)/$(basename "$API_KEY_PATH")"
+AUTH_FLAGS=(
+  -authenticationKeyPath "$API_KEY_PATH"
+  -authenticationKeyID "$API_KEY_ID"
+  -authenticationKeyIssuerID "$API_ISSUER_ID"
+)
+export ASC_KEY_PATH="$API_KEY_PATH" ASC_KEY_ID="$API_KEY_ID" ASC_ISSUER_ID="$API_ISSUER_ID"
+export FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_HIDE_CHANGELOG=1 FASTLANE_OPT_OUT_USAGE=1 FASTLANE_SKIP_DOCS=1
 
-  API_KEY_PATH="$(cd "$(dirname "$API_KEY_PATH")" && pwd)/$(basename "$API_KEY_PATH")"
+if [[ -z "$APPSTORE_RELEASE" ]] && ! command -v fastlane &>/dev/null; then
+  echo 'error: TestFlight requires Fastlane. Install with: brew install fastlane' >&2
+  exit 1
+fi
 
-  AUTH_FLAGS=(
-    -authenticationKeyPath "$API_KEY_PATH"
-    -authenticationKeyID "$API_KEY_ID"
-    -authenticationKeyIssuerID "$API_ISSUER_ID"
-  )
+# The tester options need neither Git nor the release lock, since they never pick a build number.
+if [[ "$TESTER_MODE" == true ]]; then
+  cd "$PROJECT_DIR"
+  PODHAVEN_TESTERS_ADD="$ADD_TESTERS" PODHAVEN_TESTERS_REMOVE="$REMOVE_TESTERS" PODHAVEN_TESTERS_LIST="$LIST_TESTERS" \
+    exec fastlane manage_testers
+fi
+
+# Each release picks the next build number from the tags, so only one runs at a time in this clone.
+if [[ "${PODHAVEN_RELEASE_LOCK_PID:-}" != "$$" ]]; then
+  exec python3 "$SCRIPT_DIR/_release_lock.py" "bin/$(basename "$0") in $PROJECT_DIR" \
+    "$BASH" "$0" "${ORIGINAL_ARGS[@]+"${ORIGINAL_ARGS[@]}"}"
 fi
 
 run_testflight() {
@@ -164,11 +242,9 @@ run_testflight() {
   fi
   (
     cd "$PROJECT_DIR"
-    ASC_KEY_PATH="$API_KEY_PATH" ASC_KEY_ID="$API_KEY_ID" ASC_ISSUER_ID="$API_ISSUER_ID" \
-      PODHAVEN_TESTFLIGHT_NOTES="$TESTFLIGHT_NOTES" \
+    PODHAVEN_TESTFLIGHT_NOTES="$TESTFLIGHT_NOTES" \
       PODHAVEN_TESTFLIGHT_NEXT_VERSION_PATH="$NEXT_TESTFLIGHT_VERSION_PATH" \
       PODHAVEN_TESTFLIGHT_BASE_PATH="$TESTFLIGHT_BASE_PATH" \
-      FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_HIDE_CHANGELOG=1 FASTLANE_OPT_OUT_USAGE=1 FASTLANE_SKIP_DOCS=1 \
       fastlane distribute_testflight "$@"
   )
 }
@@ -187,18 +263,17 @@ restart_testflight_if_needed() {
     exit 1
   fi
   echo "==> Preserving the active beta review and starting TestFlight ${next_version} with the same notes..."
+  # A tag that was never uploaded goes, with its folder; an uploaded build keeps both.
   if [[ -n "${CURRENT_PHASE:-}" && "$UPLOAD_SUCCEEDED" != true ]]; then
     git -C "$PROJECT_DIR" tag -d "$tag"
+    rm -rf "$LOG_DIR"
   fi
   trap - EXIT
   rm -f "$NEXT_TESTFLIGHT_VERSION_PATH"
-  if [[ -n "${LOG_DIR:-}" ]]; then
-    rm -rf "$LOG_DIR"
-  fi
   "$SCRIPT_DIR/version" "$next_version"
   export PODHAVEN_TESTFLIGHT_PATCH_RETRY=true
   local args=("${ORIGINAL_ARGS[@]+"${ORIGINAL_ARGS[@]}"}")
-  if [[ "$NOTES_GENERATED" == true ]]; then
+  if [[ "$NOTES_GIVEN" != true ]]; then
     args+=(--notes "$TESTFLIGHT_NOTES")
   fi
   exec "$SCRIPT_DIR/deploy.sh" "${args[@]}"
@@ -240,9 +315,11 @@ publish_release() {
   fi
 }
 
-# Summarize app changes since the newest build testers have, unless that build is the one to distribute.
-generate_testflight_notes() {
-  local current_build="$1" end="$2" uploaded_tag="${3:-}" base_build
+# Chooses notes without --notes. A tagged build has the notes it was uploaded with as its tag message; a new build's
+# summarize the app changes since the newest build testers have. When the tagged build is already that one, it
+# publishes the tag's missing pieces if asked to, and stops.
+choose_testflight_notes() {
+  local tagged="$1" publish="$2" base_build
   TESTFLIGHT_BASE_PATH=$(mktemp "/tmp/podhaven-testflight-base.XXXXXX")
   if ! run_testflight base:true; then
     rm -f "$TESTFLIGHT_BASE_PATH"
@@ -251,20 +328,32 @@ generate_testflight_notes() {
   base_build=$(cat "$TESTFLIGHT_BASE_PATH")
   rm -f "$TESTFLIGHT_BASE_PATH"
   TESTFLIGHT_BASE_PATH=""
+  if [[ -n "$tagged" && "$base_build" == "${tagged##*b}" ]]; then
+    if [[ "$publish" == true ]] && ! publish_release "$tagged"; then
+      print_upload_retry "$tagged"
+      exit 1
+    fi
+    echo "==> Build ${base_build} is already in testing for Everyone. Nothing to do."
+    exit 0
+  fi
+  if [[ -n "$tagged" ]]; then
+    TESTFLIGHT_NOTES=$(git -C "$PROJECT_DIR" tag -l --format='%(contents)' "$tagged")
+    if [[ ! "$TESTFLIGHT_NOTES" =~ [^[:space:]] ]]; then
+      echo "error: ${tagged} has no notes in its tag message. Pass --notes." >&2
+      exit 1
+    fi
+    printf '==> Notes from %s:\n\n%s\n\n' "$tagged" "$TESTFLIGHT_NOTES"
+    return
+  fi
   if [[ -z "$base_build" ]]; then
     echo 'error: No iOS build is in testing for Everyone, so there is no starting point for notes. Pass --notes.' >&2
     exit 1
   fi
-  if [[ "$base_build" == "$current_build" ]]; then
-    if [[ -n "$uploaded_tag" ]] && ! publish_release "$uploaded_tag"; then
-      print_upload_retry "$uploaded_tag"
-      exit 1
-    fi
-    echo "==> Build ${current_build} is already in testing for Everyone. Nothing to do."
-    exit 0
+  if ! command -v llm &>/dev/null; then
+    echo 'error: llm writes the notes and was not found. Install it with: pipx install llm, or pass --notes.' >&2
+    exit 1
   fi
-  TESTFLIGHT_NOTES=$("$SCRIPT_DIR/release-notes" testflight --since-build "$base_build" --to "$end")
-  NOTES_GENERATED=true
+  TESTFLIGHT_NOTES=$("$SCRIPT_DIR/release-notes" testflight --since-build "$base_build" --to HEAD)
 }
 
 # Preflight: block deploys from non-main branches
@@ -280,22 +369,11 @@ if [[ -n $(git -C "$PROJECT_DIR" status --porcelain) ]]; then
   exit 1
 fi
 
-if [[ -z "$APPSTORE_RELEASE" ]] && ! command -v fastlane &>/dev/null; then
-  echo 'error: TestFlight distribution requires Fastlane. Install with: brew install fastlane' >&2
-  exit 1
-fi
-
-# Require llm for AI-generated notes and tag summaries
-if ! command -v llm &>/dev/null; then
-  echo "error: llm not found. Install with: pipx install llm" >&2
-  exit 1
-fi
-
 UPLOAD_RECEIPT=$(git -C "$PROJECT_DIR" rev-parse --path-format=absolute --git-path podhaven-last-upload)
 release_tags=$(git -C "$PROJECT_DIR" tag -l "v*b*" | sort -t b -k2,2n)
 prev_tag=$(printf '%s\n' "$release_tags" | tail -1)
 
-if [[ "$REUSE" == true ]]; then
+if [[ "$DISTRIBUTE_ONLY" == true ]]; then
   tag=$(printf '%s\n' "$release_tags" | sed -nE '/^v[0-9]+\.[0-9]+\.[0-9]+b[0-9]+$/p' | tail -1)
   if [[ -z "$tag" ]]; then
     echo 'error: No TestFlight build tag found in this checkout.' >&2
@@ -313,12 +391,17 @@ if [[ "$REUSE" == true ]]; then
   build="${tag##*b}"
   version="${tag#v}"
   version="${version%b*}"
-  if [[ -z "$TESTFLIGHT_NOTES" ]]; then
-    generate_testflight_notes "$build" "$tag"
+  if [[ "$NOTES_GIVEN" != true ]]; then
+    choose_testflight_notes "$tag" false
   fi
-  echo "==> Reusing ${tag} from ${commit} for Everyone..."
+  echo "==> Distributing ${tag} from ${commit} to Everyone..."
   run_testflight "version:$version" "build:$build"
   exit 0
+fi
+
+if [[ -z "$prev_tag" ]]; then
+  echo 'error: No release tags found, so the next build number is unknown. Fetch them with: git fetch --tags' >&2
+  exit 1
 fi
 
 # Require xcbeautify for formatted build output
@@ -399,12 +482,14 @@ if [[ -z "${next_version:-}" && ! -f "$pending_version_push" ]]; then
   fi
 fi
 
-if [[ -z "$APPSTORE_RELEASE" && -z "$TESTFLIGHT_NOTES" ]]; then
-  uploaded_tag=""
-  if [[ -n "$prev_tag" && "$(git -C "$PROJECT_DIR" rev-parse "${prev_tag}^{commit}")" == "$(git -C "$PROJECT_DIR" rev-parse HEAD)" ]]; then
-    uploaded_tag="$prev_tag"
+if [[ -z "$APPSTORE_RELEASE" && "$NOTES_GIVEN" != true ]]; then
+  # Without a version change, a TestFlight tag at HEAD is the build this run distributes.
+  tagged=""
+  if [[ -z "${next_version:-}" && "$prev_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+b[0-9]+$
+        && "$(git -C "$PROJECT_DIR" rev-parse "${prev_tag}^{commit}")" == "$(git -C "$PROJECT_DIR" rev-parse HEAD)" ]]; then
+    tagged="$prev_tag"
   fi
-  generate_testflight_notes "${uploaded_tag##*b}" HEAD "$uploaded_tag"
+  choose_testflight_notes "$tagged" true
 fi
 
 if [[ -n "${next_version:-}" ]]; then
@@ -464,44 +549,51 @@ if [[ -n "$prev_tag" && "$prev_tag_commit" == "$head_commit" ]]; then
 else
   "$SCRIPT_DIR/test-all" --ensure --revision "$head_commit"
 
-  # Normal path: generate summary and create a new tag.
-  if [[ -z "$prev_tag" ]]; then
-    echo "error: No previous tag found. Cannot generate summary." >&2
-    exit 1
-  fi
-
-  echo "==> Generating release summary (${prev_tag}..HEAD)..."
-  diff_content=$(set +o pipefail; git -C "$PROJECT_DIR" diff "${prev_tag}..HEAD" | head -c 50000)
-
-  if [[ -z "$diff_content" ]]; then
+  if git -C "$PROJECT_DIR" diff --quiet "${prev_tag}..HEAD"; then
     echo "error: No changes to deploy since ${prev_tag}." >&2
     exit 1
   fi
 
-  tag_message=$(echo "$diff_content" | llm -s \
-    "Summarize this code diff for release notes. Write for a technically savvy end user. Focus on user-facing improvements, new features, and bug fixes. Be concise — a few bullet points or a short paragraph.")
-
-  if [[ -z "$tag_message" ]]; then
-    echo "error: llm returned empty summary." >&2
-    exit 1
+  # The tag message is the release notes, kept verbatim so a later distribution reuses them exactly.
+  tag_message="$TESTFLIGHT_NOTES"
+  if [[ -n "$APPSTORE_RELEASE" ]]; then
+    tag_message="$PODHAVEN_APPSTORE_NOTES"
   fi
-
-  echo "==> Summary generated:"
-  echo ""
-  echo "$tag_message"
-  echo ""
-
-  git -C "$PROJECT_DIR" tag -a "$tag" -m "$tag_message"
+  echo "==> Tagging ${tag} (${prev_tag}..HEAD) with its notes..."
+  git -C "$PROJECT_DIR" tag -a "$tag" --cleanup=verbatim -m "$tag_message"
 fi
 
 echo "==> Build ${build} (${tag}) from ${commit}"
 
-# Per-run scratch dir under /tmp for the archive and all xcodebuild logs.
-LOG_DIR=$(mktemp -d "/tmp/podhaven-deploy.XXXXXX")
+# The tag's folder for its archive and logs; a fresh archive starts it over.
+LOG_DIR="$RELEASES/$tag"
 ARCHIVE_PATH="$LOG_DIR/PodHaven.xcarchive"
+if [[ "$UPLOAD_SUCCEEDED" != true ]]; then
+  rm -rf "$LOG_DIR"
+fi
+mkdir -p "$LOG_DIR"
 echo "==> Logs and archive: $LOG_DIR"
 
-# On exit: report a failure and roll back an unuploaded tag, or remove this run's logs on success.
+# Removes all but the newest RELEASES_KEPT tags' folders. The build is already uploaded, so a failure here only
+# leaves more output behind.
+prune_releases() {
+  local folder name names="" old
+  for folder in "$RELEASES"/v*b*; do
+    name="${folder##*/}"
+    if [[ -d "$folder" && "$name" =~ ^v[0-9]+(\.[0-9]+){0,2}b[0-9]+$ ]]; then
+      names+="$name"$'\n'
+    fi
+  done
+  old=$(printf '%s' "$names" | sort -t b -k2,2n -k1,1 \
+    | awk -v keep="$RELEASES_KEPT" '{ names[NR] = $0 } END { for (i = 1; i <= NR - keep; i++) print names[i] }')
+  [[ -n "$old" ]] || return 0
+  while IFS= read -r name; do
+    rm -rf "${RELEASES:?}/$name" || echo "warning: Could not remove ${RELEASES}/${name}." >&2
+  done <<< "$old"
+  echo "==> Removed the output of ${old//$'\n'/, }; build/release keeps the newest ${RELEASES_KEPT} releases."
+}
+
+# On exit: report a failure and roll back an unuploaded tag, keeping the tag's folder for its logs.
 DEPLOY_SUCCEEDED=false
 CURRENT_PHASE=""
 CURRENT_LOG=""
@@ -533,10 +625,8 @@ on_exit() {
     if [[ "$UPLOAD_SUCCEEDED" != true ]]; then
       git -C "$PROJECT_DIR" tag -d "$tag" 2>/dev/null
     fi
-    # Leave $LOG_DIR in place so the log above can be re-read after the script exits.
   else
     echo "==> Done. Tagged ${commit} as ${tag}"
-    rm -rf "$LOG_DIR"
   fi
 }
 trap on_exit EXIT
@@ -631,6 +721,7 @@ sys.exit(not any(file["debugId"] == sys.argv[1] and file["data"].get("type") == 
   UPLOAD_SUCCEEDED=true
   printf '%s\n' "$tag" > "${UPLOAD_RECEIPT}.tmp"
   mv "${UPLOAD_RECEIPT}.tmp" "$UPLOAD_RECEIPT"
+  prune_releases
 fi
 
 # Resolving Sentry issues in a commit needs releases that list their commits.

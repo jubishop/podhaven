@@ -110,10 +110,10 @@ struct AppLauncher: Sendable {
 
     // Must be synchronous so AirPods/lock-screen controls register before iOS
     // evaluates background-launch capability. Sync failure falls back to the
-    // async retry factory.
+    // async retry.
     do {
-      let session = AVAudioSession.sharedInstance()
-      try session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
+      let session = Container.shared.audioSession()
+      try session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio, options: [])
       try session.setMode(.spokenAudio)
       CommandCenter.registerRemoteCommandHandlers()
     } catch {
@@ -122,10 +122,10 @@ struct AppLauncher: Sendable {
         error
       )
       Task {
-        // Give mediaservicesd a moment to respawn before the factory's first attempt,
+        // Give mediaservicesd a moment to respawn before the retry's first attempt,
         // since the sync call just confirmed it's down.
         try? await Container.shared.sleeper().sleep(for: .milliseconds(250))
-        guard await Container.shared.configureAudioSession()() else { return }
+        guard await PlayManager.configureAudioSession() else { return }
         CommandCenter.registerRemoteCommandHandlers()
       }
     }

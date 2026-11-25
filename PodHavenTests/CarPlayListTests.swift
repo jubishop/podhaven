@@ -207,6 +207,6 @@ import Testing
       { "Rating must remove ineligible recommendation" }
     )
     #expect(controller.roots.count == 1)
-    #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)
+    #expect(Container.shared.fakeAudioSession().activeCalls.isEmpty)
   }
 }

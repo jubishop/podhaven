@@ -9,12 +9,16 @@ typealias ITunesPodcastID = Tagged<ITunesURL, Int>
 struct ITunesURL {
   private static let log = Log.as("ITunesURL")
   private static let podcastEntity = "podcast"
+  private static let podcastsHost = "podcasts.apple.com"
 
   // MARK: - URL Analysis
 
   static func isPodcastURL(_ url: URL) -> Bool {
     // https://podcasts.apple.com/us/podcast/podcast-name/id1234567890
-    url.scheme == "https" && url.host?.contains("podcasts.apple.com") == true
+    guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased()
+    else { return false }
+
+    return host == podcastsHost || host.hasSuffix(".\(podcastsHost)")
   }
 
   static func extractPodcastID(from url: URL) -> ITunesPodcastID? {

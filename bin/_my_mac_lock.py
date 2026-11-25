@@ -1,15 +1,21 @@
-"""Serialize My Mac test runs across every checkout and session on this Mac.
+"""Serialize My Mac test runs across every checkout and session on this Mac, and keep the display awake for them.
 
-A second xcodebuild test that installs the PodHaven test host kills the host of a run already in progress."""
+A second xcodebuild test that installs the PodHaven test host kills the host of a run already in progress, and
+UIKit on the Mac sends every scene to the background while the displays sleep, which fails hosted tests."""
 
 from contextlib import contextmanager
 from datetime import datetime
 import fcntl
 import os
 from pathlib import Path
+import subprocess
 import sys
 
 INHERITED_FD = "PODHAVEN_MY_MAC_LOCK_FD"
+
+
+def lock_path():
+    return Path.home() / ".cache/podhaven/my-mac-tests.lock"
 
 
 def inherited(path):
@@ -21,10 +27,24 @@ def inherited(path):
     return (held.st_dev, held.st_ino) == (lock.st_dev, lock.st_ino)
 
 
+def current_holder():
+    """Return the record of the lock's holder, "" for a holder yet to record itself, or None while it is free."""
+    try:
+        with lock_path().open("r") as probe:
+            try:
+                fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return probe.read().strip()
+    except OSError:
+        pass
+    return None
+
+
 @contextmanager
 def my_mac_lock(holder):
-    """Wait for and hold the machine-wide lock; yield its descriptor for commands that must keep holding it."""
-    path = Path.home() / ".cache/podhaven/my-mac-tests.lock"
+    """Wait for and hold the machine-wide lock and a display-sleep assertion; yield the lock's descriptor for commands
+    that must keep holding it."""
+    path = lock_path()
     if inherited(path):
         yield int(os.environ[INHERITED_FD])
         return
@@ -42,6 +62,13 @@ def my_mac_lock(holder):
         lock.write(f"pid {os.getpid()} since {datetime.now().astimezone():%Y-%m-%d %H:%M:%S %Z}: {holder}\n")
         lock.flush()
         try:
-            yield lock.fileno()
+            # -u wakes a display that is already off; -w keeps the assertion until this process, or the command it
+            # execs into, exits.
+            with subprocess.Popen(["caffeinate", "-d", "-u", "-w", str(os.getpid())],
+                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL) as display:
+                try:
+                    yield lock.fileno()
+                finally:
+                    display.terminate()
         finally:
             lock.truncate(0)

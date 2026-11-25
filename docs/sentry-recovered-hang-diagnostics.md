@@ -14,10 +14,12 @@ for record attribution, retention, file-status context, and payload limits.
 
 Use `Options.beforeSendWithHint` to run the existing event filter and enrichment,
 then add each missing recent-tail attachment to the outgoing hint. Keep the
-initial-scope attachments for ordinary events and native crash delivery.
-Deduplicate automatic attachments by their stable filename. Preserve feedback's
-full logs and photos. A missing file must not prevent the remaining envelope
-from being sent.
+initial-scope attachments for ordinary events. Since 9.29.2, the SDK sends no
+scope attachments with native crashes and other fatal events from a previous
+run, such as fatal App Hangs, so those events get the tails only from this
+callback. Deduplicate automatic attachments by their stable filename. Preserve
+feedback's full logs and photos. A missing file must not prevent the remaining
+envelope from being sent.
 
 Sentry introduced this callback in 9.28.0 as a transitional API and marked its
 setter deprecated immediately. Both 9.28.0 and 9.29.0 retain that declaration.
@@ -33,22 +35,53 @@ workarounds, or broad warning suppression.
 
 ## Migration to beforeSend
 
-When a released SDK provides the attachment hint directly to `beforeSend`, use
-that supported signature and remove `beforeSendWithHint`. The SDK's deprecation
-message describes this as a future major-version change; the replacement is
-not available in the checked 9.28.0 or 9.29.0 release. Check the actual released
-API before migrating.
+PodHaven tracks sentry-cocoa's `main`. Migrate once `main` offers a public,
+non-deprecated way for the event callback to add attachments to SDK-captured
+events in the default build, most likely `beforeSend` receiving the hint. Then
+use that supported signature and remove `beforeSendWithHint`. Availability only
+behind the SDK's `V10` trait doesn't count, because enabling that trait changes
+far more than this callback. The SDK's deprecation message describes the change
+as part of its next major version. Check the actual API before migrating;
+[#1006](https://github.com/jubishop/podhaven/issues/1006) tracks the migration
+and its monthly recheck.
+
+Last checked November 24, 2026, when PodHaven moved to `main` at `5c9d0765`,
+whose binary is the 9.35.0 release: neither that release nor
+[`5c9d0765`](https://github.com/getsentry/sentry-cocoa/blob/5c9d0765385bf762c0f99ab1a502c6ec71c6f1d2/Sources/Swift/Options.swift#L175-L188)
+offers it. `beforeSend` still takes only the event, and the
+`beforeSendWithHint` setter is still deprecated, with or without the `V10`
+trait.
 
 At migration, remove the function's `@diagnose` annotation, the matching validation
-exception, and its tests. Retain
+exception, its tests, and the exception's mentions in `AGENTS.md` and the
+[development workflow](development-workflow.md). Retain
 coverage of the final outgoing envelope, filtering and enrichment, duplicate
 prevention, feedback photos/full logs, missing widget files, and the actual iOS
 recovered-hang path. Keep the app and widget tail bounds at 128 KiB and 32 KiB.
 
-Sentry 9.29 also deprecates its legacy hang detector in favor of MetricKit.
+## App Hang tracking deprecation
+
+Sentry 9.29 deprecates its legacy hang detector in favor of MetricKit, with
+`SentrySDK.pauseAppHangTracking()` and `resumeAppHangTracking()`, until v10
+removes the detector. The
+[phone-scene gate](carplay-lifecycle.md#sentry-app-hang-reporting) calls both.
+
+On November 24, 2026, the user approved a second deprecation exception for
+those two calls in `PodHaven/Logging/AppHangReportingGate.swift`, for
+[#1065](https://github.com/jubishop/podhaven/issues/1065), on the same terms as
+the hint callback's: `@diagnose` on each calling function only, and a
+validation gate that accepts only those exact diagnostics at those calls. It
+lasts until Sentry v10 removes legacy App Hang tracking. Moving to MetricKit hang
+reports alone was rejected because it needs its own diagnostics review and
+loses recovered-hang context, and staying on 9.28.0 was rejected because it
+keeps a transport race that delays envelopes.
+
 PodHaven already enables MetricKit. A future detector migration must explicitly
 review diagnostic timing, operation-history retention, and coverage; replacing
-the detector is separate from renaming the event callback.
+the detector is separate from renaming the event callback. At that migration,
+remove both `@diagnose` annotations, their validation exceptions and tests, and
+the exception's mentions in `AGENTS.md` and the
+[development workflow](development-workflow.md).
 
 ## Operation history
 

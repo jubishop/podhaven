@@ -95,6 +95,37 @@ class SwiftResultTests(unittest.TestCase):
         self.assertTrue(results.failures(self.summary, build, {"stdout": "Finished"}, log + "\nwarning: unused result"))
         self.assertTrue(results.failures(self.summary, build, {"stdout": "Finished"}, log.replace("AppLauncher", "Other")))
 
+    def test_only_approved_app_hang_tracking_warnings_are_accepted(self):
+        source = ROOT / "PodHaven/Logging/AppHangReportingGate.swift"
+        lines = source.read_text().splitlines()
+        reason = ("is deprecated: App Hang tracking is deprecated and will be removed in v10 because it "
+                  "can produce less relevant stack traces and false positives. Enable the MetricKit "
+                  "integration for system-provided hang diagnostics.")
+        warnings, logs = [], []
+        for call in ("pauseAppHangTracking()", "resumeAppHangTracking()"):
+            line = next(i for i, text in enumerate(lines, 1) if f"SentrySDK.{call}" in text)
+            message = f"'{call}' {reason}"
+            warnings.append({"issueType": "DeprecatedDeclaration", "message": message,
+                             "sourceURL": source.as_uri() + f"#StartingLineNumber={line - 1}"})
+            logs.append(f"{source}:{line}:28: warning: {message} [#DeprecatedDeclaration]")
+        build = {**self.build, "warningCount": 2, "warnings": warnings}
+        log = "\n".join(logs)
+        self.assertEqual(results.failures(self.summary, build, {"stdout": "Finished"}, log), [])
+        pause, resume = warnings
+        for changed in ({**pause, "message": resume["message"]},
+                        {**pause, "message": "'pauseAppHangTracking()' is deprecated"},
+                        {**pause, "sourceURL": pause["sourceURL"].replace("AppHangReportingGate", "Other")},
+                        {**pause, "sourceURL": resume["sourceURL"]},
+                        {**pause, "issueType": "OtherWarning"}):
+            with self.subTest(changed=changed):
+                self.assertTrue(results.failures(self.summary, {**build, "warnings": [changed, resume]},
+                                                {"stdout": "Finished"}, log))
+        self.assertTrue(results.failures(self.summary, {**build, "warningCount": 3}, {"stdout": "Finished"}, log))
+        self.assertTrue(results.failures(self.summary, build, {"stdout": "Finished"},
+                                         log.replace("pauseAppHangTracking", "resumeAppHangTracking", 1)))
+        self.assertTrue(results.failures(self.summary, build, {"stdout": "Finished"},
+                                         log.replace("AppHangReportingGate", "Other")))
+
     def test_missing_parameter_results_fail_even_if_method_says_passed(self):
         tree = {"nodeIdentifier": "SilenceSchedulerTests/foregroundTaskPriority(priority:)",
                 "result": "Passed", "children": [

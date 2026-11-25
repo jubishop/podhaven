@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -52,7 +53,7 @@ class PrePushApplicationTests(unittest.TestCase):
         self.repo = self.base / "checkout"
         self.remote = self.base / "remote.git"
         self.calls = self.base / "check calls"
-        self.env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        self.env = {key: value for key, value in os.environ.items() if not key.startswith(("GIT_", "PODHAVEN_"))}
         self.env.update(HOME=str(self.base / "home"), GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
                         GIT_AUTHOR_NAME="Test", GIT_AUTHOR_EMAIL="test@example.com",
                         GIT_COMMITTER_NAME="Test", GIT_COMMITTER_EMAIL="test@example.com",
@@ -85,8 +86,8 @@ class PrePushApplicationTests(unittest.TestCase):
         return self.git("rev-parse", "HEAD")
 
     def push(self, *refs, remote="origin", options=(), env=None):
-        return subprocess.run(["git", *options, "push", remote, *refs], cwd=self.repo,
-                              env={**self.env, **(env or {})}, text=True, capture_output=True, timeout=120)
+        return hang_guard.run(["git", *options, "push", remote, *refs], cwd=self.repo,
+                              env={**self.env, **(env or {})}, text=True, capture_output=True)
 
     def ssh_remote(self):
         """Add a remote that reaches the disposable remote over an SSH URL; return the stand-in ssh command."""
@@ -130,7 +131,8 @@ class PrePushApplicationTests(unittest.TestCase):
         self.assertEqual(self.git("worktree", "list", "--porcelain").count("worktree "), 1)
 
     def test_refuses_a_push_that_leaves_a_skill_script_failing_its_tests(self):
-        shutil.copy2(ROOT / "bin/check-application", self.repo / "bin/check-application")
+        for name in ("check-application", "_validation_slot.py"):
+            shutil.copy2(ROOT / "bin" / name, self.repo / "bin" / name)
         (self.repo / "bin/tests").mkdir()
         (self.repo / "bin/tests/test_probe.py").write_text(
             "import unittest\n\n\nclass ProbeTests(unittest.TestCase):\n"
@@ -168,11 +170,31 @@ class PrePushApplicationTests(unittest.TestCase):
         # Tooling tests read skill prose, so pages under bin/ and .agents/ count as tooling.
         self.git("checkout", "--quiet", "feature")
         (self.repo / ".agents/skills/example").mkdir(parents=True)
-        (self.repo / ".agents/skills/example/SKILL.md").write_text("# Example\n\nUse the example script.\n")
+        # bin/check --documents-only holds every skill's frontmatter to the Agent Skills rules.
+        (self.repo / ".agents/skills/example/SKILL.md").write_text(
+            "---\nname: example\ndescription: Use the example script.\ndisable-model-invocation: false\n---\n\n"
+            "# Example\n\nUse the example script.\n")
         skill = self.commit("Describe the example skill")
         result = self.push("feature")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.remote_head("feature"), skill)
+        self.assertEqual(len(self.check_calls()), 2)
+
+    def test_skips_project_starter_syncs_that_change_no_tooling(self):
+        self.assertEqual(self.push("main").returncode, 0)
+        (self.repo / ".project-starter.json").write_text('{"version": "1.0.0"}\n')
+        (self.repo / "README.md").write_text("# Notes\n\nSynced notes.\n")
+        self.commit("Sync Project Starter 1.0.0")
+        result = self.push("main")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.check_calls()), 1)
+        # A sync that also changes bin/ still runs the tooling tests.
+        (self.repo / ".project-starter.json").write_text('{"version": "1.1.0"}\n')
+        (self.repo / "bin/synced").write_text("")
+        sync = self.commit("Sync Project Starter 1.1.0")
+        result = self.push("main")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.remote_head(), sync)
         self.assertEqual(len(self.check_calls()), 2)
 
     def test_reuses_a_recent_pass_for_the_pushed_tree(self):

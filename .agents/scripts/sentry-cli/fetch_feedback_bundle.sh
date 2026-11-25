@@ -1,9 +1,12 @@
 #!/bin/bash
-# Fetch feedback issue, event, activity, notes, and attachment metadata via `sentry` CLI.
+# Fetch a feedback item's issue, event, activity, notes, and attachments via `sentry` CLI.
 #
 # Usage:
 #   fetch_feedback_bundle.sh <slug-or-url> --out DIR
 #   DIR must not already exist; use a fresh path for each fetch.
+#   Downloads every attachment of the feedback event into DIR/attachments.
+#   Prints the reporter, build, log session, device, user ID, event, attachments,
+#   message, and Sentry activity; evidence it can't fetch shows as unavailable.
 
 set -euo pipefail
 
@@ -25,7 +28,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h | --help)
-      sed -n '1,8p' "$0"
+      sed -n '1,9p' "$0"
       exit 0
       ;;
     *)
@@ -148,6 +151,15 @@ fi
 sentry_api_json "projects/${SENTRY_ORG}/${SENTRY_PROJECT}/events/${EVENT_ID}/attachments/" \
   attachments "${OUT}/attachments.json"
 
+if python3 -c 'import json, sys; raise SystemExit(0 if json.load(open(sys.argv[1])) else 1)' \
+  "${OUT}/attachments.json"; then
+  if ! bash "${SCRIPT_DIR}/download_event_attachments.sh" --event "$EVENT_ID" \
+    --issue-json "${OUT}/issue.json" --dir "${OUT}/attachments" --all >/dev/null; then
+    echo "Error: attachment download failed; fetch again into a fresh --out." >&2
+    exit 1
+  fi
+fi
+
 python3 - "$OUT" "$ISSUE_ID" <<'PY'
 import json
 from pathlib import Path
@@ -160,22 +172,47 @@ attachments = json.load(open(f"{out}/attachments.json"))
 metadata = issue.get("metadata") or {}
 message = metadata.get("message") or issue.get("title")
 event = events[0] if events else {}
+form = (event.get("contexts") or {}).get("feedback") or {}
+name = metadata.get("name") or form.get("name")
+email = metadata.get("contact_email") or form.get("contact_email")
+reporter = f"{name} <{email}>" if name and email else name or email or "anonymous"
+tags = {tag["key"]: tag["value"] for tag in event.get("tags", [])}
+user_id = (event.get("user") or {}).get("id") or "unknown"
 print(f"Feedback podhaven:{issue_id} — {issue.get('shortId')}")
 print(f"  Submitted: {event.get('dateCreated', issue.get('lastSeen'))}")
-tags = {tag["key"]: tag["value"] for tag in event.get("tags", [])}
+print(f"  Reporter: {reporter}")
 print(f"  Release: {tags.get('release', 'unknown')}  Env: {tags.get('environment', 'unknown')}")
+print(f"  Commit: {tags.get('git-commit-hash', 'unknown')}  Log session: {tags.get('log-session-id', 'unknown')}")
+print(f"  Device: {tags.get('device', 'unknown')}  OS: {tags.get('os', 'unknown')}")
+print(f"  User ID: {user_id}")
 print(f"  Event: {event.get('id', 'none')}")
-print(f"  Attachments: {', '.join(row['name'] for row in attachments) or 'none'}")
+print(f"  Attachments: {', '.join(row['name'] for row in attachments)} -> {out}/attachments"
+      if attachments else "  Attachments: none")
+activity = {}
+available = False
 for filename, label in (("activities.json", "Activities"), ("notes.json", "Notes")):
     path = Path(out) / filename
     if not path.exists():
         print(f"  {label}: unavailable")
         continue
+    available = True
     payload = json.loads(path.read_text())
     rows = payload["activity"] if filename == "activities.json" else payload
     print(f"  {label}: {len(rows)}")
+    for row in rows:
+        activity.setdefault(row.get("id"), row)
 print(f"  Output: {out}")
 print()
 print("Message:")
-print(f"> {message}")
+print("\n".join(f"> {line}" for line in str(message).splitlines() or [""]))
+print()
+if not available:
+    print("Activity: unavailable")
+else:
+    print("Activity:" if activity else "Activity: none")
+    for row in sorted(activity.values(), key=lambda row: row.get("dateCreated") or ""):
+        author = (row.get("user") or {}).get("name") or "Sentry"
+        text = (row.get("data") or {}).get("text")
+        detail = f": {text}".replace("\n", "\n    ") if text else ""
+        print(f"  {row.get('dateCreated') or 'unknown'}  {author}: {row.get('type')}{detail}")
 PY

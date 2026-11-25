@@ -9,6 +9,9 @@ import Testing
 
 extension Container: @retroactive AutoRegistering {
   public func autoRegister() {
+    // Debug circular-dependency checks hold one process-wide lock across every resolution,
+    // serializing concurrent tests behind each other's dependency construction.
+    manager.circularDependencyTesting = false
     LogCapture.installOnce()
     sentryLogger.context(.test) { FakeSentryLogger() }.scope(.cached)
     appHangTracking.context(.test) { FakeAppHangTracking() }.scope(.cached)
@@ -70,35 +73,7 @@ extension Container: @retroactive AutoRegistering {
     }
     .scope(.cached)
     loadEpisodeAsset.context(.test) { self.fakeEpisodeAssetLoader().loadEpisodeAsset }
-    configureAudioSession.context(.test) {
-      {
-        let fake = Container.shared.fakeAudioSession()
-        if let error = fake.configureError() {
-          await Container.shared.alert()(
-            title: "Couldn't start audio playback",
-            ErrorKit.message(for: error)
-          )
-          return false
-        }
-        Task {
-          do {
-            try await fake.configure()
-          } catch {
-            Issue.record(error)
-          }
-        }
-        return true
-      }
-    }
-    .scope(.cached)
-    setAudioSessionActive.context(.test) {
-      { active in
-        let audioSession = self.fakeAudioSession()
-        if active, let error = audioSession.activationError() { throw error }
-        Task { await audioSession.setActive(active) }
-      }
-    }
-    audioRouteOutputs.context(.test) { { self.fakeAudioSession().routeOutputs() } }
+    audioSession.context(.test) { self.fakeAudioSession() }
 
     nlContextualEmbedding.context(.test) { FakeEmbeddable() }.scope(.cached)
 
@@ -147,8 +122,11 @@ extension Container: @retroactive AutoRegistering {
     // nil = inherit from parent, avoiding priority-based starvation in tests.
     taskPriority.context(.test) { { _ in nil } }
 
+    // Nuke's default memory cache is process-wide and would serve images across tests.
     imagePipeline.context(.test) {
-      ImagePipeline(configuration: ImagePipeline.Configuration(dataLoader: self.fakeDataLoader()))
+      var configuration = ImagePipeline.Configuration(dataLoader: self.fakeDataLoader())
+      configuration.imageCache = ImageCache()
+      return ImagePipeline(configuration: configuration)
     }
     .scope(.cached)
   }
