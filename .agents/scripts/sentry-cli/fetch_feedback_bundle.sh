@@ -1,9 +1,10 @@
 #!/bin/bash
-# Fetch feedback issue, event, activity, notes, and attachment metadata via `sentry` CLI.
+# Fetch a feedback item's issue, event, activity, notes, and attachments via `sentry` CLI.
 #
 # Usage:
 #   fetch_feedback_bundle.sh <slug-or-url> --out DIR
 #   DIR must not already exist; use a fresh path for each fetch.
+#   Downloads every attachment of the feedback event into DIR/attachments.
 #   Prints the reporter, build, log session, device, user ID, event, attachments,
 #   message, and Sentry activity; evidence it can't fetch shows as unavailable.
 
@@ -27,7 +28,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h | --help)
-      sed -n '1,8p' "$0"
+      sed -n '1,9p' "$0"
       exit 0
       ;;
     *)
@@ -150,6 +151,15 @@ fi
 sentry_api_json "projects/${SENTRY_ORG}/${SENTRY_PROJECT}/events/${EVENT_ID}/attachments/" \
   attachments "${OUT}/attachments.json"
 
+if python3 -c 'import json, sys; raise SystemExit(0 if json.load(open(sys.argv[1])) else 1)' \
+  "${OUT}/attachments.json"; then
+  if ! bash "${SCRIPT_DIR}/download_event_attachments.sh" --event "$EVENT_ID" \
+    --issue-json "${OUT}/issue.json" --dir "${OUT}/attachments" --all >/dev/null; then
+    echo "Error: attachment download failed; fetch again into a fresh --out." >&2
+    exit 1
+  fi
+fi
+
 python3 - "$OUT" "$ISSUE_ID" <<'PY'
 import json
 from pathlib import Path
@@ -176,7 +186,8 @@ print(f"  Commit: {tags.get('git-commit-hash', 'unknown')}  Log session: {tags.g
 print(f"  Device: {tags.get('device', 'unknown')}  OS: {tags.get('os', 'unknown')}")
 print(f"  User ID: {user_id}")
 print(f"  Event: {event.get('id', 'none')}")
-print(f"  Attachments: {', '.join(row['name'] for row in attachments) or 'none'}")
+print(f"  Attachments: {', '.join(row['name'] for row in attachments)} -> {out}/attachments"
+      if attachments else "  Attachments: none")
 activity = {}
 available = False
 for filename, label in (("activities.json", "Activities"), ("notes.json", "Notes")):

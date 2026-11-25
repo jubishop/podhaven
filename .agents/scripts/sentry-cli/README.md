@@ -20,6 +20,7 @@ The bundle files retain these payload shapes:
 | `events_raw.json` | Validated API event list, present only for feedback fallback |
 | `tags_<key>.json` | List of tag values and counts |
 | `attachments.json` | List of attachment metadata |
+| `attachments/` | Every attachment of the feedback event, downloaded by `fetch_feedback_bundle.sh` |
 | `activities.json` | Object with an `activity` list |
 | `notes.json` | List of notes |
 | `related.json` | Native `explore --json` object from `search_related_errors.sh --bundle`'s last search |
@@ -28,8 +29,9 @@ Tag distributions, activities, and notes are optional evidence. A failed
 request prints its error and an unavailable warning, omits that payload file,
 and labels the evidence unavailable in the summary. Missing files do not mean
 zero results. Successful empty lists are saved and reported as empty. Required
-attachment metadata and feedback fallback failures stop the helper. Feedback
-with no events stops with an explicit diagnostic.
+attachment metadata, feedback attachment downloads, and feedback fallback
+failures stop the helper. Feedback with no events stops with an explicit
+diagnostic.
 
 Native issue and structured-log commands have separate contracts. They do not
 use the API envelope parser. Attachment download endpoints return raw bytes;

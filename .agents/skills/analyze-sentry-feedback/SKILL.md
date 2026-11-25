@@ -132,20 +132,12 @@ several symptoms. When nothing turns up, say so with the window searched.
 
 ## Step 4: Analyze the reporter's attachments
 
-The feedback event carries the reporter's full `log.ndjson` and
-`widget-log.ndjson`, the bounded `recent-log.ndjson` and
-`recent-widget-log.ndjson` that every PodHaven event attaches, and a
-`screenshot.jpg` or `screenshot-<n>.jpg` for each photo the reporter added.
-Download them all into a fresh path:
-
-```bash
-ATTACHMENT_DIR="$(mktemp -d "$FEEDBACK_WORK/attempt.XXXXXX")/attachments"
-bash .agents/scripts/sentry-cli/download_event_attachments.sh \
-  --event <event-id> --issue-json "$FEEDBACK_WORK/bundle/issue.json" \
-  --dir "$ATTACHMENT_DIR" --all
-```
-
-Look at the screenshots, and handle partial downloads and analyze the logs as
+The fetch downloads the feedback event's attachments into the bundle's
+`attachments/`: the reporter's full `log.ndjson` and `widget-log.ndjson`, the
+bounded `recent-log.ndjson` and `recent-widget-log.ndjson` that every
+PodHaven event attaches, and a `screenshot.jpg` or `screenshot-<n>.jpg` for
+each photo the reporter added. Look at the screenshots, and analyze the logs
+as
 [PodHaven correlation](../analyze-sentry-issue/references/podhaven-correlation.md#attachments-and-ndjson-logs)
 describes. The report is almost always about the last app launch before
 submission, the one whose entries carry the event's `log-session-id` as their

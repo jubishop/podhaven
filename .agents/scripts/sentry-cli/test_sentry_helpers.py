@@ -80,6 +80,8 @@ if args[:2] == ["issue", "events"]:
 if args and args[0] == "api":
     endpoint = args[1]
     if "/attachments/attachment-1/" in endpoint:
+        if os.environ.get("FAKE_SENTRY_DOWNLOAD_EXIT") == "1":
+            raise SystemExit(1)
         sys.stdout.buffer.write(bytes.fromhex(os.environ["FAKE_SENTRY_RAW_HEX"]))
         raise SystemExit(0)
     if "/attachments/attachment-2/" in endpoint:
@@ -379,6 +381,31 @@ raise SystemExit(2)
                 self.assertEqual(json.loads((output / "notes.json").read_text()),
                                  [{"id": "note-1", "text": "Example note"}])
 
+    def test_feedback_fetch_downloads_every_attachment(self) -> None:
+        output = self.root / "feedback"
+        result = self.run_script("fetch_feedback_bundle.sh", "podhaven:123", "--out", str(output))
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        attachments = output / "attachments"
+        self.assertIn(f"Attachments: log.ndjson, ../../escape.txt -> {attachments}\n",
+                      result.stdout)
+        self.assertEqual(sorted(path.name for path in attachments.iterdir()),
+                         ["attachment-2-escape.txt", "log.ndjson"])
+        self.assertEqual((attachments / "log.ndjson").read_bytes(),
+                         b' {"message":"one"}\r\n{"message":"two"}\n')
+        self.assertFalse((self.root / "escape.txt").exists())
+
+    def test_feedback_fetch_fails_when_an_attachment_download_fails(self) -> None:
+        output = self.root / "feedback"
+        result = self.run_script(
+            "fetch_feedback_bundle.sh", "podhaven:123", "--out", str(output),
+            extra_environment={"FAKE_SENTRY_DOWNLOAD_EXIT": "1"})
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("fetch again into a fresh --out", result.stderr)
+        self.assertTrue((output / "attachments" / ".incomplete").exists())
+        self.assertNotIn("Message:", result.stdout)
+
     def test_feedback_fetch_summarizes_triage_facts(self) -> None:
         result = self.run_script(
             "fetch_feedback_bundle.sh", "podhaven:123", "--out", str(self.root / "feedback"),
@@ -477,6 +504,9 @@ raise SystemExit(2)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(json.loads((output / filename).read_text()), expected)
                 self.assertNotIn("unavailable", result.stdout + result.stderr)
+                if target == "attachments":
+                    self.assertIn("Attachments: none\n", result.stdout)
+                    self.assertFalse((output / "attachments").exists())
 
         result = self.run_script(
             "download_event_attachments.sh", "--event", "event-1",
