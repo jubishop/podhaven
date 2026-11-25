@@ -28,6 +28,20 @@ The website's association file lists only the production app identifier,
 take over public links. Only `applinks` is configured; the association does not
 enable shared web credentials.
 
+## Private feeds
+
+Share links carry the podcast's full feed URL, which is what lets a recipient
+open the feed. A private or premium feed's URL often embeds the subscriber's
+access token, so sharing that feed's link shares the subscriber's access: the
+token reaches every recipient, and the `artisanalsoftware.com` server whenever
+the link loads there.
+
+PodHaven shares the full URL anyway, without a warning or a refusal. Decided
+2026-11-08 by jubishop in
+[jubishop/podhaven#895](https://github.com/jubishop/podhaven/issues/895).
+Rejected: warning before sharing a private-looking feed, and refusing to share
+one.
+
 ## Release order
 
 1. Deploy the association file and fallback endpoints in the

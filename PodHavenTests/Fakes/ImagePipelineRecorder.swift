@@ -14,10 +14,9 @@ final class ImagePipelineRecorder: ImagePipeline.Delegate {
     let recorder = ImagePipelineRecorder()
     let dataLoader = Container.shared.fakeDataLoader()
     Container.shared.imagePipeline.context(.test) {
-      ImagePipeline(
-        configuration: ImagePipeline.Configuration(dataLoader: dataLoader),
-        delegate: recorder
-      )
+      var configuration = ImagePipeline.Configuration(dataLoader: dataLoader)
+      configuration.imageCache = ImageCache()
+      return ImagePipeline(configuration: configuration, delegate: recorder)
     }
     return recorder
   }

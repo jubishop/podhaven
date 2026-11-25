@@ -32,7 +32,10 @@ import Testing
     )
   }
 
-  @Test("duplicate taps share lookup and playback and finish both callbacks once")
+  @Test(
+    "duplicate taps share lookup and playback and finish both callbacks once",
+    .timeLimit(.minutes(5))
+  )
   func duplicates() async throws {
     let episode = try await Create.podcastEpisode()
     let (coordinator, controller, rows) = try await connect([episode])
@@ -40,14 +43,24 @@ import Testing
     let repo = Container.shared.repo() as! FakeRepo
     repo.pendingPodcastEpisodeFetchSuspend(true)
     let count = ThreadSafe(0)
+    let firstCompleted = AsyncLatch<Void>()
+    let secondCompleted = AsyncLatch<Void>()
     let row = rows[0]
     let handler = try #require(row.handler)
-    handler(row) { count { $0 += 1 } }
+    handler(row) {
+      count { $0 += 1 }
+      firstCompleted.open()
+    }
     try await repo.waitForPodcastEpisodeFetchSuspended()
-    handler(row) { count { $0 += 1 } }
+    handler(row) {
+      count { $0 += 1 }
+      secondCompleted.open()
+    }
     #expect(count() == 0)
     await repo.resumeAllPodcastEpisodeFetchSuspensions()
-    try await Wait.until({ count() == 2 }, { "Both callbacks must complete" })
+    try await firstCompleted.wait()
+    try await secondCompleted.wait()
+    #expect(count() == 2, "Both callbacks must complete once")
     #expect(controller.pushed.count == 1)
     #expect(controller.topTemplate === CPNowPlayingTemplate.shared)
     #expect(
@@ -58,7 +71,10 @@ import Testing
     #expect(controller.alerts.isEmpty)
   }
 
-  @Test("newer selection wins when the old repository lookup finishes last")
+  @Test(
+    "newer selection wins when the old repository lookup finishes last",
+    .timeLimit(.minutes(5))
+  )
   func reversedLookup() async throws {
     let first = try await Create.podcastEpisode()
     let second = try await Create.podcastEpisode()
@@ -68,10 +84,15 @@ import Testing
     repo.pendingPodcastEpisodeFetchSuspend(true)
     let old = ThreadSafe(0)
     let latest = ThreadSafe(0)
+    let latestCompleted = AsyncLatch<Void>()
     rows[0].handler?(rows[0]) { old { $0 += 1 } }
     try await repo.waitForPodcastEpisodeFetchSuspended()
-    rows[1].handler?(rows[1]) { latest { $0 += 1 } }
-    try await Wait.until({ latest() == 1 }, { "Newer selection must finish" })
+    rows[1].handler?(rows[1]) {
+      latest { $0 += 1 }
+      latestCompleted.open()
+    }
+    try await latestCompleted.wait()
+    #expect(latest() == 1, "Newer selection must finish once")
     #expect(old() == 1)
     await repo.resumeAllPodcastEpisodeFetchSuspensions()
     #expect(
@@ -185,6 +206,7 @@ import Testing
 
   @Test(
     "failed media and refused audio activation complete with a native error",
+    .timeLimit(.minutes(5)),
     arguments: [false, true]
   )
   func loadFailure(refuseAudio: Bool) async throws {
@@ -192,14 +214,20 @@ import Testing
     let (coordinator, controller, rows) = try await connect([episode])
     defer { coordinator.disconnect(controller) }
     if refuseAudio {
-      Container.shared.fakeAudioSession().configureError(URLError(.cannotLoadFromNetwork))
+      PlayHelpers.failAudioSessionConfiguration(with: URLError(.cannotLoadFromNetwork))
     } else {
       await Container.shared.fakeEpisodeAssetLoader()
         .respond(to: episode.episode.mediaURL, error: URLError(.cannotLoadFromNetwork))
     }
     let count = ThreadSafe(0)
-    rows[0].handler?(rows[0]) { count { $0 += 1 } }
-    try await Wait.until({ count() == 1 }, { "Failed selection must complete" })
+    let completed = AsyncLatch<Void>()
+    rows[0].handler?(rows[0]) {
+      count { $0 += 1 }
+      completed.open()
+    }
+    if refuseAudio { try await PlayHelpers.advanceAudioSessionRetryBackoff() }
+    try await completed.wait()
+    #expect(count() == 1, "Failed selection must complete once")
     #expect(controller.alerts.count == 1)
     #expect(controller.pushed.isEmpty)
   }

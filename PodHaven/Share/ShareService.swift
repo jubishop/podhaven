@@ -50,8 +50,8 @@ struct ShareService {
     Self.log.debug("extracted URL is: \(extractedURL)")
 
     let queryItems = URLComponents(url: extractedURL, resolvingAgainstBaseURL: false)?.queryItems
-    if extractedURL.pathExtension.lowercased() == "opml" {
-      try await handleOPMLURL(extractedURL)
+    if extractedURL.isFileURL || extractedURL.pathExtension.lowercased() == "opml" {
+      try await handleSharedFile(extractedURL)
     } else if queryItems?.contains(where: { $0.name == "feedURL" }) == true {
       guard let destination = ShareURL.universalLinkDestination(extractedURL)
       else { throw URLError(.unsupportedURL) }
@@ -128,23 +128,29 @@ struct ShareService {
     }
   }
 
-  private func handleOPMLURL(_ url: URL) async throws {
-    Self.log.debug("handleOPMLURL: \(url)")
+  private func handleSharedFile(_ url: URL) async throws {
+    Self.log.debug("handleSharedFile: \(url)")
 
     guard let fileURL = sharedFileURL(url) else { throw URLError(.unsupportedURL) }
+    defer {
+      do {
+        try fileManager.removeItem(at: fileURL)
+        Self.log.debug("Cleaned up shared file: \(fileURL)")
+      } catch {
+        Self.log.caughtError("handleSharedFile: failed to clean up shared file \(fileURL)", error)
+      }
+    }
+
+    if fileURL.pathExtension.lowercased() != "opml" {
+      let data = try await fileManager.readData(from: fileURL)
+      guard await PodcastOPML.isOPML(data) else { throw URLError(.unsupportedURL) }
+    }
 
     let navigation = await self.navigation
     await navigation.showOPMLImport()
 
     let opmlViewModel = await Container.shared.opmlViewModel()
     await opmlViewModel.importOPMLFromURL(url: fileURL)
-
-    do {
-      try fileManager.removeItem(at: fileURL)
-      Self.log.debug("Cleaned up shared OPML file: \(fileURL)")
-    } catch {
-      Self.log.caughtError("handleOPMLURL: failed to clean up shared OPML file \(fileURL)", error)
-    }
   }
 
   private func sharedFileURL(_ url: URL) -> URL? {
