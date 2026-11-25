@@ -1,8 +1,8 @@
-"""Keep tooling tests from running real commands for live external services.
+"""Keep tooling tests from running real commands for live external services or this Mac's display.
 
 Importing this module puts failing stand-ins for those commands ahead of PATH, so a
-suite that forgets a fake cannot act on real accounts. Each test that runs a stand-in
-fails, even when the script under test ignores the command's failure."""
+suite that forgets a fake cannot act on real accounts or wake the display. Each test
+that runs a stand-in fails, even when the script under test ignores the command's failure."""
 
 import atexit
 import os
@@ -13,7 +13,7 @@ import tempfile
 import unittest
 
 
-COMMANDS = ("claude", "curl", "fastlane", "gh", "llm", "sentry", "sentry-cli", "xcodebuild", "xcrun")
+COMMANDS = ("caffeinate", "claude", "curl", "fastlane", "gh", "llm", "sentry", "sentry-cli", "xcodebuild", "xcrun")
 GUARD = Path(tempfile.mkdtemp(prefix="podhaven-service-guard-"))
 atexit.register(shutil.rmtree, GUARD, True)
 BLOCKED = GUARD / "blocked"

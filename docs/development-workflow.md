@@ -120,11 +120,30 @@ that the [tooling pre-push gate](#tooling-pre-push-gate) relies on.
 `bin/setup`, `bin/prep-worktree`, and the Git hook that sets up each new
 worktree all run it.
 
-Each checkout gets private DerivedData at Xcode's default path. Its
-`SourcePackages` link points to the shared `~/Library/Developer/SharedSourcePackages/PodHaven`
-folder. Preparation copies missing per-user workspace settings from the primary
-checkout and preserves existing settings. It does not start a warm-up build.
-Independent package directories are preserved for inspection.
+**Decision — 2026-11-24:** The user chose to give each checkout packages of
+its own, cloned from a shared seed (jubishop/podhaven#1012). When checkouts
+shared one package folder, a checkout pinning other revisions switched its
+package checkouts under another checkout's build, which then failed or
+compiled the wrong revision. Failing fast once a build found the folder
+switched would still fail builds, and serializing resolution can't hold raw
+`xcodebuild` or Xcode.
+
+Each checkout gets private DerivedData at Xcode's default path, and its
+`SourcePackages` is an APFS copy-on-write clone of the seed,
+`~/Library/Developer/SharedSourcePackages/PodHaven`. SwiftPM records absolute
+paths through whichever folder resolved them, even a since-deleted custom
+DerivedData, so preparation moves those in the clone's `workspace-state.json`
+and in each package checkout's Git alternates and origin into the clone. It
+refuses a clone whose checkouts or artifacts don't match that metadata, as
+when the seed was caught mid-update, and Xcode then resolves the checkout's
+packages afresh. Builds in a clone never update the seed, so a clone fetches
+only what its pins need beyond it. Preparation also replaces a checkout's
+earlier link to the seed with a clone once that checkout's DerivedData is idle
+and the clone verifies. Until then the link stays, because checkouts still
+linking the seed may read paths it recorded through that link. Preparation
+makes a missing seed from a private package folder.
+It copies missing per-user workspace settings from the primary checkout and
+preserves existing settings. It does not start a warm-up build.
 
 `bin/install-cleanup-agent` installs an idempotent macOS LaunchAgent from the
 primary checkout. It runs at login/load and once each hour while the user is
@@ -140,28 +159,34 @@ installer refuses to write the agent until
 `uv python install --default` has created that interpreter.
 
 Cleanup only removes a DerivedData folder when its plist and path hash identify
-an absent checkout owned by this clone. Registered worktrees, existing checkout
-directories, unrelated caches, and independent package caches are preserved.
+an absent checkout owned by this clone, or, before Xcode has written that plist,
+when its name is the path hash of a recorded checkout that is gone. Its private
+packages go with it. Registered worktrees, existing checkout directories, and
+unrelated caches are preserved.
 Preparation and cleanup share a filesystem lock. Build-process and open-file
 checks also guard deletion; Xcode does not take our lock. Ambiguous activity
 causes deferral and a later automatic retry.
 
-Before deletion, cleanup checks shared SwiftPM artifact paths. A path through
-an orphan's `SourcePackages` link is replaced with its verified, existing shared
-target. Repair requires Xcode and package users to be closed. Unverifiable
-references defer cleanup. Shared packages and QMD model weights are retained.
+Before deletion, cleanup checks the seed's SwiftPM artifact paths for checkouts
+that still link it. A path through an orphan's `SourcePackages` is replaced
+with its existing target in the seed, verified as the same file while that
+folder still links the seed. Repair requires Xcode and
+package users to be closed. Unverifiable references defer cleanup. The seed and
+QMD model weights are retained.
 
 Inspect candidates with `bin/prune-worktree-caches --dry-run`. Use `bin/doctor-xcode`
-to read the latest removal totals, deferred reasons, errors, package-link health,
-and hourly job state. The latest report replaces its predecessor under the
-common Git directory's `knowledge/xcode/cleanup.json`; fatal errors use a single
+to read the latest removal totals, deferred reasons, errors, whether this
+checkout's packages are private, and hourly job state. The latest report
+replaces its predecessor under the common Git directory's
+`knowledge/xcode/cleanup.json`; fatal errors use a single
 `.cache/worktree-cleanup/last-error.json`. Hourly output does not accumulate logs.
 Caches with no trustworthy ownership metadata require manual investigation.
 
 If Xcode uses custom cache locations, set absolute local Git values before setup:
-`knowledge.xcodeDerivedDataPath` and `knowledge.xcodePackagesPath`. The shared
-package location must stay outside DerivedData. These overrides also support
-isolated integration tests; they do not change Xcode's own preferences.
+`knowledge.xcodeDerivedDataPath` and `knowledge.xcodePackagesPath`, the seed.
+The seed must stay outside DerivedData, on the same APFS volume. These
+overrides also support isolated integration tests; they do not change Xcode's
+own preferences.
 
 ### Validation checkout isolation
 
@@ -171,9 +196,9 @@ Xcode's synchronized target folders define application sources, and
 static checks use this checkout's Git file list; tooling tests are discovered
 under `bin/tests`. Preserve these boundaries when extending the commands.
 
-Keep mutable test data and build output separate between checkouts. Preserve
-the supported package sharing and per-checkout DerivedData described above;
-do not share mutable build output to save setup time.
+Keep mutable test data, packages, and build output separate between checkouts,
+as the per-checkout DerivedData and package clones described above do; do not
+share them to save setup time.
 
 ## Diagnostics
 
@@ -230,8 +255,11 @@ accessory app's windows can join another app's full-screen Space, so the test
 host becomes one, without a Dock icon or menu bar, and its window then appears
 over a full-screen app during a run. It also brings back a minimized or hidden
 window without activating the app, which covers a window minimized another
-way, such as with Minimize All. A test that builds its own window in that
-scene calls `keepTestSceneOnScreen` first.
+way, such as with Minimize All, and a test host hidden before its first
+hosted test, which it also unhides. After a hide, UIKit treats the returned
+window as off screen until it next checks the window, so the helper then posts
+an active-Space change, which makes UIKit check it. A test that builds its own
+window in that scene calls `keepTestSceneOnScreen` first.
 
 ### Current-revision Swift validation
 
@@ -278,10 +306,11 @@ For focused application tests, use My Mac by default with
 `-only-testing:PodHavenTests/SomeSuite`; method filters can report success while
 running zero tests.
 
-Run focused tests with `bin/with-my-mac-lock env -u SDKROOT xcodebuild test ...`,
-with the test-build flags listed below, so they take a
-[validation slot](#validation-slots) and the
-[My Mac test lock](#my-mac-test-lock), and Xcode selects the SDK for the
+Run focused tests with the README's
+[suite command](../README.md#run-a-specific-test-suite), which passes the
+test-build flags listed below. Its `bin/with-my-mac-lock env -u SDKROOT` prefix
+takes a [validation slot](#validation-slots) and the
+[My Mac test lock](#my-mac-test-lock), and lets Xcode select the SDK for the
 requested destination; `bin/test-all` takes both and clears inherited `SDKROOT`
 itself.
 
@@ -393,6 +422,13 @@ of waiting on itself. If a holder hangs, stop its run, including its
 `xcodebuild`, to release the lock. Xcode's own test action does not take the
 lock.
 
+UIKit on the Mac sends every scene to the background while the displays
+sleep, which fails every hosted test running then, so a run that takes the
+lock also holds a display-sleep assertion with
+`caffeinate -d -u -w <its process ID>`. That wakes a display that is already
+off and keeps it on until the run exits, or for `bin/with-my-mac-lock`, until
+its command exits. A nested run reuses the assertion with the lock.
+
 #### Validation slots
 
 **Decision — 2026-11-09:** Concurrent sessions queue for machine-wide
@@ -422,10 +458,25 @@ no slot when run on their own.
 Each slot is an advisory file lock, `~/.cache/podhaven/validation-slot-<n>.lock`,
 which holds a one-line record of its holder's process ID, start time, command,
 and checkout. The system releases a slot when its holder exits or is killed,
-so no stale slot outlives a run. While every slot is held, a run prints each
-holder, polls for a free slot at a short interval, and waits without a time
-limit; it says which slot it took. Every run waits, whether interactive or
-unattended.
+so no stale slot outlives a run. Every run waits without a time limit, whether
+interactive or unattended, and says which slot it took.
+
+**Decision — 2026-11-24:** Waiting runs take free slots in the order they
+began waiting, so a run is never passed over. Before, whichever waiter polled
+first after a release won, and on 2026-11-24 one run waited 15 minutes
+while four that began waiting later took slots ahead of it. A run that finds
+no slot free, or earlier runs still waiting, holds the lock on a numbered
+ticket in `~/.cache/podhaven/validation-queue/` until it takes a slot, so a
+waiter that exits or is killed leaves the queue at once, and the next run to
+look deletes its file. Only the oldest live waiter takes a free slot. A short
+lock, `~/.cache/podhaven/validation-queue.lock`, guards the queue; nothing
+waits for anything else while holding it. A waiting run polls at a short
+interval and prints the holders and how many earlier runs wait ahead of it,
+then each slot's new holder and its new place whenever they change.
+
+A run from a checkout that predates the queue ignores it and can still take a
+freed slot ahead of the queue, but every run takes a slot through the same
+lock, so no slot ever has two holders.
 
 A nested run reuses the slot it runs inside instead of waiting on itself. The
 holder exports `PODHAVEN_VALIDATION_SLOT`, which names the slot's file and

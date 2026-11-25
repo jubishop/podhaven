@@ -46,6 +46,7 @@ class SiriSmokeTests(unittest.TestCase):
                 patch.object(smoke, "load"), \
                 patch.object(smoke.probe, "source_state", return_value={"gitCommitHash": "test"}), \
                 patch.object(smoke.probe, "prepare", return_value=Path(directory) / "Probe.xcodeproj"), \
+                patch.object(smoke, "package_folder", return_value=Path(directory) / "SourcePackages"), \
                 patch.object(smoke.subprocess, "run", side_effect=run), \
                 patch.object(smoke.time, "monotonic", side_effect=[0, 181]), \
                 patch.dict(smoke.os.environ, {"SENTRY_AUTH_TOKEN": "test-token"}), \

@@ -10,6 +10,8 @@ Use the [development workflow](../docs/development-workflow.md) for maintained s
 
 ## Stale SwiftPM artifact paths
 
+Since jubishop/podhaven#1012, each checkout holds a private clone of the seed, and preparation moves the clone's recorded paths into it, including paths through a deleted custom DerivedData such as a repro's (jubishop/podhaven#1017). This failure now reaches only a checkout that still links the seed; `bin/prep-worktree` gives it a clone.
+
 When cleanup deletes a removed worktree's DerivedData, the shared clone's `workspace-state.json` may still record Sentry xcframework paths through that deleted DerivedData. Every remaining worktree then fails with `error: There is no XCFramework found at '~/Library/Developer/Xcode/DerivedData/PodHaven-<hash>/SourcePackages/artifacts/sentry-cocoa/Sentry/Sentry.xcframework'` even though the artifacts still exist under `~/Library/Developer/SharedSourcePackages/PodHaven/artifacts/`.
 
 Automatic cleanup repairs this. `bin/_worktrees.py` rewrites `workspace-state.json` references from the deleted DerivedData to the shared clone during orphan-cache removal (`artifact_references`, applied by `sweep` before it deletes each orphaned cache). It verifies each replacement target and defers the repair while Xcode or package users hold the shared cache. `bin/post-worktree-remove` and the installed cleanup agent both run `bin/prune-worktree-caches --apply`, so a stale path should persist only when that cleanup was deferred or failed. Check `.cache/worktree-cleanup/last-error.json` first.
@@ -37,6 +39,7 @@ Related symptom at the same time: "Provisioning profile … doesn't include sign
 - **DerivedData symlink between hashes** — Xcode embeds absolute source paths; sharing DerivedData across paths causes full rebuilds
 - **Stable symlink path** — Xcode resolves symlinks before computing DerivedData hash
 - **SourcePackages symlink into main's DerivedData** — link target vanishes whenever main's DerivedData is cleaned, so worktrees silently fall back to fresh full copies; replaced by a shared clone path outside DerivedData
+- **One SourcePackages folder linked into every checkout** — each checkout resolves its own `Package.resolved` there, so a checkout pinning other revisions switches the package checkouts under another's build, which fails or compiles the wrong revision (jubishop/podhaven#1012). SwiftPM also records absolute paths through the resolving checkout's link, in artifact paths and in each package checkout's Git alternates and origin, which dangle once that DerivedData is deleted. Replaced by a private APFS clone of the seed per checkout.
 - **Background warm `xcodebuild` on worktree creation** — a second build on the same DerivedData hard-fails (`exit 65`, `build.db database is locked`), so if an agent builds within ~80s of creation its build dies, not the warm one. Couldn't be serialized without the build going through a wrapper the agent must opt into. Measured payoff was small anyway: fresh-worktree build ~73–84s, and the global content-addressed compilation cache only shaved ~11s across a new DerivedData path (absolute paths bust most cache keys). Dropped; the agent's first build is the warming pass.
 - **Review-specific DerivedData under `/tmp` for runtime tests** — a confirmed
   PodHaven run compiled but XCTest bootstrap was blocked by

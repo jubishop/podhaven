@@ -2,8 +2,9 @@
 """usage: bin/with-my-mac-lock COMMAND [ARG...]
 
 Run a command, such as a focused My Mac xcodebuild test, while holding a validation slot and then the
-machine-wide lock that bin/test-all also takes. A busy slot or lock prints its holders and waits. The
-command keeps both until it and every process that inherited them exit; nested calls reuse them."""
+machine-wide lock that bin/test-all also takes, with the display awake until the command exits. A busy slot
+or lock prints its holders and waits. The command keeps both until it and every process that inherited them
+exit; nested calls reuse them."""
 
 import os
 import shlex

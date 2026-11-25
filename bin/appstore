@@ -2,7 +2,6 @@
 """Inspect App Store status or prepare, upload, and submit an exact release."""
 
 import argparse
-import fcntl
 import json
 import os
 from pathlib import Path
@@ -11,6 +10,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+
+sys.dont_write_bytecode = True
+from _release_lock import INHERITED_FD, release_lock
 
 
 def git(root, *args):
@@ -37,18 +39,13 @@ def run_lane(root, environment, mode, version, build=None):
 
 
 def release_app(root, environment, version, notes, build=None):
-    lock_path = Path(git(root, "rev-parse", "--path-format=absolute", "--git-path", "podhaven-appstore.lock"))
-    with lock_path.open("a") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as error:
-            raise ValueError("Another App Store release command is running in this checkout.") from error
+    with release_lock(root, f"bin/appstore in {root}") as lock:
         if git(root, "branch", "--show-current") != "main":
             raise ValueError("App Store releases require the main branch.")
         if git(root, "status", "--porcelain"):
             raise ValueError("Commit your changes before releasing; the working tree must be clean.")
 
-        path = lock_path.with_name("podhaven-appstore-release.json")
+        path = Path(git(root, "rev-parse", "--path-format=absolute", "--git-path", "podhaven-appstore-release.json"))
         head = git(root, "rev-parse", "HEAD")
         release = json.loads(path.read_text()) if path.exists() else None
         if release is not None:
@@ -90,7 +87,7 @@ def release_app(root, environment, version, notes, build=None):
             current_parts = tuple(int(part) for part in current.split("."))
             if requested_parts + (0,) * (3 - len(requested_parts)) <= current_parts + (0,) * (3 - len(current_parts)):
                 raise ValueError(f"The release version must be greater than the current version {current}.")
-        for command in ("xcodebuild", "xcbeautify", "llm", "gh"):
+        for command in ("xcodebuild", "xcbeautify", "gh"):
             if build is None and (release is None or release["build"] is None) and not shutil.which(command):
                 raise ValueError(f"{command} is required to build and upload the release.")
         if build is None and (release is None or release["build"] is None):
@@ -145,8 +142,9 @@ def release_app(root, environment, version, notes, build=None):
 
         if release["build"] is None:
             print(f"==> Building and uploading App Store {version}...", flush=True)
-            subprocess.run([str(root / "bin/deploy.sh"), "--appstore-release", version],
-                           cwd=root, env=environment, check=True)
+            # The upload holds this command's release lock, which it inherits.
+            subprocess.run([str(root / "bin/deploy.sh"), "--appstore-release", version], cwd=root,
+                           env={**environment, INHERITED_FD: str(lock)}, pass_fds=(lock,), check=True)
             upload_path = Path(git(root, "rev-parse", "--path-format=absolute", "--git-path", "podhaven-last-upload"))
             tag = upload_path.read_text().strip()
             match = re.fullmatch(r"v" + re.escape(version) + r"b([0-9]+)", tag)
@@ -170,9 +168,11 @@ def main():
                "processing, replaces an older pending App Store version, and submits for automatic release after approval. "
                "Replacement cancels the older review after the new build is ready. Uploads publish the existing Git tags "
                "and GitHub releases. Repeat the same command to resume the exact build. "
-               "Processing is checked every 30 seconds for up to 30 minutes. "
-               "API key environment variables: ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID. "
-               "Without a key, Fastlane uses Apple ID login; FASTLANE_USER selects the account.",
+               "Processing is checked every 30 seconds for up to two hours; PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS sets "
+               "another positive whole number of seconds, as for testflight. "
+               "Only one release command runs at a time in this clone; testflight holds the same lock. "
+               "Every App Store Connect request uses the API key, from the options below or ASC_KEY_PATH, "
+               "ASC_KEY_ID, and ASC_ISSUER_ID; there is no Apple ID login.",
     )
     parser.add_argument("--status", action="store_true", help="Show read-only App Store status; does not release.")
     parser.add_argument("--release", metavar="VERSION", help="Override the next minor version. Must be greater than the current version, with zero or one dot.")
@@ -194,10 +194,10 @@ def main():
             parser.error("--build requires --release.")
         if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){0,2}", args.build):
             parser.error("--build requires an exact numeric build number, such as 569.")
-    keys = (args.api_key, args.api_key_id, args.api_issuer_id)
-    if any(keys) and not all(keys):
-        parser.error("API authentication requires a key path, key ID, and issuer ID together.")
-    if args.api_key and not Path(args.api_key).is_file():
+    if not all((args.api_key, args.api_key_id, args.api_issuer_id)):
+        parser.error("App Store Connect requests need an API key: set ASC_KEY_PATH, ASC_KEY_ID, and ASC_ISSUER_ID, "
+                     "or pass --api-key, --api-key-id, and --api-issuer-id.")
+    if not Path(args.api_key).is_file():
         parser.error("The App Store Connect API key file does not exist.")
     if not shutil.which("fastlane"):
         parser.error("Fastlane is required. Install with: brew install fastlane")
@@ -209,8 +209,8 @@ def main():
         if args.notes is not None:
             environment["PODHAVEN_APPSTORE_NOTES"] = args.notes
         environment.update({
-            "ASC_KEY_PATH": str(Path(args.api_key).resolve()) if args.api_key else "",
-            "ASC_KEY_ID": args.api_key_id or "", "ASC_ISSUER_ID": args.api_issuer_id or "",
+            "ASC_KEY_PATH": str(Path(args.api_key).resolve()), "ASC_KEY_ID": args.api_key_id,
+            "ASC_ISSUER_ID": args.api_issuer_id,
             "FASTLANE_SKIP_UPDATE_CHECK": "1", "FASTLANE_SKIP_DOCS": "1",
             "FASTLANE_HIDE_CHANGELOG": "1", "FASTLANE_OPT_OUT_USAGE": "1",
         })
