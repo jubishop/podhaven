@@ -122,8 +122,12 @@ extension Container: @retroactive AutoRegistering {
     // nil = inherit from parent, avoiding priority-based starvation in tests.
     taskPriority.context(.test) { { _ in nil } }
 
+    // Nuke's default memory cache is process-wide and would serve images across tests.
     imagePipeline.context(.test) {
-      ImagePipeline(configuration: ImagePipeline.Configuration(dataLoader: self.fakeDataLoader()))
+      ImagePipeline {
+        $0.dataLoader = self.fakeDataLoader()
+        $0.imageCache = ImageCache()
+      }
     }
     .scope(.cached)
   }
