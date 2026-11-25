@@ -11,7 +11,6 @@ extension CMTime:
 {
   // MARK: - Conversions
 
-  var asDuration: Duration { Duration.seconds(CMTimeGetSeconds(self)) }
   var asTimeInterval: TimeInterval { TimeInterval.seconds(CMTimeGetSeconds(self)) }
 
   var safe: CMTime {

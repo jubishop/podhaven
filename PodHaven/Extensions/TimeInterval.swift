@@ -3,10 +3,6 @@
 import Foundation
 
 extension TimeInterval {
-  // MARK: - Conversions
-
-  var asDuration: Duration { Duration.seconds(self) }
-
   // MARK: - Creation Helpers
 
   static func milliseconds(_ milliseconds: Double) -> TimeInterval {
@@ -32,7 +28,8 @@ extension TimeInterval {
   // MARK: - Formatting
 
   var compactReadableFormat: String {
-    let (hours, minutes, seconds) = formattedParts
+    guard let (hours, minutes, seconds) = formattedParts
+    else { return "Unknown" }
 
     return negate(
       hours != 0
@@ -44,7 +41,8 @@ extension TimeInterval {
   }
 
   var playbackTimeFormat: String {
-    let (hours, minutes, seconds) = formattedParts
+    guard let (hours, minutes, seconds) = formattedParts
+    else { return "Unknown" }
 
     return negate(
       hours != 0
@@ -57,10 +55,13 @@ extension TimeInterval {
     self < 0 ? "-\(formattedString)" : formattedString
   }
 
-  private var formattedParts: (Int, Int, Int) {
-    let hours = abs(Int(self) / 3600)
-    let minutes = abs((Int(self) % 3600) / 60)
-    let seconds = abs(Int(self) % 60)
+  private var formattedParts: (Int, Int, Int)? {
+    guard let totalSeconds = Int(exactly: rounded(.towardZero))
+    else { return nil }
+
+    let hours = abs(totalSeconds / 3600)
+    let minutes = abs((totalSeconds % 3600) / 60)
+    let seconds = abs(totalSeconds % 60)
 
     return (hours, minutes, seconds)
   }
