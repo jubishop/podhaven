@@ -15,6 +15,9 @@ SCRIPT = ROOT / "bin/snfeedback"
 FISH = shutil.which("fish")
 PERMALINK = "https://artisanal-software.sentry.io/issues/feedback/?feedbackSlug=podhaven%3A"
 FINDINGS = "<!-- analyze-sentry-feedback-findings:start -->\n<!-- analyze-sentry-feedback-findings:end -->"
+BY_BOT = {"user": {"login": "github-actions[bot]", "type": "Bot"}}
+BY_OWNER = {"user": {"login": "JubiShop", "type": "User"}}
+BY_STRANGER = {"user": {"login": "stranger", "type": "User"}}
 
 
 class SentryFeedbackLauncherTests(unittest.TestCase):
@@ -43,16 +46,16 @@ class SentryFeedbackLauncherTests(unittest.TestCase):
             "hasMore": False,
         })
         self.write("gh.json", [[
-            {"number": 90, "state": "open", "body": "<!-- sentry-feedback:podhaven:2001 -->",
+            {"number": 90, "state": "open", **BY_BOT, "body": "<!-- sentry-feedback:podhaven:2001 -->",
              "pull_request": {}},
-            {"number": 99, "state": "open", "body": PERMALINK + "2004\n" + FINDINGS},
-            {"number": 42, "state": "open",
+            {"number": 99, "state": "open", **BY_OWNER, "body": PERMALINK + "2004\n" + FINDINGS},
+            {"number": 42, "state": "open", **BY_BOT,
              "body": "<!-- sentry-feedback:podhaven:2004 -->\n<!-- analyze-sentry-feedback-findings:start -->"},
         ], [
-            {"number": 50, "state": "closed", "body": "<!-- sentry-feedback:podhaven:2003 -->\n" + FINDINGS},
-            {"number": 61, "state": "open", "body": PERMALINK + "2002\n" + FINDINGS},
-            {"number": 35, "state": "closed", "body": "See " + PERMALINK + "2003"},
-            {"number": 30, "state": "open", "body": "See " + PERMALINK + "2003"},
+            {"number": 50, "state": "closed", **BY_BOT, "body": "<!-- sentry-feedback:podhaven:2003 -->\n" + FINDINGS},
+            {"number": 61, "state": "open", **BY_OWNER, "body": PERMALINK + "2002\n" + FINDINGS},
+            {"number": 35, "state": "closed", **BY_OWNER, "body": "See " + PERMALINK + "2003"},
+            {"number": 30, "state": "open", **BY_OWNER, "body": "See " + PERMALINK + "2003"},
         ]])
 
     def write(self, name, value):
@@ -232,6 +235,27 @@ else:
                     "api", "--paginate", "--slurp", "repos/jubishop/podhaven/issues?state=all&per_page=100",
                 ])
                 self.assertEqual(self.calls(), ["sentry", "gh"])
+
+    def test_issues_from_other_accounts_never_track(self):
+        self.write("gh.json", [[
+            {"number": 98, "state": "open", **BY_STRANGER, "body": "<!-- sentry-feedback:podhaven:2004 -->"},
+            {"number": 97, "state": "open", **BY_STRANGER, "body": PERMALINK + "2001\n" + FINDINGS},
+            {"number": 96, "state": "open", "user": {"login": "github-actions[bot]", "type": "User"},
+             "body": "<!-- sentry-feedback:podhaven:2001 -->"},
+            {"number": 95, "state": "open", "user": None, "body": "<!-- sentry-feedback:podhaven:2001 -->"},
+            {"number": 42, "state": "closed", **BY_BOT, "body": "<!-- sentry-feedback:podhaven:2004 -->"},
+        ]])
+        self.assert_launched(self.run_command(), "podhaven:2004")
+        rows = self.read("picker.json")
+        self.assertIn("GitHub: #42 closed", rows[0])
+        self.assertIn("GitHub: untracked", rows[3])
+        self.write("sentry.json", {"id": "2004", "shortId": "PODHAVEN-FD", "permalink": PERMALINK + "2004"})
+        result = self.run_command("--track", "2004")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [
+            "Tracking issues for podhaven:2004 (PODHAVEN-FD), canonical first:",
+            "jubishop/podhaven#42 closed intake marker",
+        ])
 
     def test_track_failures_stop(self):
         self.assert_stopped(self.run_command("--track"), "Usage: snfeedback")

@@ -373,6 +373,19 @@ takes a [validation slot](#validation-slots) and the
 requested destination; `bin/test-all` takes both and clears inherited `SDKROOT`
 itself.
 
+Keep each test host of a repeated focused run, such as a flaky test's
+50-iteration acceptance run, under 100 presented alerts. A My Mac host keeps
+every AppKit window alive until its Swift Testing run ends, each alert's
+`_NSAlertPanel` included: XCTest waits out the run in one autorelease pool it
+never drains, and on each turn of that wait, AppKit's UIKit event handling lists
+the app's windows, autoreleasing every live one into that pool. Past 100 live
+windows, AppKit logs `NSWindow has detected an excessive live window count`,
+which `bin/check-swift-results` rejects (jubishop/podhaven#1054). So split the
+iterations across runs, each with its own result bundle and check, such as two
+runs of `-test-iterations 25` for `SheetAlertPresentationTests`, which presents
+two alerts per iteration. `-test-repetition-relaunch-enabled YES` doesn't help:
+each relaunched host runs every Swift Testing iteration again.
+
 Run `bin/test-all --preflight` to check the Xcode, Swift, and macOS versions
 without running tests. Release commands run this preflight too.
 
@@ -674,11 +687,13 @@ never change the priority of an issue that already tracks an item.
 | Findings block | `analyze-sentry-feedback-findings` | `analyze-sentry-issue-findings` |
 
 The pickers and checkers match an issue by its marker or a link to the Sentry
-item; the pickers show it as intake, analyzed, closed, or untracked. Error issues
+item; the pickers show it as intake, analyzed, closed, or untracked. Only an
+issue opened by the intake's `github-actions[bot]` or the repository owner can
+track an item, and only the bot's comment counts as its instruction comment:
+the repository is public, so anyone can copy a marker or link. Error issues
 analyzed before the marker existed count as analyzed when their body has a
-`## Sentry closeout` section. Each rule lives in one jq module that its
-checker and picker share: `bin/_sentry_feedback_tracking.jq` for feedback and
-`bin/_sentry_issue_tracking.jq` for error issues.
+`## Sentry closeout` section. These rules live in `bin/_sentry_tracking.jq`,
+which the checkers and pickers share.
 
 The controlled `bin/integration` probes behind the `bin/sentry-*-smoke`
 commands report to the production Sentry project, so the smokes can verify

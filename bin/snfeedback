@@ -55,8 +55,8 @@ end
 # Prints "<number>\t<state>\t<analyzed|intake>\t<marker|link>" for each issue tracking the slug, canonical first.
 function __snfeedback_matches --argument-names slug permalink
     printf '%s\n' $__snfeedback_issues_json | jq -r -L "$__snfeedback_bin" --arg slug "$slug" --arg permalink "$permalink" '
-        include "_sentry_feedback_tracking";
-        [.[][]] | sentry_feedback_tracking($slug; $permalink)[]
+        include "_sentry_tracking";
+        [.[][]] | sentry_feedback_tracking($slug; $permalink; "jubishop")[]
         | [.number, .state, (if .analyzed then "analyzed" else "intake" end), .match]
         | @tsv'
 end
