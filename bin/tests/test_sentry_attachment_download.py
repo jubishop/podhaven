@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-import subprocess
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -66,10 +66,10 @@ else:
         self.fake.chmod(0o755)
 
     def download(self, output, *, event="first", failure="", selection=("--all",)):
-        return subprocess.run(
+        return hang_guard.run(
             ["bash", str(SCRIPT), "--event", event, "--issue-json", str(self.issue),
              "--dir", str(output), *selection],
-            capture_output=True, text=True, timeout=10, check=False,
+            capture_output=True, text=True, check=False,
             env={**os.environ, "SENTRY_BIN": str(self.fake),
                  "ATTACHMENT_TEST_CALLS": str(self.calls),
                  "ATTACHMENT_TEST_FAILURE": failure},

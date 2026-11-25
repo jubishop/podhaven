@@ -727,16 +727,19 @@ class PodcastDetailViewModel:
   }
 
   func delete() {
-    lifecycle.runTask("delete: \(state.toString)") { [weak self] in
+    alert.confirmPodcastDeletion(titles: [podcast.title]) { [weak self] in
       guard let self else { return }
-      guard let podcastID = try await ensureObservedSeries()
-      else {
-        Self.log.warning("Trying to delete a non-saved podcast")
-        return
-      }
+      lifecycle.runTask("delete: \(state.toString)") { [weak self] in
+        guard let self else { return }
+        guard let podcastID = try await ensureObservedSeries()
+        else {
+          Self.log.warning("Trying to delete a non-saved podcast")
+          return
+        }
 
-      Self.log.info("Deleting podcast: \(state.toString)")
-      try await repo.deletePodcast(podcastID)
+        Self.log.info("Deleting podcast: \(state.toString)")
+        try await repo.deletePodcast(podcastID)
+      }
     }
   }
 

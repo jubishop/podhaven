@@ -2,11 +2,11 @@ import json
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -67,6 +67,9 @@ def record(kind, **values):
 def option(name):
     return arguments[arguments.index(name) + 1]
 
+def options(name):
+    return [value for flag, value in zip(arguments, arguments[1:]) if flag == name]
+
 if command == "sentry":
     if arguments[:2] == ["auth", "status"]:
         raise SystemExit(0)
@@ -80,9 +83,9 @@ elif arguments[0] == "api":
         record("comments-read", endpoint=endpoint)
         print((directory / "comments.json").read_text())
 elif arguments[:2] == ["issue", "edit"]:
-    record("label", issue=arguments[2], label=option("--add-label"))
+    record("label", issue=arguments[2], labels=options("--add-label"))
 elif arguments[:2] == ["issue", "create"]:
-    record("create", title=option("--title"), label=option("--label"),
+    record("create", title=option("--title"), labels=options("--label"),
            body=Path(option("--body-file")).read_text())
     print("https://github.com/jubishop/podhaven/issues/900")
 elif arguments[:2] == ["issue", "comment"]:
@@ -93,9 +96,9 @@ else:
         path.chmod(0o755)
 
     def run_check(self, script=SCRIPT, **environment):
-        return subprocess.run(
+        return hang_guard.run(
             ["/bin/bash", str(script)], cwd=ROOT, env={**self.env, **environment},
-            text=True, capture_output=True, timeout=30,
+            text=True, capture_output=True,
         )
 
     def test_creates_intake_for_untracked_issue_ignoring_mentions_and_pull_requests(self):
@@ -112,7 +115,7 @@ else:
         create, comment = self.writes()
         self.assertEqual(create["kind"], "create")
         self.assertEqual(create["title"], "Triage Sentry issue PODHAVEN-A1")
-        self.assertEqual(create["label"], "sentry-issue")
+        self.assertEqual(create["labels"], ["sentry-issue", "p2"])
         self.assertTrue(create["body"].startswith("<!-- sentry-issue:7001 -->\n"))
         self.assertIn(f"[PODHAVEN-A1]({PERMALINK}7001/)", create["body"])
         self.assertEqual(comment["kind"], "comment")
@@ -133,7 +136,7 @@ else:
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         writes = self.writes()
-        self.assertEqual(writes[0], {"kind": "label", "issue": "20", "label": "sentry-issue"})
+        self.assertEqual(writes[0], {"kind": "label", "issue": "20", "labels": ["sentry-issue"]})
         self.assertEqual(writes[1]["kind"], "comments-read")
         self.assertEqual(writes[2]["kind"], "comment")
         self.assertEqual(writes[2]["issue"], "20")
@@ -164,7 +167,7 @@ else:
         result = self.run_check()
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.writes(), [{"kind": "label", "issue": "31", "label": "sentry-issue"}])
+        self.assertEqual(self.writes(), [{"kind": "label", "issue": "31", "labels": ["sentry-issue"]}])
         self.assertIn("Already analyzed: PODHAVEN-A3 in issue #30", result.stdout)
         self.assertIn("Already analyzed: PODHAVEN-A4 in issue #31", result.stdout)
 
@@ -196,7 +199,7 @@ else:
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         create, comment = self.writes()
         self.assertEqual(create["title"], "Triage recurrence of Sentry issue PODHAVEN-A6")
-        self.assertEqual(create["label"], "sentry-issue")
+        self.assertEqual(create["labels"], ["sentry-issue", "p2"])
         self.assertTrue(create["body"].startswith("<!-- sentry-issue:7006 -->\n"))
         self.assertIn("#51, #52", create["body"])
         self.assertIn("<!-- fix-issue-prerequisite: analyze-sentry-issue 7006 -->", comment["body"])
@@ -238,8 +241,10 @@ else:
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.writes(), [])
-        self.assertIn("Would create issue: Triage Sentry issue PODHAVEN-A7", result.stdout)
-        self.assertIn("Would create issue: Triage recurrence of Sentry issue PODHAVEN-A8 (after #60)", result.stdout)
+        self.assertIn("Would create issue: Triage Sentry issue PODHAVEN-A7 with labels sentry-issue, p2\n",
+                      result.stdout)
+        self.assertIn("Would create issue: Triage recurrence of Sentry issue PODHAVEN-A8 (after #60)"
+                      " with labels sentry-issue, p2\n", result.stdout)
 
     def test_lists_unresolved_issues_except_feedback_and_probe_only_issues(self):
         self.write("sentry.json", {"data": [], "hasMore": False})
@@ -263,9 +268,10 @@ else:
                 self.assertTrue('scope.setTag(value: run, key: "diagnostic-run")' in probe.read_text(),
                                 "Sentry intake skips probe events only by their diagnostic-run tag")
 
-    def test_skill_lists_the_same_issues_as_the_checker(self):
+    def test_skill_lists_and_tracks_issues_through_the_picker(self):
         skill = (ROOT / ".agents/skills/analyze-sentry-issue/SKILL.md").read_text()
-        self.assertIn("--query 'is:unresolved !issue.category:feedback !has:diagnostic-run'", skill)
+        self.assertIn("`bin/snissue --list`", skill)
+        self.assertIn("`bin/snissue --track <numeric-id>`", skill)
 
     def test_skill_trusts_the_checker_comment_author(self):
         skill = (ROOT / ".agents/skills/analyze-sentry-issue/SKILL.md").read_text()

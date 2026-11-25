@@ -68,7 +68,7 @@ extension FileManaging {
   func writeData(_ data: Data, to url: URL) async throws {
     try await withCheckedThrowingContinuation { continuation in
       do {
-        try data.write(to: url)
+        try data.write(to: url, options: .atomic)
         continuation.resume()
       } catch {
         continuation.resume(throwing: error)

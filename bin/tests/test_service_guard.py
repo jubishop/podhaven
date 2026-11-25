@@ -4,17 +4,18 @@ import ast
 import os
 from pathlib import Path
 import shlex
-import subprocess
 import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
 ROOT = Path(__file__).resolve().parents[2]
 TESTS = Path(__file__).resolve().parent
-LIVE_COMMANDS = ("claude", "curl", "fastlane", "gh", "llm", "sentry", "sentry-cli", "xcodebuild", "xcrun")
+LIVE_COMMANDS = ("caffeinate", "claude", "curl", "fastlane", "gh", "llm", "sentry", "sentry-cli", "ssh",
+                 "xcodebuild", "xcrun")
 SUITE = r'''
 import os
 import subprocess
@@ -57,8 +58,8 @@ class ServiceGuardTests(unittest.TestCase):
                 (real / name).write_text(f"#!/bin/sh\necho {name} >> {shlex.quote(str(reached))}\n")
                 (real / name).chmod(0o755)
             (base / "test_forgotten_fake.py").write_text(SUITE)
-            result = subprocess.run([sys.executable, "-B", "-m", "unittest", "-v", "test_forgotten_fake"],
-                                    cwd=base, text=True, capture_output=True, timeout=30,
+            result = hang_guard.run([sys.executable, "-B", "-m", "unittest", "-v", "test_forgotten_fake"],
+                                    cwd=base, text=True, capture_output=True,
                                     env={**os.environ, "PATH": str(real) + os.pathsep + os.environ["PATH"],
                                          "PYTHONPATH": str(TESTS), "LIVE_COMMANDS": " ".join(LIVE_COMMANDS)})
             self.assertFalse(reached.exists(), reached.read_text() if reached.exists() else "")

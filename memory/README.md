@@ -85,9 +85,8 @@ error accepted as noise.
 ## Active notes
 
 Link every active note from the list below, one list item per note. When the
-weekly [memory audit](../docs/development-workflow.md#scheduled-memory-audit)
-archives a note, it removes that note's entry after validating its proposal;
-the model cannot edit this README.
+[memory audit](../docs/development-workflow.md#scheduled-memory-audit)
+archives a note, it removes that note's entry.
 
 - [Build variants: Development / Debug / Release](build-variants-dev-debug-release.md): PodHaven's three app build variants — Development (.dev), Debug (.debug), Release (production) — their bundle IDs, isolated on-disk data directories, which scheme action builds each, and how runtime environment (separate axis) drives logging.
 - [CarPlay artwork test observability](carplay-artwork-test-observability.md): CPListItem.image returns CarPlay's downscaled copy, and Nuke memory-cache hits did not reach the pipeline delegate; observe row artwork size through a recording ImagePipeline delegate on a cache miss
@@ -98,13 +97,14 @@ the model cannot edit this README.
 - [FTS5 sync triggers don't survive a source-table rebuild](fts5-sync-triggers-and-table-rebuilds.md): Rebuilding the episode/podcast tables silently breaks the FTS5 search index; the rebuild must recreate the \*_fts virtual tables.
 - [Listable projection purity](listable-projection-purity.md): Keep ListableEpisode/ListablePodcastEpisode as rendering-only projections; don't add columns just to make an unrelated caller simpler
 - [Lucide icon asset resync](lucide-icon-asset-resync.md): Re-syncing vendored Lucide icons must preserve filter/fingerprint/waves rawValues, which are persisted in tag.icon and smartList.icon
-- [Memory-audit model selection](memory-audit-model-selection.md): Run memory audits locally with Claude Code and Sonnet, billed to PodHaven's own Anthropic API key with automatic fallback to the Claude subscription.
+- [Memory-audit model selection](memory-audit-model-selection.md): Run memory audits locally with Claude Code and Sonnet, billed to the Anthropic API key all memory audits share, with automatic fallback to the Claude subscription.
 - [Metrickit disk write diagnostics](metrickit-disk-write-diagnostics.md): Why we drop MXDiskWriteException MetricKit diagnostics in Sentry, and why PODHAVEN-3W recurrences are not a PR #355 regression
 - [Observation broadcast viewmodel](observation-broadcast-viewmodel.md): Broadcast notifies SwiftUI synchronously for main-actor writes (#399) and one main-turn late for off-main writes; that timing decides whether a @Broadcasted value can be read through an @Observable viewModel computed property
 - [\`OPMLViewModel\` must be a \`.cached\` Container factory](opml-viewmodel-cached-factory.md): OPMLViewModel must be a .cached Container factory so ShareService and OPMLView share one instance, or the OPML import-progress sheet never appears.
 - [Revoked credentials in Git history](revoked-credentials-in-git-history.md): A revoked Sentry organization token remains in PodHaven's public Git history (4cba91fc through 4a61939f); it is dead, history is deliberately not rewritten, and reviews should not report it again.
 - [Search recommendation "top picks" latency](search-recommendation-embedding-perf.md): Search "top picks" latency is bound by the serialized embedding actor, not RSS fan-out; the podcast-context vector is computed once per feed.
 - [Sentry CLI response cache](sentry-cli-response-cache.md): The sentry CLI caches GET responses on this machine for up to five minutes, so tooling that reads Sentry state after writing it must bypass the cache with --fresh or SENTRY_NO_CACHE=1.
+- [Sentry explore log rows](sentry-explore-log-rows.md): sentry explore ignores --sort on the logs dataset, so raw log rows repeat and drop across its pages; fetch row-level log attributes from the events API with an explicit sort instead.
 - [Stalled playback load](stalled-playback-load.md): Investigation notes for feedback podhaven:7514288031, where playback stayed in loading after selecting an episode. Use when a future report says an episode load sat on the loading indicator, especially around PlayManager.performLoad, Queue.unshift, or DB writer access.
 - [\`Task.detached\` migration pattern](task-detached-migration.md): Why \`Task.detached\` is banned and how to hop off \`@MainActor\` for CPU work without it.
 - [Worktree cache lessons](worktree-setup-hooks.md): Past worktree cache failures, stale SwiftPM artifact paths, and approaches that broke Xcode builds.

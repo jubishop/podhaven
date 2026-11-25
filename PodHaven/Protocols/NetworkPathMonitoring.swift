@@ -3,6 +3,7 @@
 import Foundation
 
 protocol NetworkPathDescribing: Sendable {
+  var isSatisfied: Bool { get }
   var isConstrained: Bool { get }
   var isUltraConstrained: Bool { get }
   var isExpensive: Bool { get }
