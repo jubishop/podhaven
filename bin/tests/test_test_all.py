@@ -31,6 +31,8 @@ with (base / 'events').open('a') as stream:
 if name == 'xcodebuild' and '-version' in args:
     print('Xcode ' + os.environ.get('TEST_XCODE_VERSION', '27.0'))
 elif name == 'xcrun' and args == ['swift', '--version']:
+    # Like the real driver, this writes its own version to stderr before the compiler's on stdout.
+    print('swift-driver version: 1.168.6 ', end='', file=sys.stderr, flush=True)
     print('Apple Swift version ' + os.environ.get('TEST_SWIFT_VERSION', '6.4'))
 elif name == 'sw_vers':
     print(os.environ.get('TEST_MACOS_VERSION', '27.0'))
@@ -65,6 +67,8 @@ elif name == 'xcodebuild':
     assert '-hideShellScriptEnvironment' in args
     assert args[args.index('-destination') + 1] == 'platform=macOS,name=My Mac'
     assert 'LM_FORCE_LINK_GENERATION=YES' in args
+    if os.environ.get('TEST_SIGNING_FAILURE'):
+        sys.exit("error: No profiles for 'com.artisanalsoftware.PodHaven.debug' were found")
     bundle = pathlib.Path(args[args.index('-resultBundlePath') + 1])
     timing = {'SiriPerformance': 'SiriLargeCatalogTests', 'OPMLPerformance': 'OPMLLargeImportTests'}
     performance = bundle.stem in timing
@@ -223,14 +227,17 @@ def make_container(home, name, identifier=TEST_HOST):
     return container / "Data/tmp"
 
 
-class TestAllTests(unittest.TestCase):
+class TestAllFixture(unittest.TestCase):
+    """A disposable repository with bin/test-all and fakes for every platform command it runs."""
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="podhaven test all ")
         self.addCleanup(temporary.cleanup)
         self.base = Path(temporary.name)
         self.repo = self.base / "repo"
         (self.repo / "bin").mkdir(parents=True)
-        for name in ("test-all", "check-swift-results", "_my_mac_lock.py", "_validation_slot.py"):
+        for name in ("test-all", "check-swift-results", "_my_mac_lock.py", "_test_lane.py", "_test_lane_host.py",
+                     "_validation_slot.py"):
             shutil.copy2(ROOT / "bin" / name, self.repo / "bin" / name)
         (self.base / "python").mkdir()
         (self.base / "python/sitecustomize.py").write_text(LOAD)
@@ -261,13 +268,17 @@ class TestAllTests(unittest.TestCase):
                 self.env.pop(key)
         self.env.pop("SDKROOT", None)
         self.git("init", "--quiet")
+        self.commit("fixture")
+
+    def git(self, *args, **env):
+        return subprocess.check_output(["git", *args], cwd=self.repo, env={**self.env, **env}, text=True).strip()
+
+    def commit(self, message, **env):
         self.git("add", ".")
         self.git("-c", "user.name=Test", "-c", "user.email=test@example.invalid",
                  "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false",
-                 "commit", "--quiet", "-m", "fixture")
-
-    def git(self, *args):
-        return subprocess.check_output(["git", *args], cwd=self.repo, env=self.env, text=True).strip()
+                 "commit", "--quiet", "--allow-empty", "-m", message, **env)
+        return self.git("rev-parse", "HEAD")
 
     def run_all(self, *args, **env):
         return hang_guard.run([sys.executable, "-B", str(self.repo / "bin/test-all"), *args],
@@ -298,8 +309,8 @@ class TestAllTests(unittest.TestCase):
     def report(self):
         return json.loads(next((self.repo / ".cache/test-all").glob("*/run.json")).read_text())
 
-    def set_constants(self, **values):
-        script = self.repo / "bin/test-all"
+    def set_constants(self, script="test-all", **values):
+        script = self.repo / "bin" / script
         text = script.read_text()
         for name, value in values.items():
             text, count = re.subn(rf"^{name} = .+$", f"{name} = {value}", text, flags=re.M)
@@ -308,6 +319,9 @@ class TestAllTests(unittest.TestCase):
 
     def shorten_host_watch(self, quiet):
         self.set_constants(QUIET_LOG_SECONDS=quiet, SAMPLE_GAP_SECONDS=quiet / 5, POLL_SECONDS=quiet / 20)
+
+
+class TestAllTests(TestAllFixture):
 
     def test_complete_run_includes_separate_suites_and_records_revision(self):
         result = self.run_all()

@@ -163,6 +163,25 @@ def take(paths, holder):
             leave(queue, place, ticket)
 
 
+def busy():
+    """Return why a run would wait for a validation slot now, or None when it would take one at once."""
+    paths = slot_paths()
+    directory = paths[0].parent
+    if inherited(directory):
+        return None
+    queue = directory / QUEUE_NAME
+    queue.mkdir(parents=True, exist_ok=True)
+    with (directory / f"{QUEUE_NAME}.lock").open("a") as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        waiting = len(queued_tickets(queue))
+        held = sum(map(locked, paths))
+    if waiting:
+        return f"its validation slots have {waiting} waiting run{'s' if waiting > 1 else ''}"
+    if held == len(paths):
+        return f"all {len(paths)} of its validation slots are held"
+    return None
+
+
 @contextmanager
 def validation_slot(holder):
     """Hold a validation slot and yield its descriptor, or None inside a process that already holds one.

@@ -14,7 +14,8 @@ import service_guard
 
 ROOT = Path(__file__).resolve().parents[2]
 TESTS = Path(__file__).resolve().parent
-LIVE_COMMANDS = ("caffeinate", "claude", "curl", "fastlane", "gh", "llm", "sentry", "sentry-cli", "xcodebuild", "xcrun")
+LIVE_COMMANDS = ("caffeinate", "claude", "curl", "fastlane", "gh", "llm", "sentry", "sentry-cli", "ssh",
+                 "xcodebuild", "xcrun")
 SUITE = r'''
 import os
 import subprocess

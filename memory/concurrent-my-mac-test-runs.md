@@ -35,4 +35,6 @@ about ten concurrent `bin/test-all` runs saturated the Mac and all failed. Heavy
 runs now also queue for machine-wide
 [validation slots](../docs/development-workflow.md#validation-slots), taken
 before this lock, and `run.json` flags a failure in a phase that ran while the
-host was saturated as possibly load-induced.
+host was saturated as possibly load-induced. Clean `bin/test-all` runs also go
+to the [second Mac](../docs/development-workflow.md#second-mac) when its lane is
+free, which takes them off this Mac's lock altogether.
