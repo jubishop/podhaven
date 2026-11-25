@@ -51,7 +51,7 @@ import Testing
     all.handler?(all) {}
     let alphabetical = try #require(controller.topTemplate as? CPListTemplate)
     #expect(alphabetical.sections.flatMap(\.items).map(\.text) == ["Alpha", "Empty", "Zulu"])
-    #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)
+    #expect(Container.shared.fakeAudioSession().activeCalls.isEmpty)
   }
 
   @Test("Now Playing enables its shortcut for an unsubscribed saved current podcast")

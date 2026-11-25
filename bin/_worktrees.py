@@ -1,5 +1,6 @@
 """Prepare Xcode caches and reclaim verified orphan caches on macOS."""
 
+import ctypes
 import fcntl
 import getpass
 import hashlib
@@ -7,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import shutil
 import struct
 import subprocess
@@ -56,6 +58,16 @@ def layout(root):
             "state": common / "knowledge/xcode", "lock": packages.parent / (packages.name + ".maintenance.lock")}
 
 
+def checkout_cache(paths, checkout):
+    return paths["derived"] / ("PodHaven-" + xcode_hash(checkout / "PodHaven.xcodeproj"))
+
+
+def package_folder(root):
+    """Return the checkout's own SwiftPM folder, where its Xcode builds resolve packages."""
+    paths = layout(root)
+    return checkout_cache(paths, paths["root"]) / "SourcePackages"
+
+
 @contextmanager
 def maintenance_lock(paths):
     path = paths["lock"]
@@ -89,11 +101,14 @@ def path_in_use(path):
     return result.returncode != 1 or bool(result.stdout.strip()) or bool(result.stderr.strip())
 
 
-def cache_owner(folder):
+def cache_owner(folder, named):
     if folder.is_symlink() or not folder.is_dir():
         return None
     try:
         workspace = Path(plistlib.loads((folder / "info.plist").read_bytes())["WorkspacePath"])
+    except FileNotFoundError:
+        # Xcode writes info.plist on a checkout's first build; preparation names the folder for a known checkout.
+        return named.get(folder.name)
     except (OSError, ValueError, KeyError, TypeError, plistlib.InvalidFileException):
         return None
     project = workspace.parent if workspace.name == "project.xcworkspace" else workspace
@@ -123,13 +138,16 @@ def artifact_references(value, folder, packages):
     if isinstance(value, str) and value.startswith(str(folder) + os.sep):
         source = Path(value)
         alias = folder / "SourcePackages"
-        if not source.is_relative_to(alias) or not alias.is_symlink() or alias.resolve() != packages:
+        # A folder made private after recording these paths no longer shares files with the seed to compare.
+        linked = alias.is_symlink()
+        if not source.is_relative_to(alias) or (linked and alias.resolve() != packages):
             raise ValueError("Shared metadata references an unshared cache path")
         relative = source.relative_to(alias)
         if ".." in relative.parts:
             raise ValueError("Shared metadata contains a path traversal")
         target = (packages / relative).resolve()
-        if not target.is_relative_to(packages) or not target.exists() or not source.exists() or not os.path.samefile(source, target):
+        if (not target.is_relative_to(packages) or not target.exists()
+                or (linked and not (source.exists() and os.path.samefile(source, target)))):
             raise ValueError("Cannot verify the shared artifact replacement")
         return str(target), True
     return value, False
@@ -157,8 +175,9 @@ def sweep(root, apply=False):
         known = set(registry) | live
         if apply:
             atomic_json(paths["state"] / "worktrees.json", sorted(known))
+        named = {checkout_cache(paths, Path(checkout)).name: Path(checkout) for checkout in known}
         for folder in sorted(paths["derived"].glob("PodHaven-*")):
-            owner = cache_owner(folder)
+            owner = cache_owner(folder, named)
             if owner is None or str(owner) in live or owner.exists():
                 continue
             if str(owner) not in known and not owner.is_relative_to(paths["primary"] / "worktrees"):
@@ -168,9 +187,7 @@ def sweep(root, apply=False):
             try:
                 if build_activity() or path_in_use(folder):
                     raise ValueError("Build or open-file activity; automatic cleanup will retry")
-                packages = folder / "SourcePackages"
-                if packages.exists() and (not packages.is_symlink() or packages.resolve() != paths["packages"]):
-                    raise ValueError("Preserved an independent package cache")
+                # Checkouts that still link the seed may record paths through this cache's link; move those first.
                 state = paths["packages"] / "workspace-state.json"
                 before = state.read_bytes() if state.exists() else None
                 parsed = json.loads(before) if before is not None else {}
@@ -180,7 +197,7 @@ def sweep(root, apply=False):
                 if not apply:
                     continue
                 # Repeat ownership, activity, and metadata checks immediately before mutation.
-                if owner.exists() or str(owner) in registered_worktrees(root) or cache_owner(folder) != owner:
+                if owner.exists() or str(owner) in registered_worktrees(root) or cache_owner(folder, named) != owner:
                     raise ValueError("Checkout or cache ownership changed during inspection")
                 if build_activity(include_ide=changed) or path_in_use(folder):
                     raise ValueError("Build or cache activity started; automatic cleanup will retry")
@@ -200,7 +217,7 @@ def sweep(root, apply=False):
                         shutil.rmtree(child)
                     else:
                         child.unlink()
-                (folder / "info.plist").unlink()
+                (folder / "info.plist").unlink(missing_ok=True)
                 folder.rmdir()
                 report["removed"].append(str(folder))
                 report["removed_cache_bytes"] += size
@@ -211,6 +228,109 @@ def sweep(root, apply=False):
     return report
 
 
+def clonefile(source, target):
+    """Make target an APFS copy-on-write clone of the whole source tree."""
+    clone = ctypes.CDLL(None, use_errno=True).clonefile
+    clone.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint32)
+    if clone(os.fsencode(source), os.fsencode(target), 0):
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error), str(target))
+
+
+def relocated(value, roots, target):
+    if isinstance(value, dict):
+        return {key: relocated(child, roots, target) for key, child in value.items()}
+    if isinstance(value, list):
+        return [relocated(child, roots, target) for child in value]
+    if isinstance(value, str):
+        return roots.sub(lambda _: str(target), value)
+    return value
+
+
+def clone_packages(paths, target):
+    """Clone the seed to target with the paths SwiftPM recorded moved into the clone, or raise why it can't be."""
+    staging = target.with_name(target.name + ".preparing")
+    if staging.exists():
+        shutil.rmtree(staging)
+    clonefile(paths["packages"], staging)
+    try:
+        # SwiftPM records absolute paths through whichever folder resolved them: the seed itself or a
+        # SourcePackages link in any DerivedData, deleted or not.
+        roots = re.compile("(?:" + re.escape(str(paths["packages"])) + r"|(?:/[^/\n]+)+?/SourcePackages)(?=/|$)", re.M)
+
+        def staged(value):
+            path = Path(value)
+            if not path.is_relative_to(target) or ".." in path.relative_to(target).parts:
+                raise ValueError("The seed records a path outside its packages: " + value)
+            return staging / path.relative_to(target)
+
+        # Each checkout borrows Git objects from, and names as its origin, a clone under repositories.
+        for repository in staging.glob("checkouts/*/.git"):
+            alternates = repository / "objects/info/alternates"
+            for path in (alternates, repository / "config"):
+                if path.is_file():
+                    temporary = path.with_name(path.name + ".relocated")
+                    temporary.write_text(roots.sub(lambda _: str(target), path.read_text()))
+                    temporary.chmod(path.stat().st_mode)
+                    temporary.replace(path)
+            for line in filter(None, alternates.read_text().splitlines()) if alternates.is_file() else ():
+                if not staged(line).is_dir():
+                    raise ValueError("Missing package objects " + line)
+        state_path = staging / "workspace-state.json"
+        if state_path.exists():
+            try:
+                state = relocated(json.loads(state_path.read_bytes()), roots, target)
+                artifacts = [artifact["path"] for artifact in state["object"].get("artifacts", [])]
+                checkouts = [(dependency["subpath"], dependency["state"]["checkoutState"]["revision"])
+                             for dependency in state["object"].get("dependencies", [])
+                             if dependency["state"]["name"] == "sourceControlCheckout"]
+            except (KeyError, TypeError, AttributeError) as error:
+                raise ValueError("Unrecognized package metadata in the seed") from error
+            for artifact in artifacts:
+                if not staged(artifact).exists():
+                    raise ValueError("Missing package artifact " + artifact)
+            for subpath, revision in checkouts:
+                repository = staging / "checkouts" / subpath / ".git"
+                if (repository / "index.lock").exists() or (repository / "HEAD").read_text().strip() != revision:
+                    raise ValueError("The seed's " + subpath + " checkout was mid-update")
+            atomic_json(state_path, state)
+        if target.is_symlink():
+            target.unlink()
+        staging.rename(target)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+
+def make_packages_private(paths, directory):
+    """Give one checkout's DerivedData its own packages, cloned from the seed; Xcode resolves afresh without them."""
+    directory.mkdir(parents=True, exist_ok=True)
+    packages = directory / "SourcePackages"
+    if packages.is_symlink():
+        if packages.resolve() != paths["packages"]:
+            print("Preserved existing SourcePackages link; inspect with bin/doctor-xcode: " + str(packages))
+            return
+        if path_in_use(directory):
+            print("Packages stay shared while this checkout's DerivedData is in use; bin/prep-worktree retries: "
+                  + str(directory))
+            return
+        if not packages.is_dir():
+            packages.unlink()
+    elif packages.exists():
+        return
+    if not paths["packages"].is_dir():
+        return
+    try:
+        clone_packages(paths, packages)
+    except (OSError, ValueError) as error:
+        if packages.is_symlink():
+            # Checkouts that still link the seed may read paths it recorded through this link.
+            print("Packages stay shared until bin/prep-worktree can clone the seed into " + str(packages) + ": "
+                  + str(error))
+        else:
+            print("Xcode will resolve packages afresh in " + str(packages) + ": " + str(error))
+
+
 def prepare_xcode(root):
     if sys.platform != "darwin" or not (root / "PodHaven.xcodeproj").is_dir():
         return
@@ -218,28 +338,22 @@ def prepare_xcode(root):
     with maintenance_lock(paths):
         known = set(read_json(paths["state"] / "worktrees.json", [])) | registered_worktrees(root)
         atomic_json(paths["state"] / "worktrees.json", sorted(known))
-        primary_dd = paths["derived"] / ("PodHaven-" + xcode_hash(paths["primary"] / "PodHaven.xcodeproj"))
-        local_dd = paths["derived"] / ("PodHaven-" + xcode_hash(root / "PodHaven.xcodeproj"))
-        shared = paths["packages"]
-        if not shared.exists():
-            seed = next((p / "SourcePackages" for p in (primary_dd, local_dd)
-                         if (p / "SourcePackages").is_dir() and not (p / "SourcePackages").is_symlink()), None)
-            if seed:
-                if build_activity(include_ide=True) or path_in_use(seed):
+        directories = [checkout_cache(paths, checkout) for checkout in dict.fromkeys((paths["primary"], paths["root"]))]
+        seed = paths["packages"]
+        if not seed.exists():
+            source = next((d / "SourcePackages" for d in directories
+                           if (d / "SourcePackages").is_dir() and not (d / "SourcePackages").is_symlink()), None)
+            if source:
+                if build_activity(include_ide=True) or path_in_use(source):
                     print("Xcode cache preparation deferred: existing packages are in use.")
                     return
-                shared.parent.mkdir(parents=True, exist_ok=True)
-                seed.rename(shared)
-                seed.symlink_to(shared, target_is_directory=True)
-            else:
-                shared.mkdir(parents=True)
-        for directory in {primary_dd, local_dd}:
-            directory.mkdir(parents=True, exist_ok=True)
-            link = directory / "SourcePackages"
-            if not link.exists() and not link.is_symlink():
-                link.symlink_to(shared, target_is_directory=True)
-            elif not link.is_symlink() or link.resolve() != shared:
-                print("Preserved existing SourcePackages; inspect with bin/doctor-xcode: " + str(link))
+                seed.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    clonefile(source, seed)
+                except OSError as error:
+                    print("Could not seed shared packages from " + str(source) + ": " + str(error))
+        for directory in directories:
+            make_packages_private(paths, directory)
         suffix = Path("PodHaven.xcodeproj/project.xcworkspace/xcuserdata") / (getpass.getuser() + ".xcuserdatad/WorkspaceSettings.xcsettings")
         source, target = paths["primary"] / suffix, root / suffix
         if source.is_file() and not target.exists():
@@ -253,13 +367,12 @@ def diagnose_xcode(root):
     if sys.platform != "darwin" or not (root / "PodHaven.xcodeproj").is_dir():
         return {"available": False}
     paths = layout(root)
-    local_dd = paths["derived"] / ("PodHaven-" + xcode_hash(root / "PodHaven.xcodeproj"))
-    link = local_dd / "SourcePackages"
+    local_dd = checkout_cache(paths, paths["root"])
     agent = Path.home() / "Library/LaunchAgents" / (LABEL + ".plist")
     loaded = subprocess.run(["launchctl", "print", "gui/" + str(os.getuid()) + "/" + LABEL],
                             capture_output=True, timeout=15).returncode == 0
     return {"available": True, "derived_data": str(local_dd), "shared_packages": str(paths["packages"]),
-            "packages_link_valid": link.is_symlink() and link.resolve() == paths["packages"] and link.is_dir(),
+            "packages_private": not (local_dd / "SourcePackages").is_symlink(),
             "last_cleanup": read_json(paths["state"] / "cleanup.json"),
             "cleanup_error": read_json(paths["primary"] / ".cache/worktree-cleanup/last-error.json"),
             "agent_plist": str(agent), "agent_installed": agent.is_file(), "agent_loaded": loaded}
@@ -268,8 +381,8 @@ def diagnose_xcode(root):
 def xcode_health(root):
     report = dict(diagnose_xcode(root), issues=[], notices=[])
     if report["available"]:
-        if not report["packages_link_valid"]:
-            report["issues"].append("Xcode package link needs attention; run bin/prep-worktree.")
+        if not report["packages_private"]:
+            report["issues"].append("Xcode packages are shared with other checkouts; run bin/prep-worktree.")
         if not report["agent_loaded"]:
             report["notices"].append("Hourly cleanup is not loaded; run bin/install-cleanup-agent in the primary checkout.")
         if report["cleanup_error"]:

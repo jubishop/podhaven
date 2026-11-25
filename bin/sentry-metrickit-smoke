@@ -13,6 +13,7 @@ import sys
 import time
 
 from _sentry_smoke import api, command, load
+from _worktrees import package_folder
 
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = "com.artisanalsoftware.PodHaven.metrickitsmoke"
@@ -210,7 +211,7 @@ def main():
             "-scheme", "PodHaven", "-configuration", "Debug", "-destination", "id=" + args.device,
             "-derivedDataPath", str(output / "DerivedData"), "-skipMacroValidation",
             "-resultBundlePath", str(evidence / "build.xcresult"),
-            "-clonedSourcePackagesDirPath", str(Path.home() / "Library/Developer/SharedSourcePackages/PodHaven"),
+            "-clonedSourcePackagesDirPath", str(package_folder(ROOT)),
             "LM_FORCE_LINK_GENERATION=YES", "CODE_SIGNING_ALLOWED=NO", "ENABLE_DEBUG_DYLIB=NO",
             "DEBUG_INFORMATION_FORMAT=dwarf-with-dsym", "GIT_COMMIT_HASH=" + source["gitCommitHash"],
         ], cwd=ROOT, env={key: value for key, value in os.environ.items() if key != "SDKROOT"},

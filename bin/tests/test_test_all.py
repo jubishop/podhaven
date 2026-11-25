@@ -15,6 +15,7 @@ import time
 import unittest
 import uuid
 
+import fake_caffeinate
 import hang_guard
 import service_guard
 
@@ -53,6 +54,13 @@ elif name == 'xcodebuild':
             sys.exit('xcodebuild test ran without the My Mac test lock')
         except BlockingIOError:
             pass
+    # bin/test-all starts this xcodebuild, so the run's display assertion waits on this process's parent.
+    table = subprocess.check_output(['ps', '-A', '-ww', '-o', 'pid=,command='], text=True).splitlines()
+    awake = [line.split(None, 1)[0] for line in table if line.endswith(f'/caffeinate -d -u -w {os.getppid()}')]
+    if len(awake) != 1:
+        sys.exit(f'xcodebuild test ran under {len(awake)} display assertions for its run, not 1')
+    with (base / 'display-assertions').open('a') as stream:
+        stream.write(f'{os.getppid()} {awake[0]}\n')
     assert not os.environ.get('SDKROOT'), 'Xcode must choose the SDK for its destination'
     assert '-hideShellScriptEnvironment' in args
     assert args[args.index('-destination') + 1] == 'platform=macOS,name=My Mac'
@@ -236,6 +244,7 @@ class TestAllTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(f"#!{sys.executable}\n" + FAKE)
             path.chmod(0o755)
+        fake_caffeinate.install(self.commands)
         (self.repo / "bin/tests").mkdir()
         (self.repo / "bin/tests/probe.sh").write_text(
             '#!/bin/bash\nprintf shell > "$TEST_ALL_FIXTURE/shell-ran"\n')
@@ -553,6 +562,16 @@ class TestAllTests(unittest.TestCase):
                                 capture_output=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotIn("Waiting", result.stderr)
+
+    def test_one_display_assertion_spans_every_my_mac_phase_and_ends_with_the_run(self):
+        # UIKit on the Mac sends every scene to the background while the displays sleep.
+        result = self.run_all()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        assertions = (self.base / "display-assertions").read_text().splitlines()
+        self.assertEqual(len(assertions), len(PHASES) - PHASES.index("xcodebuild"))
+        self.assertEqual(len(set(assertions)), 1)
+        run, _ = assertions[0].split()
+        self.assertEqual(fake_caffeinate.holders(run), [])
 
     def test_entries_tests_leave_in_the_test_host_temporary_directory_fail_the_run(self):
         (self.host_temporary / "earlier").mkdir()

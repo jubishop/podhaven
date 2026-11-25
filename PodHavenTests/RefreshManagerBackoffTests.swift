@@ -154,6 +154,70 @@ actor RefreshManagerBackoffTests {
     #expect(try await scheduledRefreshRequests(at: start + 3).isEmpty)
   }
 
+  @Test(
+    "a pass whose every feed fails as on a network without working internet records no failure",
+    arguments: NoInternetFailure.allCases
+  )
+  func noInternetPassRecordsNoFailure(failure: NoInternetFailure) async throws {
+    var podcastIDs: [Podcast.ID] = []
+    for index in 0..<3 {
+      podcastIDs.append(
+        try await insertPodcast(
+          index: index,
+          lastUpdate: start.addingTimeInterval(-TimeInterval(5 + index) * 3600)
+        )
+      )
+      await failure.respond(session, to: SyntheticFeed.url(index))
+    }
+    try await repo.recordRefreshFailures([(podcastIDs[2], 1, start)])
+
+    let feeds = Set((0..<3).map(SyntheticFeed.url))
+    #expect(Set(try await scheduledRefreshRequests(at: start)) == feeds)
+    #expect(Set(try await scheduledRefreshRequests(at: start + 1)) == feeds)
+    var failureCounts: [Int] = []
+    for podcastID in podcastIDs {
+      failureCounts.append(try #require(try await repo.podcast(podcastID)).refreshFailureCount)
+    }
+    #expect(failureCounts == [0, 0, 1])
+  }
+
+  @Test("a pass in which a healthy feed succeeds backs off feeds that fail as without internet")
+  func noInternetFailuresBackOffBesideASuccess() async throws {
+    _ = try await insertPodcast(index: 0, lastUpdate: start.addingTimeInterval(-5 * 3600))
+    await serve(index: 0, episodes: 1)
+    for index in 1..<3 {
+      _ = try await insertPodcast(index: index, lastUpdate: start.addingTimeInterval(-5 * 3600))
+      await NoInternetFailure.dnsLookup.respond(session, to: SyntheticFeed.url(index))
+    }
+
+    #expect(
+      Set(try await scheduledRefreshRequests(at: start)) == Set((0..<3).map(SyntheticFeed.url))
+    )
+    #expect(try await scheduledRefreshRequests(at: start + 1).isEmpty)
+  }
+
+  @Test(
+    "feeds already failing or not refreshed within a day back off even when all fail as without internet"
+  )
+  func unhealthyFeedsBackOffWhenAllFailAsWithoutInternet() async throws {
+    _ = try await insertPodcast(index: 0, lastUpdate: start.addingTimeInterval(-2 * 86400))
+    let failingID = try await insertPodcast(
+      index: 1,
+      lastUpdate: start.addingTimeInterval(-5 * 3600)
+    )
+    try await repo.recordRefreshFailures([(failingID, 1, start)])
+    for index in 0..<2 {
+      await NoInternetFailure.dnsLookup.respond(session, to: SyntheticFeed.url(index))
+    }
+
+    #expect(
+      Set(try await scheduledRefreshRequests(at: start))
+        == [SyntheticFeed.url(0), SyntheticFeed.url(1)]
+    )
+    #expect(try await scheduledRefreshRequests(at: start + 1).isEmpty)
+    #expect(try await repo.podcast(failingID)?.refreshFailureCount == 2)
+  }
+
   // MARK: - Helpers
 
   private static let eTag = "\"v1\""
@@ -205,5 +269,52 @@ actor RefreshManagerBackoffTests {
       limit: limit
     )
     return Array(await session.requests.dropFirst(requestCount))
+  }
+}
+
+// How feed fetches fail behind a captive portal before sign-in or during a DNS
+// outage, while the network path still reads satisfied.
+enum NoInternetFailure: CaseIterable, Sendable, CustomTestStringConvertible {
+  case dnsLookup
+  case untrustedCertificate
+  case timeout
+  case htmlSignInPage
+  case xhtmlSignInPage
+
+  var testDescription: String {
+    switch self {
+    case .dnsLookup: "DNS lookup failure"
+    case .untrustedCertificate: "portal's untrusted certificate"
+    case .timeout: "timeout"
+    case .htmlSignInPage: "HTML sign-in page"
+    case .xhtmlSignInPage: "XHTML sign-in page"
+    }
+  }
+
+  func respond(_ session: FakeDataFetchable, to url: URL) async {
+    switch self {
+    case .dnsLookup:
+      await session.respond(to: url, error: URLError(.cannotFindHost))
+    case .untrustedCertificate:
+      await session.respond(to: url, error: URLError(.serverCertificateUntrusted))
+    case .timeout:
+      await session.respond(to: url, error: URLError(.timedOut))
+    case .htmlSignInPage:
+      await session.respond(
+        to: url,
+        data: Data(
+          "<!DOCTYPE html><html><head><meta charset=utf-8><title>Sign in</title></head><body>Sign in<br></body></html>"
+            .utf8
+        )
+      )
+    case .xhtmlSignInPage:
+      await session.respond(
+        to: url,
+        data: Data(
+          #"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Sign in</title></head><body><p>Sign in</p></body></html>"#
+            .utf8
+        )
+      )
+    }
   }
 }

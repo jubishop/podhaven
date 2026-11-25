@@ -126,4 +126,29 @@ struct TimeIntervalTests {
     #expect(TimeInterval.seconds(-9096).playbackTimeFormat == "-2:31:36")
     #expect(TimeInterval.seconds(-36000).playbackTimeFormat == "-10:00:00")
   }
+
+  // MARK: - Int Range Tests
+
+  @Test("times at the edges of Int's range format as before")
+  func testIntRangeEdgesFormat() {
+    let largest = TimeInterval(0x1p63).nextDown
+    #expect(largest.compactReadableFormat == "2562047788015215h 13m")
+    #expect(largest.playbackTimeFormat == "2562047788015215:13:04")
+
+    let smallest = TimeInterval(-0x1p63)
+    #expect(smallest.compactReadableFormat == "-2562047788015215h 30m")
+    #expect(smallest.playbackTimeFormat == "-2562047788015215:30:08")
+  }
+
+  @Test("times past Int's range or not finite format as Unknown")
+  func testUnrepresentableTimesAreUnknown() {
+    let times: [TimeInterval] = [
+      0x1p63, TimeInterval(-0x1p63).nextDown, .greatestFiniteMagnitude, .nan, .infinity,
+      -.infinity,
+    ]
+    for time in times {
+      #expect(time.compactReadableFormat == "Unknown")
+      #expect(time.playbackTimeFormat == "Unknown")
+    }
+  }
 }
