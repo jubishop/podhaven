@@ -76,8 +76,9 @@ function __snissue_collect --argument-names format
         return $list_status
     end
 
-    set -l has_more (printf '%s\n' $issue_json | jq -r '
-        if type == "array" then false
+    set -l has_more (printf '%s\n' $issue_json | jq -rs '
+        if length == 1 then .[0] else error("expected one response") end
+        | if type == "array" then false
         elif type == "object" and (.data | type) == "array" then (.hasMore // false)
         else error("expected an issue array") end')
     if test $status -ne 0
