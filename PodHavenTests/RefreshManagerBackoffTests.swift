@@ -139,6 +139,25 @@ actor RefreshManagerBackoffTests {
     #expect(try await scheduledRefreshRequests(at: start + 1) == [SyntheticFeed.url(0)])
   }
 
+  @Test("a feed over the download limit backs off")
+  func oversizedFeedBacksOff() async throws {
+    _ = try await insertPodcast(index: 0, lastUpdate: start.addingTimeInterval(-5 * 3600))
+    let feed = SyntheticFeed.rss(index: 0, episodes: 1)
+    await session.respond(to: SyntheticFeed.url(0)) { url in
+      (
+        feed,
+        URL.response(
+          url,
+          headerFields: ["Content-Length": String(PodcastFeed.downloadByteLimit + 1)]
+        )
+      )
+    }
+
+    #expect(try await scheduledRefreshRequests(at: start) == [SyntheticFeed.url(0)])
+    #expect(try await scheduledRefreshRequests(at: start + 3600 - 1).isEmpty)
+    #expect(try await scheduledRefreshRequests(at: start + 3600) == [SyntheticFeed.url(0)])
+  }
+
   @Test("a timeout while offline doesn't back off a feed, but one while online does")
   func offlineTimeoutDoesNotBackOff() async throws {
     _ = try await insertPodcast(index: 0, lastUpdate: start.addingTimeInterval(-5 * 3600))
