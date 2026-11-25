@@ -278,11 +278,14 @@ For focused application tests, use My Mac by default with
 `-only-testing:PodHavenTests/SomeSuite`; method filters can report success while
 running zero tests.
 
-Run focused tests with `bin/with-my-mac-lock env -u SDKROOT xcodebuild test ...`
-so they take a [validation slot](#validation-slots) and the
-[My Mac test lock](#my-mac-test-lock), and Xcode selects the SDK for the
+Run focused tests with the README's
+[suite command](../README.md#run-a-specific-test-suite). Its
+`bin/with-my-mac-lock env -u SDKROOT` prefix takes a
+[validation slot](#validation-slots) and the
+[My Mac test lock](#my-mac-test-lock), and lets Xcode select the SDK for the
 requested destination; `bin/test-all` takes both and clears inherited `SDKROOT`
-itself.
+itself. Without its `-skipMacroValidation`, the build stops on package macros
+that Xcode hasn't approved.
 
 Run `bin/test-all --preflight` to check the Xcode, Swift, and macOS versions
 without running tests. Release commands run this preflight too.
