@@ -808,6 +808,13 @@ and helper tests under `.agents`, on each pushed revision that changes tooling,
 in a disposable linked worktree, and Git refuses the push when it fails or
 cannot run. Uncommitted edits neither hide nor cause a failure.
 
+A gate that SIGTERM or SIGHUP stops, as a closing terminal or an agent's
+command timeout does, still removes its worktree. SIGKILL can't be caught, so
+each gate run first removes the `podhaven-pre-push-*` worktrees that killed
+gates left registered. A running gate holds a lock in its worktree's folder,
+so no other gate removes it, even one pushing from another worktree of the
+clone.
+
 Tooling is every path under `bin/` and `.agents/`, including pages, because
 tooling tests read skill prose, and every other non-Markdown path outside the
 application targets except `.project-starter.json`. No tooling test depends on
