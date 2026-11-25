@@ -32,6 +32,12 @@ def driver(holder, *command):
     return [sys.executable, "-B", "-c", DRIVER, str(BIN), holder, *command]
 
 
+def queued(ahead):
+    if not ahead:
+        return "Next in line for a validation slot\n"
+    return f"Queued behind {ahead} earlier waiting run{'s' if ahead > 1 else ''}\n"
+
+
 class ValidationSlotTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="podhaven validation slot ")
@@ -59,11 +65,26 @@ class ValidationSlotTests(unittest.TestCase):
         process.stdin.close()
         self.assertEqual(hang_guard.wait(process), 0)
 
-    def assert_waiting(self, process, count, *holders):
+    def assert_waiting(self, process, count, *holders, ahead=0):
+        """Read a waiting run's report of each slot's holder, as a process ID and command or None for a free slot."""
         self.assertEqual(process.stderr.readline(),
                          f"Waiting for a validation slot (PODHAVEN_VALIDATION_SLOTS={count}), held by:\n")
-        for number, (pid, holder) in enumerate(holders, 1):
-            self.assertRegex(process.stderr.readline(), rf"^  slot {number}: pid {pid} since .+: {holder}\n$")
+        for number, holder in enumerate(holders, 1):
+            if holder is None:
+                self.assertEqual(process.stderr.readline(), f"  slot {number}: free\n")
+            else:
+                self.assertRegex(process.stderr.readline(),
+                                 rf"^  slot {number}: pid {holder[0]} since .+: {holder[1]}\n$")
+        if ahead:
+            self.assertEqual(process.stderr.readline(), queued(ahead))
+
+    def assert_changed(self, process, holder, ahead):
+        self.assertRegex(process.stderr.readline(),
+                         rf"^Validation slot 1 is now held by pid {holder[0]} since .+: {holder[1]}\n$")
+        self.assertEqual(process.stderr.readline(), queued(ahead))
+
+    def queue(self):
+        return sorted((self.slots / "validation-queue").iterdir())
 
     def test_a_run_waits_while_every_slot_is_held_and_names_the_holders(self):
         first = self.hold("first")
@@ -86,6 +107,64 @@ class ValidationSlotTests(unittest.TestCase):
         os.kill(holder.pid, signal.SIGKILL)
         self.assertEqual(hang_guard.wait(holder), -signal.SIGKILL)
         self.assertEqual(waiter.stderr.readline(), "Took validation slot 1\n")
+        self.assertEqual(waiter.stdout.read(), "held waiter\nran\n")
+        self.assertEqual(hang_guard.wait(waiter), 0)
+
+    def test_waiting_runs_take_the_slot_in_the_order_they_began_waiting(self):
+        holder = self.hold("holder", PODHAVEN_VALIDATION_SLOTS="1")
+        waiters = []
+        for ahead, name in enumerate(("first", "second", "third")):
+            waiters.append(self.start(driver(name), PODHAVEN_VALIDATION_SLOTS="1"))
+            self.assert_waiting(waiters[-1], 1, (holder.pid, "holder"), ahead=ahead)
+        # Stopping the oldest waiter leaves the freed slot free past every later run's poll, as a slow poll can.
+        os.kill(waiters[0].pid, signal.SIGSTOP)
+        self.release(holder)
+        last = self.start(driver("fourth", "/bin/echo", "ran"), PODHAVEN_VALIDATION_SLOTS="1")
+        self.assert_waiting(last, 1, None, ahead=3)
+        os.kill(waiters[0].pid, signal.SIGCONT)
+        waiters.append(last)
+        for index, name in enumerate(("first", "second", "third")):
+            taker = waiters[index]
+            self.assertEqual(taker.stderr.readline(), "Took validation slot 1\n")
+            self.assertEqual(taker.stdout.readline(), f"held {name}\n")
+            for ahead, waiter in enumerate(waiters[index + 1:]):
+                self.assert_changed(waiter, (taker.pid, name), ahead)
+            self.release(taker)
+        self.assertEqual(last.stderr.read(), "Took validation slot 1\n")
+        self.assertEqual(last.stdout.read(), "held fourth\nran\n")
+        self.assertEqual(hang_guard.wait(last), 0)
+        self.assertEqual(self.queue(), [])
+
+    def test_a_waiting_run_that_is_killed_leaves_the_queue(self):
+        holder = self.hold("holder", PODHAVEN_VALIDATION_SLOTS="1")
+        first = self.start(driver("first"), PODHAVEN_VALIDATION_SLOTS="1")
+        self.assert_waiting(first, 1, (holder.pid, "holder"))
+        second = self.start(driver("second", "/bin/echo", "ran"), PODHAVEN_VALIDATION_SLOTS="1")
+        self.assert_waiting(second, 1, (holder.pid, "holder"), ahead=1)
+        self.assertEqual(len(self.queue()), 2)
+        os.kill(first.pid, signal.SIGKILL)
+        self.assertEqual(hang_guard.wait(first), -signal.SIGKILL)
+        self.assertEqual(second.stderr.readline(), queued(0))
+        self.assertEqual(len(self.queue()), 1)
+        self.release(holder)
+        self.assertEqual(second.stderr.read(), "Took validation slot 1\n")
+        self.assertEqual(second.stdout.read(), "held second\nran\n")
+        self.assertEqual(hang_guard.wait(second), 0)
+        self.assertEqual(self.queue(), [])
+
+    def test_a_nested_run_reuses_its_slot_ahead_of_waiting_runs(self):
+        # The nested run starts after another run queues for the only slot, which its own outer run holds.
+        outer = self.start(driver("outer", "/bin/sh", "-c", 'read line && exec "$@"', "sh",
+                                  *driver("inner", "/bin/echo", "nested")), PODHAVEN_VALIDATION_SLOTS="1")
+        self.assertEqual(outer.stdout.readline(), "held outer\n")
+        waiter = self.start(driver("waiter", "/bin/echo", "ran"), PODHAVEN_VALIDATION_SLOTS="1")
+        self.assert_waiting(waiter, 1, (outer.pid, "outer"))
+        outer.stdin.write("go\n")
+        outer.stdin.close()
+        self.assertEqual(outer.stdout.read(), "held inner\nnested\n")
+        self.assertEqual(outer.stderr.read(), "")
+        self.assertEqual(hang_guard.wait(outer), 0)
+        self.assertEqual(waiter.stderr.read(), "Took validation slot 1\n")
         self.assertEqual(waiter.stdout.read(), "held waiter\nran\n")
         self.assertEqual(hang_guard.wait(waiter), 0)
 

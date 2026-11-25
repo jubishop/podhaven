@@ -426,10 +426,25 @@ no slot when run on their own.
 Each slot is an advisory file lock, `~/.cache/podhaven/validation-slot-<n>.lock`,
 which holds a one-line record of its holder's process ID, start time, command,
 and checkout. The system releases a slot when its holder exits or is killed,
-so no stale slot outlives a run. While every slot is held, a run prints each
-holder, polls for a free slot at a short interval, and waits without a time
-limit; it says which slot it took. Every run waits, whether interactive or
-unattended.
+so no stale slot outlives a run. Every run waits without a time limit, whether
+interactive or unattended, and says which slot it took.
+
+**Decision — 2026-11-24:** Waiting runs take free slots in the order they
+began waiting, so a run is never passed over. Before, whichever waiter polled
+first after a release won, and on 2026-11-24 one run waited 15 minutes
+while four that began waiting later took slots ahead of it. A run that finds
+no slot free, or earlier runs still waiting, holds the lock on a numbered
+ticket in `~/.cache/podhaven/validation-queue/` until it takes a slot, so a
+waiter that exits or is killed leaves the queue at once, and the next run to
+look deletes its file. Only the oldest live waiter takes a free slot. A short
+lock, `~/.cache/podhaven/validation-queue.lock`, guards the queue; nothing
+waits for anything else while holding it. A waiting run polls at a short
+interval and prints the holders and how many earlier runs wait ahead of it,
+then each slot's new holder and its new place whenever they change.
+
+A run from a checkout that predates the queue ignores it and can still take a
+freed slot ahead of the queue, but every run takes a slot through the same
+lock, so no slot ever has two holders.
 
 A nested run reuses the slot it runs inside instead of waiting on itself. The
 holder exports `PODHAVEN_VALIDATION_SLOT`, which names the slot's file and
