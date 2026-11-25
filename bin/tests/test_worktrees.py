@@ -74,6 +74,8 @@ class CacheTests(unittest.TestCase):
         self.artifact.write_text("Keep the shared artifact")
         (self.shared / "artifacts/direct").mkdir()
         (self.shared / "artifacts/direct/Direct.xcframework").write_text("Recorded through the seed itself")
+        (self.shared / "artifacts/custom").mkdir()
+        (self.shared / "artifacts/custom/Custom.xcframework").write_text("Recorded through a deleted custom location")
         (self.shared / "repositories/Factory-1/objects").mkdir(parents=True)
         git = self.shared / "checkouts/Factory/.git"
         (git / "objects/info").mkdir(parents=True)
@@ -88,7 +90,8 @@ class CacheTests(unittest.TestCase):
             path.chmod(0o444)
         (self.shared / "workspace-state.json").write_text(json.dumps({"version": 7, "object": {
             "artifacts": [{"path": str(alias / "artifacts/sentry/Sentry.xcframework")},
-                          {"path": str(self.shared / "artifacts/direct/Direct.xcframework")}],
+                          {"path": str(self.shared / "artifacts/direct/Direct.xcframework")},
+                          {"path": str(self.base / "repro/dd after/SourcePackages/artifacts/custom/Custom.xcframework")}],
             "dependencies": [
                 {"subpath": "Factory", "state": {"name": "sourceControlCheckout", "checkoutState": {"revision": REVISION}}},
                 {"subpath": "podhavenmacros", "state": {"name": "fileSystem", "path": str(self.repo / "PodHavenMacros")}},
@@ -247,7 +250,8 @@ class CacheTests(unittest.TestCase):
             state = json.loads((folder / "workspace-state.json").read_text())["object"]
             self.assertEqual([artifact["path"] for artifact in state["artifacts"]],
                              [str(folder / "artifacts/sentry/Sentry.xcframework"),
-                              str(folder / "artifacts/direct/Direct.xcframework")])
+                              str(folder / "artifacts/direct/Direct.xcframework"),
+                              str(folder / "artifacts/custom/Custom.xcframework")])
             self.assertEqual(Path(state["artifacts"][0]["path"]).read_text(), "Keep the shared artifact")
             self.assertEqual(state["dependencies"][1]["state"]["path"], str(self.repo / "PodHavenMacros"))
             git = folder / "checkouts/Factory/.git"

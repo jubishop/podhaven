@@ -251,9 +251,9 @@ def clone_packages(paths, target):
         shutil.rmtree(staging)
     clonefile(paths["packages"], staging)
     try:
-        # SwiftPM records absolute paths through whichever folder resolved them: the seed or a checkout's link.
-        roots = re.compile("(?:" + re.escape(str(paths["packages"])) + "|" + re.escape(str(paths["derived"]))
-                           + r"/PodHaven-[a-z]+/SourcePackages)(?=/|$)", re.M)
+        # SwiftPM records absolute paths through whichever folder resolved them: the seed itself or a
+        # SourcePackages link in any DerivedData, deleted or not.
+        roots = re.compile("(?:" + re.escape(str(paths["packages"])) + r"|(?:/[^/\n]+)+?/SourcePackages)(?=/|$)", re.M)
 
         def staged(value):
             path = Path(value)

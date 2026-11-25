@@ -10,7 +10,7 @@ Use the [development workflow](../docs/development-workflow.md) for maintained s
 
 ## Stale SwiftPM artifact paths
 
-Since jubishop/podhaven#1012, each checkout holds a private clone of the seed whose recorded paths preparation moves into the clone, so this failure reaches only a checkout that still links the seed; `bin/prep-worktree` gives it a clone.
+Since jubishop/podhaven#1012, each checkout holds a private clone of the seed, and preparation moves the clone's recorded paths into it, including paths through a deleted custom DerivedData such as a repro's (jubishop/podhaven#1017). This failure now reaches only a checkout that still links the seed; `bin/prep-worktree` gives it a clone.
 
 When cleanup deletes a removed worktree's DerivedData, the shared clone's `workspace-state.json` may still record Sentry xcframework paths through that deleted DerivedData. Every remaining worktree then fails with `error: There is no XCFramework found at '~/Library/Developer/Xcode/DerivedData/PodHaven-<hash>/SourcePackages/artifacts/sentry-cocoa/Sentry/Sentry.xcframework'` even though the artifacts still exist under `~/Library/Developer/SharedSourcePackages/PodHaven/artifacts/`.
 

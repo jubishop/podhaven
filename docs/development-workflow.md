@@ -131,9 +131,9 @@ switched would still fail builds, and serializing resolution can't hold raw
 Each checkout gets private DerivedData at Xcode's default path, and its
 `SourcePackages` is an APFS copy-on-write clone of the seed,
 `~/Library/Developer/SharedSourcePackages/PodHaven`. SwiftPM records absolute
-paths through whichever folder resolved them, so preparation moves those in the
-clone's `workspace-state.json` and in each package checkout's Git alternates
-and origin into the clone. It refuses a clone whose checkouts or artifacts
+paths through whichever folder resolved them, even a since-deleted custom
+DerivedData, so preparation moves those in the clone's `workspace-state.json`
+and in each package checkout's Git alternates and origin into the clone. It refuses a clone whose checkouts or artifacts
 don't match that metadata, as when the seed was caught mid-update, and Xcode
 then resolves the checkout's packages afresh. Builds never update the seed, so
 a clone fetches only what its pins need beyond it. Preparation also replaces a
