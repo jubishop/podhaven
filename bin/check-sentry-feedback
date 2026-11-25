@@ -21,19 +21,8 @@ while IFS= read -r feedback; do
   SLUG="podhaven:$ID"
   ISSUE_MARKER="<!-- sentry-feedback:$SLUG -->"
 
-  # Each feedback item is one submission, so its tracking issue stays its record even after closing.
-  MATCH="$(jq -c \
-    --arg marker "$ISSUE_MARKER" \
-    --arg permalink "$PERMALINK" \
-    '(
-      first(.[] | select((.body // "") | contains($marker)))
-      // first(.[] | select((.body // "") | contains($permalink)))
-      // empty
-    ) | . + {
-      analyzed: ((.body // "")
-        | contains("<!-- analyze-sentry-feedback-findings:start -->")
-          and contains("<!-- analyze-sentry-feedback-findings:end -->"))
-    }' \
+  MATCH="$(jq -c -L "$(dirname "${BASH_SOURCE[0]}")" --arg slug "$SLUG" --arg permalink "$PERMALINK" \
+    'include "_sentry_feedback_tracking"; sentry_feedback_tracking($slug; $permalink) | first // empty' \
     "$ISSUES_JSON")"
 
   if [[ -n "$MATCH" ]]; then

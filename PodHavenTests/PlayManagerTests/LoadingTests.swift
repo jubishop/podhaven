@@ -674,6 +674,20 @@ import Testing
     }
   }
 
+  @Test("episode intent reports a failed load")
+  func episodeIntentReportsFailedLoad() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      error: TestError.assetLoadFailure(podcastEpisode)
+    )
+
+    await #expect(throws: (any Error).self) {
+      let result = try await PlayEpisodeIntent(episodeID: podcastEpisode.id.rawValue).perform()
+      withExtendedLifetime(result) {}
+    }
+  }
+
   @Test("audio session recovers on next load attempt after prior failure")
   func audioSessionRecoversOnNextLoadAttemptAfterPriorFailure() async throws {
     await playManager.start()

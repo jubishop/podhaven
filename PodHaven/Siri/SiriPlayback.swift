@@ -76,7 +76,10 @@ final class SiriPlayback {
   private func begin(
     completion: @escaping SiriMediaIntentHandler.Completion
   ) -> SiriMediaIntentHandler.PlaybackSelection {
-    request?.finish(.failure)
+    if let previous = self.request {
+      Self.log.info("Siri playback superseded by a newer Siri request")
+      previous.finish(.failure)
+    }
     let request = Request(completion: completion)
     self.request = request
     let showNowPlaying = presentation?.show
@@ -87,6 +90,7 @@ final class SiriPlayback {
         guard !Task.isCancelled, let self, let request, self.request === request else { return }
         if changed != revision && changed != request.playbackID {
           self.request = nil
+          Self.log.info("Siri playback superseded by another playback request")
           request.finish(.failure)
           return
         }
@@ -123,24 +127,39 @@ final class SiriPlayback {
         request.finish(.failure)
       }
       await appLauncher.prepareForPlayback()
-      guard !Task.isCancelled, self.request === request else { return }
+      guard !Task.isCancelled, self.request === request else {
+        Self.log.info("Siri playback superseded while preparing: media=\(selection.identity.id)")
+        return
+      }
       do {
         let identity = selection.identity
         let episode: PodcastEpisode?
         switch identity.kind {
         case .episode:
           episode = try await repo.podcastEpisode(Episode.ID(identity.id))
-          guard let episode,
-            episode.feedURL.absoluteString == identity.feed,
+          guard let episode else {
+            Self.log.notice("Siri episode not found: media=\(identity.id)")
+            return
+          }
+          guard episode.feedURL.absoluteString == identity.feed,
             episode.episode.guid.rawValue == identity.guid,
             "\(episode.title) — \(episode.podcastTitle)" == selection.title
-          else { return }
+          else {
+            Self.log.notice("Siri episode changed since cataloging: media=\(identity.id)")
+            return
+          }
         case .podcast:
           let series = try await repo.podcastSeries(Podcast.ID(identity.id))
-          guard let series,
-            series.podcast.feedURL.absoluteString == identity.feed,
+          guard let series else {
+            Self.log.notice("Siri podcast not found: media=\(identity.id)")
+            return
+          }
+          guard series.podcast.feedURL.absoluteString == identity.feed,
             series.podcast.title == selection.title
-          else { return }
+          else {
+            Self.log.notice("Siri podcast changed since cataloging: media=\(identity.id)")
+            return
+          }
           let unfinished = series.episodes.filter { $0.finishDate == nil }
           let chosen =
             unfinished.first { $0.id == sharedState.currentEpisodeID }
@@ -156,9 +175,19 @@ final class SiriPlayback {
           episode = try await repo.podcastEpisode(chosen.id)
         }
         guard !Task.isCancelled, self.request === request,
-          playManager.playbackRequestRevision == revision,
-          Container.shared.siriAuthorized()(), let episode
-        else { return }
+          playManager.playbackRequestRevision == revision
+        else {
+          Self.log.info("Siri playback superseded before loading: media=\(identity.id)")
+          return
+        }
+        guard Container.shared.siriAuthorized()() else {
+          Self.log.notice("Siri authorization revoked before loading: media=\(identity.id)")
+          return
+        }
+        guard let episode else {
+          Self.log.notice("Siri podcast episode not found: media=\(identity.id)")
+          return
+        }
         guard
           try await Container.shared.siriCatalogFile().read().generation
             == selection.catalogGeneration
@@ -167,32 +196,55 @@ final class SiriPlayback {
           return
         }
         guard !Task.isCancelled, self.request === request,
-          playManager.playbackRequestRevision == revision, Container.shared.siriAuthorized()()
-        else { return }
+          playManager.playbackRequestRevision == revision
+        else {
+          Self.log.info("Siri playback superseded before playing: media=\(identity.id)")
+          return
+        }
+        guard Container.shared.siriAuthorized()() else {
+          Self.log.notice("Siri authorization revoked before playing: media=\(identity.id)")
+          return
+        }
         let outcome = try await playManager.play(
           episode,
           replacing: revision,
           requestID: request.playbackID
         )
-        guard outcome == .ready, !Task.isCancelled, self.request === request else { return }
+        guard outcome == .ready else {
+          Self.log.notice("Siri playback \(outcome): episode=\(episode.id)")
+          return
+        }
+        guard !Task.isCancelled, self.request === request else {
+          Self.log.info("Siri playback superseded after loading: episode=\(episode.id)")
+          return
+        }
         let states = sharedState.$playbackStatus.stream()
         for await state in states {
           guard !Task.isCancelled, self.request === request,
             playManager.playbackRequestRevision == request.playbackID,
             sharedState.currentEpisodeID == episode.id
-          else { return }
+          else {
+            Self.log.info("Siri playback superseded while starting: episode=\(episode.id)")
+            return
+          }
           if state.playing {
             guard await playManager.settledOnDeckID == episode.id,
               !Task.isCancelled, self.request === request,
               playManager.playbackRequestRevision == request.playbackID,
               sharedState.currentEpisodeID == episode.id
-            else { return }
+            else {
+              Self.log.info("Siri playback superseded while settling: episode=\(episode.id)")
+              return
+            }
             showNowPlaying?()
             Self.log.info("Siri playback ready: episode=\(episode.id)")
             request.finish(.success)
             return
           }
-          if state.stopped { return }
+          if state.stopped {
+            Self.log.notice("Siri playback stopped before it started: episode=\(episode.id)")
+            return
+          }
         }
       } catch {
         Self.log.caughtError("Siri playback failed: media=\(selection.identity.id)", error)

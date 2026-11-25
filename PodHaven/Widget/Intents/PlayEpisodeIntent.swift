@@ -29,16 +29,26 @@ struct PlayEpisodeIntent: AudioPlaybackIntent {
     let playManager = Container.shared.playManager()
     let id = Episode.ID(rawValue: Int64(episodeID))
 
+    let result: PlayManager.SelectionResult
     do {
       guard let podcastEpisode = try await repo.podcastEpisode(id) else {
         Self.log.warning("perform: episode \(id) not found")
         return .result()
       }
-      try await playManager.play(podcastEpisode)
+      result = try await playManager.play(podcastEpisode)
     } catch {
       Self.log.caughtError("perform: failed for episode \(id)", error)
+      throw error
     }
 
+    switch result {
+    case .ready:
+      break
+    case .superseded:
+      Self.log.info("perform: playback of episode \(id) was superseded")
+    case .unavailable:
+      Self.log.notice("perform: episode \(id) is unavailable for playback")
+    }
     return .result()
     #else
     Assert.fatal("PlayEpisodeIntent should never execute in widget process")
