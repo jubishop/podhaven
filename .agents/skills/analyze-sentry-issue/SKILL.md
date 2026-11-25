@@ -85,8 +85,8 @@ bin/knowledge search "<terms>"
 
 ## Step 3: Fetch the evidence
 
-Fetch the issue into an empty directory under the working directory with
-`.agents/scripts/sentry-cli/fetch_issue_bundle.sh`; its
+Fetch the issue into an empty directory under the triage's working directory
+with `.agents/scripts/sentry-cli/fetch_issue_bundle.sh`; its
 [response contracts](../../scripts/sentry-cli/README.md) give the bundle's
 files. Pass an event query only when the user scoped the investigation; if it
 matches nothing, adjust the scope or report the absence.

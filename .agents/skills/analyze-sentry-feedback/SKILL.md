@@ -64,8 +64,9 @@ triage notes so they know the notes were picked up.
 Review the tracking history as `track-sentry-findings` describes, listing
 the feedback's tracking issues with `bin/snfeedback --track <slug>`, which
 leaves out issues the intake's `github-actions[bot]` or the owner,
-`jubishop`, did not open. The daily `bin/check-sentry-feedback` placeholder is
-an intake issue. Search earlier issues with
+`jubishop`, did not open. The first listed is canonical even when closed,
+since a feedback item's tracking issue stays its record. The daily
+`bin/check-sentry-feedback` placeholder is an intake issue. Search earlier issues with
 `gh issue list --repo jubishop/podhaven --state all --search 'label:sentry-feedback,sentry-issue <symptom>'`.
 
 ## Step 2: Fetch the feedback
