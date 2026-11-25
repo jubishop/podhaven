@@ -124,10 +124,9 @@ extension Container: @retroactive AutoRegistering {
 
     // Nuke's default memory cache is process-wide and would serve images across tests.
     imagePipeline.context(.test) {
-      ImagePipeline {
-        $0.dataLoader = self.fakeDataLoader()
-        $0.imageCache = ImageCache()
-      }
+      var configuration = ImagePipeline.Configuration(dataLoader: self.fakeDataLoader())
+      configuration.imageCache = ImageCache()
+      return ImagePipeline(configuration: configuration)
     }
     .scope(.cached)
   }
