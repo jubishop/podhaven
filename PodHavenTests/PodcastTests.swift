@@ -196,7 +196,7 @@ class PodcastTests {
 
     let allPodcasts = try await repo.allPodcasts(
       AppDB.noOp,
-      order: Podcast.Columns.lastUpdate.asc,
+      order: [Podcast.Columns.lastUpdate.asc],
       limit: Int.max
     )
     #expect(allPodcasts.count == 3)
@@ -207,14 +207,14 @@ class PodcastTests {
 
     let limitedPodcasts = try await repo.allPodcasts(
       AppDB.noOp,
-      order: Podcast.Columns.id.asc,
+      order: [Podcast.Columns.id.asc],
       limit: 2
     )
     #expect(limitedPodcasts.count == 2)
 
     let subscribedPodcasts = try await repo.allPodcasts(
       Podcast.subscribed,
-      order: Podcast.Columns.id.asc,
+      order: [Podcast.Columns.id.asc],
       limit: Int.max
     )
     #expect(Set(subscribedPodcasts) == Set([staleSeries.podcast, freshSeries.podcast]))
