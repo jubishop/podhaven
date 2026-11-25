@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 
 enum ShareLauncher {
   private static let log = Logger(subsystem: "PodHavenShare", category: "ShareLauncher")
+  private static let maximumFileBytes = 32 * 1024 * 1024
 
   static func execute(
     from application: UIApplication,
@@ -71,12 +72,16 @@ enum ShareLauncher {
       )
     else { fatalError("App group container not found for \(appGroupID)") }
 
+    guard let fileSize = try sourceURL.resourceValues(forKeys: [.fileSizeKey]).fileSize
+    else { throw ShareExtensionError.fileSizeUnavailable }
+    guard fileSize <= maximumFileBytes
+    else { throw ShareExtensionError.fileTooLarge(fileSize) }
+
     let fileExtension = sourceURL.pathExtension
     let filename = "shared_file_\(UUID().uuidString).\(fileExtension)"
     let shareURL = sharedContainer.appendingPathComponent(filename)
 
-    let data = try Data(contentsOf: sourceURL)
-    try data.write(to: shareURL)
+    try FileManager.default.copyItem(at: sourceURL, to: shareURL)
 
     log.debug("Successfully copied file to shared container: \(shareURL, privacy: .public)")
     return shareURL

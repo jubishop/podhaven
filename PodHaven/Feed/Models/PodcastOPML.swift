@@ -57,6 +57,29 @@ struct PodcastOPML: Codable, Sendable {
     return try decoder.decode(PodcastOPML.self, from: data)
   }
 
+  @concurrent static func isOPML(_ data: Data) async -> Bool {
+    let detector = RootElementDetector()
+    let parser = XMLParser(data: data)
+    unsafe parser.delegate = detector
+    parser.parse()
+    return detector.rootElementName?.lowercased() == "opml"
+  }
+
+  private final class RootElementDetector: NSObject, XMLParserDelegate {
+    private(set) var rootElementName: String?
+
+    func parser(
+      _ parser: XMLParser,
+      didStartElement elementName: String,
+      namespaceURI: String?,
+      qualifiedName qName: String?,
+      attributes attributeDict: [String: String] = [:]
+    ) {
+      rootElementName = elementName
+      parser.abortParsing()
+    }
+  }
+
   // MARK: - Nesting Limit
 
   // XMLCoder decodes the recursive Outline model recursively, so deep nesting overflows the stack.
