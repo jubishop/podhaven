@@ -110,13 +110,14 @@ class EpisodeRefreshTests {
       id: updatedEpisode.id,
       from: updatedEpisode.unsaved
     )
-    let newEpisodes = try await repo.updateSeriesFromFeed(
+    let automation = try await repo.updateSeriesFromFeed(
       podcast: updatedPodcast,
       updatedPodcast: updatedPodcast,
       unsavedEpisodes: [newUnsavedEpisode],
       existingEpisodes: [updatedFeedMergeEpisode]
     )
-    #expect(newEpisodes.map(\.mediaGUID) == [newUnsavedEpisode.mediaGUID])
+    #expect(automation?.episodes.map(\.mediaGUID) == [newUnsavedEpisode.mediaGUID])
+    #expect(automation?.podcast.title == newPodcastTitle)
 
     // Step 4: Confirm user state from step 2 wasn't overwritten by step 3
     let updatedSeries = try await repo.podcastSeries(originalPodcast.id)!
@@ -222,13 +223,12 @@ class EpisodeRefreshTests {
       title: "Shared episode in B"
     )
 
-    let inserted = try await repo.updateSeriesFromFeed(
+    try await repo.updateSeriesFromFeed(
       podcast: seriesB.podcast,
       updatedPodcast: nil,
       unsavedEpisodes: [duplicate],
       existingEpisodes: []
     )
-    #expect(inserted.map(\.mediaGUID) == [duplicate.mediaGUID])
 
     let refreshedB = try await repo.podcastSeries(seriesB.podcast.id)
     #expect(refreshedB?.episodes.contains { $0.mediaGUID == duplicate.mediaGUID } == true)
@@ -245,7 +245,11 @@ class EpisodeRefreshTests {
   @Test("auto-queue limit trims the queue to a podcast's N newest episodes by pubDate")
   func autoQueueLimitKeepsNewestByPubDate() async throws {
     // Auto-queue on bottom, but keep only the two newest episodes queued.
-    let podcast = try await Create.podcast(queueAllEpisodes: .onBottom, autoQueueLimit: 2)
+    let podcast = try await Create.podcast(
+      subscriptionDate: Date(),
+      queueAllEpisodes: .onBottom,
+      autoQueueLimit: 2
+    )
 
     // Three episodes arrive in one refresh. Their feed order deliberately differs
     // from pubDate order so the test proves the OLDEST by pubDate is dropped, not
@@ -260,7 +264,7 @@ class EpisodeRefreshTests {
       unsavedEpisodes: [oldest, newest, middle],
       existingEpisodes: []
     )
-    #expect(newEpisodes.count == 3)
+    #expect(newEpisodes?.episodes.count == 3)
 
     let queuedTitles = try await repo.db.read { db in
       Set(try Episode.all().queued().fetchAll(db).map(\.title))
@@ -268,26 +272,63 @@ class EpisodeRefreshTests {
     #expect(queuedTitles == ["newest", "middle"])
   }
 
-  @Test("auto-queue limit is ignored when autoQueueLimit is unset")
-  func autoQueueLimitUnsetKeepsEverything() async throws {
-    let podcast = try await Create.podcast(queueAllEpisodes: .onBottom, autoQueueLimit: nil)
+  @Test("auto-queue on bottom without autoQueueLimit appends the default limit's newest, oldest first")
+  func autoQueueOnBottomWithoutLimitAppendsDefaultLimitOldestFirst() async throws {
+    let podcast = try await Create.podcast(
+      subscriptionDate: Date(),
+      queueAllEpisodes: .onBottom,
+      autoQueueLimit: nil
+    )
+    let limit = PodcastSettings.defaultAutoQueueLimit
+    let newestFirstTitles = (0..<(limit + 2)).map { "episode \($0)" }
 
-    let newEpisodes = try await repo.updateSeriesFromFeed(
+    _ = try await repo.updateSeriesFromFeed(
       podcast: podcast,
       updatedPodcast: nil,
-      unsavedEpisodes: [
-        try Create.unsavedEpisode(title: "a", pubDate: 300.minutesAgo),
-        try Create.unsavedEpisode(title: "b", pubDate: 200.minutesAgo),
-        try Create.unsavedEpisode(title: "c", pubDate: 100.minutesAgo),
-      ],
+      unsavedEpisodes: try newestFirstTitles.enumerated()
+        .map { index, title in
+          try Create.unsavedEpisode(title: title, pubDate: (index + 1).hoursAgo)
+        },
       existingEpisodes: []
     )
-    #expect(newEpisodes.count == 3)
 
-    let queuedCount = try await repo.db.read { db in
-      try Episode.all().queued().fetchCount(db)
+    let queuedTitles = try await repo.db.read { db in
+      try Episode.all().queued().order(\.queueOrder.asc).fetchAll(db).map(\.title)
     }
-    #expect(queuedCount == 3)
+    #expect(queuedTitles == Array(newestFirstTitles.prefix(limit).reversed()))
+  }
+
+  @Test("auto-queue on top without autoQueueLimit unshifts the default limit's newest, newest first")
+  func autoQueueOnTopWithoutLimitUnshiftsDefaultLimitNewestFirst() async throws {
+    let other = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "other")]
+      )
+    )
+    try await queue.append(other.episodes.map(\.id))
+    let podcast = try await Create.podcast(
+      subscriptionDate: Date(),
+      queueAllEpisodes: .onTop,
+      autoQueueLimit: nil
+    )
+    let limit = PodcastSettings.defaultAutoQueueLimit
+    let newestFirstTitles = (0..<(limit + 2)).map { "episode \($0)" }
+
+    _ = try await repo.updateSeriesFromFeed(
+      podcast: podcast,
+      updatedPodcast: nil,
+      unsavedEpisodes: try newestFirstTitles.enumerated().reversed()
+        .map { index, title in
+          try Create.unsavedEpisode(title: title, pubDate: (index + 1).hoursAgo)
+        },
+      existingEpisodes: []
+    )
+
+    let queuedTitles = try await repo.db.read { db in
+      try Episode.all().queued().order(\.queueOrder.asc).fetchAll(db).map(\.title)
+    }
+    #expect(queuedTitles == Array(newestFirstTitles.prefix(limit)) + ["other"])
   }
 
   @Test("auto-queue limit is not enforced on a refresh that queues no new episodes")
@@ -296,7 +337,11 @@ class EpisodeRefreshTests {
     // two of the podcast's episodes — already above the limit.
     let podcastSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(queueAllEpisodes: .onBottom, autoQueueLimit: 1),
+        unsavedPodcast: try Create.unsavedPodcast(
+          subscriptionDate: Date(),
+          queueAllEpisodes: .onBottom,
+          autoQueueLimit: 1
+        ),
         unsavedEpisodes: [
           try Create.unsavedEpisode(title: "older", pubDate: 200.minutesAgo),
           try Create.unsavedEpisode(title: "newer", pubDate: 100.minutesAgo),
@@ -312,7 +357,7 @@ class EpisodeRefreshTests {
       unsavedEpisodes: [],
       existingEpisodes: []
     )
-    #expect(newEpisodes.isEmpty)
+    #expect(newEpisodes == nil)
 
     // Both manually-queued episodes survive: the limit only trims when an
     // episode is actually auto-queued, not on every feed change.
@@ -331,7 +376,11 @@ class EpisodeRefreshTests {
 
     let podcastSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(queueAllEpisodes: .onBottom, autoQueueLimit: 2),
+        unsavedPodcast: try Create.unsavedPodcast(
+          subscriptionDate: Date(),
+          queueAllEpisodes: .onBottom,
+          autoQueueLimit: 2
+        ),
         unsavedEpisodes: [
           try Create.unsavedEpisode(title: "oldest", pubDate: 300.minutesAgo),
           try Create.unsavedEpisode(title: "middle", pubDate: 200.minutesAgo),
@@ -348,7 +397,7 @@ class EpisodeRefreshTests {
       unsavedEpisodes: [try Create.unsavedEpisode(title: "newest", pubDate: 100.minutesAgo)],
       existingEpisodes: []
     )
-    #expect(newEpisodes.count == 1)
+    #expect(newEpisodes?.episodes.count == 1)
 
     // The oldest is evicted to make room; the two newest remain queued.
     let queuedTitles = try await repo.db.read { db in
@@ -370,7 +419,11 @@ class EpisodeRefreshTests {
     )
     let podcastSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(queueAllEpisodes: .onTop, autoQueueLimit: 2),
+        unsavedPodcast: try Create.unsavedPodcast(
+          subscriptionDate: Date(),
+          queueAllEpisodes: .onTop,
+          autoQueueLimit: 2
+        ),
         unsavedEpisodes: [
           try Create.unsavedEpisode(title: "oldest", pubDate: 300.minutesAgo),
           try Create.unsavedEpisode(title: "middle", pubDate: 200.minutesAgo),
@@ -402,7 +455,11 @@ class EpisodeRefreshTests {
     // The podcast is already over its limit: three episodes queued, limit 2.
     let podcastSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(queueAllEpisodes: .onBottom, autoQueueLimit: 2),
+        unsavedPodcast: try Create.unsavedPodcast(
+          subscriptionDate: Date(),
+          queueAllEpisodes: .onBottom,
+          autoQueueLimit: 2
+        ),
         unsavedEpisodes: [
           try Create.unsavedEpisode(title: "newest", pubDate: 100.minutesAgo),
           try Create.unsavedEpisode(title: "middle", pubDate: 200.minutesAgo),
@@ -412,15 +469,15 @@ class EpisodeRefreshTests {
     )
     try await queue.append(podcastSeries.episodes.map(\.id))
 
-    // A refresh brings a brand-new episode older than everything queued, so it
-    // never survives the limit window and is never auto-queued.
+    // A refresh brings a brand-new episode older than everything stored, so it
+    // is back catalog and is never auto-queued.
     let newEpisodes = try await repo.updateSeriesFromFeed(
       podcast: podcastSeries.podcast,
       updatedPodcast: nil,
       unsavedEpisodes: [try Create.unsavedEpisode(title: "ancient", pubDate: 400.minutesAgo)],
       existingEpisodes: []
     )
-    #expect(newEpisodes.count == 1)
+    #expect(newEpisodes == nil)
 
     // Nothing was auto-queued, so nothing is evicted — all three remain queued.
     let queuedTitles = try await repo.db.read { db in

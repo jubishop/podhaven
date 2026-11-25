@@ -41,7 +41,7 @@ extension PlayManager {
     let shouldAttemptRecovery: Bool
     if let lastRecoveryAttempt,
       lastRecoveryAttempt.episodeID == episodeID,
-      Date().timeIntervalSince(lastRecoveryAttempt.time) < recoveryDebounceInterval
+      continuousClockNow() - lastRecoveryAttempt.time < recoveryDebounceInterval
     {
       shouldAttemptRecovery = false
     } else {
@@ -60,7 +60,7 @@ extension PlayManager {
         Self.log.info(
           "handlePlaybackFailure: attempting auto-recovery for \(podcastEpisode.toString)"
         )
-        lastRecoveryAttempt = (episodeID, Date())
+        lastRecoveryAttempt = (episodeID, continuousClockNow())
         let result: SelectionResult
         switch intent {
         case .play:
@@ -128,7 +128,7 @@ extension PlayManager {
 
   func activateAudioSessionForLoad() throws -> Bool {
     do {
-      try Container.shared.setAudioSessionActive()(true)
+      try audioSession.setActive(true, options: [])
       return true
     } catch {
       let nsError = error as NSError
@@ -177,14 +177,13 @@ extension PlayManager {
     }
 
     // Log audio session state
-    let session = AVAudioSession.sharedInstance()
     Self.log.info(
       """
       logFailureDiagnostics: audio session state
-        category: \(session.category.rawValue)
-        mode: \(session.mode.rawValue)
-        isOtherAudioPlaying: \(session.isOtherAudioPlaying)
-        currentRoute: \(session.currentRoute.outputs.map(\.portType.rawValue))
+        category: \(audioSession.category.rawValue)
+        mode: \(audioSession.mode.rawValue)
+        isOtherAudioPlaying: \(audioSession.isOtherAudioPlaying)
+        currentRoute: \(audioSession.currentRouteOutputs.map(\.rawValue))
       """
     )
   }

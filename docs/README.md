@@ -1,6 +1,6 @@
 # Design Docs
 
-PR-reviewed architecture, initiatives, and research. Use [`memory/`](../memory/README.md) for captured notes and GitHub issues for TODOs.
+Architecture, initiatives, and research. Use [`memory/`](../memory/README.md) for captured notes and GitHub issues for TODOs.
 
 Every doc starts with:
 
@@ -22,14 +22,15 @@ Preserve decision reasons and evidence. Follow the
 - [Project Starter foundation](foundation/README.md): shared engineering and knowledge search policy.
 - [Development workflow](development-workflow.md): setup, search, hooks, cache isolation, dependencies, testing, and validation
 - [Versioning and releases](releases.md): version commits, TestFlight uploads, automated App Store submissions, and retry behavior
-- [Universal Links](universal-links.md): associated domains, website fallback, and coordinated app rollout
+- [Universal Links](universal-links.md): associated domains, website fallback, private feed links, and coordinated app rollout
+- [Files app access](files-app-access.md): why `Documents` stays visible in the Files app on every build, and the live database risk
 - [CarPlay scene lifecycle](carplay-lifecycle.md): startup ownership, connection cleanup, Sentry app-hang gating, protected storage audit, and validation boundaries
 - [CarPlay browsing and playback](carplay-playback.md): live Up Next rows, bounded paging, shared selection ownership, and Now Playing controls
 - [CarPlay MVP automated acceptance](carplay-validation.md): integration evidence matrix, signed builds, reproducible checks, and native/device limits
 - [Siri media playback](siri-media-playback.md): extension catalog, background handoff, playback ownership, and assistant cells
 - [Silence diagnostics](silence-diagnostics.md): local telemetry fields, notice bounds, and the real-world assessment that found pacing unsupported
 - [Foreground termination diagnostics](sentry-termination-diagnostics.md): prior-session log retention, MetricKit exit summaries, launch timelines for watchdog kills, attribution, and validation limits
-- [Recovered-hang diagnostic delivery](sentry-recovered-hang-diagnostics.md): bounded attachments, the temporary hint callback, and SDK migration requirements
+- [Recovered-hang diagnostic delivery](sentry-recovered-hang-diagnostics.md): bounded attachments, the temporary hint callback, the App Hang tracking deprecation exception, and SDK migration requirements
 
 - [OPML import diagnostics](opml-import-diagnostics.md): parse-failure event fields, the attached import file, and the capture limit
 

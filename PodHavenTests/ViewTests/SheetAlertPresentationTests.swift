@@ -31,6 +31,14 @@ import UIKit
     }
   }
 
+  // A window from an earlier scenario can outlive it, and its presenter still presents and clears
+  // the configs of the Alert and Sheet it is bound to, so each scenario resolves its own.
+  private func makeAlertAndSheet() -> (PodHaven.Alert, PodHaven.Sheet) {
+    Container.shared.alert.reset(.scope)
+    Container.shared.sheet.reset(.scope)
+    return (Container.shared.alert(), Container.shared.sheet())
+  }
+
   private func makeWindow(
     alert: PodHaven.Alert,
     sheet: PodHaven.Sheet,
@@ -88,10 +96,7 @@ import UIKit
   }
 
   private func rootAlertPresentsActionsAndDismisses() async throws {
-    let alert = Container.shared.alert()
-    let sheet = Container.shared.sheet()
-    alert.config = nil
-    sheet.config = nil
+    let (alert, sheet) = makeAlertAndSheet()
     let window = try await makeWindow(alert: alert, sheet: sheet, state: ProbeState())
     defer { cleanUpImmediately(window) }
 
@@ -118,10 +123,7 @@ import UIKit
   }
 
   private func alertOverSheetPresents() async throws {
-    let alert = Container.shared.alert()
-    let sheet = Container.shared.sheet()
-    alert.config = nil
-    sheet.config = nil
+    let (alert, sheet) = makeAlertAndSheet()
     let window = try await makeWindow(alert: alert, sheet: sheet, state: ProbeState())
     defer { cleanUpImmediately(window) }
 
@@ -149,10 +151,7 @@ import UIKit
   }
 
   private func sheetDismissalClearsPresentation() async throws {
-    let alert = Container.shared.alert()
-    let sheet = Container.shared.sheet()
-    alert.config = nil
-    sheet.config = nil
+    let (alert, sheet) = makeAlertAndSheet()
     let window = try await makeWindow(alert: alert, sheet: sheet, state: ProbeState())
     defer { cleanUpImmediately(window) }
 
@@ -175,10 +174,7 @@ import UIKit
   }
 
   private func externalSheetDismissalClearsPresentation() async throws {
-    let alert = Container.shared.alert()
-    let sheet = Container.shared.sheet()
-    alert.config = nil
-    sheet.config = nil
+    let (alert, sheet) = makeAlertAndSheet()
     let window = try await makeWindow(alert: alert, sheet: sheet, state: ProbeState())
     defer { cleanUpImmediately(window) }
 
@@ -203,10 +199,7 @@ import UIKit
   }
 
   private func staleSheetConfigClearsWhenPresenterDisappears() async throws {
-    let alert = Container.shared.alert()
-    let sheet = Container.shared.sheet()
-    alert.config = nil
-    sheet.config = nil
+    let (alert, sheet) = makeAlertAndSheet()
     let state = ProbeState()
     let window = try await makeWindow(alert: alert, sheet: sheet, state: state)
     defer { cleanUpImmediately(window) }
@@ -230,10 +223,7 @@ import UIKit
   }
 
   private func olderSheetDisappearDoesNotClearNewerConfig(waitForPresentation: Bool) async throws {
-    let alert = Container.shared.alert()
-    let sheet = Container.shared.sheet()
-    alert.config = nil
-    sheet.config = nil
+    let (alert, sheet) = makeAlertAndSheet()
     let state = ProbeState()
     let window = try await makeWindow(alert: alert, sheet: sheet, state: state)
     defer { cleanUpImmediately(window) }

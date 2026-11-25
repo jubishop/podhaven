@@ -1,5 +1,7 @@
 """Exercise the local test gate with isolated repositories and fake platform tools."""
 
+from datetime import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -14,24 +16,65 @@ import time
 import unittest
 import uuid
 
+import fake_caffeinate
+import hang_guard
 import service_guard
 
 
 ROOT = Path(__file__).resolve().parents[2]
 FAKE = r'''
-import fcntl, json, os, pathlib, signal, subprocess, sys, time, uuid
+import fcntl, hashlib, json, os, pathlib, signal, subprocess, sys, time, uuid
 name = pathlib.Path(sys.argv[0]).name
 args = sys.argv[1:]
 base = pathlib.Path(os.environ['TEST_ALL_FIXTURE'])
 with (base / 'events').open('a') as stream:
     stream.write(json.dumps([name, args]) + '\n')
+# Each checkout's Xcode intermediates, in the run's HOME as Xcode's DerivedData would be.
+xcode_intermediates = (pathlib.Path.home() / 'DerivedData' / hashlib.sha256(os.getcwd().encode()).hexdigest()[:16]
+                       / 'Build/Intermediates.noindex')
+
+
+def build(intermediates, folders, warning):
+    """Build like an incremental build: make only the folders that are missing, so a warning in the project's
+    sources, whose build is the first folder, shows only in a build that compiles them."""
+    if os.environ.get('TEST_INTERMEDIATES_MOVED') == name:
+        intermediates = intermediates.with_name('Moved')
+    for folder in folders:
+        if not (intermediates / folder).is_dir():
+            (intermediates / folder).mkdir(parents=True)
+            if folder == folders[0] and os.environ.get('TEST_SOURCE_WARNING') == name:
+                print(warning)
+
+
 if name == 'xcodebuild' and '-version' in args:
     print('Xcode ' + os.environ.get('TEST_XCODE_VERSION', '27.0'))
+elif name == 'xcodebuild' and '-showBuildSettings' in args:
+    assert args[args.index('-destination') + 1] == 'platform=macOS,name=My Mac'
+    if os.environ.get('TEST_BUILD_SETTINGS_FAILURE'):
+        sys.exit('xcodebuild: error: Could not resolve package dependencies')
+    print(json.dumps([{'action': 'build', 'target': 'PodHaven',
+                       'buildSettings': {'OBJROOT': str(xcode_intermediates)}}]))
 elif name == 'xcrun' and args == ['swift', '--version']:
+    # Like the real driver, this writes its own version to stderr before the compiler's on stdout.
+    print('swift-driver version: 1.168.6 ', end='', file=sys.stderr, flush=True)
     print('Apple Swift version ' + os.environ.get('TEST_SWIFT_VERSION', '6.4'))
 elif name == 'sw_vers':
     print(os.environ.get('TEST_MACOS_VERSION', '27.0'))
 elif name == 'xcrun' and args[:2] == ['swift', 'test']:
+    if os.environ.get('TEST_LOAD_SPIKE'):
+        # Raise the load only until bin/test-all samples it while the macro tests run.
+        spike = os.environ['TEST_LOAD_SPIKE'] + ' 1 1'
+        (base / 'load.new').write_text(spike)
+        os.replace(base / 'load.new', base / 'load')
+        while spike not in (base / 'load-reads').read_text().splitlines():
+            time.sleep(0.01)
+        (base / 'load').unlink()
+    # swift test colors its diagnostics even when its output goes to a file.
+    build(pathlib.Path(args[args.index('--package-path') + 1]) / '.build/out/Intermediates.noindex',
+          ('PodHavenMacros.build', 'swift-syntax.build'),
+          "Sources/SavedMacro/Probe.swift:2:7: \x1b[1;33mwarning: \x1b[1;39mvariable 'value' was never mutated"
+          "\x1b[0;0m \x1b]8;;https://docs.swift.org/compiler/documentation/diagnostics\x1b\\VariableNeverMutated"
+          "\x1b]8;;\x1b\\")
     print('Executed 1 test, with 0 failures')
     if os.environ.get('TEST_MACRO_WARNING'): print('warning: unused result')
 elif name == 'xcodebuild':
@@ -43,10 +86,23 @@ elif name == 'xcodebuild':
             sys.exit('xcodebuild test ran without the My Mac test lock')
         except BlockingIOError:
             pass
+    # bin/test-all starts this xcodebuild, so the run's display assertion waits on this process's parent.
+    table = subprocess.check_output(['ps', '-A', '-ww', '-o', 'pid=,command='], text=True).splitlines()
+    awake = [line.split(None, 1)[0] for line in table if line.endswith(f'/caffeinate -d -u -w {os.getppid()}')]
+    if len(awake) != 1:
+        sys.exit(f'xcodebuild test ran under {len(awake)} display assertions for its run, not 1')
+    with (base / 'display-assertions').open('a') as stream:
+        stream.write(f'{os.getppid()} {awake[0]}\n')
     assert not os.environ.get('SDKROOT'), 'Xcode must choose the SDK for its destination'
     assert '-hideShellScriptEnvironment' in args
     assert args[args.index('-destination') + 1] == 'platform=macOS,name=My Mac'
     assert 'LM_FORCE_LINK_GENERATION=YES' in args
+    if os.environ.get('TEST_SIGNING_FAILURE'):
+        sys.exit("error: No profiles for 'com.artisanalsoftware.PodHaven.debug' were found")
+    build(xcode_intermediates, ('PodHaven.build', 'PodHavenMacros.build', 'XCBuildData',
+                                'SwiftExplicitPrecompiledModules', 'ExplicitPrecompiledModules', 'GRDB.build',
+                                'swift-syntax.build'),
+          f"{os.getcwd()}/PodHavenTests/ProbeTests.swift:2:7: warning: variable 'value' was never mutated")
     bundle = pathlib.Path(args[args.index('-resultBundlePath') + 1])
     timing = {'SiriPerformance': 'SiriLargeCatalogTests', 'OPMLPerformance': 'OPMLLargeImportTests'}
     performance = bundle.stem in timing
@@ -142,6 +198,12 @@ elif name == 'sample':
 elif name == 'check' and '--no-reuse' not in args and (base / 'check-passed').exists():
     print('Reused the application checks that passed earlier; bin/check --full --no-reuse runs them again.')
 elif name in ('check', 'lint-swift-format'):
+    if name == 'check' and os.environ.get('TEST_KILL_GATE'):
+        # bin/test-all, which runs this check, dies before it writes its report.
+        os.kill(os.getppid(), signal.SIGKILL)
+    while name == 'check' and os.environ.get('TEST_HOLD_TOOLING') and not pathlib.Path(
+            os.environ['TEST_HOLD_TOOLING']).exists():
+        time.sleep(0.05)
     for count in os.environ.get('TEST_PYTHON_COUNT', '1').split(','):
         print('Ran ' + count + ' test in 0.001s')
     print('OK (skipped=1)' if os.environ.get('TEST_PYTHON_SKIPPED') else 'OK')
@@ -151,9 +213,32 @@ else:
     raise SystemExit('Unexpected command: ' + repr([name, args]))
 '''
 
+# Loaded at interpreter startup, so bin/test-all reads the load the fixture's load file sets.
+LOAD = r'''
+import os, pathlib
+if 'TEST_ALL_FIXTURE' in os.environ:
+    fixture = pathlib.Path(os.environ['TEST_ALL_FIXTURE'])
+
+    def getloadavg():
+        try:
+            text = (fixture / 'load').read_text()
+        except FileNotFoundError:
+            text = '1.5 1.25 1.0'
+        with (fixture / 'load-reads').open('a') as stream:
+            stream.write(text.strip() + '\n')
+        return tuple(map(float, text.split()))
+
+    os.getloadavg = getloadavg
+'''
+BASE_LOAD = [1.5, 1.25, 1.0]
+PHASES = ["tooling", "swift-lint", "macros", "xcodebuild", "siri-performance", "opml-performance"]
+FOCUSED = ("/bin/sh", "-c", "echo held; read line; true")
 TEST_HOST = "com.artisanalsoftware.PodHaven.debug"
 APP_RESOLVED = "PodHaven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
 MACRO_RESOLVED = "PodHavenMacros/Package.resolved"
+# The folders of Xcode's intermediates that bin/test-all removes, in its order.
+XCODE_REBUILT = ("XCBuildData", "SwiftExplicitPrecompiledModules", "ExplicitPrecompiledModules",
+                 "PodHaven.build", "PodHavenMacros.build")
 
 
 def pin(identity, **state):
@@ -182,15 +267,20 @@ def make_container(home, name, identifier=TEST_HOST):
     return container / "Data/tmp"
 
 
-class TestAllTests(unittest.TestCase):
+class TestAllFixture(unittest.TestCase):
+    """A disposable repository with bin/test-all and fakes for every platform command it runs."""
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="podhaven test all ")
         self.addCleanup(temporary.cleanup)
         self.base = Path(temporary.name)
         self.repo = self.base / "repo"
         (self.repo / "bin").mkdir(parents=True)
-        for name in ("test-all", "check-swift-results", "_my_mac_lock.py"):
+        for name in ("test-all", "check-swift-results", "_my_mac_lock.py", "_test_lane.py", "_test_lane_host.py",
+                     "_validation_slot.py"):
             shutil.copy2(ROOT / "bin" / name, self.repo / "bin" / name)
+        (self.base / "python").mkdir()
+        (self.base / "python/sitecustomize.py").write_text(LOAD)
         self.commands = self.base / "commands"
         self.commands.mkdir()
         for path in (self.commands / "xcodebuild", self.commands / "xcrun", self.commands / "sw_vers",
@@ -201,45 +291,77 @@ class TestAllTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(f"#!{sys.executable}\n" + FAKE)
             path.chmod(0o755)
+        fake_caffeinate.install(self.commands)
         (self.repo / "bin/tests").mkdir()
         (self.repo / "bin/tests/probe.sh").write_text(
             '#!/bin/bash\nprintf shell > "$TEST_ALL_FIXTURE/shell-ran"\n')
-        (self.repo / ".gitignore").write_text('.cache/\n')
+        (self.repo / ".gitignore").write_text('.cache/\n.build/\n')
         (self.repo / "source.txt").write_text("original")
         write_package_pins(self.repo)
         (self.base / "home").mkdir()
         self.host_temporary = make_container(self.base / "home", "2D1F")
         self.env = {**os.environ, "PATH": str(self.commands) + os.pathsep + os.environ["PATH"],
-                    "TEST_ALL_FIXTURE": str(self.base), "HOME": str(self.base / "home")}
+                    "TEST_ALL_FIXTURE": str(self.base), "HOME": str(self.base / "home"),
+                    "PYTHONPATH": str(self.base / "python")}
         for key in tuple(self.env):
-            if key.startswith("GIT_") or key.startswith("TEST_") and key != "TEST_ALL_FIXTURE":
+            if key.startswith(("GIT_", "PODHAVEN_")) or key.startswith("TEST_") and key != "TEST_ALL_FIXTURE":
                 self.env.pop(key)
         self.env.pop("SDKROOT", None)
         self.git("init", "--quiet")
+        self.commit("fixture")
+
+    def git(self, *args, **env):
+        return subprocess.check_output(["git", *args], cwd=self.repo, env={**self.env, **env}, text=True).strip()
+
+    def commit(self, message, **env):
         self.git("add", ".")
         self.git("-c", "user.name=Test", "-c", "user.email=test@example.invalid",
                  "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false",
-                 "commit", "--quiet", "-m", "fixture")
-
-    def git(self, *args):
-        return subprocess.check_output(["git", *args], cwd=self.repo, env=self.env, text=True).strip()
+                 "commit", "--quiet", "--allow-empty", "-m", message, **env)
+        return self.git("rev-parse", "HEAD")
 
     def run_all(self, *args, **env):
-        return subprocess.run([sys.executable, "-B", str(self.repo / "bin/test-all"), *args],
+        return hang_guard.run([sys.executable, "-B", str(self.repo / "bin/test-all"), *args],
                               cwd=self.base, env={**self.env, **env}, text=True,
-                              capture_output=True, timeout=15)
+                              capture_output=True)
+
+    def start(self, command, **env):
+        process = hang_guard.start(command, cwd=self.base, env={**self.env, **env}, text=True,
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        watchdog = threading.Timer(hang_guard.HANG_LIMIT, hang_guard.kill, (process,))
+        watchdog.start()
+        self.addCleanup(watchdog.cancel)
+        self.addCleanup(hang_guard.stop, process)
+        return process
+
+    def start_all(self, repo, **env):
+        return self.start([sys.executable, "-B", str(repo / "bin/test-all")], **env)
+
+    def hold_focused_run(self, **env):
+        """Start a focused run that holds a validation slot and the My Mac test lock until its input closes."""
+        focused = self.start([sys.executable, "-B", str(ROOT / "bin/with-my-mac-lock"), *FOCUSED], **env)
+        self.assertEqual(focused.stdout.readline(), "held\n")
+        return focused
+
+    def events(self):
+        return [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
 
     def report(self):
         return json.loads(next((self.repo / ".cache/test-all").glob("*/run.json")).read_text())
 
-    def shorten_host_watch(self, quiet):
-        script = self.repo / "bin/test-all"
+    def set_constants(self, script="test-all", **values):
+        script = self.repo / "bin" / script
         text = script.read_text()
-        for name, value in (("QUIET_LOG_SECONDS", quiet), ("SAMPLE_GAP_SECONDS", quiet / 5),
-                            ("POLL_SECONDS", quiet / 20)):
+        for name, value in values.items():
             text, count = re.subn(rf"^{name} = .+$", f"{name} = {value}", text, flags=re.M)
             self.assertEqual(count, 1, name)
         script.write_text(text)
+
+    def shorten_host_watch(self, quiet):
+        self.set_constants(QUIET_LOG_SECONDS=quiet, SAMPLE_GAP_SECONDS=quiet / 5, POLL_SECONDS=quiet / 20)
+
+
+class TestAllTests(TestAllFixture):
 
     def test_complete_run_includes_separate_suites_and_records_revision(self):
         result = self.run_all()
@@ -299,7 +421,7 @@ class TestAllTests(unittest.TestCase):
         processes = []
 
         def start(repo, **env):
-            process = subprocess.Popen([sys.executable, "-B", str(repo / "bin/test-all")], cwd=self.base,
+            process = hang_guard.start([sys.executable, "-B", str(repo / "bin/test-all")], cwd=self.base,
                                        env={**self.env, **env}, text=True,
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             processes.append(process)
@@ -309,12 +431,10 @@ class TestAllTests(unittest.TestCase):
             if not released:
                 os.close(writer)
             for process in processes:
-                if process.poll() is None:
-                    process.kill()
-                process.communicate()
+                hang_guard.stop(process)
 
         self.addCleanup(stop)
-        watchdog = threading.Timer(60, lambda: [process.kill() for process in processes])
+        watchdog = threading.Timer(hang_guard.HANG_LIMIT, lambda: [hang_guard.kill(process) for process in processes])
         watchdog.start()
         self.addCleanup(watchdog.cancel)
         first = start(self.repo, TEST_HOLD_FIFO=str(gate))
@@ -329,14 +449,129 @@ class TestAllTests(unittest.TestCase):
         self.assertIn(f"bin/test-all in {self.repo.resolve()}", waiting)
         os.close(writer)
         released = True
-        first_output, first_errors = first.communicate(timeout=30)
+        first_output, first_errors = hang_guard.finish(first)
         self.assertEqual(first.returncode, 0, first_output + first_errors)
-        second_output, second_errors = second.communicate(timeout=30)
+        second_output, second_errors = hang_guard.finish(second)
         self.assertEqual(second.returncode, 0, second_output + second_errors)
         events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
         owners = [Path(args[args.index("-resultBundlePath") + 1]).parents[3]
                   for name, args in events if name == "xcodebuild" and "test" in args]
         self.assertEqual(owners, [self.repo.resolve()] * 3 + [other.resolve()] * 3)
+
+    def test_a_third_concurrent_run_waits_for_one_of_the_two_validation_slots(self):
+        repos = [self.repo, self.base / "second", self.base / "third"]
+        for repo in repos[1:]:
+            shutil.copytree(self.repo, repo, symlinks=True)
+        gate = self.base / "tooling-gate"
+        runs = []
+        # Each run waits in its tooling phase, so the first two hold both slots at once.
+        for repo in repos[:2]:
+            runs.append(self.start_all(repo, TEST_HOLD_TOOLING=str(gate)))
+            for line in runs[-1].stdout:
+                if line.startswith("Running tooling;"):
+                    break
+            else:
+                self.fail(f"The run in {repo} never started its tooling phase:\n" + runs[-1].stderr.read())
+        third = self.start_all(repos[2], TEST_HOLD_TOOLING=str(gate))
+        self.assertEqual(third.stderr.readline(),
+                         "Waiting for a validation slot (PODHAVEN_VALIDATION_SLOTS=2), held by:\n")
+        for number, (run, repo) in enumerate(zip(runs, repos), 1):
+            self.assertRegex(third.stderr.readline(), rf"^  slot {number}: pid {run.pid} since .+: "
+                                                      rf"bin/test-all in {re.escape(str(repo.resolve()))}\n$")
+        gate.touch()
+        for run in runs:
+            output, errors = hang_guard.finish(run)
+            self.assertEqual(run.returncode, 0, output + errors)
+        output, errors = hang_guard.finish(third)
+        self.assertEqual(third.returncode, 0, output + errors)
+        self.assertRegex(errors, r"^Took validation slot [12]\n")
+        self.assertEqual([args for name, args in self.events() if name == "check"], [["--full", "--no-reuse"]] * 3)
+
+    def test_a_run_waits_for_its_validation_slot_before_the_my_mac_lock_and_every_phase(self):
+        focused = self.hold_focused_run(PODHAVEN_VALIDATION_SLOTS="1")
+        run = self.start_all(self.repo, PODHAVEN_VALIDATION_SLOTS="1")
+        self.assertEqual(run.stderr.readline(),
+                         "Waiting for a validation slot (PODHAVEN_VALIDATION_SLOTS=1), held by:\n")
+        self.assertRegex(run.stderr.readline(), rf"^  slot 1: pid {focused.pid} since .+: /bin/sh -c 'echo held; ")
+        self.assertFalse(any(name in ("check", "lint-swift-format") or "test" in args for name, args in self.events()))
+        self.assertFalse((self.repo / ".cache").exists())
+        focused.stdin.close()
+        self.assertEqual(hang_guard.wait(focused), 0)
+        output, errors = hang_guard.finish(run)
+        self.assertEqual(run.returncode, 0, output + errors)
+        self.assertEqual(errors, "Took validation slot 1\n")
+
+    def test_runs_that_do_no_heavy_work_take_no_validation_slot(self):
+        self.assertEqual(self.run_all().returncode, 0)
+        focused = self.hold_focused_run(PODHAVEN_VALIDATION_SLOTS="1")
+        for args in (("--preflight",), ("--verify",), ("--ensure",)):
+            with self.subTest(args=args):
+                result = self.run_all(*args, PODHAVEN_VALIDATION_SLOTS="1")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn("Waiting", result.stderr)
+        focused.stdin.close()
+        self.assertEqual(hang_guard.wait(focused), 0)
+
+    def test_an_invalid_validation_slot_count_stops_before_any_phase(self):
+        result = self.run_all(PODHAVEN_VALIDATION_SLOTS="none")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertEqual(result.stderr, "error: PODHAVEN_VALIDATION_SLOTS must be a positive integer, not 'none'\n")
+        self.assertFalse((self.repo / ".cache").exists())
+
+    def test_each_phase_records_the_host_load_and_its_peak_while_it_ran(self):
+        self.set_constants(LOAD_SAMPLE_SECONDS=0.05)
+        result = self.run_all(TEST_LOAD_SPIKE="1000000")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        report = self.report()
+        self.assertEqual(report["result"], "passed")
+        self.assertNotIn("saturation", report)
+        self.assertNotIn("saturated", result.stderr)
+        self.assertEqual(list(report["phases"]), PHASES)
+        for name, phase in report["phases"].items():
+            with self.subTest(phase=name):
+                self.assertEqual(phase["result"], "passed")
+                for sample in (phase["start"], phase["end"]):
+                    self.assertEqual(sample["load_averages"], BASE_LOAD)
+                    self.assertEqual(sample["cores"], os.cpu_count())
+                    datetime.fromisoformat(sample["at"])
+                self.assertLessEqual(phase["start"]["at"], phase["end"]["at"])
+                # Only a sample taken while the macro tests ran saw the load they raised.
+                self.assertEqual(phase["peak_load_1m"], 1000000 if name == "macros" else BASE_LOAD[0])
+                self.assertEqual(phase["saturated"], name == "macros")
+
+    def test_a_failure_while_the_host_is_saturated_is_flagged_and_still_fails(self):
+        (self.base / "load").write_text(f"{2 * os.cpu_count() + 0.5} 1 1")
+        for phase, env in (("tooling", {"TEST_FAIL_STAGE": "check"}),
+                           ("macros", {"TEST_MACRO_WARNING": "1"}),
+                           ("xcodebuild", {"TEST_PERFORMANCE_PHASE": "TestResults",
+                                           "TEST_PERFORMANCE_FAULT": "warning"})):
+            with self.subTest(phase=phase):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
+                result = self.run_all("--ensure", **env)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                report = self.report()
+                self.assertEqual(report["result"], "failed")
+                self.assertEqual(list(report["phases"]), PHASES[:PHASES.index(phase) + 1])
+                self.assertEqual(report["phases"][phase]["result"], "failed")
+                self.assertTrue(report["phases"][phase]["saturated"])
+                self.assertEqual(report["saturation"],
+                                 f"The host was saturated during {phase}: its 1-minute load peaked at "
+                                 f"{2 * os.cpu_count() + 0.5}, above twice its {os.cpu_count()} cores, "
+                                 "so this failure may be load-induced.")
+                self.assertTrue(result.stderr.endswith(report["saturation"] + "\n"), result.stderr)
+                self.assertNotEqual(self.run_all("--verify").returncode, 0)
+                self.assertNotEqual(self.run_all("--ensure", **env).returncode, 0)
+
+    def test_a_failure_on_a_host_at_most_twice_its_core_count_is_not_flagged(self):
+        (self.base / "load").write_text(f"{2 * os.cpu_count()} 1 1")
+        result = self.run_all(TEST_MACRO_WARNING="1")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        report = self.report()
+        self.assertEqual(report["phases"]["macros"]["result"], "failed")
+        self.assertEqual(report["phases"]["macros"]["peak_load_1m"], 2 * os.cpu_count())
+        self.assertFalse(report["phases"]["macros"]["saturated"])
+        self.assertNotIn("saturation", report)
+        self.assertNotIn("saturated", result.stderr)
 
     def test_stalled_test_host_is_sampled_twice_without_ending_the_run(self):
         self.shorten_host_watch(1)
@@ -373,12 +608,24 @@ class TestAllTests(unittest.TestCase):
         self.assertEqual(list((self.repo / ".cache").rglob("*.sample.txt")), [])
         self.assertEqual(self.report()["result"], "passed")
 
-    def test_run_under_the_lock_command_reuses_its_lock(self):
-        result = subprocess.run([sys.executable, "-B", str(ROOT / "bin/with-my-mac-lock"),
+    def test_run_under_the_lock_command_reuses_its_lock_and_validation_slot(self):
+        # With one slot, a run that waited for another would wait on its own holder forever.
+        result = hang_guard.run([sys.executable, "-B", str(ROOT / "bin/with-my-mac-lock"),
                                  sys.executable, "-B", str(self.repo / "bin/test-all")],
-                                cwd=self.base, env=self.env, text=True, capture_output=True, timeout=15)
+                                cwd=self.base, env={**self.env, "PODHAVEN_VALIDATION_SLOTS": "1"}, text=True,
+                                capture_output=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotIn("Waiting", result.stderr)
+
+    def test_one_display_assertion_spans_every_my_mac_phase_and_ends_with_the_run(self):
+        # UIKit on the Mac sends every scene to the background while the displays sleep.
+        result = self.run_all()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        assertions = (self.base / "display-assertions").read_text().splitlines()
+        self.assertEqual(len(assertions), len(PHASES) - PHASES.index("xcodebuild"))
+        self.assertEqual(len(set(assertions)), 1)
+        run, _ = assertions[0].split()
+        self.assertEqual(fake_caffeinate.holders(run), [])
 
     def test_entries_tests_leave_in_the_test_host_temporary_directory_fail_the_run(self):
         (self.host_temporary / "earlier").mkdir()
@@ -401,7 +648,7 @@ class TestAllTests(unittest.TestCase):
         data = self.host_temporary.parent
         ended = subprocess.Popen([sys.executable, "-c", ""])
         ended.wait()
-        running = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        running = subprocess.Popen([sys.executable, "-c", "import signal; signal.pause()"])
         self.addCleanup(running.wait)
         self.addCleanup(running.kill)
 
@@ -432,6 +679,56 @@ class TestAllTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertIn("com.artisanalsoftware.PodHaven.debug", result.stderr)
         self.assertEqual(self.report()["result"], "failed")
+
+    def xcode_intermediates(self):
+        """Return where the fake xcodebuild builds this checkout, as Xcode builds into its DerivedData."""
+        return (self.base / "home/DerivedData" / hashlib.sha256(str(self.repo.resolve()).encode()).hexdigest()[:16]
+                / "Build/Intermediates.noindex")
+
+    def test_a_warning_in_a_source_an_earlier_build_compiled_fails_the_run(self):
+        # The fake tools build incrementally, so they show a warning in a project source only when they compile it.
+        xcode, swiftpm = self.xcode_intermediates(), self.repo / "PodHavenMacros/.build/out/Intermediates.noindex"
+        xcode_rebuilt = [xcode / name for name in XCODE_REBUILT]
+        dependencies = [xcode / "GRDB.build", xcode / "swift-syntax.build", swiftpm / "swift-syntax.build"]
+        for tool, phase, message, rebuilt, unreached in (
+                ("xcrun", "macros", "Macro tests emitted warnings", [swiftpm / "PodHavenMacros.build"],
+                 xcode_rebuilt),
+                ("xcodebuild", "xcodebuild", "evidence validation failed (xcodebuild)",
+                 [swiftpm / "PodHavenMacros.build", *xcode_rebuilt], [])):
+            with self.subTest(tool=tool):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
+                # Earlier builds, such as a focused run's, compiled every source in this checkout.
+                for folder in rebuilt + unreached + dependencies:
+                    folder.mkdir(parents=True, exist_ok=True)
+                    (folder / "earlier").touch()
+                result = self.run_all("--ensure", TEST_SOURCE_WARNING=tool)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(message, result.stderr)
+                evidence = next((self.repo / ".cache/test-all").iterdir())
+                self.assertIn("variable 'value' was never mutated", (evidence / f"{phase}.log").read_text())
+                self.assertEqual(self.report()["phases"][phase]["result"], "failed")
+                # Only the project's own sources compiled again, with Xcode's module caches and build database
+                # made again; the package dependencies stayed built.
+                for folder in rebuilt:
+                    self.assertFalse((folder / "earlier").exists(), folder)
+                for folder in unreached + dependencies:
+                    self.assertTrue((folder / "earlier").exists(), folder)
+
+    def test_a_build_that_no_longer_builds_where_test_all_looks_fails_the_run(self):
+        for tool, folders in (("xcrun", ["PodHavenMacros/.build/out/Intermediates.noindex/PodHavenMacros.build"]),
+                              ("xcodebuild", [self.xcode_intermediates() / name for name in XCODE_REBUILT])):
+            with self.subTest(tool=tool):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
+                result = self.run_all("--ensure", TEST_INTERMEDIATES_MOVED=tool)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("didn't remake " + ", ".join(str(self.repo.resolve() / folder) for folder in folders),
+                              result.stderr)
+                self.assertEqual(self.report()["result"], "failed")
+        shutil.rmtree(self.repo / ".cache")
+        result = self.run_all("--ensure", TEST_BUILD_SETTINGS_FAILURE="1")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("Could not resolve package dependencies", result.stderr)
+        self.assertEqual(self.report()["phases"]["xcodebuild"]["result"], "failed")
 
     def test_failures_never_leave_a_passing_report(self):
         for setting in ("TEST_BUILD_FAILURE", "TEST_MISSING_BUNDLE", "TEST_SKIPPED",
@@ -502,6 +799,7 @@ class TestAllTests(unittest.TestCase):
     def test_unreadable_package_pins_stop_before_tests(self):
         for name, contents in ((MACRO_RESOLVED, None), (APP_RESOLVED, "{}"), (MACRO_RESOLVED, "not json")):
             with self.subTest(name=name, contents=contents):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
                 write_package_pins(self.repo)
                 path = self.repo / name
                 if contents is None:
@@ -614,6 +912,7 @@ class TestAllTests(unittest.TestCase):
     def test_ensure_rejects_unchecked_paths_before_running_tests(self):
         for flag in ("assume-unchanged", "skip-worktree"):
             with self.subTest(flag=flag):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
                 self.git("update-index", "--" + flag, "source.txt")
                 try:
                     (self.repo / "source.txt").write_text("hidden change")

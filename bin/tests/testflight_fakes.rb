@@ -20,12 +20,68 @@ module UI
   end
 end
 
+# The team's testers: their raw resources and the groups each is in.
+$testers = [
+  { "id" => "alice-id", "groups" => ["everyone-id"],
+    "attributes" => { "email" => "Alice@Example.com", "firstName" => "Alice", "lastName" => "Ng",
+                      "inviteType" => "EMAIL", "state" => "INSTALLED" } },
+  { "id" => "bob-id", "groups" => ["other-app-group"],
+    "attributes" => { "email" => "bob@example.com", "firstName" => "Bob", "lastName" => nil,
+                      "inviteType" => "EMAIL", "state" => "ACCEPTED" } },
+  { "id" => "public-id", "groups" => ["everyone-id"],
+    "attributes" => { "email" => nil, "firstName" => "Pat", "lastName" => "Lee", "inviteType" => "PUBLIC_LINK",
+                      "state" => "INSTALLED" } },
+  { "id" => "gone-id", "groups" => ["everyone-id"],
+    "attributes" => { "email" => "gone@example.com", "firstName" => nil, "lastName" => nil, "inviteType" => "EMAIL",
+                      "state" => "REVOKED" } }
+]
+$testers.reject! { |tester| tester["groups"].include?("everyone-id") } if $scenario == "empty"
+
 module Spaceship
   class UnexpectedResponse < StandardError; end
 
   class ConnectAPI
     class << self
       attr_accessor :token
+
+      def get_beta_testers(filter:, limit:)
+        $events << ["testers", filter.dup, limit]
+        found = $testers.select do |tester|
+          (!filter[:email] || tester.dig("attributes", "email").to_s.casecmp?(filter[:email])) &&
+            (!filter[:betaGroups] || tester["groups"].include?(filter[:betaGroups]))
+        end
+        pages = found.map { |tester| { "id" => tester["id"], "type" => "betaTesters", "attributes" => tester["attributes"].dup } }
+                     .each_slice(2).map { |data| OpenStruct.new(body: { "data" => data }) }
+        OpenStruct.new(all_pages: pages.empty? ? [OpenStruct.new(body: { "data" => [] })] : pages)
+      end
+
+      def add_beta_tester_to_group(beta_group_id:, beta_tester_ids:)
+        $events << ["write_join", beta_group_id, beta_tester_ids]
+        return if $scenario == "add_unconfirmed"
+        $testers.select { |tester| beta_tester_ids.include?(tester["id"]) }.each { |tester| tester["groups"] |= [beta_group_id] }
+      end
+
+      def post_beta_tester_assignment(beta_group_ids:, attributes:)
+        $events << ["write_create", beta_group_ids, attributes]
+        return if $scenario == "add_unconfirmed"
+        state = $scenario == "created_invited" ? "INVITED" : "NOT_INVITED"
+        $testers << { "id" => "new-id", "groups" => beta_group_ids,
+                      "attributes" => { "email" => attributes[:email], "inviteType" => "EMAIL", "state" => state } }
+      end
+
+      def delete_beta_tester_from_beta_groups(beta_tester_id:, beta_group_ids:)
+        $events << ["write_leave", beta_tester_id, beta_group_ids]
+        return if $scenario == "remove_unconfirmed"
+        $testers.select { |tester| tester["id"] == beta_tester_id }.each { |tester| tester["groups"] -= beta_group_ids }
+      end
+
+      def test_flight_request_client
+        client = Object.new
+        def client.post(path, body)
+          $events << ["write_post", path, body]
+        end
+        client
+      end
     end
 
     def self.get_beta_groups(filter:)
@@ -202,7 +258,7 @@ end
 def desc(_text); end
 
 def lane(name)
-  return unless name == :distribute_testflight
+  return unless name.to_s == ENV.fetch("TESTFLIGHT_LANE", "distribute_testflight")
   yield(base: ENV["TESTFLIGHT_BASE"], preflight: ENV["TESTFLIGHT_PREFLIGHT"], prepare: ENV["TESTFLIGHT_PREPARE"],
         version: "1.0.1", build: "569")
 end

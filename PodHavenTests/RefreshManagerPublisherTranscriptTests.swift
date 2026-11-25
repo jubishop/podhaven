@@ -41,6 +41,7 @@ struct RefreshManagerPublisherTranscriptTests {
           image: initialPodcast.image,
           description: initialPodcast.description,
           link: initialPodcast.link,
+          subscriptionDate: Date(),
           alwaysTranscribeNewEpisodes: true
         ),
         unsavedEpisodes: initialFeed.toUnsavedEpisodes()
@@ -764,7 +765,7 @@ struct RefreshManagerPublisherTranscriptTests {
     feedURL: FeedURL,
     alwaysTranscribeNewEpisodes: Bool,
     notifyNewEpisodes: Bool = false,
-    subscriptionDate: Date? = nil
+    subscriptionDate: Date? = Date()
   ) async throws -> PodcastSeries {
     let feed = try await PodcastFeed.parse(
       feedData(feedURL: feedURL, transcriptURL: nil),

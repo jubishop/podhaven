@@ -14,7 +14,18 @@ protocol AppHangTracking: Sendable {
 struct SentryAppHangTracking: AppHangTracking {
   fileprivate init() {}
 
+  @diagnose(
+    DeprecatedDeclaration,
+    as: warning,
+    reason: "Sentry keeps legacy App Hang tracking until its next major SDK version"
+  )
   func pause() { SentrySDK.pauseAppHangTracking() }
+
+  @diagnose(
+    DeprecatedDeclaration,
+    as: warning,
+    reason: "Sentry keeps legacy App Hang tracking until its next major SDK version"
+  )
   func resume() { SentrySDK.resumeAppHangTracking() }
 }
 
