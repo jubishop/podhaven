@@ -19,6 +19,7 @@ final class FakeAudioSession: AudioSessioning {
     var mode: AVAudioSession.Mode = .default
     var routeSharingPolicy: AVAudioSession.RouteSharingPolicy = .default
     var activeCalls: [Bool] = []
+    var deactivationOptions: [AVAudioSession.SetActiveOptions] = []
     var active = false
   }
 
@@ -31,6 +32,7 @@ final class FakeAudioSession: AudioSessioning {
 
   var configureCallCount: Int { state().configureCallCount }
   var activeCalls: [Bool] { state().activeCalls }
+  var deactivationOptions: [AVAudioSession.SetActiveOptions] { state().deactivationOptions }
   var active: Bool { state().active }
 
   var category: AVAudioSession.Category { state().category }
@@ -65,6 +67,7 @@ final class FakeAudioSession: AudioSessioning {
     if active, let error = activationError() { throw error }
     state {
       $0.activeCalls.append(active)
+      if !active { $0.deactivationOptions.append(options) }
       $0.active = active
     }
   }
