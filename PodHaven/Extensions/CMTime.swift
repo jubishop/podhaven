@@ -47,12 +47,12 @@ extension CMTime:
   // MARK: - CustomStringConvertible
 
   private var timeComponents: (hours: Int, minutes: Int, seconds: Int)? {
-    guard let totalSeconds = Int(exactly: CMTimeGetSeconds(self).rounded(.towardZero))
-    else { return nil }
+    let totalSeconds = CMTimeGetSeconds(self)
+    guard !totalSeconds.isNaN && totalSeconds.isFinite else { return nil }
 
-    let hours = totalSeconds / 3600
-    let minutes = (totalSeconds % 3600) / 60
-    let seconds = totalSeconds % 60
+    let hours = Int(totalSeconds) / 3600
+    let minutes = (Int(totalSeconds) % 3600) / 60
+    let seconds = Int(totalSeconds) % 60
 
     return (hours, minutes, seconds)
   }
