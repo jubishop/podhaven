@@ -51,6 +51,8 @@ class SentryFeedbackLauncherTests(unittest.TestCase):
         ], [
             {"number": 50, "state": "closed", "body": "<!-- sentry-feedback:podhaven:2003 -->\n" + FINDINGS},
             {"number": 61, "state": "open", "body": PERMALINK + "2002\n" + FINDINGS},
+            {"number": 35, "state": "closed", "body": "See " + PERMALINK + "2003"},
+            {"number": 30, "state": "open", "body": "See " + PERMALINK + "2003"},
         ]])
 
     def write(self, name, value):
@@ -208,6 +210,8 @@ else:
             ("PodHaven:2003", {"id": "2003", "shortId": "PODHAVEN-FC", "permalink": PERMALINK + "2003"}, [
                 "Tracking issues for podhaven:2003 (PODHAVEN-FC), canonical first:",
                 "jubishop/podhaven#50 closed analyzed marker",
+                "jubishop/podhaven#35 closed intake link",
+                "jubishop/podhaven#30 open intake link",
             ]),
             (PERMALINK + "2001", {"id": "2001", "permalink": PERMALINK + "2001"}, [
                 "No tracking issue for podhaven:2001 (PODHAVEN-?).",

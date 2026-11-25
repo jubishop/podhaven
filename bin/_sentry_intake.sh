@@ -14,8 +14,8 @@ TRACKED=0
 COMMENTS_ADDED=0
 
 # intake_start <sentry-query> <item-kind> <plural-item-kind>
-# Writes the complete Sentry list to SENTRY_JSON and every GitHub issue, without
-# pull requests, to ISSUES_JSON.
+# Writes the complete Sentry list to SENTRY_JSON and every GitHub issue and pull
+# request to ISSUES_JSON, for the checker's tracking matcher to filter.
 intake_start() {
   local query="$1" kind="$2" plural="$3"
 
@@ -69,7 +69,8 @@ intake_start() {
   gh api --paginate --slurp \
     "repos/$GH_REPO/issues?state=all&per_page=100" \
     > "$WORK_DIR/all-issues.json"
-  jq '[.[][] | select(has("pull_request") | not) | {number, state, body, labels: [.labels[]?.name]}]' \
+  jq '[.[][] | {number, state, body, labels: [.labels[]?.name]}
+    + (if has("pull_request") then {pull_request} else {} end)]' \
     "$WORK_DIR/all-issues.json" \
     > "$ISSUES_JSON"
 

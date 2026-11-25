@@ -228,6 +228,29 @@ else:
         self.assertIn("Already tracked: podhaven:7011 in issue #71", result.stdout)
         self.assertIn("created 0 issue(s), found 2 already tracked", result.stdout)
 
+    def test_feedback_checker_tracks_the_newest_marked_issue(self):
+        link = "https://artisanal-software.sentry.io/issues/feedback/?feedbackSlug=podhaven%3A7012"
+        marker = "<!-- sentry-feedback:podhaven:7012 -->"
+        findings = "<!-- analyze-sentry-feedback-findings:start -->\n<!-- analyze-sentry-feedback-findings:end -->"
+        labels = [{"name": "sentry-feedback"}]
+        self.write("sentry.json", {"data": [{"id": "7012", "shortId": "PODHAVEN-B3", "permalink": link}],
+                                   "hasMore": False})
+        self.write("issues.json", [[
+            {"number": 84, "state": "open", "labels": labels, "pull_request": {}, "body": marker},
+            {"number": 83, "state": "open", "labels": labels, "body": f"See {link}\n{findings}"},
+            {"number": 82, "state": "closed", "labels": labels, "body": marker},
+            {"number": 81, "state": "open", "labels": labels, "body": f"{marker}\n{findings}"},
+        ]])
+
+        result = self.run_check(FEEDBACK_SCRIPT)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        read, comment = self.writes()
+        self.assertEqual(read, {"kind": "comments-read",
+                                "endpoint": "repos/jubishop/podhaven/issues/82/comments?per_page=100"})
+        self.assertEqual((comment["kind"], comment["issue"]), ("comment", "82"))
+        self.assertIn("Already tracked: podhaven:7012 in issue #82", result.stdout)
+
     def test_dry_run_writes_nothing(self):
         self.write("sentry.json", {"data": [
             sentry_issue("7007", "PODHAVEN-A7"),
