@@ -66,9 +66,9 @@ final class PlayManager {
     case play(Episode.ID)
   }
 
+  @DynamicInjected(\.audioSession) var audioSession
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.commandCenterStream) var commandCenterStream
-  @DynamicInjected(\.audioSession) var audioSession
   @DynamicInjected(\.continuousClockNow) var continuousClockNow
   @DynamicInjected(\.dateProvider) var dateProvider
   @DynamicInjected(\.fileManager) var fileManager
