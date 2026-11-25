@@ -343,12 +343,19 @@ enum HTMLContent {
     var windowStart = plainText.startIndex
     while windowStart < plainText.endIndex {
       // NSDataDetector slows with the square of the links in one scan, so scan
-      // windows that end at whitespace, where no link continues.
+      // bounded windows, each ending after its last whitespace, where no link
+      // continues, or at the bound when it has none.
       let windowLimit =
         plainText.index(windowStart, offsetBy: linkDetectionWindow, limitedBy: plainText.endIndex)
         ?? plainText.endIndex
-      let windowEnd =
-        plainText[windowLimit...].firstIndex(where: \.isWhitespace) ?? plainText.endIndex
+      let windowEnd: String.Index
+      if windowLimit < plainText.endIndex,
+        let whitespace = plainText[windowStart..<windowLimit].lastIndex(where: \.isWhitespace)
+      {
+        windowEnd = plainText.index(after: whitespace)
+      } else {
+        windowEnd = windowLimit
+      }
       let window = plainText[windowStart..<windowEnd]
       windowStart = windowEnd
 
