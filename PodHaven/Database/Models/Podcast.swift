@@ -49,6 +49,7 @@ struct UnsavedPodcast:
   private let feedETag: String?
   private let feedLastModified: String?
   private let feedValidatorsBuild: String?
+  let refreshFailureCount: Int
 
   // Validators stored by another build are ignored, so feed parsing changes
   // reach feeds that haven't changed since.
@@ -108,6 +109,7 @@ struct UnsavedPodcast:
     self.feedETag = nil
     self.feedLastModified = nil
     self.feedValidatorsBuild = nil
+    self.refreshFailureCount = 0
   }
 
   // MARK: - Savable
@@ -272,6 +274,8 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
     static let feedETag = Column("feedETag")
     static let feedLastModified = Column("feedLastModified")
     static let feedValidatorsBuild = Column("feedValidatorsBuild")
+    static let refreshFailureCount = Column("refreshFailureCount")
+    static let refreshBackoffUntil = Column("refreshBackoffUntil")
   }
 
   // MARK: - RSSUpdatable

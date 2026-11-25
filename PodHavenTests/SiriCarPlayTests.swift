@@ -59,7 +59,10 @@ import Testing
     #expect(Container.shared.sharedState().currentEpisodeID == episode.id)
   }
 
-  @Test("successful Siri playback presents Now Playing through the connected coordinator")
+  @Test(
+    "successful Siri playback presents Now Playing through the connected coordinator",
+    .timeLimit(.minutes(5))
+  )
   func connectedPlayback() async throws {
     let file = Container.shared.siriCatalogFile()
     Container.shared.appDB().startSiriCatalog(file)
@@ -70,11 +73,13 @@ import Testing
     controller.completions[0](true, nil)
     defer { coordinator.disconnect(controller) }
     let codes = ThreadSafe<[Int]>([])
+    let completed = AsyncLatch<Void>()
     Container.shared.siriPlayback().handler
       .handle(intent: SiriTestIntent.named("Connected Siri")) { response in
         codes { $0.append(response.code.rawValue) }
+        completed.open()
       }
-    try await Wait.until({ !codes().isEmpty }, { "Siri callback never completed" })
+    try await completed.wait()
     #expect(codes() == [INPlayMediaIntentResponseCode.success.rawValue])
     #expect(controller.topTemplate === CPNowPlayingTemplate.shared)
     #expect(controller.pushed.count == 1)

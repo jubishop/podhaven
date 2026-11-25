@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """usage: bin/with-my-mac-lock COMMAND [ARG...]
 
-Run a command, such as a focused My Mac xcodebuild test, while holding the machine-wide lock that
-bin/test-all also takes. A busy lock prints its holder and waits. The command keeps the lock until it
-and every process that inherited the lock exit; nested calls reuse it."""
+Run a command, such as a focused My Mac xcodebuild test, while holding a validation slot and then the
+machine-wide lock that bin/test-all also takes. A busy slot or lock prints its holders and waits. The
+command keeps both until it and every process that inherited them exit; nested calls reuse them."""
 
 import os
 import shlex
@@ -11,16 +11,24 @@ import sys
 
 sys.dont_write_bytecode = True
 from _my_mac_lock import INHERITED_FD, my_mac_lock
+from _validation_slot import validation_slot
 
 command = sys.argv[1:]
 if not command or command[0] in ("-h", "--help"):
     print(__doc__, file=sys.stdout if command else sys.stderr)
     sys.exit(0 if command else 2)
-with my_mac_lock(f"{shlex.join(command)} in {os.getcwd()}") as descriptor:
-    os.set_inheritable(descriptor, True)
-    os.environ[INHERITED_FD] = str(descriptor)
-    try:
-        os.execvp(command[0], command)
-    except OSError as error:
-        print(f"with-my-mac-lock: {command[0]}: {error.strerror}", file=sys.stderr)
-        sys.exit(127)
+holder = f"{shlex.join(command)} in {os.getcwd()}"
+try:
+    with validation_slot(holder) as slot, my_mac_lock(holder) as descriptor:
+        for held in (slot, descriptor):
+            if held is not None:
+                os.set_inheritable(held, True)
+        os.environ[INHERITED_FD] = str(descriptor)
+        try:
+            os.execvp(command[0], command)
+        except OSError as error:
+            print(f"with-my-mac-lock: {command[0]}: {error.strerror}", file=sys.stderr)
+            sys.exit(127)
+except ValueError as error:
+    print(f"with-my-mac-lock: {error}", file=sys.stderr)
+    sys.exit(2)

@@ -22,6 +22,7 @@ extension URL: Stringable {
       components = modifiedComponents
     }
 
+    components.scheme = components.scheme?.lowercased()
     if components.scheme == "http" { components.scheme = "https" }
     guard let url = components.url
     else { throw URLError(.badURL, userInfo: ["message": "No components.url: \(components)"]) }

@@ -249,6 +249,7 @@ import Testing
 
   @Test("failed episode is reloaded once, then unshifted back to queue")
   func failedEpisodeGetsUnshiftedBackToQueue() async throws {
+    Container.shared.fakeContinuousClock().freeze()
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
 
