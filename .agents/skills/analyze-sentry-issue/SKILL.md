@@ -203,8 +203,11 @@ incident, and require end-to-end verification that it arrives in Sentry and
 is retrievable; proof that it was generated locally is not enough.
 
 Every issue this skill creates or reuses carries the `sentry-issue` label: add
-it whenever the canonical issue lacks it, even when nothing else changes. Do
-not change other labels or metadata merely because the handoff ran.
+it whenever the canonical issue lacks it, even when nothing else changes.
+Intake starts every issue at `p2`; set exactly one of `p1`, `p2`, or `p3` from
+the findings, as `create-issue` defines them, with noise, a stale build, or
+polish at `p3`, and remove any other priority label. Do not change other
+labels or metadata merely because the handoff ran.
 
 1. With no matching issue, create one in `jubishop/podhaven` with a concise
    action-oriented title, the `sentry-issue` label, and the body below.
@@ -217,7 +220,7 @@ not change other labels or metadata merely because the handoff ran.
    Rewording, formatting, a rerun timestamp, or repeated evidence is not
    material. A material update to a `link` match adds the marker together
    with a complete managed block. With nothing material, make no GitHub writes
-   beyond a missing label, and report `reused unchanged`.
+   beyond a missing label or a wrong priority, and report `reused unchanged`.
 4. For a recurrence, never reopen a closed issue whose fix shipped; its PR and
    closeout record what shipped when. Use the recurrence intake issue, or
    create a new issue, and link the earlier ones. For a stale build, record
@@ -302,9 +305,9 @@ in Sentry and the user-facing diagnosis.
 
 Replace every placeholder with this issue's identifiers. Read back any
 created or changed issue and verify its title, sanitized body, marker,
-complete findings block, Sentry record and closeout, state, and label. If the
-handoff or verification fails, report the diagnosis and the exact remaining
-gap rather than claiming tracking succeeded; do not create a placeholder
-merely because fetching the evidence failed. Otherwise finish with the issue
-URL, whether it was created, enriched, materially updated, or reused
-unchanged, and that repository status matches the baseline.
+complete findings block, Sentry record and closeout, state, label, and
+priority. If the handoff or verification fails, report the diagnosis and the
+exact remaining gap rather than claiming tracking succeeded; do not create a
+placeholder merely because fetching the evidence failed. Otherwise finish
+with the issue URL, whether it was created, enriched, materially updated, or
+reused unchanged, and that repository status matches the baseline.
