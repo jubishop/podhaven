@@ -52,6 +52,25 @@ struct SilenceAudioTests {
     }
   }
 
+  @Test("more concurrent decodes than the cooperative pool has threads all finish")
+  func concurrentDecodes() async throws {
+    let bundle = Bundle(for: SilenceAudioBundle.self)
+    let urls = [
+      try #require(bundle.url(forResource: "silence-mono-vbr", withExtension: "mp3")),
+      try #require(bundle.url(forResource: "silence-stereo", withExtension: "m4a")),
+    ]
+    let count = ProcessInfo.processInfo.activeProcessorCount * 2
+    let maps = try await withThrowingTaskGroup { group in
+      for index in 0..<count {
+        let url = urls[index % urls.count]
+        group.addTask { try await SilenceAnalyzer.analyze(url, progress: { _, _ in }) }
+      }
+      return try await group.reduce(into: [SilenceMap]()) { $0.append($1) }
+    }
+    #expect(maps.count == count)
+    #expect(maps.allSatisfy { $0.high.count == 8 })
+  }
+
   @Test("decode failures never publish an empty successful map")
   func invalidFile() async throws {
     let url = TestFiles.uniqueURL().appendingPathExtension("mp3")
