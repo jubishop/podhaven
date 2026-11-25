@@ -29,7 +29,7 @@ Consequences:
   recomputed it each time (roughly halves the embed calls per feed). The
   saved-side path (`EmbeddingService.upsertEpisodeEmbeddings`) already de-dups
   within its batched embedding pass via `state.podcastVectors`
-  (`PodHaven/Recommendations/Embeddings/EmbeddingService.swift:410`), not a
+  (`PodHaven/Recommendations/Embeddings/EmbeddingService.swift`), not a
   separate `podcastVectorCache`.
 
 Measuring: `SearchPipelineRunner` emits a `perf:` debug line per feed (subsystem

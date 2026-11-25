@@ -63,7 +63,7 @@ import Testing
   @Test("media services reset re-registers remote commands on the main thread")
   func mediaServicesResetReregistersRemoteCommandsOnMainThread() async throws {
     await playManager.start()
-    let initialConfigureCallCount = await audioSession.configureCallCount
+    let initialConfigureCallCount = audioSession.configureCallCount
 
     notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
       .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))

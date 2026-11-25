@@ -46,7 +46,7 @@ struct Repo: Databasing {
 
   func allPodcasts(
     _ filter: SQLExpression,
-    order: SQLOrdering,
+    order: [SQLOrdering],
     limit: Int
   ) async throws -> [Podcast] {
     try await reader.read { db in
@@ -789,7 +789,28 @@ struct Repo: Databasing {
             Podcast.Columns.lastUpdate.set(to: lastUpdate),
             Podcast.Columns.feedETag.set(to: feedValidators?.eTag),
             Podcast.Columns.feedLastModified.set(to: feedValidators?.lastModified),
-            Podcast.Columns.feedValidatorsBuild.set(to: feedValidatorsBuild)
+            Podcast.Columns.feedValidatorsBuild.set(to: feedValidatorsBuild),
+            Podcast.Columns.refreshFailureCount.set(to: 0),
+            Podcast.Columns.refreshBackoffUntil.set(to: nil)
+          )
+      }
+    }
+  }
+
+  func recordRefreshFailures(
+    _ failures: [(id: Podcast.ID, failureCount: Int, backoffUntil: Date)]
+  ) async throws {
+    guard !failures.isEmpty else { return }
+    Self.log.trace("recordRefreshFailures: \(failures.count) podcasts")
+
+    try await writer.write { db in
+      for (podcastID, failureCount, backoffUntil) in failures {
+        try Podcast
+          .withID(podcastID)
+          .updateAll(
+            db,
+            Podcast.Columns.refreshFailureCount.set(to: failureCount),
+            Podcast.Columns.refreshBackoffUntil.set(to: backoffUntil)
           )
       }
     }

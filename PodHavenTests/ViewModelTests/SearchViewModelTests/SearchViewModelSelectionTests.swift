@@ -15,7 +15,10 @@ import Testing
     Container.shared.podcastFeedSession() as! FakeDataFetchable
   }
 
-  @Test("subscribeSelectedPodcasts saves unsaved results and subscribes them with one count line")
+  @Test(
+    "subscribeSelectedPodcasts saves unsaved results and subscribes them with one count line",
+    .timeLimit(.minutes(5))
+  )
   func subscribeSelectedSavesAndLogsSummary() async throws {
     let podcastCount = 5
     await SyntheticFeed.respond(feedSession, episodes: 1)
@@ -44,15 +47,16 @@ import Testing
     )
     viewModel.podcastList.selectAllEntries()
 
-    let captured = try await LogCapture.withSink { sink in
+    let summarized = AsyncLatch<Void>()
+    let captured = try await LogCapture.withSink(
+      onCapture: { entry in
+        if entry.message.contains("subscribed \(podcastCount) of \(podcastCount)") {
+          summarized.open()
+        }
+      }
+    ) { sink in
       viewModel.subscribeSelectedPodcasts()
-      try await Wait.until(
-        {
-          sink.captured()
-            .contains { $0.message.contains("subscribed \(podcastCount) of \(podcastCount)") }
-        },
-        { "no subscribe summary among \(sink.captured().map(\.message))" }
-      )
+      try await summarized.wait()
       return sink.captured()
     }
 

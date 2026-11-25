@@ -7,7 +7,7 @@
       "location" : "https://github.com/hmlongco/Factory",
       "state" : {
         "branch" : "main",
-        "revision" : "e7b123f191ff1cead0a6992f96099fde310a3284"
+        "revision" : "5f4ea2bf876fd08db3442af96270424120bd2c70"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/getsentry/sentry-cocoa/",
       "state" : {
         "branch" : "main",
-        "revision" : "fb53f5d9d56a90e0c14bfc42f7d1f1a58432059a"
+        "revision" : "5c9d0765385bf762c0f99ab1a502c6ec71c6f1d2"
       }
     },
     {

@@ -9,7 +9,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("of automatic playback failure recovery", .container)
+@Suite("of automatic playback failure recovery", .container, .timeLimit(.minutes(5)))
 @MainActor struct PlaybackFailureRecoveryTests {
   enum NotificationCommand: CaseIterable {
     case play, pause, togglePause, resume, toggleResume
@@ -76,7 +76,7 @@ import Testing
     }
     let playing = Task { try await playManager.play(replacement) }
     defer { release.signal() }
-    await entered.wait()
+    try await entered.waitUnlessCancelled()
     let revision = playManager.playbackRequestRevision
     await assetLoader.clearCustomHandler(for: replacement.episode)
     await repo.resumeAllPodcastEpisodeFetchSuspensions()
@@ -105,7 +105,7 @@ import Testing
     }
     let recovery = Task { await playManager.handlePlaybackFailure() }
     defer { release.signal() }
-    await entered.wait()
+    try await entered.waitUnlessCancelled()
     await playManager.pause()
     let revision = playManager.playbackRequestRevision
     release.signal()
@@ -133,7 +133,7 @@ import Testing
     }
     let recovery = Task { await playManager.handlePlaybackFailure() }
     defer { failedRelease.signal() }
-    await failedEntered.wait()
+    try await failedEntered.waitUnlessCancelled()
     let newerEntered = AsyncSemaphore(value: 0)
     let newerRelease = AsyncSemaphore(value: 0)
     await assetLoader.respond(to: replacement.episode.mediaURL) { _ in
@@ -143,7 +143,7 @@ import Testing
     }
     let playing = Task { try await playManager.play(replacement) }
     defer { newerRelease.signal() }
-    await newerEntered.wait()
+    try await newerEntered.waitUnlessCancelled()
     let revision = playManager.playbackRequestRevision
     failedRelease.signal()
     await recovery.value
@@ -159,6 +159,7 @@ import Testing
 
   @Test("fallback cannot requeue or alert over a newer play", arguments: [false, true])
   func fallbackPreservesNewerPlayback(sameEpisode: Bool) async throws {
+    Container.shared.fakeContinuousClock().freeze()
     let (failed, different) = try await Create.twoPodcastEpisodes()
     let replacement = sameEpisode ? failed : different
     PlayHelpers.setupCommandHandling()
@@ -172,7 +173,7 @@ import Testing
     }
     let recovery = Task { await playManager.handlePlaybackFailure() }
     defer { release.signal() }
-    await entered.wait()
+    try await entered.waitUnlessCancelled()
     try await playManager.play(replacement)
     let revision = playManager.playbackRequestRevision
     release.signal()
@@ -187,6 +188,7 @@ import Testing
 
   @Test("recovery succeeds once then debounces and returns the episode to Up Next")
   func successfulRecoveryAndDebounce() async throws {
+    Container.shared.fakeContinuousClock().freeze()
     let failed = try await Create.podcastEpisode()
     PlayHelpers.setupCommandHandling()
     try await playManager.play(failed)
@@ -206,8 +208,31 @@ import Testing
     #expect(alert.config != nil)
   }
 
+  @Test("a repeat failure recovers again once the debounce interval has passed")
+  func recoveryAfterDebounceInterval() async throws {
+    let clock = Container.shared.fakeContinuousClock()
+    clock.freeze()
+    let failed = try await Create.podcastEpisode()
+    PlayHelpers.setupCommandHandling()
+    try await playManager.play(failed)
+    await playManager.handlePlaybackFailure()
+    let recoveredItem = try #require(avPlayer.current as? FakeAVPlayerItem)
+    #expect(avPlayer.playCallCount == 2)
+
+    clock.advance(by: await playManager.recoveryDebounceInterval)
+    await playManager.handlePlaybackFailure()
+
+    #expect(sharedState.onDeck?.id == failed.id)
+    #expect(avPlayer.current as? FakeAVPlayerItem !== recoveredItem)
+    #expect(avPlayer.timeControlStatus == .playing)
+    #expect(avPlayer.playCallCount == 3)
+    #expect(try await PlayHelpers.queuedEpisodeIDs.isEmpty)
+    #expect(alert.config == nil)
+  }
+
   @Test("superseded reload lookup does not consume the next recovery attempt")
   func supersededLookupDoesNotDebounce() async throws {
+    Container.shared.fakeContinuousClock().freeze()
     let failed = try await Create.podcastEpisode()
     PlayHelpers.setupCommandHandling()
     try await playManager.play(failed)
@@ -227,6 +252,7 @@ import Testing
 
   @Test("item failure during playback recovers once, then returns the episode to Up Next")
   func itemFailureDuringPlayback() async throws {
+    Container.shared.fakeContinuousClock().freeze()
     let failed = try await Create.podcastEpisode()
     PlayHelpers.setupCommandHandling()
     try await playManager.play(failed)
@@ -249,6 +275,7 @@ import Testing
 
   @Test("item failure while paused reloads the episode without resuming playback")
   func itemFailureWhilePaused() async throws {
+    Container.shared.fakeContinuousClock().freeze()
     let failed = try await Create.podcastEpisode()
     PlayHelpers.setupCommandHandling()
     try await playManager.play(failed)
@@ -326,7 +353,7 @@ import Testing
     let revision = playManager.playbackRequestRevision
     let playCount = avPlayer.playCallCount
     release.signal()
-    await processed.wait()
+    try await processed.waitUnlessCancelled()
 
     #expect((playManager.playbackRequestRevision != revision) == command.shouldRecover)
     #expect(sharedState.onDeck?.id == failed.id)

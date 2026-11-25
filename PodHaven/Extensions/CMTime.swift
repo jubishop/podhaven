@@ -11,7 +11,6 @@ extension CMTime:
 {
   // MARK: - Conversions
 
-  var asDuration: Duration { Duration.seconds(CMTimeGetSeconds(self)) }
   var asTimeInterval: TimeInterval { TimeInterval.seconds(CMTimeGetSeconds(self)) }
 
   var safe: CMTime {
@@ -47,12 +46,12 @@ extension CMTime:
   // MARK: - CustomStringConvertible
 
   private var timeComponents: (hours: Int, minutes: Int, seconds: Int)? {
-    let totalSeconds = CMTimeGetSeconds(self)
-    guard !totalSeconds.isNaN && totalSeconds.isFinite else { return nil }
+    guard let totalSeconds = Int(exactly: CMTimeGetSeconds(self).rounded(.towardZero))
+    else { return nil }
 
-    let hours = Int(totalSeconds) / 3600
-    let minutes = (Int(totalSeconds) % 3600) / 60
-    let seconds = Int(totalSeconds) % 60
+    let hours = totalSeconds / 3600
+    let minutes = (totalSeconds % 3600) / 60
+    let seconds = totalSeconds % 60
 
     return (hours, minutes, seconds)
   }

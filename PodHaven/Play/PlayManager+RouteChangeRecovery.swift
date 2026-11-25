@@ -46,7 +46,7 @@ extension PlayManager {
   ) async {
     let applicationState = await Container.shared.uiApplication().applicationState
     guard playbackRequestRevision == requestID, sharedState.onDeck?.id == episodeID else { return }
-    let routeOutputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType.rawValue)
+    let routeOutputs = audioSession.currentRouteOutputs.map(\.rawValue)
     let routeAge: String
     if let latestAudioRouteChange {
       routeAge = String(dateProvider.now.timeIntervalSince(latestAudioRouteChange.occurredAt))
