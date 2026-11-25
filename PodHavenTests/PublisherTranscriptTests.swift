@@ -303,6 +303,27 @@ struct PublisherTranscriptTests {
     #expect(await session.requests == [json.url, webVTT.url, subRip.url])
   }
 
+  @Test("a transcript over the download limit fails without a retry")
+  func oversizedTranscriptFailsTerminally() async throws {
+    let webVTT = reference("oversized.vtt", type: "text/vtt")
+    let transcript = """
+      WEBVTT
+
+      00:00:01.000 --> 00:00:02.000
+      Words
+
+      """
+    let padding = String(repeating: " ", count: PublisherTranscriptImporter.downloadByteLimit)
+    await session.respond(to: webVTT.url, data: Data((transcript + padding).utf8))
+
+    let outcome = try await importer.attemptImport(from: [webVTT])
+
+    guard case .terminalFailure = outcome else {
+      Issue.record("Expected a terminal failure, got \(outcome)")
+      return
+    }
+  }
+
   @Test("untimed transcript resources are ignored without fetching")
   func ignoresUntimedResources() async throws {
     let plain = reference("transcript.txt", type: "text/plain")
