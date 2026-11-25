@@ -79,6 +79,19 @@ import Testing
     #expect(attachment.data == data.prefix(OPMLImportDiagnostics.maximumAttachmentBytes))
   }
 
+  @Test("a file over the download limit is refused before parsing")
+  func fileOverDownloadLimitIsRefused() async throws {
+    let captured = captureDiagnostics()
+    let url = URL(string: "file:///oversized.opml")!
+    await opmlSession.respond(to: url, data: brokenOPML(padding: PodcastOPML.downloadByteLimit))
+
+    await opmlViewModel.importOPMLFromURL(url: url)
+
+    #expect(captured().isEmpty)
+    #expect(alert.config?.title == "Error")
+    #expect(opmlViewModel.opmlFile == nil)
+  }
+
   @Test("repeated failures are rate limited")
   func repeatedFailuresAreRateLimited() async throws {
     let clock = Container.shared.fakeContinuousClock()

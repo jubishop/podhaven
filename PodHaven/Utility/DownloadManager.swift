@@ -22,6 +22,7 @@ actor DownloadTask: Identifiable {
 
   private let request: URLRequest
   private let session: any DataFetchable
+  private let byteLimit: Int
   private let beganLatch = AsyncLatch<Void>()
   private let finishedLatch = AsyncLatch<DownloadResult>()
   private var fetchTask: Task<DownloadData, any Error>?
@@ -57,6 +58,7 @@ actor DownloadTask: Identifiable {
     url: URL,
     validators: HTTPValidators?,
     session: any DataFetchable,
+    byteLimit: Int,
     owner: DownloadManager
   ) {
     self.url = url
@@ -66,6 +68,7 @@ actor DownloadTask: Identifiable {
       request = URLRequest(url: url)
     }
     self.session = session
+    self.byteLimit = byteLimit
     self.owner = owner
   }
 
@@ -82,8 +85,11 @@ actor DownloadTask: Identifiable {
 
     beganLatch.open()
 
-    let fetchTask = Task { [session, request, url] () async throws -> DownloadData in
-      let (data, response) = try await session.validatedResponse(for: request)
+    let fetchTask = Task { [session, request, byteLimit, url] () async throws -> DownloadData in
+      let (data, response) = try await session.validatedResponse(
+        for: request,
+        byteLimit: byteLimit
+      )
       return DownloadData(url: url, data: data, validators: HTTPValidators(response))
     }
     self.fetchTask = fetchTask
@@ -111,12 +117,14 @@ actor DownloadManager {
   private var activeDownloads: [URL: DownloadTask] = [:]
   private var pendingDownloads: IdentifiedArray<URL, DownloadTask> = []
   private let session: any DataFetchable
+  private let byteLimit: Int
   private let maxConcurrentDownloads: Int
 
   var remainingDownloads: Int { pendingDownloads.count + activeDownloads.count }
 
-  init(session: any DataFetchable, maxConcurrentDownloads: Int = 32) {
+  init(session: any DataFetchable, byteLimit: Int, maxConcurrentDownloads: Int = 32) {
     self.session = session
+    self.byteLimit = byteLimit
     self.maxConcurrentDownloads = maxConcurrentDownloads
   }
 
@@ -145,7 +153,13 @@ actor DownloadManager {
       pendingDownloads.remove(id: url)
     }
 
-    let download = DownloadTask(url: url, validators: validators, session: session, owner: self)
+    let download = DownloadTask(
+      url: url,
+      validators: validators,
+      session: session,
+      byteLimit: byteLimit,
+      owner: self
+    )
     pendingDownloads.append(download)
 
     startNextDownload()

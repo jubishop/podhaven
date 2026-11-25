@@ -16,7 +16,7 @@ struct DownloadManagerTests {
 
   @Test("that a single download works successfully")
   func singleSuccessfulDownload() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     let downloadTask = await downloadManager.addURL(url)
@@ -30,6 +30,7 @@ struct DownloadManagerTests {
     let maxConcurrentDownloads = 20
     let downloadManager = DownloadManager(
       session: session,
+      byteLimit: .max,
       maxConcurrentDownloads: maxConcurrentDownloads
     )
 
@@ -44,6 +45,18 @@ struct DownloadManagerTests {
       asyncSemaphores.append(asyncSemaphore)
       tasks.append(task)
     }
+
+    // Hold every response until the manager has filled all of its slots, so the
+    // peak is observed before any request leaves.
+    try await Wait.until(
+      { await session.activeRequests == maxConcurrentDownloads },
+      {
+        """
+        Expected \(maxConcurrentDownloads) active requests, \
+        got \(await session.activeRequests)
+        """
+      }
+    )
 
     // Wait for all downloads to complete
     for asyncSemaphore in asyncSemaphores {
@@ -65,7 +78,11 @@ struct DownloadManagerTests {
 
   @Test("that you can cancel a download before it has begun")
   func cancelPendingDownload() async throws {
-    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     // Since maxConcurrentDownloads is 1 this task holds up the queue
     let url = URL.valid()
@@ -86,7 +103,11 @@ struct DownloadManagerTests {
   @Test("downloadBegan throws CancellationError when the awaiting task is cancelled")
   func downloadBeganThrowsOnCancellation() async throws {
     // First URL holds the queue so the second never begins.
-    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
     let blockingURL = URL.valid()
     _ = await session.waitRespond(to: blockingURL)
     _ = await downloadManager.addURL(blockingURL)
@@ -112,7 +133,7 @@ struct DownloadManagerTests {
 
   @Test("that you can cancel a mid-flight download")
   func cancelActiveDownload() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     _ = await session.waitRespond(to: url)
@@ -139,6 +160,7 @@ struct DownloadManagerTests {
   func cancelAllDownloads() async throws {
     let downloadManager = DownloadManager(
       session: session,
+      byteLimit: .max,
       maxConcurrentDownloads: 1
     )
 
@@ -168,7 +190,7 @@ struct DownloadManagerTests {
 
   @Test("that you can call downloadFinished() multiple times before completion")
   func multipleDownloadsCalls() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     let asyncSemaphore = await session.waitRespond(to: url)
@@ -196,6 +218,7 @@ struct DownloadManagerTests {
   func urlsDownloadedInOrderRequested() async throws {
     let downloadManager = DownloadManager(
       session: session,
+      byteLimit: .max,
       maxConcurrentDownloads: 1
     )
 
@@ -226,6 +249,7 @@ struct DownloadManagerTests {
   func callingAddURLOnAlreadyPendingURLReturnsSameTask() async throws {
     let downloadManager = DownloadManager(
       session: session,
+      byteLimit: .max,
       maxConcurrentDownloads: 1
     )
 
@@ -243,7 +267,7 @@ struct DownloadManagerTests {
 
   @Test("that hasURL returns accurately")
   func hasURLReturnsAccurately() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     let asyncSemaphore = await session.waitRespond(to: url)
@@ -260,7 +284,11 @@ struct DownloadManagerTests {
     let url2 = URL.valid()
 
     func makeTask() async -> (AsyncSemaphore, DownloadTask) {
-      let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+      let downloadManager = DownloadManager(
+        session: session,
+        byteLimit: .max,
+        maxConcurrentDownloads: 1
+      )
       let url = URL.valid()
       let asyncSemaphore = await session.waitRespond(to: url)
       _ = await downloadManager.addURL(url)
@@ -282,7 +310,7 @@ struct DownloadManagerTests {
 
   @Test("that network errors are propagated")
   func networkErrorIsPropagated() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     let networkError = URLError(.notConnectedToInternet)
@@ -298,7 +326,7 @@ struct DownloadManagerTests {
 
   @Test("that 404 response codes are propagated")
   func notFoundErrorIsPropagated() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     await session.respond(to: url) { url in
@@ -321,7 +349,7 @@ struct DownloadManagerTests {
 
   @Test("that 500 server errors are propagated")
   func serverErrorIsPropagated() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     await session.respond(to: url) { url in
@@ -344,7 +372,7 @@ struct DownloadManagerTests {
 
   @Test("that timeout errors are propagated")
   func timeoutErrorIsPropagated() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     let timeoutError = URLError(.timedOut)
@@ -360,7 +388,11 @@ struct DownloadManagerTests {
 
   @Test("that failed downloads don't block subsequent downloads")
   func failedDownloadDoesNotBlockQueue() async throws {
-    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     // First URL will fail
     let failingURL = URL.valid()
@@ -382,7 +414,7 @@ struct DownloadManagerTests {
 
   @Test("that multiple failures are handled correctly")
   func multipleFailuresHandledCorrectly() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let urls = (1...3).map { URL(string: "https://example.com/fail\($0)")! }
 
@@ -414,7 +446,7 @@ struct DownloadManagerTests {
 
   @Test("that calling downloadFinished() multiple times after failure returns same error")
   func multipleCallsAfterFailureReturnSameError() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     let networkError = URLError(.notConnectedToInternet)
@@ -442,7 +474,11 @@ struct DownloadManagerTests {
 
   @Test("that direct DownloadTask.cancel() removes a pending task from manager state")
   func directCancelOfPendingRemovesFromManager() async throws {
-    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     let blockingURL = URL.valid()
     _ = await session.waitRespond(to: blockingURL)
@@ -465,7 +501,11 @@ struct DownloadManagerTests {
 
   @Test("that direct DownloadTask.cancel() on an active task frees its concurrency slot")
   func directCancelOfActiveFreesSlot() async throws {
-    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     let activeURL = URL.valid()
     _ = await session.waitRespond(to: activeURL)
@@ -492,7 +532,7 @@ struct DownloadManagerTests {
 
   @Test("that direct DownloadTask.cancel() cancels the underlying URLSession fetch")
   func directCancelCancelsUnderlyingFetch() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     _ = await session.waitRespond(to: url)
@@ -512,7 +552,7 @@ struct DownloadManagerTests {
 
   @Test("that calling cancel() multiple times on the same task is idempotent")
   func directCancelIsIdempotent() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     _ = await session.waitRespond(to: url)
@@ -538,7 +578,7 @@ struct DownloadManagerTests {
 
   @Test("that calling cancel() on a successfully-finished task is a no-op")
   func directCancelAfterSuccessIsNoop() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     let task = await downloadManager.addURL(url)
@@ -554,7 +594,11 @@ struct DownloadManagerTests {
 
   @Test("that cancelling one task does not affect other concurrent downloads")
   func cancelOneDoesNotAffectConcurrentDownloads() async throws {
-    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 3)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 3
+    )
 
     let cancelURL = URL.valid()
     let succeedURL1 = URL.valid()
@@ -581,7 +625,11 @@ struct DownloadManagerTests {
 
   @Test("that cancelDownload(url:) removes a pending task from manager state")
   func cancelDownloadOfPendingRemovesFromManager() async throws {
-    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     let blockingURL = URL.valid()
     _ = await session.waitRespond(to: blockingURL)
@@ -601,7 +649,11 @@ struct DownloadManagerTests {
 
   @Test("that cancelDownload(url:) on an active task frees its concurrency slot")
   func cancelDownloadOfActiveFreesSlot() async throws {
-    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     let activeURL = URL.valid()
     _ = await session.waitRespond(to: activeURL)
@@ -623,7 +675,7 @@ struct DownloadManagerTests {
 
   @Test("that cancelDownload(url:) cancels the underlying URLSession fetch")
   func cancelDownloadCancelsUnderlyingFetch() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     _ = await session.waitRespond(to: url)
@@ -643,7 +695,11 @@ struct DownloadManagerTests {
 
   @Test("that cancelAllDownloads() cancels all in-flight URLSession fetches")
   func cancelAllDownloadsCancelsUnderlyingFetches() async throws {
-    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 2)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 2
+    )
 
     let url1 = URL.valid()
     let url2 = URL.valid()
@@ -678,6 +734,7 @@ struct DownloadManagerTests {
     let maxConcurrentDownloads = 20
     let downloadManager = DownloadManager(
       session: session,
+      byteLimit: .max,
       maxConcurrentDownloads: maxConcurrentDownloads
     )
 
@@ -722,7 +779,7 @@ struct DownloadManagerTests {
 
   @Test("that calling addURL on an already active URL returns the same task")
   func callingAddURLOnAlreadyActiveURLReturnsSameTask() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     _ = await session.waitRespond(to: url)
@@ -745,7 +802,11 @@ struct DownloadManagerTests {
   func reAddedURLStaysTrackedAfterCancelledPredecessorUnwinds(
     cancellationPath: CancellationPath
   ) async throws {
-    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+    let downloadManager = DownloadManager(
+      session: session,
+      byteLimit: .max,
+      maxConcurrentDownloads: 1
+    )
 
     // The first fetch ignores cancellation, so it unwinds only when released.
     let url = URL.valid()
@@ -799,7 +860,7 @@ struct DownloadManagerTests {
 
   @Test("that delayed failure is properly handled")
   func delayedFailureIsHandled() async throws {
-    let downloadManager = DownloadManager(session: session)
+    let downloadManager = DownloadManager(session: session, byteLimit: .max)
 
     let url = URL.valid()
     let networkError = URLError(.networkConnectionLost)

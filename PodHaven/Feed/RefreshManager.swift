@@ -49,7 +49,8 @@ struct RefreshManager {
 
   private let downloadManager: DownloadManager
   private let inFlight = ThreadSafe<Set<URL>>([])
-  // Feeds that fail to parse stay stale and keep retrying, so warn once per process.
+  // Feeds that are too large or fail to parse stay stale and keep retrying, so
+  // warn once per process.
   private let reportedUndecodableFeeds = ThreadSafe<Set<URL>>([])
   // A feed whose new URL another podcast holds tries to move on every refresh,
   // so warn once per process.
@@ -60,6 +61,7 @@ struct RefreshManager {
   fileprivate init() {
     downloadManager = DownloadManager(
       session: Container.shared.podcastFeedSession(),
+      byteLimit: PodcastFeed.downloadByteLimit,
       maxConcurrentDownloads: 8
     )
   }
@@ -284,7 +286,7 @@ struct RefreshManager {
     } catch {
       let level: Logger.Level
       switch error {
-      case is DecodingError, PodcastFeedError.notXML:
+      case is DecodingError, is ResponseTooLargeError, PodcastFeedError.notXML:
         level = reportedUndecodableFeeds { $0.insert(url).inserted } ? .warning : .notice
       default:
         level = .notice
