@@ -266,34 +266,23 @@ This issue tracks [Sentry issue `<shortId>`](<permalink>) (numeric issue ID `<nu
 
 ## Sentry closeout
 
-- When this issue's work is done, update [Sentry issue `<shortId>`](<permalink>)
-  (numeric issue ID `<numeric-id>`):
-  - When a merged commit fixes it, resolve it in that commit, so only builds
-    that contain the fix can regress it:
-    `sentry issue resolve <numeric-id> --in @commit:jubishop/podhaven@<merge-commit-sha>`.
-    Sentry silently ignores this for an issue that is already resolved, so
-    run `sentry issue unresolve <numeric-id>` first in that case. If Sentry
-    rejects the commit, use `--in @next`.
-  - When the issue closes without a fix commit, such as a stale-build
-    recurrence, use `sentry issue resolve <numeric-id> --in @next`.
-  - When the error is accepted as expected behavior, archive it instead with
-    `sentry issue archive <numeric-id> --until auto`, so the daily intake
-    ignores it unless it escalates.
-- Read it back with `sentry issue view <numeric-id> --fresh --json --fields id,status,statusDetails`
-  and verify `status: resolved`, or `status: ignored` after archiving, before
-  reporting completion. For a commit resolution, also verify that
-  `statusDetails.inCommit.id` is the merge commit.
-- For PR-backed work, `fix-issue` must carry this obligation, identifiers,
-  link, and verification into the PR's `Do After Merging` section. The
-  `after-merge` agent completes it as tracking closeout after confirming
-  GitHub closure.
-  It is agent work, not a manual reminder or a release/observation task.
-- For issue-only work, the agent that finishes the work performs the same
-  update and readback once everything else is verified, before it closes the
-  GitHub issue or hands closure to a caller that owns it. That caller may not
-  touch Sentry, and a closed issue whose Sentry error stays unresolved gets a
-  recurrence intake issue. If access or the update fails, report the closeout
-  as incomplete rather than claiming success.
+- When this issue's work is done, close [Sentry issue `<shortId>`](<permalink>)
+  (numeric issue ID `<numeric-id>`) with
+  `.agents/scripts/sentry-cli/close_sentry_issue.sh <numeric-id>` and the
+  mode that fits, which fails unless Sentry recorded the closure:
+  - `--commit <merge-commit-sha>` when a merged commit fixes it.
+  - `--next` when it closes without a fix commit, such as a stale-build
+    recurrence.
+  - `--archive` when the error is accepted as expected behavior.
+- For PR-backed work, `fix-issue` must carry this command and link into the
+  PR's `Do After Merging` section, for the `after-merge` agent to run after
+  confirming GitHub closure.
+- For issue-only work, the agent that finishes the work runs it once
+  everything else is verified, before it closes the GitHub issue or hands
+  closure to a caller that owns it. That caller may not touch Sentry, and a
+  closed issue whose Sentry error stays unresolved gets a recurrence intake
+  issue. If the command fails, report the closeout as incomplete rather than
+  claiming success.
 <!-- analyze-sentry-issue-findings:end -->
 ```
 
