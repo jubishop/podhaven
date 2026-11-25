@@ -676,8 +676,9 @@ never change the priority of an issue that already tracks an item.
 The pickers and checkers match an issue by its marker or a link to the Sentry
 item; the pickers show it as intake, analyzed, closed, or untracked. Error issues
 analyzed before the marker existed count as analyzed when their body has a
-`## Sentry closeout` section. `bin/_sentry_issue_tracking.jq` holds the
-error-issue rule for `bin/check-sentry-issues` and `bin/snissue`.
+`## Sentry closeout` section. Each rule lives in one jq module that its
+checker and picker share: `bin/_sentry_feedback_tracking.jq` for feedback and
+`bin/_sentry_issue_tracking.jq` for error issues.
 
 The controlled `bin/integration` probes behind the `bin/sentry-*-smoke`
 commands report to the production Sentry project, so the smokes can verify
