@@ -230,8 +230,11 @@ accessory app's windows can join another app's full-screen Space, so the test
 host becomes one, without a Dock icon or menu bar, and its window then appears
 over a full-screen app during a run. It also brings back a minimized or hidden
 window without activating the app, which covers a window minimized another
-way, such as with Minimize All. A test that builds its own window in that
-scene calls `keepTestSceneOnScreen` first.
+way, such as with Minimize All, and a test host hidden before its first
+hosted test, which it also unhides. After a hide, UIKit treats the returned
+window as off screen until it next checks the window, so the helper then posts
+an active-Space change, which makes UIKit check it. A test that builds its own
+window in that scene calls `keepTestSceneOnScreen` first.
 
 ### Current-revision Swift validation
 
@@ -279,13 +282,12 @@ For focused application tests, use My Mac by default with
 running zero tests.
 
 Run focused tests with the README's
-[suite command](../README.md#run-a-specific-test-suite). Its
-`bin/with-my-mac-lock env -u SDKROOT` prefix takes a
-[validation slot](#validation-slots) and the
+[suite command](../README.md#run-a-specific-test-suite), which passes the
+test-build flags listed below. Its `bin/with-my-mac-lock env -u SDKROOT` prefix
+takes a [validation slot](#validation-slots) and the
 [My Mac test lock](#my-mac-test-lock), and lets Xcode select the SDK for the
 requested destination; `bin/test-all` takes both and clears inherited `SDKROOT`
-itself. Without its `-skipMacroValidation`, the build stops on package macros
-that Xcode hasn't approved.
+itself.
 
 Run `bin/test-all --preflight` to check the Xcode, Swift, and macOS versions
 without running tests. Release commands run this preflight too.
@@ -355,11 +357,15 @@ service data, or installed models. Run the relevant smoke tests when those
 integrations change; they do not replace the automated suite.
 
 Retain the `.xcresult` bundle and raw `xcodebuild` log for local runs.
-Pass `-hideShellScriptEnvironment` and `LM_FORCE_LINK_GENERATION=YES` to test
-builds. The latter runs App Intents extraction even when a dynamic package's
-dependency file does not list App Intents. It confirms that there are no
-relevant symbols instead of emitting a skipped-extraction warning; it does
-not suppress warnings or bypass metadata validation.
+Pass `-hideShellScriptEnvironment`, `-skipMacroValidation`, and
+`LM_FORCE_LINK_GENERATION=YES` to test builds, as the
+[suite command](../README.md#run-a-specific-test-suite) does. Without
+`-skipMacroValidation`, the build stops at package macros Xcode hasn't been
+told to trust. `LM_FORCE_LINK_GENERATION=YES` runs App Intents extraction even
+when a dynamic package's dependency file does not list App Intents. It
+confirms that there are no relevant symbols instead of emitting a
+skipped-extraction warning; it does not suppress warnings or bypass metadata
+validation.
 
 Run `bin/check-swift-results <bundle.xcresult> --build-log <xcodebuild.log>`
 after focused tests, adding `--full` for the complete suite. This gate requires
