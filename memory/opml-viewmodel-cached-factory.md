@@ -8,6 +8,6 @@ type: "feedback"
 
 `OPMLViewModel` is a `.cached` `Container` factory with a `fileprivate init`, injected via `@InjectedObservable(\.opmlViewModel)` in `OPMLView` and resolved with `Container.shared.opmlViewModel()` in `ShareService`. Never construct it directly (`OPMLViewModel()` / a view's own `@State`).
 
-**Why:** A shared `.opml` routes through `ShareService.handleOPMLURL`, which parses the file into an `OPMLViewModel`; `OPMLView` presents the review and progress sheet bound to *its own* `opmlFile`. If those are two different instances, the view's sheet never updates, so nothing appears and the user can never confirm the import (Sentry PODHAVEN-49). One `.cached` instance shared by both fixes it; the `fileprivate init` makes a detached instance impossible to create.
+**Why:** A shared OPML file routes through `ShareService.handleSharedFile`, which parses the file into an `OPMLViewModel`; `OPMLView` presents the review and progress sheet bound to *its own* `opmlFile`. If those are two different instances, the view's sheet never updates, so nothing appears and the user can never confirm the import (Sentry PODHAVEN-49). One `.cached` instance shared by both fixes it; the `fileprivate init` makes a detached instance impossible to create.
 
 **How to apply:** Keep the factory `.cached`. If you switch it to `.unique`, re-add an accessible `init`, or let a view hold its own `@State` copy "to simplify," the share-import sheet silently breaks again.

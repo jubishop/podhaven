@@ -8,6 +8,8 @@ enum ShareExtensionError: Error, LocalizedError {
   case noURLFound
   case urlLoadingFailed(any Error)
   case itemNotURL
+  case fileSizeUnavailable
+  case fileTooLarge(Int)
 
   var errorDescription: String? {
     switch self {
@@ -21,6 +23,10 @@ enum ShareExtensionError: Error, LocalizedError {
       return "Failed to load URL: \(error)"
     case .itemNotURL:
       return "Shared item is not a URL"
+    case .fileSizeUnavailable:
+      return "Could not determine the shared file's size"
+    case .fileTooLarge(let fileSize):
+      return "Shared file is too large: \(fileSize) bytes"
     }
   }
 }
