@@ -1,6 +1,6 @@
 # Sentry tracking-issue rules that the intake checkers and pickers share. Keep
-# them in this one module: jq 1.8.2 aborts when a module passes arguments to a
-# function from a module it includes.
+# them in this one module: split across nested includes, they make jq 1.8.2
+# abort with an assertion.
 
 # Whether a REST issue or comment object came from the Sentry Intake
 # workflow's token, which GraphQL and `gh issue view` name `github-actions`.
