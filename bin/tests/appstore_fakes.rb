@@ -116,10 +116,16 @@ class FakeApp
 end
 
 module FastlaneCore
+  class Interface
+    class FastlaneCrash < StandardError; end
+  end
+
   class BuildWatcher
     def self.wait_for_build_processing_to_be_complete(**options)
       $events << ["wait", options]
-      raise "Processing timed out" if $scenario == "timeout"
+      if $scenario == "timeout"
+        raise Interface::FastlaneCrash, "FastlaneCore::BuildWatcher exceeded the '#{options[:timeout_duration]}' seconds, Stopping now!"
+      end
       build = $builds.find { |candidate| candidate.version == options[:build_version] }
       raise "Processing timed out" unless build
       build = $builds.last if $scenario == "wrong_build"
