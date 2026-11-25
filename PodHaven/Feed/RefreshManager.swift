@@ -127,6 +127,26 @@ struct RefreshManager {
       return results
     }
 
+    // Behind a captive portal or in a DNS outage the path reads satisfied but
+    // every fetch fails. When several feeds all fail that way, one of them
+    // having refreshed within maximumBackoff without failing since, blame the
+    // network and record nothing.
+    let networkFailed =
+      collected.count > 1
+      && collected.allSatisfy {
+        if case .failed(_, _, .feedOrNetwork) = $0.result { true } else { false }
+      }
+      && stalePodcasts.contains { podcast in
+        podcast.refreshFailureCount == 0
+          && podcast.lastUpdate >= now.advanced(by: -Self.maximumBackoff.asTimeInterval)
+          && collected.contains { $0.id == podcast.id }
+      }
+    if networkFailed {
+      Self.log.notice(
+        "performRefresh: all \(collected.count) feeds failed as without working internet; recording no failures"
+      )
+    }
+
     if !collected.isEmpty {
       let urls = collected.map(\.url)
       // Task to execute even inside cancellation: ensures the results
@@ -138,7 +158,7 @@ struct RefreshManager {
       await Task {
         defer { inFlight { state in for url in urls { state.remove(url) } } }
         do {
-          try await flush(collected)
+          try await flush(networkFailed ? [] : collected)
         } catch {
           Self.log.caughtError(
             "performRefresh: failed to flush \(collected.count) refresh results",
@@ -173,7 +193,16 @@ struct RefreshManager {
 
   private enum RefreshResult {
     case refreshed(lastUpdate: Date, feedValidators: HTTPValidators?)
-    case failed(failureCount: Int, backoffUntil: Date)
+    case failed(failureCount: Int, backoffUntil: Date, cause: FailureCause)
+  }
+
+  private enum FailureCause {
+    // The feed's server answered with an error status, or the feed arrived
+    // but couldn't be applied, so the network worked.
+    case feed
+    // The fetch failed, or brought back something other than a feed, as it
+    // would on a network without working internet.
+    case feedOrNetwork
   }
 
   private typealias PendingFlush = (id: Podcast.ID, url: URL, result: RefreshResult)
@@ -185,7 +214,7 @@ struct RefreshManager {
       switch pending.result {
       case .refreshed(let lastUpdate, let feedValidators):
         refreshes.append((pending.id, lastUpdate, feedValidators))
-      case .failed(let failureCount, let backoffUntil):
+      case .failed(let failureCount, let backoffUntil, _):
         failures.append((pending.id, failureCount, backoffUntil))
       }
     }
@@ -197,7 +226,7 @@ struct RefreshManager {
     }
   }
 
-  private func failure(of podcast: Podcast) -> PendingFlush {
+  private func failure(of podcast: Podcast, cause: FailureCause) -> PendingFlush {
     let failureCount = podcast.refreshFailureCount + 1
     var backoff = Self.initialBackoff
     var doublings = failureCount - 1
@@ -214,7 +243,7 @@ struct RefreshManager {
     return PendingFlush(
       id: podcast.id,
       url: podcast.feedURL.rawValue,
-      result: .failed(failureCount: failureCount, backoffUntil: backoffUntil)
+      result: .failed(failureCount: failureCount, backoffUntil: backoffUntil, cause: cause)
     )
   }
 
@@ -277,7 +306,7 @@ struct RefreshManager {
         if !path.isSatisfied { return nil }
       }
       releaseOnExit = false
-      return failure(of: podcast)
+      return failure(of: podcast, cause: error is HTTPStatusError ? .feed : .feedOrNetwork)
     }
 
     let existingEpisodes = try await repo.feedMergeEpisodes(
@@ -311,7 +340,7 @@ struct RefreshManager {
     else {
       if Task.isCancelled { return nil }
       releaseOnExit = false
-      return failure(of: podcast)
+      return failure(of: podcast, cause: .feed)
     }
     releaseOnExit = false
     return PendingFlush(
