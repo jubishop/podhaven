@@ -9,6 +9,7 @@ import tempfile
 import threading
 import unittest
 
+import fake_caffeinate
 import hang_guard
 import service_guard
 
@@ -46,6 +47,10 @@ class ValidationSlotTests(unittest.TestCase):
         self.slots = self.home / ".cache/podhaven"
         self.env = {key: value for key, value in os.environ.items() if not key.startswith("PODHAVEN_")}
         self.env["HOME"] = str(self.home)
+        commands = self.home / "commands"
+        commands.mkdir()
+        fake_caffeinate.install(commands)
+        self.env["PATH"] = str(commands) + os.pathsep + self.env["PATH"]
 
     def start(self, command, **env):
         process = hang_guard.start(command, env={**self.env, **env}, cwd=self.home, text=True,

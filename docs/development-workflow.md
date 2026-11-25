@@ -422,6 +422,13 @@ of waiting on itself. If a holder hangs, stop its run, including its
 `xcodebuild`, to release the lock. Xcode's own test action does not take the
 lock.
 
+UIKit on the Mac sends every scene to the background while the displays
+sleep, which fails every hosted test running then, so a run that takes the
+lock also holds a display-sleep assertion with
+`caffeinate -d -u -w <its process ID>`. That wakes a display that is already
+off and keeps it on until the run exits, or for `bin/with-my-mac-lock`, until
+its command exits. A nested run reuses the assertion with the lock.
+
 #### Validation slots
 
 **Decision — 2026-11-09:** Concurrent sessions queue for machine-wide
