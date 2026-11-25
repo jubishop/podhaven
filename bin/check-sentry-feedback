@@ -22,7 +22,8 @@ while IFS= read -r feedback; do
   ISSUE_MARKER="<!-- sentry-feedback:$SLUG -->"
 
   MATCH="$(jq -c -L "$(dirname "${BASH_SOURCE[0]}")" --arg slug "$SLUG" --arg permalink "$PERMALINK" \
-    'include "_sentry_feedback_tracking"; sentry_feedback_tracking($slug; $permalink) | first // empty' \
+    --arg owner "${GH_REPO%%/*}" \
+    'include "_sentry_tracking"; sentry_feedback_tracking($slug; $permalink; $owner) | first // empty' \
     "$ISSUES_JSON")"
 
   if [[ -n "$MATCH" ]]; then
