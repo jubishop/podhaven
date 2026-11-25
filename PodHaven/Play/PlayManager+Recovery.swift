@@ -41,7 +41,7 @@ extension PlayManager {
     let shouldAttemptRecovery: Bool
     if let lastRecoveryAttempt,
       lastRecoveryAttempt.episodeID == episodeID,
-      Date().timeIntervalSince(lastRecoveryAttempt.time) < recoveryDebounceInterval
+      continuousClockNow() - lastRecoveryAttempt.time < recoveryDebounceInterval
     {
       shouldAttemptRecovery = false
     } else {
@@ -60,7 +60,7 @@ extension PlayManager {
         Self.log.info(
           "handlePlaybackFailure: attempting auto-recovery for \(podcastEpisode.toString)"
         )
-        lastRecoveryAttempt = (episodeID, Date())
+        lastRecoveryAttempt = (episodeID, continuousClockNow())
         let result: SelectionResult
         switch intent {
         case .play:

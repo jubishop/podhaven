@@ -29,3 +29,10 @@ action or a checkout from before the lock existed, can still collide.
 
 Treat a run whose failures are all `signal kill` at 0.000s as invalid evidence
 and rerun it; it says nothing about the code under test.
+
+The lock serializes only the `xcodebuild test` phases, not load. On 2026-11-09
+about ten concurrent `bin/test-all` runs saturated the Mac and all failed. Heavy
+runs now also queue for machine-wide
+[validation slots](../docs/development-workflow.md#validation-slots), taken
+before this lock, and `run.json` flags a failure in a phase that ran while the
+host was saturated as possibly load-induced.

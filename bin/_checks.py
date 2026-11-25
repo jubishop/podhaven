@@ -15,7 +15,7 @@ import sys
 import unicodedata
 from urllib.parse import unquote, urlsplit
 
-from _knowledge import git, matches
+from _knowledge import git, git_environment, matches
 
 
 MARKERS = ("project-starter:begin", "project-starter:end")
@@ -23,6 +23,8 @@ MARKERS = ("project-starter:begin", "project-starter:end")
 REUSE_WINDOW = timedelta(hours=12)
 # A shebang naming a ShellCheck dialect, directly or through env, with or without flags.
 SHELL_SHEBANG = re.compile(rb"#![ \t]*(?:\S*/)?(?:env[ \t]+(?:-\S*[ \t]+)*)?(sh|bash|dash|ksh)(?=\s|$)")
+# An environment variable name that a POSIX shell accepts.
+VARIABLE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 def digest(data):
@@ -306,10 +308,312 @@ def validate(root, areas=("memory", "docs"), options=None):
     return errors
 
 
-def environment(root):
-    """Fingerprint what besides the tree can change application results."""
+# Skill frontmatter spellings that no supported runtime reads, each with the spelling Claude Code reads.
+UNREAD_SKILL_FIELDS = {"user_invocable": "user-invocable", "disable_model_invocation": "disable-model-invocation",
+                       "argument_hint": "argument-hint", "allowed_tools": "allowed-tools", "argument": "argument-hint"}
+# The Agent Skills limit on a description, in characters.
+DESCRIPTION_LIMIT = 1024
+# An agents/openai.yaml policy that keeps Codex from starting a skill on its own. Each line inside the block matches
+# only one way, so a block that lacks the setting fails in linear time.
+IMPLICIT_OFF = re.compile(r"^policy:[ \t]*(?:#.*)?\n(?:(?:[ \t#].*)?\n)*?"
+                          r"[ \t]+allow_implicit_invocation:[ \t]*false[ \t]*(?:#.*)?$", re.M)
+
+
+def frontmatter_entries(text):
+    """Return each top-level key of a SKILL.md's frontmatter, mapped to its value's lines: the rest of the key's
+    line, then the blank, indented, and sequence lines under it."""
+    lines = text.splitlines()
+    if not lines or lines[0].rstrip() != "---":
+        raise ValueError("missing frontmatter")
+    end = next((i for i, line in enumerate(lines[1:], 1) if line.rstrip() == "---"), None)
+    if end is None:
+        raise ValueError("frontmatter has no closing --- line")
+    entries, key = {}, None
+    for line in lines[1:end]:
+        if line.startswith("#"):
+            continue
+        if key and (not line.strip() or line[0] in " \t" or re.match(r"-(?:\s|$)", line)):
+            entries[key].append(line)
+            continue
+        entry = re.fullmatch(r"([^\s#][^:]*?)[ \t]*:(?:[ \t]+(.*)|[ \t]*)", line) if line.strip() else None
+        if line.strip() and not entry:
+            raise ValueError("unsupported frontmatter line: " + line)
+        if entry:
+            key = entry[1]
+            if key in entries:
+                raise ValueError("duplicate frontmatter field: " + key)
+            entries[key] = [entry[2] or ""]
+    return entries
+
+
+def block_scalar(header, lines):
+    """Return a | or > block scalar's value as YAML reads it, from its header, such as >-, and its lines."""
+    style, chomp = header[0], "".join(c for c in header if c in "+-")
+    digits = "".join(c for c in header if c.isdigit())
+    content = [line for line in lines if line.strip()]
+    indent = int(digits) if digits else len(content[0]) - len(content[0].lstrip(" ")) if content else 0
+    result, empty, started, spaced = "", 0, False, False
+    # Folding keeps the line breaks around a more-indented line, and turns any other single one into a space.
+    for line in lines:
+        if not line.strip():
+            empty += 1
+            continue
+        if len(line) - len(line.lstrip(" ")) < indent:
+            raise ValueError("block value has a line indented less than its first")
+        text = line[indent:]
+        if style == "|" or text[0] in " \t" or spaced:
+            result += "\n" * (empty + 1 if started else empty)
+        else:
+            result += " " if started and not empty else "\n" * empty
+        spaced = style == ">" and text[0] in " \t"
+        result += text
+        started, empty = True, 0
+    if chomp == "+":
+        return result + "\n" * (empty + 1 if started else empty)
+    return result + "\n" if started and not chomp else result
+
+
+def frontmatter_string(field, lines):
+    """Return a frontmatter field's string as YAML reads it, from a plain, quoted, or block value, or None when the
+    value is empty or null."""
+    first = lines[0].strip()
+    header = re.fullmatch(r"([|>](?:[1-9]?[+-]?|[+-][1-9]))(?:[ \t]+#.*)?", first)
+    if header:
+        return block_scalar(header[1], lines[1:])
+    # A flow value's lines fold together: one line break becomes a space, and each empty line a line break.
+    value, empty = "", 0
+    for line in (first, *(line.strip() for line in lines[1:])):
+        if not line:
+            empty += 1 if value else 0
+            continue
+        value += ("\n" * empty if empty else " ") if value else ""
+        value, empty = value + line, 0
+    if value.startswith('"'):
+        try:
+            decoded, end = json.JSONDecoder(strict=False).raw_decode(value)
+        except json.JSONDecodeError:
+            raise ValueError(field + " has an invalid double-quoted string") from None
+        if re.fullmatch(r"\s*(?:#.*)?", value[end:]):
+            return decoded
+        raise ValueError(field + " has text after its closing quote")
+    if value.startswith("'"):
+        match = re.fullmatch(r"'((?:[^']|'')*)'\s*(?:#.*)?", value, re.S)
+        if not match:
+            raise ValueError(field + " has an invalid single-quoted string")
+        return match[1].replace("''", "'")
+    value = re.split(r"(?:^|\s)#", value, maxsplit=1)[0].rstrip()
+    if re.search(r":(?:\s|$)", value) or re.match(r"[][{}>|&*!%@`,]|[-?:](?:\s|$)", value):
+        raise ValueError(field + " is not a plain YAML string; quote it or fold it with >-")
+    return None if value in ("", "~", "null", "Null", "NULL") else value
+
+
+def skill_problems(page):
+    """Return how a skill's SKILL.md breaks the frontmatter rules that Agent Skills runtimes read."""
+    try:
+        entries = frontmatter_entries(page.read_text())
+        name, description = (frontmatter_string(field, entries[field]) if field in entries else None
+                             for field in ("name", "description"))
+    except ValueError as error:
+        return [str(error)]
+    problems = [] if name == page.parent.name else ["name must be " + page.parent.name + ", its folder's name"]
+    description = description or ""
+    if not description.strip():
+        problems.append("description must not be empty")
+    elif len(description) > DESCRIPTION_LIMIT:
+        problems.append("description is {:,} characters; the Agent Skills limit is {:,}".format(
+            len(description), DESCRIPTION_LIMIT))
+    flag = entries.get("disable-model-invocation", [""])
+    explicit = re.sub(r"\s+#.*", "", flag[0]).strip()
+    if explicit not in ("true", "false") or any(line.strip() for line in flag[1:]):
+        problems.append("disable-model-invocation must be true or false")
+    else:
+        codex = page.parent / "agents/openai.yaml"
+        implicit_off = codex.is_file() and bool(IMPLICIT_OFF.search(codex.read_text()))
+        if explicit == "true" and not implicit_off:
+            problems.append("disable-model-invocation is true, so agents/openai.yaml must set "
+                            "policy.allow_implicit_invocation: false; Codex ignores the frontmatter field")
+        elif explicit == "false" and implicit_off:
+            problems.append("agents/openai.yaml sets policy.allow_implicit_invocation: false, so "
+                            "disable-model-invocation must be true")
+    problems += [wrong + " is a spelling no runtime reads; use " + right
+                 for wrong, right in UNREAD_SKILL_FIELDS.items() if wrong in entries]
+    return problems
+
+
+def skill_errors(root):
+    """Check each .agents/skills/<name>/SKILL.md against the frontmatter rules that Agent Skills runtimes read.
+
+    A skill folder that Git tracks as a symlink, into another repository, is that repository's to check.
+    """
+    pages = [p for p in tracked_files(root) if p.relative_to(root).parts[:2] == (".agents", "skills")
+             and len(p.relative_to(root).parts) == 4 and p.name == "SKILL.md"]
+    return [page.relative_to(root).as_posix() + ": " + problem for page in pages for problem in skill_problems(page)]
+
+
+def event_base():
+    """Return the revision a GitHub Actions pull request or push run starts from, or None for any other run.
+
+    That is the pull request's base branch, or the commit a push replaced. A push that creates its branch has none.
+    """
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return None
+    name = os.environ.get("GITHUB_EVENT_NAME")
+    if name == "pull_request" and os.environ.get("GITHUB_BASE_REF"):
+        return "refs/remotes/origin/" + os.environ["GITHUB_BASE_REF"]
+    if name == "push":
+        before = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text()).get("before") or ""
+        return before if before.strip("0") else None
+    return None
+
+
+def change_base(root):
+    """Return where this checkout's own changes start, or None when its history can't tell.
+
+    In a GitHub Actions pull request or push run, that is the fork point from its event's base. Otherwise it is
+    the fork point from origin's default branch, or the empty tree before anything is fetched or pushed.
+    A clone without that history, such as one whose push rewrote what it replaced, gets None rather than the
+    empty tree, so content already on the default branch never fails the check. A shallow GitHub Actions
+    checkout that can't reach its event's base fails instead, since it would check nothing committed.
+    """
+    if not git("rev-parse", "--verify", "--quiet", "HEAD^{commit}", root=root, optional=True):
+        return None
+    shallow = git("rev-parse", "--is-shallow-repository", root=root) == "true"
+    event = event_base()
+    if event:
+        commit = git("rev-parse", "--verify", "--quiet", event + "^{commit}", root=root, optional=True)
+        base = commit and git("merge-base", "HEAD", commit, root=root, optional=True)
+        if base:
+            return base
+        if shallow:
+            raise RuntimeError("This shallow checkout can't reach " + event + ", where this run's commits start, so "
+                               "the whitespace check would read none of them. Give actions/checkout fetch-depth: 0, "
+                               "as docs/foundation/engineering-policy.md#hosted-ci describes.")
+    default = git("rev-parse", "--verify", "--quiet", "refs/remotes/origin/HEAD^{commit}", root=root, optional=True)
+    if default:
+        return git("merge-base", "HEAD", default, root=root, optional=True) or None
+    if shallow or git("for-each-ref", "--count=1", "--format=%(refname)", "refs/remotes", root=root):
+        return None
+    return git("hash-object", "-t", "tree", os.devnull, root=root)
+
+
+def hosted_partial_clone(root):
+    """Return whether this is a GitHub Actions checkout that leaves objects on its server, as a sparse checkout does."""
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return False
+    promisors = git("config", "--type=bool", "--get-regexp", r"^remote\..*\.promisor$", root=root, optional=True)
+    return bool(git("config", "--get", "extensions.partialClone", root=root, optional=True)
+                or any(line.endswith(" true") for line in promisors.splitlines()))
+
+
+def base_blobs(root, base):
+    """Return the changed paths that the sparse checkout leaves out, and base's blobs of the other changed paths that
+    the whitespace check reads but this clone lacks, without fetching anything. With no base, the changes are the
+    working tree's against the index.
+
+    The checkout's own patterns decide what it leaves out, so a path stays out after a step writes a file there, and
+    whatever its content. The check skips deletions, which add no lines, but when the run adds a file, Git's rename
+    detection reads each deleted file's base to look for a pair, so whitespace a run only moves still passes.
+    """
+    environment = git_environment() | {"GIT_NO_LAZY_FETCH": "1"}
+
+    def fields(*args, paths=()):
+        result = subprocess.run(["git", *args], cwd=root, env=environment, capture_output=True,
+                                input=b"".join(os.fsencode(path) + b"\0" for path in paths))
+        if result.returncode:
+            raise RuntimeError(os.fsdecode(result.stderr).strip() or "Git command failed")
+        return [os.fsdecode(field) for field in result.stdout.split(b"\0")[:-1]]
+
+    # Unlike git diff, the diff-* commands read no blob to rule out a file whose stat information alone is stale.
+    listed = fields(*(("diff-index", base) if base else ("diff-files",)), "-z", "--no-renames", "--no-abbrev")
+    # Each change is ":<base mode> <mode> <base object> <object> <status>", then its path.
+    changes = {path: header[1:].split()[:3] for header, path in zip(listed[0::2], listed[1::2])}
+    excluded = set()
+    if git("config", "--type=bool", "--get", "core.sparseCheckout", root=root, optional=True) == "true":
+        # check-rules prints each path that the patterns, cone or not, keep, and reads no objects.
+        excluded = changes.keys() - set(fields("sparse-checkout", "check-rules", "-z", paths=changes))
+    checked = [modes for path, modes in changes.items() if path not in excluded]
+    adds = any(base_mode == "000000" for base_mode, _, _ in checked)
+    names = sorted({name for base_mode, mode, name in checked
+                    if base_mode not in ("000000", "160000") and (mode != "000000" or adds)})
+    if not names:
+        return sorted(excluded), []
+    # List the objects the clone has rather than ask for each name: Git 2.43, Ubuntu 24.04's, ends a batch check at
+    # the first object a partial clone lacks, even with lazy fetching off, where newer Git reports it missing.
+    present = subprocess.run(["git", "cat-file", "--batch-all-objects", "--unordered", "--batch-check=%(objectname)"],
+                             cwd=root, env=environment, check=True, capture_output=True, text=True).stdout.split()
+    return sorted(excluded), sorted(set(names).difference(present))
+
+
+def check_whitespace(root):
+    """Run Git's whitespace check on staged changes and on the working tree since the change base."""
+    base = change_base(root)
+    environment, excluded = git_environment(), []
+    if hosted_partial_clone(root):
+        # The check's step holds no credentials, so it reads only what the checkout has, and skips what it left out.
+        environment |= {"GIT_NO_LAZY_FETCH": "1"}
+        excluded, missing = base_blobs(root, base)
+        if missing:
+            files = "1 changed file" if len(missing) == 1 else str(len(missing)) + " changed files"
+            raise RuntimeError("This partial clone lacks the base version of " + files + " that the whitespace check "
+                               "reads, and the check fetches nothing, since its step has no credentials. Run "
+                               "bin/check --fetch-base with the job's token in a step before it, as "
+                               "docs/foundation/engineering-policy.md#hosted-ci describes.")
+    paths = ["--", *(":(top,literal,exclude)" + path for path in excluded)] if excluded else []
+    # Comparing the base with the working tree covers commits since it, and a fix counts once it's made. A deletion
+    # adds no lines, so Git reads a deleted file's base only for rename detection, when the run adds a file.
+    subprocess.run(["git", "diff", "--check", "--diff-filter=d", *([base] if base else []), *paths], cwd=root,
+                   env=environment, check=True)
+    subprocess.run(["git", "diff", "--cached", "--check"], cwd=root, env=environment, check=True)
+
+
+def fetch_base(root):
+    """Fetch from origin the base blobs the whitespace check reads in a GitHub Actions partial clone, if any.
+
+    GH_TOKEN, when set, reaches only this fetch, through a credential helper that reads it from the environment.
+    """
+    base = change_base(root) if hosted_partial_clone(root) else None
+    missing = base_blobs(root, base)[1] if base else []
+    if not missing:
+        print("The whitespace check has every base file it reads; nothing to fetch.", flush=True)
+        return
+    environment = git_environment() | {"GIT_NO_LAZY_FETCH": "1", "GIT_TERMINAL_PROMPT": "0"}
+    if os.environ.get("GH_TOKEN"):
+        count = int(os.environ.get("GIT_CONFIG_COUNT") or 0)
+        # The empty value drops any configured helpers, so none asks elsewhere or stores the token.
+        helpers = ("", '!f() { test "$1" = get && printf "username=x-access-token\\npassword=%s\\n" "$GH_TOKEN"; }; f')
+        for index, helper in enumerate(helpers, count):
+            environment |= {"GIT_CONFIG_KEY_%d" % index: "credential.helper", "GIT_CONFIG_VALUE_%d" % index: helper}
+        environment["GIT_CONFIG_COUNT"] = str(count + len(helpers))
+    files = "1 changed file" if len(missing) == 1 else str(len(missing)) + " changed files"
+    # These are the options Git's own lazy fetch uses, so only the named blobs arrive.
+    fetched = subprocess.run(["git", "-c", "fetch.negotiationAlgorithm=noop", "fetch", "--quiet", "--no-tags",
+                              "--no-write-fetch-head", "--recurse-submodules=no", "--filter=blob:none", "--stdin",
+                              "origin"], cwd=root, env=environment, text=True,
+                             input="".join(blob + "\n" for blob in missing))
+    if fetched.returncode:
+        raise RuntimeError("Could not fetch the base version of " + files + " from origin. A private repository "
+                           "needs the job's token in this step, as GH_TOKEN: ${{ github.token }}; see "
+                           "docs/foundation/engineering-policy.md#hosted-ci.")
+    print("Fetched the base version of " + files + " for the whitespace check.", flush=True)
+
+
+def application_variables(config):
+    """Return the environment variables that the project's application checks read, as checks.applicationEnvironment
+    in .config/knowledge.json lists them."""
+    names = config.get("checks", {}).get("applicationEnvironment", [])
+    if not isinstance(names, list) or not all(isinstance(name, str) and VARIABLE_NAME.fullmatch(name) for name in names):
+        raise ValueError(".config/knowledge.json: checks.applicationEnvironment must list environment variable names,"
+                         ' such as ["NODE_ENV"]')
+    return names
+
+
+def environment(root, variables=()):
+    """Fingerprint what besides the tree can change application results, including the listed variables' values."""
     # platform.platform() differs between Python releases on the same machine.
     facts = {"platform": " ".join((platform.system(), platform.release(), platform.machine()))}
+    if variables:
+        # Unset differs from empty. Only the fingerprint's digest is recorded, so a listed secret stays out of it.
+        facts["variables"] = {name: os.environ.get(name) for name in variables}
     for tool in ("python3", "node"):
         if shutil.which(tool):
             result = subprocess.run([tool, "--version"], text=True, capture_output=True)
@@ -365,10 +669,15 @@ def record_pass(root, tree, fingerprint):
     temporary.replace(path)
 
 
-def application_checks(root, application, reuse):
-    """Run bin/check-application, or reuse its recent pass on the same clean tree and environment."""
-    tree = clean_tree(root)
-    fingerprint = environment(root) if tree else None
+def application_checks(root, application, reuse, variables=()):
+    """Run bin/check-application, or reuse its recent pass on the same clean tree and environment, which includes
+    the values of the variables it reads.
+
+    GitHub Actions neither reuses nor records a pass: a CI result comes from running the checks on its revision,
+    and a self-hosted runner's checkout keeps .git, with any records in it, between jobs.
+    """
+    tree = None if os.environ.get("GITHUB_ACTIONS") == "true" else clean_tree(root)
+    fingerprint = environment(root, variables) if tree else None
     record = reusable_pass(root, tree, fingerprint) if tree and reuse else None
     if record:
         passed = datetime.fromisoformat(record["passed_at"]).astimezone().strftime("%Y-%m-%d %H:%M")
@@ -387,13 +696,17 @@ def application_checks(root, application, reuse):
 def main():
     root = Path(__file__).resolve().parents[1]
     try:
-        if sys.argv[1:] not in ([], ["--documents-only"], ["--full"], ["--full", "--no-reuse"]):
-            raise ValueError("Usage: bin/check [--documents-only | --full [--no-reuse]]")
-        errors = manifest_errors(root) + validate(root)
+        if sys.argv[1:] not in ([], ["--documents-only"], ["--full"], ["--full", "--no-reuse"], ["--fetch-base"]):
+            raise ValueError("Usage: bin/check [--documents-only | --full [--no-reuse] | --fetch-base]")
+        if sys.argv[1:] == ["--fetch-base"]:
+            fetch_base(root)
+            return 0
+        config = json.loads((root / ".config/knowledge.json").read_text())
+        errors = manifest_errors(root) + validate(root, options=config) + skill_errors(root)
         if errors:
             print("\n".join(errors), file=sys.stderr)
             return 1
-        print("Document metadata, index coverage, and local links passed.", flush=True)
+        print("Document metadata, skill frontmatter, index coverage, and local links passed.", flush=True)
         if sys.argv[1:] == ["--documents-only"]:
             return 0
         if not shutil.which("shellcheck"):
@@ -409,8 +722,7 @@ def main():
                 ast.parse(path.read_text(), filename=str(path))
         for shell, paths in sorted(shell_files.items()):
             subprocess.run(["shellcheck", "--shell=" + shell, *map(str, paths)], cwd=root, check=True)
-        subprocess.run(["git", "diff", "--check"], cwd=root, check=True)
-        subprocess.run(["git", "diff", "--cached", "--check"], cwd=root, check=True)
+        check_whitespace(root)
         if sys.argv[1:2] != ["--full"]:
             print("Fast foundation checks passed. Use bin/check --full for application validation.", flush=True)
             return 0
@@ -420,7 +732,8 @@ def main():
             return 0
         if not os.access(application, os.X_OK):
             raise RuntimeError("bin/check-application must be executable")
-        application_checks(root, application, reuse="--no-reuse" not in sys.argv)
+        application_checks(root, application, reuse="--no-reuse" not in sys.argv,
+                           variables=application_variables(config))
         print("Full foundation and application checks passed.", flush=True)
         return 0
     except (OSError, ValueError, RuntimeError, SyntaxError, subprocess.SubprocessError) as error:
