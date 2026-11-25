@@ -22,6 +22,8 @@ SOURCE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SOURCE))
 import _worktrees as caches
 
+REVISION = "a" * 40
+
 
 class CacheTests(unittest.TestCase):
     def setUp(self):
@@ -64,6 +66,50 @@ class CacheTests(unittest.TestCase):
         path = self.shared / "workspace-state.json"
         path.write_text(json.dumps({"object": {"artifacts": [{"path": str(folder / "SourcePackages/artifacts/sentry/Sentry.xcframework")} ]}}))
         return path
+
+    def seed(self, alias):
+        """Fill the shared seed as SwiftPM leaves it: paths recorded through whichever folder resolved them."""
+        shutil.rmtree(self.shared)
+        self.artifact.parent.mkdir(parents=True)
+        self.artifact.write_text("Keep the shared artifact")
+        (self.shared / "artifacts/direct").mkdir()
+        (self.shared / "artifacts/direct/Direct.xcframework").write_text("Recorded through the seed itself")
+        (self.shared / "repositories/Factory-1/objects").mkdir(parents=True)
+        git = self.shared / "checkouts/Factory/.git"
+        (git / "objects/info").mkdir(parents=True)
+        (git / "HEAD").write_text(REVISION + "\n")
+        (git / "objects/info/alternates").write_text(str(alias / "repositories/Factory-1/objects") + "\n")
+        (git / "config").write_text('[remote "origin"]\n\turl = ' + str(alias / "repositories/Factory-1") + "\n")
+        source = self.shared / "checkouts/Factory/Sources/Factory.swift"
+        source.parent.mkdir(parents=True)
+        source.write_text("// pinned")
+        # SwiftPM leaves checkout files and their Git config read-only.
+        for path in (git / "config", source):
+            path.chmod(0o444)
+        (self.shared / "workspace-state.json").write_text(json.dumps({"version": 7, "object": {
+            "artifacts": [{"path": str(alias / "artifacts/sentry/Sentry.xcframework")},
+                          {"path": str(self.shared / "artifacts/direct/Direct.xcframework")}],
+            "dependencies": [
+                {"subpath": "Factory", "state": {"name": "sourceControlCheckout", "checkoutState": {"revision": REVISION}}},
+                {"subpath": "podhavenmacros", "state": {"name": "fileSystem", "path": str(self.repo / "PodHavenMacros")}},
+            ]}}))
+
+    def linked_checkout(self):
+        (self.repo / "PodHaven.xcodeproj").mkdir(exist_ok=True)
+        (self.repo / "PodHaven.xcodeproj/project.pbxproj").write_text("fixture")
+        self.git("add", "PodHaven.xcodeproj/project.pbxproj")
+        self.git("-c", "core.hooksPath=/dev/null", "commit", "-m", "Project fixture")
+        linked = self.repo / "worktrees/linked"
+        self.git("-c", "core.hooksPath=/dev/null", "worktree", "add", "-b", "linked", str(linked))
+        return linked
+
+    def packages(self, checkout):
+        return self.derived / ("PodHaven-" + caches.xcode_hash(checkout / "PodHaven.xcodeproj")) / "SourcePackages"
+
+    def prepare(self, checkout):
+        with redirect_stdout(io.StringIO()) as output:
+            caches.prepare_xcode(checkout)
+        return output.getvalue()
 
     def test_repairs_shared_artifact_before_removing_orphan(self):
         folder = self.cache()
@@ -121,17 +167,36 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(caches.sweep(self.repo, apply=True)["removed"], [])
         self.assertTrue(folder.exists() and other_cache.exists())
 
-    def test_unverified_owner_wrong_hash_and_independent_packages_survive(self):
+    def test_unverified_owner_and_wrong_hash_survive(self):
         outside = self.cache(self.base / "another clone")
         wrong = self.cache(self.repo / "worktrees/wrong")
         wrong = wrong.rename(self.derived / "PodHaven-wronghash")
-        independent = self.cache()
-        (independent / "SourcePackages").unlink()
-        (independent / "SourcePackages").mkdir()
         result = caches.sweep(self.repo, apply=True)
         self.assertFalse(result["removed"])
-        self.assertTrue(all(p.exists() for p in (outside, wrong, independent)))
-        self.assertEqual(len(result["deferred"]), 2)
+        self.assertTrue(all(p.exists() for p in (outside, wrong)))
+        self.assertEqual(len(result["deferred"]), 1)
+
+    def test_removes_private_packages_and_never_built_caches_of_removed_checkouts(self):
+        built = self.cache()
+        (built / "SourcePackages").unlink()
+        checkout = built / "SourcePackages/checkouts/Factory/Sources/Factory.swift"
+        checkout.parent.mkdir(parents=True)
+        checkout.write_text("// pinned")
+        checkout.chmod(0o444)
+        # Preparation names a checkout's cache before Xcode writes its info.plist on a first build.
+        removed = self.repo / "worktrees/never built"
+        never_built = self.packages(removed).parent
+        (never_built / "SourcePackages").mkdir(parents=True)
+        unknown = self.packages(self.base / "unknown checkout").parent
+        (unknown / "SourcePackages").mkdir(parents=True)
+        state = caches.layout(self.repo)["state"]
+        state.mkdir(parents=True)
+        (state / "worktrees.json").write_text(json.dumps([str(removed)]))
+        result = caches.sweep(self.repo, apply=True)
+        self.assertEqual(sorted(result["removed"]), sorted([str(built), str(never_built)]))
+        self.assertFalse(built.exists() or never_built.exists())
+        self.assertTrue(unknown.is_dir())
+        self.assertTrue(self.artifact.is_file())
 
     def test_busy_builds_and_open_files_defer_without_metadata_writes(self):
         folder = self.cache()
@@ -167,24 +232,74 @@ class CacheTests(unittest.TestCase):
                 self.assertTrue(folder.exists())
 
     @unittest.skipUnless(sys.platform == "darwin", "Xcode preparation is macOS-only")
-    def test_prepare_shares_packages_copies_settings_and_keeps_derived_data_private(self):
+    def test_prepare_gives_each_checkout_private_packages_cloned_from_the_shared_seed(self):
         suffix = Path("PodHaven.xcodeproj/project.xcworkspace/xcuserdata") / (getpass.getuser() + ".xcuserdatad/WorkspaceSettings.xcsettings")
         source = self.repo / suffix
         source.parent.mkdir(parents=True)
         source.write_bytes(plistlib.dumps({"EnableBuildDebugging": True}))
-        (self.repo / "PodHaven.xcodeproj/project.pbxproj").write_text("fixture")
-        self.git("add", "PodHaven.xcodeproj/project.pbxproj")
-        self.git("-c", "core.hooksPath=/dev/null", "commit", "-m", "Project fixture")
-        linked = self.repo / "worktrees/linked"
-        self.git("-c", "core.hooksPath=/dev/null", "worktree", "add", "-b", "linked", str(linked))
-        caches.prepare_xcode(linked)
-        paths = [self.derived / ("PodHaven-" + caches.xcode_hash(p / "PodHaven.xcodeproj")) for p in (self.repo, linked)]
-        self.assertNotEqual(*paths)
-        self.assertTrue(all((p / "SourcePackages").resolve() == self.shared for p in paths))
+        linked = self.linked_checkout()
+        self.seed(self.derived / "PodHaven-removedcheckout/SourcePackages")
+        self.prepare(linked)
+        folders = [self.packages(p) for p in (self.repo, linked)]
+        self.assertNotEqual(*folders)
+        for folder in folders:
+            self.assertFalse(folder.is_symlink())
+            state = json.loads((folder / "workspace-state.json").read_text())["object"]
+            self.assertEqual([artifact["path"] for artifact in state["artifacts"]],
+                             [str(folder / "artifacts/sentry/Sentry.xcframework"),
+                              str(folder / "artifacts/direct/Direct.xcframework")])
+            self.assertEqual(Path(state["artifacts"][0]["path"]).read_text(), "Keep the shared artifact")
+            self.assertEqual(state["dependencies"][1]["state"]["path"], str(self.repo / "PodHavenMacros"))
+            git = folder / "checkouts/Factory/.git"
+            self.assertEqual((git / "objects/info/alternates").read_text(),
+                             str(folder / "repositories/Factory-1/objects") + "\n")
+            self.assertIn("url = " + str(folder / "repositories/Factory-1") + "\n", (git / "config").read_text())
+        self.assertEqual(caches.package_folder(linked), folders[1])
+        # A package switch in one checkout reaches neither the other checkout nor the seed.
+        switched = folders[1] / "checkouts/Factory/Sources/Factory.swift"
+        switched.chmod(0o644)
+        switched.write_text("// switched")
+        for folder in (folders[0], self.shared):
+            self.assertEqual((folder / "checkouts/Factory/Sources/Factory.swift").read_text(), "// pinned")
         self.assertEqual((linked / suffix).read_bytes(), source.read_bytes())
         before = source.read_bytes()
-        caches.prepare_xcode(linked)
+        self.prepare(linked)
         self.assertEqual(source.read_bytes(), before)
+        self.assertEqual(switched.read_text(), "// switched")
+
+    @unittest.skipUnless(sys.platform == "darwin", "Xcode preparation is macOS-only")
+    def test_prepare_makes_a_shared_link_private_once_its_checkout_is_idle(self):
+        linked = self.linked_checkout()
+        self.seed(self.shared)
+        folder = self.packages(linked)
+        folder.parent.mkdir(parents=True)
+        folder.symlink_to(self.shared, target_is_directory=True)
+        self.open.side_effect = lambda path: path == folder.parent
+        self.assertIn("in use", self.prepare(linked))
+        self.assertEqual(folder.resolve(), self.shared)
+        self.open.side_effect = None
+        self.prepare(linked)
+        self.assertFalse(folder.is_symlink())
+        self.assertEqual(json.loads((folder / "workspace-state.json").read_text())["object"]["artifacts"][0]["path"],
+                         str(folder / "artifacts/sentry/Sentry.xcframework"))
+
+    @unittest.skipUnless(sys.platform == "darwin", "Xcode preparation is macOS-only")
+    def test_a_seed_caught_mid_update_leaves_packages_for_xcode_to_resolve(self):
+        linked = self.linked_checkout()
+        git = self.shared / "checkouts/Factory/.git"
+        damages = {"switched checkout": lambda: (git / "HEAD").write_text("b" * 40 + "\n"),
+                   "checkout in progress": lambda: (git / "index.lock").touch(),
+                   "missing artifact": lambda: self.artifact.unlink(),
+                   "missing objects": lambda: (self.shared / "repositories/Factory-1/objects").rmdir(),
+                   "partial metadata": lambda: (self.shared / "workspace-state.json").write_text("{")}
+        for name, damage in damages.items():
+            with self.subTest(name):
+                self.seed(self.shared)
+                damage()
+                self.assertIn("Xcode will resolve packages afresh", self.prepare(linked))
+                folder = self.packages(linked)
+                self.assertFalse(folder.exists() or folder.is_symlink())
+                self.assertEqual(list(folder.parent.iterdir()), [])
 
     def test_cleanup_agent_runs_the_default_python_that_follows_updates(self):
         home, tools = self.base / "home", self.base / "tools"
@@ -256,8 +371,11 @@ class CacheTests(unittest.TestCase):
         return {**os.environ, "PATH": str(tools) + os.pathsep + os.environ["PATH"]}
 
     @unittest.skipUnless(sys.platform == "darwin", "Xcode diagnostics are macOS-only")
-    def test_health_reports_link_and_cleanup_failures_as_issues_and_the_rest_as_notices(self):
+    def test_health_reports_shared_packages_and_cleanup_failures_as_issues_and_the_rest_as_notices(self):
         (self.repo / "PodHaven.xcodeproj").mkdir()
+        link = self.packages(self.repo)
+        link.parent.mkdir()
+        link.symlink_to(self.shared, target_is_directory=True)
         error = self.repo / ".cache/worktree-cleanup/last-error.json"
         error.parent.mkdir(parents=True)
         error.write_text(json.dumps({"at": "2026-10-26T09:00:00-07:00", "error": "Disk full"}))
@@ -266,7 +384,7 @@ class CacheTests(unittest.TestCase):
         (state / "cleanup.json").write_text(json.dumps({"deferred": [{"path": "/caches/old", "reason": "Xcode is open"}]}))
         with patch.dict(os.environ, self.unloaded_agent()):
             report = caches.xcode_health(self.repo)
-        self.assertEqual(report["issues"], ["Xcode package link needs attention; run bin/prep-worktree.",
+        self.assertEqual(report["issues"], ["Xcode packages are shared with other checkouts; run bin/prep-worktree.",
                                             "Automatic cleanup failed; inspect cleanup_error in bin/doctor-xcode --json."])
         self.assertEqual(report["notices"], ["Hourly cleanup is not loaded; run bin/install-cleanup-agent in the primary checkout.",
                                              "Cleanup deferred: /caches/old: Xcode is open"])
@@ -280,13 +398,14 @@ class CacheTests(unittest.TestCase):
         environment = self.unloaded_agent()
         subprocess.run([str(self.repo / "bin/setup-application")], cwd=self.repo, env=environment, check=True,
                        capture_output=True)
-        link = self.derived / ("PodHaven-" + caches.xcode_hash(self.repo / "PodHaven.xcodeproj")) / "SourcePackages"
-        self.assertEqual(link.resolve(), self.shared)
+        folder = self.packages(self.repo)
+        self.assertFalse(folder.is_symlink())
+        self.assertEqual((folder / "artifacts/sentry/Sentry.xcframework").read_text(), "Keep the shared artifact")
         result = subprocess.run([str(self.repo / "bin/doctor-xcode"), "--json"], cwd=self.repo, env=environment,
                                 text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout)
-        self.assertTrue(report["packages_link_valid"])
+        self.assertTrue(report["packages_private"])
         self.assertEqual(report["issues"], [])
 
 
