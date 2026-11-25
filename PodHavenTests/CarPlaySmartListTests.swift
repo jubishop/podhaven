@@ -114,7 +114,7 @@ struct CarPlaySmartListScene {
     }
     #expect(ids == lists.reversed().map(\.id))
     #expect(scene.controller.templates.count == 1)
-    #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)
+    #expect(Container.shared.fakeAudioSession().activeCalls.isEmpty)
   }
 
   @Test(

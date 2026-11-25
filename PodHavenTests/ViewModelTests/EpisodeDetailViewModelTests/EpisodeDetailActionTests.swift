@@ -180,10 +180,11 @@ import Testing
     try await PlayHelpers.waitForOnDeck(priorEpisode)
     try await PlayHelpers.waitFor(.paused)
 
-    audioSession.configureError { $0 = TestError.simulatedFailure }
+    PlayHelpers.failAudioSessionConfiguration()
 
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(requestedEpisode))
     viewModel.playAt(timestamp: "0:10")
+    try await PlayHelpers.advanceAudioSessionRetryBackoff()
 
     try await Wait.until(
       { @MainActor in self.alert.config != nil },

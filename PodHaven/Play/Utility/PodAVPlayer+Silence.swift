@@ -133,7 +133,7 @@ extension PodAVPlayer {
   }
 
   private func currentAudioRoute() -> SilencePlaybackState.Route {
-    Container.shared.audioRouteOutputs()().contains(.carAudio) ? .carPlay : .other
+    Container.shared.audioSession().currentRouteOutputs.contains(.carAudio) ? .carPlay : .other
   }
 
   func audioRouteChanged() async {

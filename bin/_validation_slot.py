@@ -1,7 +1,9 @@
 """Limit how many heavy validation runs do their work at once across every checkout and session on this Mac.
 
-Each slot is an advisory file lock, so the system frees a slot when its holder exits or is killed. Take a slot
-before the My Mac test lock, never while holding it, so runs that need both can't deadlock."""
+Each slot is an advisory file lock, so the system frees a slot when its holder exits or is killed. Waiting runs take
+free slots in the order they began waiting: each holds the lock on a numbered ticket in the queue the same way, so a
+waiter that exits or is killed leaves the queue at once. Take a slot before the My Mac test lock, never while holding
+it, so runs that need both can't deadlock."""
 
 from contextlib import contextmanager
 from datetime import datetime
@@ -18,7 +20,9 @@ DEFAULT_COUNT = 2
 # the holder's descriptors, as managed bin/check starts bin/check-application.
 HOLDER_VARIABLE = "PODHAVEN_VALIDATION_SLOT"
 POLL_SECONDS = 1
+QUEUE_NAME = "validation-queue"
 SLOT_NAME = re.compile(r"validation-slot-[1-9]\d*\.lock")
+TICKET_NAME = re.compile(r"([1-9]\d*)\.lock")
 
 
 def slot_paths():
@@ -54,32 +58,109 @@ def inherited(directory):
     return record.startswith(f"pid {pid} since ") and locked(path)
 
 
-def take(paths):
-    """Return the open file of the first free slot, waiting without a time limit while every slot is held."""
-    waited = False
-    while True:
-        for number, path in enumerate(paths, 1):
-            lock = path.open("a+")
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                lock.close()
-                continue
-            if waited:
-                print(f"Took validation slot {number}", file=sys.stderr, flush=True)
-            return lock
-        if not waited:
-            holders = []
-            for number, path in enumerate(paths, 1):
-                try:
-                    record = path.read_text().strip()
-                except OSError:
-                    record = ""
-                holders.append(f"  slot {number}: {record or 'another run'}")
-            print(f"Waiting for a validation slot ({COUNT_VARIABLE}={len(paths)}), held by:", *holders, sep="\n",
-                  file=sys.stderr, flush=True)
-            waited = True
-        time.sleep(POLL_SECONDS)
+def record(holder):
+    return f"pid {os.getpid()} since {datetime.now().astimezone():%Y-%m-%d %H:%M:%S %Z}: {holder}\n"
+
+
+def holder_of(path):
+    """Return the record of the slot's holder, "" for a held slot whose holder has yet to record itself, or None."""
+    if not locked(path):
+        return None
+    try:
+        return path.read_text().strip()
+    except OSError:
+        return ""
+
+
+def queued_tickets(queue):
+    """Return the numbers of the tickets that live waiting runs hold, deleting the files of the others."""
+    numbers = []
+    for path in queue.iterdir():
+        match = TICKET_NAME.fullmatch(path.name)
+        if not match:
+            continue
+        if locked(path):
+            numbers.append(int(match[1]))
+        else:
+            path.unlink(missing_ok=True)
+    return numbers
+
+
+def free_slot(paths):
+    """Return the number and open file of the first slot this process could lock, or None while every slot is held."""
+    for number, path in enumerate(paths, 1):
+        lock = path.open("a+")
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            lock.close()
+            continue
+        return number, lock
+    return None
+
+
+def leave(queue, place, ticket):
+    # Unlink before unlocking: once unlocked, the name can pass to a later waiter's ticket, which this would delete.
+    (queue / f"{place}.lock").unlink(missing_ok=True)
+    ticket.close()
+
+
+def queue_report(ahead):
+    if not ahead:
+        return "Next in line for a validation slot"
+    return f"Queued behind {ahead} earlier waiting run{'s' if ahead > 1 else ''}"
+
+
+def take(paths, holder):
+    """Return the open file of a free slot, waiting without a time limit behind each live run that began waiting first.
+
+    Runs from checkouts that predate the queue skip it, but take slots through the same locks, so none is shared."""
+    directory = paths[0].parent
+    queue = directory / QUEUE_NAME
+    queue.mkdir(parents=True, exist_ok=True)
+    ticket = place = shown = None
+    try:
+        while True:
+            with (directory / f"{QUEUE_NAME}.lock").open("a") as gate:
+                fcntl.flock(gate, fcntl.LOCK_EX)
+                tickets = queued_tickets(queue)
+                ahead = sum(place is None or number < place for number in tickets)
+                taken = None if ahead else free_slot(paths)
+                if taken and ticket:
+                    leave(queue, place, ticket)
+                    ticket = None
+                elif not taken:
+                    holders = tuple(holder_of(path) for path in paths)
+                    if not ticket:
+                        place = 1 + max(tickets, default=0)
+                        ticket = (queue / f"{place}.lock").open("w")
+                        fcntl.flock(ticket, fcntl.LOCK_EX)
+                        ticket.write(record(holder))
+                        ticket.flush()
+            # Report only after releasing the queue lock, which a write to a full output pipe could otherwise hold.
+            if taken:
+                if shown:
+                    print(f"Took validation slot {taken[0]}", file=sys.stderr, flush=True)
+                return taken[1]
+            if not shown:
+                lines = [f"Waiting for a validation slot ({COUNT_VARIABLE}={len(paths)}), held by:",
+                         *(f"  slot {number}: {'free' if held is None else held or 'another run'}"
+                           for number, held in enumerate(holders, 1))]
+                lines += [queue_report(ahead)] if ahead else []
+            elif all(holders) and (holders, ahead) != shown:
+                # A slot that changes hands is reported once its new holder has recorded itself.
+                lines = [f"Validation slot {number} is now held by {held}"
+                         for number, (held, before) in enumerate(zip(holders, shown[0]), 1) if held != before]
+                lines += [queue_report(ahead)] if ahead != shown[1] else []
+            else:
+                lines = []
+            if lines:
+                print(*lines, sep="\n", file=sys.stderr, flush=True)
+                shown = holders, ahead
+            time.sleep(POLL_SECONDS)
+    finally:
+        if ticket:
+            leave(queue, place, ticket)
 
 
 @contextmanager
@@ -91,10 +172,9 @@ def validation_slot(holder):
     if inherited(paths[0].parent):
         yield None
         return
-    paths[0].parent.mkdir(parents=True, exist_ok=True)
-    with take(paths) as lock:
+    with take(paths, holder) as lock:
         lock.truncate(0)
-        lock.write(f"pid {os.getpid()} since {datetime.now().astimezone():%Y-%m-%d %H:%M:%S %Z}: {holder}\n")
+        lock.write(record(holder))
         lock.flush()
         os.environ[HOLDER_VARIABLE] = f"{os.getpid()}:{lock.name}"
         try:

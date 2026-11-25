@@ -523,32 +523,45 @@ import Testing
 
   enum LoadPhase: CaseIterable { case audioSession, asset }
 
-  // The audio session phase runs before the outgoing episode leaves the deck;
-  // the asset phase runs after.
+  private struct SuspendedLoad {
+    let phase: LoadPhase
+    let assetStarted: AsyncSemaphore
+    let finishAsset: AsyncSemaphore
+
+    func waitUntilSuspended() async throws {
+      switch phase {
+      case .audioSession: try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
+      case .asset: await assetStarted.wait()
+      }
+    }
+
+    func resume() async throws {
+      switch phase {
+      case .audioSession: try await PlayHelpers.recoverAudioSessionConfiguration()
+      case .asset: finishAsset.signal()
+      }
+    }
+  }
+
+  // The audio session phase holds the load in configuration backoff, before the
+  // outgoing episode leaves the deck; the asset phase holds it after.
   private func suspendLoad(
     of podcastEpisode: PodcastEpisode,
     during phase: LoadPhase
-  ) async -> (started: AsyncSemaphore, finish: AsyncSemaphore) {
-    let started = AsyncSemaphore(value: 0)
-    let finish = AsyncSemaphore(value: 0)
+  ) async -> SuspendedLoad {
+    let assetStarted = AsyncSemaphore(value: 0)
+    let finishAsset = AsyncSemaphore(value: 0)
     switch phase {
     case .audioSession:
-      Container.shared.configureAudioSession.context(.test) {
-        {
-          started.signal()
-          await finish.wait()
-          return true
-        }
-      }
-      Container.shared.configureAudioSession.reset(.scope)
+      PlayHelpers.failAudioSessionConfiguration()
     case .asset:
       await episodeAssetLoader.respond(to: podcastEpisode.episode.mediaURL) { _ in
-        started.signal()
-        await finish.wait()
+        assetStarted.signal()
+        await finishAsset.wait()
         return (true, .seconds(60))
       }
     }
-    return (started, finish)
+    return SuspendedLoad(phase: phase, assetStarted: assetStarted, finishAsset: finishAsset)
   }
 
   @Test("toggle during a load cancels its pending playback", arguments: LoadPhase.allCases)
@@ -558,16 +571,16 @@ import Testing
     try await playManager.load(currentEpisode)
     let playCount = avPlayer.playCallCount
 
-    let (phaseStarted, finishPhase) = await suspendLoad(of: incomingEpisode, during: phase)
+    let suspendedLoad = await suspendLoad(of: incomingEpisode, during: phase)
     let incomingPlay = Task { try await playManager.play(incomingEpisode) }
     defer {
       incomingPlay.cancel()
-      finishPhase.signal()
+      suspendedLoad.finishAsset.signal()
     }
-    await phaseStarted.wait()
+    try await suspendedLoad.waitUntilSuspended()
 
     await playManager.toggle()
-    finishPhase.signal()
+    try await suspendedLoad.resume()
 
     #expect(try await incomingPlay.value == .superseded)
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
@@ -582,16 +595,16 @@ import Testing
     let (currentEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
     try await playManager.load(currentEpisode)
 
-    let (phaseStarted, finishPhase) = await suspendLoad(of: incomingEpisode, during: phase)
+    let suspendedLoad = await suspendLoad(of: incomingEpisode, during: phase)
     let incomingPlay = Task { try await playManager.play(incomingEpisode) }
     defer {
       incomingPlay.cancel()
-      finishPhase.signal()
+      suspendedLoad.finishAsset.signal()
     }
-    await phaseStarted.wait()
+    try await suspendedLoad.waitUntilSuspended()
 
     await playManager.play()
-    finishPhase.signal()
+    try await suspendedLoad.resume()
 
     #expect(try await incomingPlay.value == .ready)
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
@@ -605,16 +618,16 @@ import Testing
     let (currentEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
     try await playManager.load(currentEpisode)
 
-    let (phaseStarted, finishPhase) = await suspendLoad(of: incomingEpisode, during: phase)
+    let suspendedLoad = await suspendLoad(of: incomingEpisode, during: phase)
     let incomingLoad = Task { try await playManager.load(incomingEpisode) }
     defer {
       incomingLoad.cancel()
-      finishPhase.signal()
+      suspendedLoad.finishAsset.signal()
     }
-    await phaseStarted.wait()
+    try await suspendedLoad.waitUntilSuspended()
 
     await playManager.play()
-    finishPhase.signal()
+    try await suspendedLoad.resume()
 
     #expect(try await incomingLoad.value)
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
@@ -629,17 +642,17 @@ import Testing
     try await playManager.load(currentEpisode)
     let playCount = avPlayer.playCallCount
 
-    let (phaseStarted, finishPhase) = await suspendLoad(of: incomingEpisode, during: .asset)
+    let suspendedLoad = await suspendLoad(of: incomingEpisode, during: .asset)
     let incomingLoad = Task { try await playManager.load(incomingEpisode) }
     defer {
       incomingLoad.cancel()
-      finishPhase.signal()
+      suspendedLoad.finishAsset.signal()
     }
-    await phaseStarted.wait()
+    try await suspendedLoad.waitUntilSuspended()
 
     await playManager.play()
     await playManager.pause()
-    finishPhase.signal()
+    try await suspendedLoad.resume()
 
     #expect(try await incomingLoad.value)
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
