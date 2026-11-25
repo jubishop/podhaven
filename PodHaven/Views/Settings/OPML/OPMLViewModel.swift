@@ -38,6 +38,7 @@ extension Container {
   fileprivate init() {
     downloadManager = DownloadManager(
       session: Container.shared.podcastFeedSession(),
+      byteLimit: PodcastFeed.downloadByteLimit,
       maxConcurrentDownloads: 16
     )
   }

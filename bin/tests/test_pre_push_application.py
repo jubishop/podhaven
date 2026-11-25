@@ -4,9 +4,11 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 
 import hang_guard
@@ -14,11 +16,16 @@ import service_guard
 
 
 ROOT = Path(__file__).resolve().parents[2]
-# Stands in for the tooling tests: it records where it ran and fails while its checkout holds bin/broken.
+# Stands in for the tooling tests: it records where it ran, waits while its checkout holds bin/hold until the test
+# releases it, and fails while its checkout holds bin/broken.
 APPLICATION = f"""#!{sys.executable}
 import os, pathlib, sys
 with open(os.environ["CHECK_CALLS"], "a") as calls:
     calls.write(os.getcwd() + "\\n")
+if pathlib.Path("bin/hold").exists():
+    print("Holding the check", flush=True)
+    with open(os.environ["CHECK_HOLD"]) as hold:
+        hold.read()
 sys.exit(1 if pathlib.Path("bin/broken").exists() else 0)
 """
 # A skill script's test suite, run by the real bin/check-application; it records each run.
@@ -53,11 +60,15 @@ class PrePushApplicationTests(unittest.TestCase):
         self.repo = self.base / "checkout"
         self.remote = self.base / "remote.git"
         self.calls = self.base / "check calls"
+        self.holding = None
+        # Gates put their checkouts in the temporary folder, which the test then removes even after a failure.
+        (self.base / "tmp").mkdir()
         self.env = {key: value for key, value in os.environ.items() if not key.startswith(("GIT_", "PODHAVEN_"))}
         self.env.update(HOME=str(self.base / "home"), GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
                         GIT_AUTHOR_NAME="Test", GIT_AUTHOR_EMAIL="test@example.com",
                         GIT_COMMITTER_NAME="Test", GIT_COMMITTER_EMAIL="test@example.com",
-                        CHECK_CALLS=str(self.calls), PYTHONDONTWRITEBYTECODE="1")
+                        CHECK_CALLS=str(self.calls), CHECK_HOLD=str(self.base / "hold"), TMPDIR=str(self.base / "tmp"),
+                        PYTHONDONTWRITEBYTECODE="1")
         self.git("init", "--quiet", "--bare", "--initial-branch=main", str(self.remote), cwd=self.base)
         (self.repo / "bin/hooks").mkdir(parents=True)
         self.git("init", "--quiet", "--initial-branch=main")
@@ -88,6 +99,37 @@ class PrePushApplicationTests(unittest.TestCase):
     def push(self, *refs, remote="origin", options=(), env=None):
         return hang_guard.run(["git", *options, "push", remote, *refs], cwd=self.repo,
                               env={**self.env, **(env or {})}, text=True, capture_output=True)
+
+    def hold(self):
+        """Make the fake checks in a checkout that holds bin/hold wait until release closes the FIFO they read."""
+        os.mkfifo(self.env["CHECK_HOLD"])
+        reader = os.open(self.env["CHECK_HOLD"], os.O_RDONLY | os.O_NONBLOCK)
+        self.holding = os.open(self.env["CHECK_HOLD"], os.O_WRONLY)
+        os.close(reader)
+        self.addCleanup(self.release)
+
+    def release(self):
+        if self.holding is not None:
+            os.close(self.holding)
+            self.holding = None
+
+    def start_held_push(self, *refs):
+        """Start a push, returning it and its checkout once its fake checks wait for release."""
+        push = hang_guard.start(["git", "push", "origin", *refs], cwd=self.repo, env=self.env, text=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.addCleanup(hang_guard.stop, push)
+        watchdog = threading.Timer(hang_guard.HANG_LIMIT, hang_guard.kill, (push,))
+        watchdog.start()
+        self.addCleanup(watchdog.cancel)
+        # Git passes the pre-push hook its own standard output.
+        for line in push.stdout:
+            if line.startswith("Holding the check"):
+                return push, Path(self.check_calls()[-1])
+        self.fail("The push never reached its checks:\n" + push.stderr.read())
+
+    def worktrees(self):
+        listing = self.git("worktree", "list", "--porcelain", "-z")
+        return [Path(field.removeprefix("worktree ")) for field in listing.split("\0") if field.startswith("worktree ")]
 
     def ssh_remote(self):
         """Add a remote that reaches the disposable remote over an SSH URL; return the stand-in ssh command."""
@@ -129,6 +171,56 @@ class PrePushApplicationTests(unittest.TestCase):
         for call in calls:
             self.assertFalse(Path(call).exists(), call)
         self.assertEqual(self.git("worktree", "list", "--porcelain").count("worktree "), 1)
+
+    def test_removes_its_checkout_when_a_signal_stops_it_mid_check(self):
+        self.hold()
+        (self.repo / "bin/hold").write_text("")
+        self.commit("Hold the checks")
+        for number in (signal.SIGTERM, signal.SIGHUP):
+            with self.subTest(signal=number.name):
+                push, checkout = self.start_held_push("main")
+                self.assertIn(checkout, self.worktrees())
+                # A closing terminal or an agent's command timeout signals the push's whole process group.
+                os.killpg(push.pid, number)
+                # The gate, outliving Git, holds the push's output until it exits.
+                hang_guard.finish(push)
+                self.assertNotEqual(push.returncode, 0)
+                self.assertFalse(checkout.parent.exists(), checkout)
+                self.assertEqual(self.worktrees(), [self.repo])
+                self.assertEqual(self.git("for-each-ref", cwd=self.remote), "")
+
+    def test_removes_checkouts_that_killed_gates_left_but_never_a_running_gates(self):
+        self.hold()
+        (self.repo / "bin/hold").write_text("")
+        self.commit("Hold the checks")
+        killed, abandoned = self.start_held_push("main")
+        # SIGKILL can't be caught, so the gate leaves its checkout.
+        hang_guard.stop(killed)
+        self.assertIn(abandoned, self.worktrees())
+        # Git keeps a registration whose folder is gone, as when macOS clears old temporary files.
+        cleared = self.base / "tmp/podhaven-pre-push-cleared/checkout"
+        self.git("worktree", "add", "--quiet", "--detach", str(cleared))
+        shutil.rmtree(cleared.parent)
+        # A gate from before gates took a lock may still be using a checkout whose folder holds none.
+        unlocked = self.base / "tmp/podhaven-pre-push-unlocked/checkout"
+        self.git("worktree", "add", "--quiet", "--detach", str(unlocked))
+        (self.repo / "bin/feature").write_text("")
+        self.commit("Hold the checks on a feature")
+        running, held = self.start_held_push("HEAD:feature")
+        (self.repo / "bin/hold").unlink()
+        released = self.commit("Release the checks")
+        result = self.push("main")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.remote_head(), released)
+        # That gate removed the killed gate's checkout and the cleared registration, but none a gate may still use.
+        self.assertFalse(abandoned.parent.exists(), abandoned)
+        self.assertCountEqual(self.worktrees(), [self.repo, held, unlocked])
+        self.assertTrue(held.is_dir(), held)
+        self.assertTrue(unlocked.is_dir(), unlocked)
+        self.release()
+        _, stderr = hang_guard.finish(running)
+        self.assertEqual(running.returncode, 0, stderr)
+        self.assertCountEqual(self.worktrees(), [self.repo, unlocked])
 
     def test_refuses_a_push_that_leaves_a_skill_script_failing_its_tests(self):
         for name in ("check-application", "_validation_slot.py"):

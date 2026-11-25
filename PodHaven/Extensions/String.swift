@@ -118,7 +118,8 @@ extension String {
   // MARK: - HTML Stripping / Decoding
 
   // Replaces each HTML tag with a single space so adjacent tag-separated words
-  // don't get glued together. Does not trim or collapse whitespace — callers
+  // don't get glued together. A tag can't contain "<", which keeps text full of
+  // unclosed brackets linear. Does not trim or collapse whitespace — callers
   // that care should chain into `trimmed()` or their own whitespace pass.
   func strippingHTMLTags() -> String {
     var result = self
@@ -179,7 +180,7 @@ extension String {
 
   // Regex<Substring> isn't Sendable-annotated upstream, but its compiled NFA
   // is immutable and matching is thread-safe. Precompile once.
-  private nonisolated(unsafe) static let htmlTagRegex = /<[^>]+>/
+  private nonisolated(unsafe) static let htmlTagRegex = /<[^<>]+>/
 
   private static let namedHTMLEntities: [String: String] = [
     "&amp;": "&",
