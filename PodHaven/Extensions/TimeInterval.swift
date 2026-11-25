@@ -3,10 +3,6 @@
 import Foundation
 
 extension TimeInterval {
-  // MARK: - Conversions
-
-  var asDuration: Duration { Duration.seconds(self) }
-
   // MARK: - Creation Helpers
 
   static func milliseconds(_ milliseconds: Double) -> TimeInterval {
