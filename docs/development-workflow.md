@@ -470,7 +470,9 @@ issue is one user's submission, and new feedback arrives under a new slug with
 its own tracking issue. A feedback item's tracking issue, open or closed,
 therefore stays its record for good, and the checker reports it as already
 tracked. Both checkers share `bin/_sentry_intake.sh` and fail rather than
-check a partial Sentry list.
+check a partial Sentry list. Each new intake issue starts at `p2`, and its
+analysis skill then sets `p1`, `p2`, or `p3` from the findings; the checkers
+never change the priority of an issue that already tracks an item.
 
 | | Feedback | Error issues |
 | --- | --- | --- |
