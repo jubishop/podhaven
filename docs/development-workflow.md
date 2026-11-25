@@ -499,6 +499,77 @@ repository: nothing that holds such a build slot waits for a validation slot.
 The limit uses only this repository's lock files, so it works the same on any
 Mac.
 
+#### Second Mac
+
+**Decision — 2026-11-10:** `bin/test-all` sends a run to a second Mac whenever
+that Mac's lane is free, not only when this Mac is busy, to take load off this
+Mac, whose load comes from all its sessions. Runs there are somewhat slower,
+which the owner accepted. The second Mac is the Mac mini that the private
+jubishop/home-infra repository keeps as a test host; its `memory/mac-mini.md`
+covers the host's toolchain, signing, and scheduled jobs.
+
+The Git config value `podhaven.testHost` names the host as an SSH destination,
+such as `mac-mini`. Set it in the primary checkout with
+`git config podhaven.testHost mac-mini`, so every worktree shares it; the
+repository is public, so the destination stays out of it. With no value set,
+`bin/test-all` runs here as it always has.
+
+A run can go to the second Mac only when its checkout is clean, since only a
+commit can be sent there; with or without `--ensure` and `--revision`, that
+covers the full runs before a push, merge, or release. A run over uncommitted
+changes, one under `bin/with-my-mac-lock`, and focused runs stay here. So do
+`--preflight`, `--verify`, and an `--ensure` run that reuses evidence, which
+run no tests.
+
+- **Choosing a lane:** a run takes the second Mac's lane when it is free,
+  otherwise this Mac's when it is, and otherwise waits, saying who holds each,
+  and takes whichever frees first. This Mac's lane is free when its My Mac test
+  lock is and a [validation slot](#validation-slots) is free with no run
+  waiting. The run prints which Mac it uses, and why when it stays here.
+- **The lane:** the run pushes its commit, and the tip of origin's default
+  branch, to a mirror on the host,
+  `~/Library/Caches/podhaven/test-lanes/mirror.git`, and runs
+  `bin/_test_lane_host.py` there over SSH. That checks the commit out in the
+  lane's own worktree, `test-lanes/lane-1`, with every untracked and ignored
+  file removed, so the run sees only the commit's files while the lane's
+  fixed path keeps its DerivedData warm. The lane's `origin/HEAD` names this
+  checkout's, so `bin/check`'s whitespace check reads the same changes there.
+  It then runs that checkout's `bin/test-all` in the host's desktop session
+  under `nice`, where signing works. The mirror keeps the newest
+  `MIRROR_REFS` commits pushed to it, and the lane keeps only its latest
+  run's files, so the host's disk use stays bounded.
+- **Locks:** the lane holds the host's scheduled-jobs lock through
+  `lockf -t 0`, so a held lock is a busy lane, and the host's own jobs, such
+  as its Xcode updates and nightly test runs, can't start under a run. The
+  host runs one test lane at a time, PodHaven's or Screenr's: on 2026-11-24 a
+  PodHaven run beside a Screenr check didn't show a second lane safe, as
+  home-infra's page records, and jubishop/home-infra#220 measures again. A run
+  there holds no validation slot or My Mac test lock on this Mac. The host's
+  `bin/test-all` takes that Mac's own, so the stalled-host sampling, the test
+  host's temporary-directory check, and every other check run there as here.
+- **Evidence:** the run's output streams back as it runs, with the host's
+  evidence paths shown as this checkout's, and its logs, result bundles, and
+  samples come back into this checkout's `.cache/test-all`. The `run.json`
+  there records the run under `remote`, with the host and that run's own
+  checkout state and toolchain. A run there passes only when it tested exactly
+  this commit's files with this Mac's Xcode, Swift, and macOS, and its files
+  match its report. This checkout must stay unchanged until the run ends, as
+  for a run here. `--ensure` and `--verify` then reuse it like evidence from
+  this Mac.
+- **Falling back:** when the host is unreachable, has no one logged in at its
+  desktop, refuses commands in its desktop session, runs another Xcode, Swift,
+  or macOS than this Mac, or can't take the commit, the run stays here and
+  says why. It also comes back here when the connection fails during the run,
+  or the run ends without a report. A run there that failed only to sign,
+  such as for a profile a new extension needs, asks the host to renew its
+  signing, by creating the request file its renewal job watches, and runs
+  here. Any other failure there fails the run, as it would here.
+- **Long runs:** SSH keepalives end the client when the host stops answering,
+  and the run writes a heartbeat to the session every `HEARTBEAT_SECONDS`.
+  When the session's input ends or the heartbeat stops for
+  `HEARTBEAT_TIMEOUT_SECONDS`, the host stops its run, and `lockf` then
+  releases the lane, so a dropped connection never holds it.
+
 ## Sentry triage commands
 
 Run `bin/snfeedback` to select unresolved user feedback, or `bin/snissue` to

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run all automated tests locally and retain evidence for the tested checkout."""
+"""Run all automated tests, on this Mac or the second Mac, and retain evidence for the tested checkout."""
 
 import argparse
 import calendar
@@ -19,8 +19,10 @@ import threading
 import time
 
 sys.dont_write_bytecode = True
-from _my_mac_lock import my_mac_lock
-from _validation_slot import HOLDER_VARIABLE, validation_slot
+from _my_mac_lock import current_holder, inherited, lock_path, my_mac_lock
+import _test_lane
+import _test_lane_host
+from _validation_slot import HOLDER_VARIABLE, busy, validation_slot
 
 ROOT = Path(__file__).resolve().parents[1]
 DESTINATION = "platform=macOS,name=My Mac"
@@ -34,6 +36,9 @@ SAMPLE_SECONDS = 10
 SAMPLE_TIMEOUT_SECONDS = 120
 POLL_SECONDS = 1
 LOAD_SAMPLE_SECONDS = 5
+# How often a run that waits for a lane looks for a free one on this Mac and on the second Mac.
+LANE_POLL_SECONDS = 1
+REMOTE_POLL_SECONDS = 30
 TEST_HOST = "com.artisanalsoftware.PodHaven.debug"
 # Timing suites each run alone in their own test host after the other app tests, so
 # no other test's work counts against their budgets: (result bundle, log, suite).
@@ -294,6 +299,174 @@ def reusable_evidence(report):
     return None
 
 
+def new_output(cache):
+    cache.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix=datetime.now().strftime("%Y%m%d-%H%M%S-"), dir=cache))
+
+
+def local_lane_holder():
+    """Return what holds this Mac's lane, or None when a run here would start at once."""
+    holder = current_holder()
+    if holder is not None:
+        return f"its My Mac test lock is held by {holder or 'another run'}"
+    return busy()
+
+
+def second_mac(report):
+    """Return the second Mac when podhaven.testHost names one this run can use, else None, saying why."""
+    host = _test_lane.configured_host(ROOT, TEST_ENVIRONMENT)
+    if not host:
+        return None
+    checkout = report["checkout"]
+    if inherited(lock_path()):
+        reason = "it runs under the My Mac test lock it inherited"
+    elif checkout["status"] or checkout["unchecked_paths"]:
+        reason = "the checkout has uncommitted changes, and the second Mac runs only commits"
+    else:
+        lane = _test_lane.SecondMac(host, ROOT, TEST_ENVIRONMENT)
+        refusal = lane.refusal(report)
+        if not refusal:
+            return lane
+        reason = f"the second Mac, {host}, can't run it: {refusal}"
+    print(f"Running on this Mac: {reason}", flush=True)
+    return None
+
+
+def run_on_second_mac(lane, report, cache):
+    """Take the second Mac's lane or this Mac's, whichever is free first, and run in the second Mac's if it is.
+
+    Return the second Mac's evidence folder and report once its run ends, or None to run here instead."""
+    revision = report["checkout"]["revision"]
+    # bin/check's whitespace check reads only the changes since origin's default branch, so the lane gets it too.
+    base = subprocess.run(["git", "rev-parse", "--verify", "--quiet", "refs/remotes/origin/HEAD^{commit}"], cwd=ROOT,
+                          env=TEST_ENVIRONMENT, capture_output=True, text=True).stdout.strip()
+    attempted = waiting = None
+    while True:
+        if attempted is None or time.monotonic() - attempted >= REMOTE_POLL_SECONDS:
+            attempted = time.monotonic()
+            failure = lane.push(*filter(None, (revision, base)))
+            if failure:
+                print(f"Running on this Mac: the second Mac, {lane.host}, can't run it: {failure}", flush=True)
+                return None
+            output = new_output(cache)
+            attempt = lane.attempt(revision, base, output)
+            if attempt:
+                prune_evidence(cache, output)
+                return second_mac_run(lane, report, output, *attempt)
+            output.rmdir()
+        local = local_lane_holder()
+        if local is None:
+            print(f"Running on this Mac: the second Mac's lane is held by {lane.holder}, and this Mac's is free",
+                  flush=True)
+            return None
+        if not waiting:
+            print(f"Waiting for the second Mac's lane, held by {lane.holder}, or this Mac's: {local}",
+                  file=sys.stderr, flush=True)
+            waiting = True
+        time.sleep(LANE_POLL_SECONDS)
+
+
+def second_mac_run(lane, report, output, status, remote_output):
+    """Return the second Mac's evidence folder and report, or None to run here when its run can't count."""
+    try:
+        remote = json.loads((output / "run.json").read_text())
+    except (OSError, ValueError):
+        remote = None
+    if isinstance(remote, dict) and remote.get("schema") == 1:
+        if remote_output and isinstance(remote.get("error"), str):
+            remote["error"] = remote["error"].replace(remote_output, str(output))
+        if remote.get("result") == "passed" or not lane.request_signing_renewal(output):
+            return output, remote
+        reason = (f"the second Mac, {lane.host}, couldn't sign the test host, so bin/test-all asked it to renew its "
+                  "signing")
+    elif status == _test_lane.UNREACHABLE:
+        reason = f"the connection to the second Mac, {lane.host}, failed during its run"
+    elif status == _test_lane_host.STOPPED:
+        reason = f"the second Mac, {lane.host}, stopped its run when this Mac's heartbeat ended"
+    else:
+        reason = f"the second Mac, {lane.host}, ended its run with exit status {status} and no report"
+    if any(output.iterdir()):
+        (output / "run.json").write_text(json.dumps(
+            {**report, "remote": {"host": lane.host, **(remote or {})}, "error": reason,
+             "finished_at": datetime.now(timezone.utc).isoformat()}, indent=2) + "\n")
+    else:
+        output.rmdir()
+    print(f"Running on this Mac: {reason}", flush=True)
+    return None
+
+
+def accept_second_mac_run(report, output, remote, host):
+    """Record the second Mac's run in report, and fail unless it passed for exactly this checkout's commit."""
+    report["remote"] = {"host": host, **{key: remote.get(key) for key in (
+        "result", "error", "started_at", "finished_at", "destination", "xcode", "swift", "macos",
+        "checkout", "checkout_after")}}
+    for key in ("phases", "saturation"):
+        if key in remote:
+            report[key] = remote[key]
+    if remote.get("result") != "passed":
+        report["error"] = remote.get("error") or "bin/test-all failed"
+        raise RuntimeError(f"bin/test-all failed on the second Mac; its evidence is in {output}")
+    checkout = remote.get("checkout")
+    if (not isinstance(checkout, dict) or checkout.get("revision") != report["checkout"]["revision"]
+            or checkout.get("status") or checkout.get("unchecked_paths") or remote.get("checkout_after") != checkout):
+        raise RuntimeError("The second Mac's run did not test exactly this checkout's commit")
+    if any(remote.get(key) != report[key] for key in ("destination", "xcode", "swift", "macos")):
+        raise RuntimeError("The second Mac's run used another toolchain or destination than this Mac's")
+    if remote.get("artifacts") != evidence_files(output):
+        raise RuntimeError(f"The second Mac's evidence in {output} doesn't match its report")
+
+
+def run_here(report, output):
+    """Run every phase on this Mac, holding the My Mac test lock for its xcodebuild test phases."""
+    with phase(report, "tooling"):
+        run([str(ROOT / "bin/check"), "--full", "--no-reuse"], output, "tooling", require_unittest=True)
+    with phase(report, "swift-lint"):
+        run([str(ROOT / "bin/lint-swift-format")], output, "swift-lint")
+    with phase(report, "macros"):
+        run(["xcrun", "swift", "test", "--package-path", "PodHavenMacros"], output, "macros")
+        macro_log = (output / "macros.log").read_text(errors="replace")
+        if re.search(r"(?:^|\s)warning:", macro_log, re.I):
+            raise RuntimeError(f"Macro tests emitted warnings; see {output / 'macros.log'}")
+        if not re.search(r"Executed [1-9]\d* tests?", macro_log):
+            raise RuntimeError(f"No executed macro tests found; see {output / 'macros.log'}")
+        if re.search(r"\b[1-9]\d* (?:tests? )?skipped\b", macro_log, re.I):
+            raise RuntimeError(f"Macro tests were skipped; see {output / 'macros.log'}")
+
+    with my_mac_lock(f"bin/test-all in {ROOT}") as lock:
+        earlier_entries = test_host_temporary_entries(test_host_data())
+        try:
+            for bundle_name, log_name, validation_name, selection, validation_options in SWIFT_PHASES:
+                with phase(report, log_name):
+                    bundle = output / f"{bundle_name}.xcresult"
+                    test_status = run([
+                        "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
+                        "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
+                        "-skipMacroValidation", "-resultBundlePath", str(bundle), *selection,
+                        "LM_FORCE_LINK_GENERATION=YES",
+                    ], output, log_name, check=False, pass_fds=(lock,), watch_host=True)
+                    samples = "".join(f"\nTest host sample: {path}"
+                                      for path in sorted(output.glob(f"{log_name}-host-*.sample.txt")))
+                    if not bundle.is_dir():
+                        raise RuntimeError(f"Swift tests did not produce a result bundle (exit code "
+                                           f"{test_status}); see {output / (log_name + '.log')} for the "
+                                           f"launch or build failure{samples}")
+                    validation_status = run([
+                        str(ROOT / "bin/check-swift-results"), str(bundle),
+                        "--build-log", str(output / f"{log_name}.log"), *validation_options,
+                    ], output, validation_name, check=False)
+                    if test_status or validation_status:
+                        raise RuntimeError(f"Swift tests or evidence validation failed ({log_name}){samples}")
+        finally:
+            remove_finished_coverage_directories(test_host_data())
+        data = test_host_data()
+        if data is None:
+            raise RuntimeError(f"Could not find the {TEST_HOST} container that ran the tests")
+        left = sorted(test_host_temporary_entries(data) - earlier_entries - TEST_HOST_SYSTEM_ENTRIES)
+        if left:
+            raise RuntimeError(f"Tests left {len(left)} new entries in {data / 'tmp'}: {', '.join(left[:10])}"
+                               "; put test files under TestFiles.uniqueURL()")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
@@ -339,61 +512,19 @@ def main():
             if args.verify:
                 raise RuntimeError("No valid full local test evidence for this clean revision and toolchain; run bin/test-all")
         check_macro_pins()
-        held.enter_context(validation_slot(f"bin/test-all in {ROOT}"))
-        TEST_ENVIRONMENT[HOLDER_VARIABLE] = os.environ[HOLDER_VARIABLE]
         cache = ROOT / ".cache/test-all"
-        cache.mkdir(parents=True, exist_ok=True)
-        output = Path(tempfile.mkdtemp(prefix=datetime.now().strftime("%Y%m%d-%H%M%S-"), dir=cache))
-        print(f"Test evidence: {output}", flush=True)
-        prune_evidence(cache, output)
-
-        with phase(report, "tooling"):
-            run([str(ROOT / "bin/check"), "--full", "--no-reuse"], output, "tooling", require_unittest=True)
-        with phase(report, "swift-lint"):
-            run([str(ROOT / "bin/lint-swift-format")], output, "swift-lint")
-        with phase(report, "macros"):
-            run(["xcrun", "swift", "test", "--package-path", "PodHavenMacros"], output, "macros")
-            macro_log = (output / "macros.log").read_text(errors="replace")
-            if re.search(r"(?:^|\s)warning:", macro_log, re.I):
-                raise RuntimeError(f"Macro tests emitted warnings; see {output / 'macros.log'}")
-            if not re.search(r"Executed [1-9]\d* tests?", macro_log):
-                raise RuntimeError(f"No executed macro tests found; see {output / 'macros.log'}")
-            if re.search(r"\b[1-9]\d* (?:tests? )?skipped\b", macro_log, re.I):
-                raise RuntimeError(f"Macro tests were skipped; see {output / 'macros.log'}")
-
-        with my_mac_lock(f"bin/test-all in {ROOT}") as lock:
-            earlier_entries = test_host_temporary_entries(test_host_data())
-            try:
-                for bundle_name, log_name, validation_name, selection, validation_options in SWIFT_PHASES:
-                    with phase(report, log_name):
-                        bundle = output / f"{bundle_name}.xcresult"
-                        test_status = run([
-                            "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
-                            "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
-                            "-skipMacroValidation", "-resultBundlePath", str(bundle), *selection,
-                            "LM_FORCE_LINK_GENERATION=YES",
-                        ], output, log_name, check=False, pass_fds=(lock,), watch_host=True)
-                        samples = "".join(f"\nTest host sample: {path}"
-                                          for path in sorted(output.glob(f"{log_name}-host-*.sample.txt")))
-                        if not bundle.is_dir():
-                            raise RuntimeError(f"Swift tests did not produce a result bundle (exit code "
-                                               f"{test_status}); see {output / (log_name + '.log')} for the "
-                                               f"launch or build failure{samples}")
-                        validation_status = run([
-                            str(ROOT / "bin/check-swift-results"), str(bundle),
-                            "--build-log", str(output / f"{log_name}.log"), *validation_options,
-                        ], output, validation_name, check=False)
-                        if test_status or validation_status:
-                            raise RuntimeError(f"Swift tests or evidence validation failed ({log_name}){samples}")
-            finally:
-                remove_finished_coverage_directories(test_host_data())
-            data = test_host_data()
-            if data is None:
-                raise RuntimeError(f"Could not find the {TEST_HOST} container that ran the tests")
-            left = sorted(test_host_temporary_entries(data) - earlier_entries - TEST_HOST_SYSTEM_ENTRIES)
-            if left:
-                raise RuntimeError(f"Tests left {len(left)} new entries in {data / 'tmp'}: {', '.join(left[:10])}"
-                                   "; put test files under TestFiles.uniqueURL()")
+        lane = second_mac(report)
+        finished = run_on_second_mac(lane, report, cache) if lane else None
+        if finished:
+            output, remote = finished
+            accept_second_mac_run(report, output, remote, lane.host)
+        else:
+            held.enter_context(validation_slot(f"bin/test-all in {ROOT}"))
+            TEST_ENVIRONMENT[HOLDER_VARIABLE] = os.environ[HOLDER_VARIABLE]
+            output = new_output(cache)
+            print(f"Test evidence: {output}", flush=True)
+            prune_evidence(cache, output)
+            run_here(report, output)
         report["checkout_after"] = checkout_state()
         if any(report["checkout_after"][key] != report["checkout"][key]
                for key in ("revision", "worktree_sha256")):
@@ -402,12 +533,14 @@ def main():
             raise RuntimeError("Checkout is no longer clean; resolve changes and rerun bin/test-all")
         report["artifacts"] = evidence_files(output)
         report["result"] = "passed"
-        print(f"All local tests passed. Evidence: {output}", flush=True)
+        passed = f"All tests passed on the second Mac, {lane.host}" if finished else "All local tests passed"
+        print(f"{passed}. Evidence: {output}", flush=True)
         return 0
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
-        report["error"] = str(error)
+        # A failed run on the second Mac already printed its own error and saturation note.
+        report.setdefault("error", str(error))
         print(f"error: {error}", file=sys.stderr)
-        if "saturation" in report:
+        if "saturation" in report and "remote" not in report:
             print(report["saturation"], file=sys.stderr)
         return 1
     finally:

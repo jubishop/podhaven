@@ -66,6 +66,13 @@ checks, and automated skill and tooling tests. The result-bundle and raw-log
 gate requires zero skipped tests and warnings. See the
 [local test workflow](development-workflow.md#current-revision-swift-validation).
 
+Evidence from the [second Mac](development-workflow.md#second-mac) counts like
+evidence from this Mac. A clean release checkout's run may go there; it passes
+only when it tested exactly the release commit's files with this Mac's Xcode,
+Swift, and macOS, and its logs and result bundles come back into this
+checkout's `.cache/test-all/`, where the same reuse and verification rules
+apply.
+
 Evidence stays under `.cache/test-all/`. A version push retry and the archive
 following that push reuse unchanged evidence. Deployment verifies it again
 before upload with `bin/test-all --verify`, which fails if the checkout,

@@ -13,7 +13,8 @@ import tempfile
 import unittest
 
 
-COMMANDS = ("caffeinate", "claude", "curl", "fastlane", "gh", "llm", "sentry", "sentry-cli", "xcodebuild", "xcrun")
+COMMANDS = ("caffeinate", "claude", "curl", "fastlane", "gh", "llm", "sentry", "sentry-cli", "ssh", "xcodebuild",
+            "xcrun")
 GUARD = Path(tempfile.mkdtemp(prefix="podhaven-service-guard-"))
 atexit.register(shutil.rmtree, GUARD, True)
 BLOCKED = GUARD / "blocked"

@@ -82,7 +82,9 @@ bin/test-all
 ```
 
 Logs, the Xcode result bundle, and the tested checkout are recorded under
-`.cache/test-all/`.
+`.cache/test-all/`. A clean checkout's run goes to the
+[second Mac](docs/development-workflow.md#second-mac) when one is configured
+and its lane is free.
 
 ### Run a Specific Test Suite
 Swift Testing filters must stay at suite level; method-level filters can report success while
