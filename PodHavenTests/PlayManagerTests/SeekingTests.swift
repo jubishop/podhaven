@@ -123,6 +123,23 @@ import Testing
     #expect(avPlayer.seekRequests.last == .seconds(315))
   }
 
+  @Test("loading resumes a saved position past the estimated duration")
+  func loadingResumesSavedPositionPastEstimatedDuration() async throws {
+    await playManager.start()
+    let savedTime = CMTime.seconds(300)
+    let podcastEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(currentTime: savedTime)
+    )
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
+    )
+
+    try await playManager.load(podcastEpisode)
+    #expect(avPlayer.seekRequests.last == savedTime)
+    try await PlayHelpers.waitFor(savedTime)
+  }
+
   @Test("failed seeks restore observation and pending seeks suppress time updates")
   func timeUpdateEventsAreIgnoredWhileSeeking() async throws {
     await playManager.start()
