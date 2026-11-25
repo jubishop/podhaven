@@ -120,11 +120,30 @@ that the [tooling pre-push gate](#tooling-pre-push-gate) relies on.
 `bin/setup`, `bin/prep-worktree`, and the Git hook that sets up each new
 worktree all run it.
 
-Each checkout gets private DerivedData at Xcode's default path. Its
-`SourcePackages` link points to the shared `~/Library/Developer/SharedSourcePackages/PodHaven`
-folder. Preparation copies missing per-user workspace settings from the primary
-checkout and preserves existing settings. It does not start a warm-up build.
-Independent package directories are preserved for inspection.
+**Decision — 2026-11-24:** The user chose to give each checkout packages of
+its own, cloned from a shared seed (jubishop/podhaven#1012). When checkouts
+shared one package folder, a checkout pinning other revisions switched its
+package checkouts under another checkout's build, which then failed or
+compiled the wrong revision. Failing fast once a build found the folder
+switched would still fail builds, and serializing resolution can't hold raw
+`xcodebuild` or Xcode.
+
+Each checkout gets private DerivedData at Xcode's default path, and its
+`SourcePackages` is an APFS copy-on-write clone of the seed,
+`~/Library/Developer/SharedSourcePackages/PodHaven`. SwiftPM records absolute
+paths through whichever folder resolved them, even a since-deleted custom
+DerivedData, so preparation moves those in the clone's `workspace-state.json`
+and in each package checkout's Git alternates and origin into the clone. It
+refuses a clone whose checkouts or artifacts don't match that metadata, as
+when the seed was caught mid-update, and Xcode then resolves the checkout's
+packages afresh. Builds in a clone never update the seed, so a clone fetches
+only what its pins need beyond it. Preparation also replaces a checkout's
+earlier link to the seed with a clone once that checkout's DerivedData is idle
+and the clone verifies. Until then the link stays, because checkouts still
+linking the seed may read paths it recorded through that link. Preparation
+makes a missing seed from a private package folder.
+It copies missing per-user workspace settings from the primary checkout and
+preserves existing settings. It does not start a warm-up build.
 
 `bin/install-cleanup-agent` installs an idempotent macOS LaunchAgent from the
 primary checkout. It runs at login/load and once each hour while the user is
@@ -140,28 +159,34 @@ installer refuses to write the agent until
 `uv python install --default` has created that interpreter.
 
 Cleanup only removes a DerivedData folder when its plist and path hash identify
-an absent checkout owned by this clone. Registered worktrees, existing checkout
-directories, unrelated caches, and independent package caches are preserved.
+an absent checkout owned by this clone, or, before Xcode has written that plist,
+when its name is the path hash of a recorded checkout that is gone. Its private
+packages go with it. Registered worktrees, existing checkout directories, and
+unrelated caches are preserved.
 Preparation and cleanup share a filesystem lock. Build-process and open-file
 checks also guard deletion; Xcode does not take our lock. Ambiguous activity
 causes deferral and a later automatic retry.
 
-Before deletion, cleanup checks shared SwiftPM artifact paths. A path through
-an orphan's `SourcePackages` link is replaced with its verified, existing shared
-target. Repair requires Xcode and package users to be closed. Unverifiable
-references defer cleanup. Shared packages and QMD model weights are retained.
+Before deletion, cleanup checks the seed's SwiftPM artifact paths for checkouts
+that still link it. A path through an orphan's `SourcePackages` is replaced
+with its existing target in the seed, verified as the same file while that
+folder still links the seed. Repair requires Xcode and
+package users to be closed. Unverifiable references defer cleanup. The seed and
+QMD model weights are retained.
 
 Inspect candidates with `bin/prune-worktree-caches --dry-run`. Use `bin/doctor-xcode`
-to read the latest removal totals, deferred reasons, errors, package-link health,
-and hourly job state. The latest report replaces its predecessor under the
-common Git directory's `knowledge/xcode/cleanup.json`; fatal errors use a single
+to read the latest removal totals, deferred reasons, errors, whether this
+checkout's packages are private, and hourly job state. The latest report
+replaces its predecessor under the common Git directory's
+`knowledge/xcode/cleanup.json`; fatal errors use a single
 `.cache/worktree-cleanup/last-error.json`. Hourly output does not accumulate logs.
 Caches with no trustworthy ownership metadata require manual investigation.
 
 If Xcode uses custom cache locations, set absolute local Git values before setup:
-`knowledge.xcodeDerivedDataPath` and `knowledge.xcodePackagesPath`. The shared
-package location must stay outside DerivedData. These overrides also support
-isolated integration tests; they do not change Xcode's own preferences.
+`knowledge.xcodeDerivedDataPath` and `knowledge.xcodePackagesPath`, the seed.
+The seed must stay outside DerivedData, on the same APFS volume. These
+overrides also support isolated integration tests; they do not change Xcode's
+own preferences.
 
 ### Validation checkout isolation
 
@@ -171,9 +196,9 @@ Xcode's synchronized target folders define application sources, and
 static checks use this checkout's Git file list; tooling tests are discovered
 under `bin/tests`. Preserve these boundaries when extending the commands.
 
-Keep mutable test data and build output separate between checkouts. Preserve
-the supported package sharing and per-checkout DerivedData described above;
-do not share mutable build output to save setup time.
+Keep mutable test data, packages, and build output separate between checkouts,
+as the per-checkout DerivedData and package clones described above do; do not
+share them to save setup time.
 
 ## Diagnostics
 
