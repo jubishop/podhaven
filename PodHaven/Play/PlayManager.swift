@@ -123,6 +123,7 @@ final class PlayManager {
   private var lastLoggedTime = Date.distantPast
   private var lastNowPlayingElapsedWrite: CMTime?
   var onDeckRecoveryState = OnDeckRecoveryState.none
+  var onDeckRecoveryPositionSave: Task<Void, Never>?
   var pendingPlaybackRequest = PendingPlaybackRequest.none
   var widgetRouteRecovery: WidgetRouteRecovery?
   var widgetRouteRecoveryTask: Task<Void, Never>?
