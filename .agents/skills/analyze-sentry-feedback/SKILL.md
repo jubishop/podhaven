@@ -83,6 +83,9 @@ triage notes so they know the notes were picked up.
 List the feedback's tracking issues with `bin/snfeedback --track <slug>`, and
 read their bodies and comments first. The first listed is canonical: report
 any others as duplicates and update only it. With none, Step 6 creates one.
+Only issues opened by the intake's `github-actions[bot]` or the owner,
+`jubishop`, track; the list leaves out the rest, and any other issue with the
+marker or link is related history at most.
 
 - An `intake` issue lacks the findings block, such as the daily
   `bin/check-sentry-feedback` placeholder, which Step 6 enriches.

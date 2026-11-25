@@ -687,11 +687,13 @@ never change the priority of an issue that already tracks an item.
 | Findings block | `analyze-sentry-feedback-findings` | `analyze-sentry-issue-findings` |
 
 The pickers and checkers match an issue by its marker or a link to the Sentry
-item; the pickers show it as intake, analyzed, closed, or untracked. Error issues
+item; the pickers show it as intake, analyzed, closed, or untracked. Only an
+issue opened by the intake's `github-actions[bot]` or the repository owner can
+track an item, and only the bot's comment counts as its instruction comment:
+the repository is public, so anyone can copy a marker or link. Error issues
 analyzed before the marker existed count as analyzed when their body has a
-`## Sentry closeout` section. Each rule lives in one jq module that its
-checker and picker share: `bin/_sentry_feedback_tracking.jq` for feedback and
-`bin/_sentry_issue_tracking.jq` for error issues.
+`## Sentry closeout` section. These rules live in `bin/_sentry_tracking.jq`,
+which the checkers and pickers share.
 
 The controlled `bin/integration` probes behind the `bin/sentry-*-smoke`
 commands report to the production Sentry project, so the smokes can verify
