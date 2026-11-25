@@ -8,6 +8,7 @@ final class FakeFileManager: FileManaging, Sendable {
   // MARK: - State
 
   private let inMemoryFiles = ThreadSafe<[URL: Data]>([:])
+  private let addedDates = ThreadSafe<[URL: Date]>([:])
   // Paths, not URLs: a directory URL may or may not end in a slash.
   private let createdDirectoryPaths = ThreadSafe<Set<String>>([])
   private let backupExcludedPaths = ThreadSafe<Set<String>>([])
@@ -48,6 +49,7 @@ final class FakeFileManager: FileManaging, Sendable {
 
   func writeData(_ data: Data, to url: URL) async throws {
     inMemoryFiles[url] = data
+    addedDates[url] = Date()
   }
 
   func readData(from url: URL) async throws -> Data {
@@ -59,6 +61,7 @@ final class FakeFileManager: FileManaging, Sendable {
 
   func writeDataSynchronously(_ data: Data, to url: URL) throws {
     inMemoryFiles[url] = data
+    addedDates[url] = Date()
   }
 
   func readDataSynchronously(from url: URL) throws -> Data {
@@ -89,13 +92,16 @@ final class FakeFileManager: FileManaging, Sendable {
     else {
       throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: url.path])
     }
+    let urlString = url.absoluteString
     inMemoryFiles { files in
       files.removeValue(forKey: url)
-      let urlString = url.absoluteString
       let keysToRemove = files.keys.filter { $0.absoluteString.hasPrefix(urlString) }
       for key in keysToRemove {
         files.removeValue(forKey: key)
       }
+    }
+    addedDates { dates in
+      dates = dates.filter { $0.key != url && !$0.key.absoluteString.hasPrefix(urlString) }
     }
     let removedPath = Self.itemPath(url)
     backupExcludedPaths { paths in
@@ -110,6 +116,10 @@ final class FakeFileManager: FileManaging, Sendable {
     inMemoryFiles { files in
       files[destinationURL] = data
       files.removeValue(forKey: sourceURL)
+    }
+    addedDates { dates in
+      dates[destinationURL] = Date()
+      dates.removeValue(forKey: sourceURL)
     }
     let destinationPath = Self.itemPath(destinationURL)
     backupExcludedPaths { paths in
@@ -205,6 +215,17 @@ final class FakeFileManager: FileManaging, Sendable {
 
   func removeItemCallCount(for url: URL) -> Int {
     removeItemCallCounts()[url, default: 0]
+  }
+
+  func setAddedToDirectoryDate(_ date: Date, for url: URL) {
+    addedDates[url] = date
+  }
+
+  func addedToDirectoryDate(for url: URL) throws -> Date {
+    guard let date = addedDates[url]
+    else { throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: url.path]) }
+
+    return date
   }
 
   func fileSize(for url: URL) throws -> Int64 {

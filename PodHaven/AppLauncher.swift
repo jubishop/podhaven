@@ -97,6 +97,10 @@ struct AppLauncher: Sendable {
       Self.applySentryEnvironment()
     }
 
+    Task(priority: taskPriority(.background)) {
+      await ShareService.removeStaleSharedFiles()
+    }
+
     refreshScheduler.register()
     cachePurger.register()
     embeddingProcessor.register()
