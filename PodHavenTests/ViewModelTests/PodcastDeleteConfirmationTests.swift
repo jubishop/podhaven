@@ -10,7 +10,10 @@ import Testing
 @Suite("of podcast delete confirmation tests", .container)
 @MainActor final class PodcastDeleteConfirmationTests {
   @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.repo) private var repo
+
+  private var feedSession: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
 
   @Test("deleting one podcast from a list asks first, keeps it on Cancel, and deletes on Delete")
   func listSingleDeleteConfirms() async throws {
@@ -74,6 +77,11 @@ import Testing
         unsavedPodcast: try Create.unsavedPodcast(title: "Detail Podcast"),
         unsavedEpisodes: [try Create.unsavedEpisode()]
       )
+    )
+    // An on-screen delete re-parses the feed; a failed parse would raise a second alert.
+    await feedSession.respond(
+      to: series.podcast.feedURL.rawValue,
+      data: PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     )
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(series.podcast))
     try await PodcastDetailTestHelpers.appear(viewModel)
