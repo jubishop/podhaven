@@ -60,6 +60,17 @@ COVERAGE_DIRECTORY = re.compile(r"[0-9A-F]{8}(?:-[0-9A-F]{4}){3}-[0-9A-F]{12}-(\
 # Xcode builds the macros from the app's pins; swift test uses the macro package's own.
 APP_PINS = ROOT / "PodHaven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
 MACRO_PINS = ROOT / "PodHavenMacros/Package.resolved"
+# An incremental build compiles only what changed, so its log misses warnings in files an earlier build compiled.
+# Each run removes the project's own builds, so it compiles every project source again; package dependencies' builds
+# stay. Of Xcode's intermediates, it removes the build database first, since a module cache removed under it breaks
+# later builds; the explicit module caches, which go stale when a binary package's pins change, because its headers
+# keep older times; and the builds of the project and the local macro package. swift test builds the macro
+# package's own targets in MACRO_OWN_BUILD.
+XCODE_REBUILT = ("XCBuildData", "SwiftExplicitPrecompiledModules", "ExplicitPrecompiledModules",
+                 "PodHaven.build", "PodHavenMacros.build")
+MACRO_OWN_BUILD = ROOT / "PodHavenMacros/.build/out/Intermediates.noindex/PodHavenMacros.build"
+# swift test colors its diagnostics even when its output goes to a file.
+TERMINAL_ESCAPE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))")
 
 
 def capture(*command):
@@ -106,6 +117,37 @@ def check_macro_pins():
     if mismatches:
         raise RuntimeError(f"{MACRO_PINS.relative_to(ROOT)} must pin what the app's Package.resolved pins, "
                            f"since Xcode builds the macros from the app's pins: {', '.join(mismatches)}")
+
+
+def xcode_rebuilt():
+    """Return the folders of Xcode's intermediates that each run removes, in the order to remove them."""
+    result = subprocess.run(["xcodebuild", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
+                             "-scheme", "PodHaven", "-destination", DESTINATION, "-skipMacroValidation",
+                             "-showBuildSettings", "-json"],
+                            cwd=ROOT, env=TEST_ENVIRONMENT, capture_output=True, text=True)
+    try:
+        roots = {target["buildSettings"]["OBJROOT"] for target in json.loads(result.stdout)}
+    except (ValueError, KeyError, TypeError):
+        roots = set()
+    if result.returncode or len(roots) != 1:
+        raise RuntimeError("Could not read Xcode's intermediates folder from its build settings: "
+                           + "\n".join(result.stderr.strip().splitlines()[-5:]))
+    (root,) = roots
+    return [Path(root) / name for name in XCODE_REBUILT]
+
+
+def remove_builds(folders):
+    for folder in folders:
+        if folder.exists():
+            shutil.rmtree(folder)
+
+
+def require_builds(folders, log):
+    """Fail unless the build remade every folder removed before it, as it does when it builds there."""
+    missing = [str(folder) for folder in folders if not folder.is_dir()]
+    if missing:
+        raise RuntimeError(f"The build didn't remake {', '.join(missing)}, so it may not have compiled every "
+                           f"project source; update the folders bin/test-all removes. See {log}")
 
 
 def host_alive(pid):
@@ -423,8 +465,10 @@ def run_here(report, output):
     with phase(report, "swift-lint"):
         run([str(ROOT / "bin/lint-swift-format")], output, "swift-lint")
     with phase(report, "macros"):
+        remove_builds([MACRO_OWN_BUILD])
         run(["xcrun", "swift", "test", "--package-path", "PodHavenMacros"], output, "macros")
-        macro_log = (output / "macros.log").read_text(errors="replace")
+        require_builds([MACRO_OWN_BUILD], output / "macros.log")
+        macro_log = TERMINAL_ESCAPE.sub("", (output / "macros.log").read_text(errors="replace"))
         if re.search(r"(?:^|\s)warning:", macro_log, re.I):
             raise RuntimeError(f"Macro tests emitted warnings; see {output / 'macros.log'}")
         if not re.search(r"Executed [1-9]\d* tests?", macro_log):
@@ -435,8 +479,12 @@ def run_here(report, output):
     with my_mac_lock(f"bin/test-all in {ROOT}") as lock:
         earlier_entries = test_host_temporary_entries(test_host_data())
         try:
-            for bundle_name, log_name, validation_name, selection, validation_options in SWIFT_PHASES:
+            for number, (bundle_name, log_name, validation_name, selection, validation_options) in enumerate(
+                    SWIFT_PHASES):
                 with phase(report, log_name):
+                    # The first build compiles every project source; the timing phases' builds then compile none.
+                    rebuilt = [] if number else xcode_rebuilt()
+                    remove_builds(rebuilt)
                     bundle = output / f"{bundle_name}.xcresult"
                     test_status = run([
                         "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
@@ -456,6 +504,7 @@ def run_here(report, output):
                     ], output, validation_name, check=False)
                     if test_status or validation_status:
                         raise RuntimeError(f"Swift tests or evidence validation failed ({log_name}){samples}")
+                    require_builds(rebuilt, output / f"{log_name}.log")
         finally:
             remove_finished_coverage_directories(test_host_data())
         data = test_host_data()

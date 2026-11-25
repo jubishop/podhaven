@@ -295,6 +295,42 @@ thread's own CPU time, which other tests' main-actor work would inflate. Every
 phase must pass with zero skipped tests and validated diagnostics; their logs
 and result bundles are retained in the same evidence directory.
 
+Each run compiles every project source again, so its logs show warnings in
+files that an earlier build, such as a focused run's, compiled and an
+incremental build would skip (jubishop/podhaven#1007). Before the macro tests,
+`bin/test-all` removes the macro package's own build folder,
+`PodHavenMacros/.build/out/Intermediates.noindex/PodHavenMacros.build`.
+Before its first `xcodebuild test` phase, it reads Xcode's intermediates
+folder, `OBJROOT`, from the build settings and removes the project's and the
+macro package's folders there, `PodHaven.build` and `PodHavenMacros.build`,
+with Xcode's explicit module caches, `SwiftExplicitPrecompiledModules` and
+`ExplicitPrecompiledModules`, and before them its build database,
+`XCBuildData`. The package clone and the dependencies' builds stay. A build
+that doesn't remake a removed folder fails the run, since the tools then build
+where `bin/test-all` doesn't look. The app target's compilation cache replays
+a cached compile's warnings, so they show either way. `swift test` colors its
+diagnostics even in a file, so the macro check strips terminal escapes before
+it looks for warnings; before, it missed the compiler's colored warnings.
+
+Xcode judges a cached module current by its inputs' modification times, and a
+binary package's headers keep the times they were packaged with. After
+sentry-cocoa's pin changed, a checkout whose DerivedData had built the other
+pin compiled the tests against stale Sentry modules and failed, with
+`has been modified since the module file` or `missing required module`
+errors, until the module caches went. A module cache removed while the build
+database remains breaks every later build, so the database goes first.
+
+On this Mac on 2026-11-24 and 25, at 1-minute loads of 12–20 on 18 cores, the
+removal made the build about 30 seconds longer than one with nothing to
+compile, 34–38.5 seconds against 7; the module caches and build database add
+about 3 of those. A build after the pin change took 49–53 seconds. The macro
+build took about 1.5 seconds longer, and reading the build settings takes 2–3
+seconds. Removing only the Swift object folders saved nothing. Recompiling
+only files that no checked build compiled at their current content was
+rejected: a file's warnings depend on other files, as when one deprecates an
+API another calls, so a file can gain a warning without changing, and an
+incremental build then needn't compile it again.
+
 My Mac also runs hosted UI tests that the iOS Simulator skips. Use additional
 simulator checks when a change needs environment-specific coverage. Development
 checks use local targets; physical-device testing belongs to separate release

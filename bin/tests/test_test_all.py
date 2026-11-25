@@ -1,6 +1,7 @@
 """Exercise the local test gate with isolated repositories and fake platform tools."""
 
 from datetime import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -22,14 +23,37 @@ import service_guard
 
 ROOT = Path(__file__).resolve().parents[2]
 FAKE = r'''
-import fcntl, json, os, pathlib, signal, subprocess, sys, time, uuid
+import fcntl, hashlib, json, os, pathlib, signal, subprocess, sys, time, uuid
 name = pathlib.Path(sys.argv[0]).name
 args = sys.argv[1:]
 base = pathlib.Path(os.environ['TEST_ALL_FIXTURE'])
 with (base / 'events').open('a') as stream:
     stream.write(json.dumps([name, args]) + '\n')
+# Each checkout's Xcode intermediates, in the run's HOME as Xcode's DerivedData would be.
+xcode_intermediates = (pathlib.Path.home() / 'DerivedData' / hashlib.sha256(os.getcwd().encode()).hexdigest()[:16]
+                       / 'Build/Intermediates.noindex')
+
+
+def build(intermediates, folders, warning):
+    """Build like an incremental build: make only the folders that are missing, so a warning in the project's
+    sources, whose build is the first folder, shows only in a build that compiles them."""
+    if os.environ.get('TEST_INTERMEDIATES_MOVED') == name:
+        intermediates = intermediates.with_name('Moved')
+    for folder in folders:
+        if not (intermediates / folder).is_dir():
+            (intermediates / folder).mkdir(parents=True)
+            if folder == folders[0] and os.environ.get('TEST_SOURCE_WARNING') == name:
+                print(warning)
+
+
 if name == 'xcodebuild' and '-version' in args:
     print('Xcode ' + os.environ.get('TEST_XCODE_VERSION', '27.0'))
+elif name == 'xcodebuild' and '-showBuildSettings' in args:
+    assert args[args.index('-destination') + 1] == 'platform=macOS,name=My Mac'
+    if os.environ.get('TEST_BUILD_SETTINGS_FAILURE'):
+        sys.exit('xcodebuild: error: Could not resolve package dependencies')
+    print(json.dumps([{'action': 'build', 'target': 'PodHaven',
+                       'buildSettings': {'OBJROOT': str(xcode_intermediates)}}]))
 elif name == 'xcrun' and args == ['swift', '--version']:
     # Like the real driver, this writes its own version to stderr before the compiler's on stdout.
     print('swift-driver version: 1.168.6 ', end='', file=sys.stderr, flush=True)
@@ -45,6 +69,12 @@ elif name == 'xcrun' and args[:2] == ['swift', 'test']:
         while spike not in (base / 'load-reads').read_text().splitlines():
             time.sleep(0.01)
         (base / 'load').unlink()
+    # swift test colors its diagnostics even when its output goes to a file.
+    build(pathlib.Path(args[args.index('--package-path') + 1]) / '.build/out/Intermediates.noindex',
+          ('PodHavenMacros.build', 'swift-syntax.build'),
+          "Sources/SavedMacro/Probe.swift:2:7: \x1b[1;33mwarning: \x1b[1;39mvariable 'value' was never mutated"
+          "\x1b[0;0m \x1b]8;;https://docs.swift.org/compiler/documentation/diagnostics\x1b\\VariableNeverMutated"
+          "\x1b]8;;\x1b\\")
     print('Executed 1 test, with 0 failures')
     if os.environ.get('TEST_MACRO_WARNING'): print('warning: unused result')
 elif name == 'xcodebuild':
@@ -69,6 +99,10 @@ elif name == 'xcodebuild':
     assert 'LM_FORCE_LINK_GENERATION=YES' in args
     if os.environ.get('TEST_SIGNING_FAILURE'):
         sys.exit("error: No profiles for 'com.artisanalsoftware.PodHaven.debug' were found")
+    build(xcode_intermediates, ('PodHaven.build', 'PodHavenMacros.build', 'XCBuildData',
+                                'SwiftExplicitPrecompiledModules', 'ExplicitPrecompiledModules', 'GRDB.build',
+                                'swift-syntax.build'),
+          f"{os.getcwd()}/PodHavenTests/ProbeTests.swift:2:7: warning: variable 'value' was never mutated")
     bundle = pathlib.Path(args[args.index('-resultBundlePath') + 1])
     timing = {'SiriPerformance': 'SiriLargeCatalogTests', 'OPMLPerformance': 'OPMLLargeImportTests'}
     performance = bundle.stem in timing
@@ -202,6 +236,9 @@ FOCUSED = ("/bin/sh", "-c", "echo held; read line; true")
 TEST_HOST = "com.artisanalsoftware.PodHaven.debug"
 APP_RESOLVED = "PodHaven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
 MACRO_RESOLVED = "PodHavenMacros/Package.resolved"
+# The folders of Xcode's intermediates that bin/test-all removes, in its order.
+XCODE_REBUILT = ("XCBuildData", "SwiftExplicitPrecompiledModules", "ExplicitPrecompiledModules",
+                 "PodHaven.build", "PodHavenMacros.build")
 
 
 def pin(identity, **state):
@@ -258,7 +295,7 @@ class TestAllFixture(unittest.TestCase):
         (self.repo / "bin/tests").mkdir()
         (self.repo / "bin/tests/probe.sh").write_text(
             '#!/bin/bash\nprintf shell > "$TEST_ALL_FIXTURE/shell-ran"\n')
-        (self.repo / ".gitignore").write_text('.cache/\n')
+        (self.repo / ".gitignore").write_text('.cache/\n.build/\n')
         (self.repo / "source.txt").write_text("original")
         write_package_pins(self.repo)
         (self.base / "home").mkdir()
@@ -642,6 +679,56 @@ class TestAllTests(TestAllFixture):
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertIn("com.artisanalsoftware.PodHaven.debug", result.stderr)
         self.assertEqual(self.report()["result"], "failed")
+
+    def xcode_intermediates(self):
+        """Return where the fake xcodebuild builds this checkout, as Xcode builds into its DerivedData."""
+        return (self.base / "home/DerivedData" / hashlib.sha256(str(self.repo.resolve()).encode()).hexdigest()[:16]
+                / "Build/Intermediates.noindex")
+
+    def test_a_warning_in_a_source_an_earlier_build_compiled_fails_the_run(self):
+        # The fake tools build incrementally, so they show a warning in a project source only when they compile it.
+        xcode, swiftpm = self.xcode_intermediates(), self.repo / "PodHavenMacros/.build/out/Intermediates.noindex"
+        xcode_rebuilt = [xcode / name for name in XCODE_REBUILT]
+        dependencies = [xcode / "GRDB.build", xcode / "swift-syntax.build", swiftpm / "swift-syntax.build"]
+        for tool, phase, message, rebuilt, unreached in (
+                ("xcrun", "macros", "Macro tests emitted warnings", [swiftpm / "PodHavenMacros.build"],
+                 xcode_rebuilt),
+                ("xcodebuild", "xcodebuild", "evidence validation failed (xcodebuild)",
+                 [swiftpm / "PodHavenMacros.build", *xcode_rebuilt], [])):
+            with self.subTest(tool=tool):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
+                # Earlier builds, such as a focused run's, compiled every source in this checkout.
+                for folder in rebuilt + unreached + dependencies:
+                    folder.mkdir(parents=True, exist_ok=True)
+                    (folder / "earlier").touch()
+                result = self.run_all("--ensure", TEST_SOURCE_WARNING=tool)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(message, result.stderr)
+                evidence = next((self.repo / ".cache/test-all").iterdir())
+                self.assertIn("variable 'value' was never mutated", (evidence / f"{phase}.log").read_text())
+                self.assertEqual(self.report()["phases"][phase]["result"], "failed")
+                # Only the project's own sources compiled again, with Xcode's module caches and build database
+                # made again; the package dependencies stayed built.
+                for folder in rebuilt:
+                    self.assertFalse((folder / "earlier").exists(), folder)
+                for folder in unreached + dependencies:
+                    self.assertTrue((folder / "earlier").exists(), folder)
+
+    def test_a_build_that_no_longer_builds_where_test_all_looks_fails_the_run(self):
+        for tool, folders in (("xcrun", ["PodHavenMacros/.build/out/Intermediates.noindex/PodHavenMacros.build"]),
+                              ("xcodebuild", [self.xcode_intermediates() / name for name in XCODE_REBUILT])):
+            with self.subTest(tool=tool):
+                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
+                result = self.run_all("--ensure", TEST_INTERMEDIATES_MOVED=tool)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("didn't remake " + ", ".join(str(self.repo.resolve() / folder) for folder in folders),
+                              result.stderr)
+                self.assertEqual(self.report()["result"], "failed")
+        shutil.rmtree(self.repo / ".cache")
+        result = self.run_all("--ensure", TEST_BUILD_SETTINGS_FAILURE="1")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("Could not resolve package dependencies", result.stderr)
+        self.assertEqual(self.report()["phases"]["xcodebuild"]["result"], "failed")
 
     def test_failures_never_leave_a_passing_report(self):
         for setting in ("TEST_BUILD_FAILURE", "TEST_MISSING_BUNDLE", "TEST_SKIPPED",

@@ -119,7 +119,8 @@ class AppStoreCommandTests(unittest.TestCase):
             path = commands / name
             source = FAKE
             if name == "xcodebuild":
-                source = ("import sys\nif '-version' in sys.argv or ('test' in sys.argv and 'platform=macOS,name=My Mac' in sys.argv):\n    exec("
+                source = ("import sys\nif '-version' in sys.argv or ({'test', '-showBuildSettings'} & set(sys.argv)"
+                          " and 'platform=macOS,name=My Mac' in sys.argv):\n    exec("
                           + repr(GATE_FAKE) + ")\nelse:\n    exec(" + repr(FAKE) + ")\n")
             path.write_text(f"#!{sys.executable}\n" + source)
             path.chmod(0o755)

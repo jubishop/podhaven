@@ -24,7 +24,7 @@ def install_gate(repo, commands):
         path.write_text(f"#!{sys.executable}\n" + FAKE)
         path.chmod(0o755)
     fake_caffeinate.install(commands)
-    (repo / ".gitignore").write_text(".cache/\n")
+    (repo / ".gitignore").write_text(".cache/\n.build/\n")
     write_package_pins(repo)
     home = commands.parent / "home"
     home.mkdir(exist_ok=True)
