@@ -16,9 +16,11 @@ ROOT = Path(__file__).resolve().parents[2]
 class AppStoreReleaseTests(unittest.TestCase):
     def run_release(self, scenario="new", **env):
         environment = {**os.environ, "APPSTORE_SCENARIO": scenario, "PODHAVEN_APPSTORE_NOTES": "Fixed playback",
-                       "ASC_KEY_PATH": "", "ASC_KEY_ID": "", "ASC_ISSUER_ID": "", **env}
-        if "APPSTORE_BUILD" not in env:
-            environment.pop("APPSTORE_BUILD", None)
+                       "ASC_KEY_PATH": "/private/key.p8", "ASC_KEY_ID": "test-key", "ASC_ISSUER_ID": "test-issuer",
+                       **env}
+        for name in ("APPSTORE_BUILD", "PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS"):
+            if name not in env:
+                environment.pop(name, None)
         result = hang_guard.run(["ruby", str(ROOT / "bin/tests/appstore_fakes.rb"),
                                  str(ROOT / "fastlane/appstore.rb")], env=environment,
                                 text=True, capture_output=True)
@@ -89,10 +91,46 @@ class AppStoreReleaseTests(unittest.TestCase):
         self.assertEqual(wait["app_version"], "1.1")
         self.assertEqual(wait["build_version"], "570")
         self.assertEqual(wait["poll_interval"], 30)
-        self.assertEqual(wait["timeout_duration"], 1800)
+        self.assertEqual(wait["timeout_duration"], 7200)
         self.assertFalse(wait["select_latest"])
         self.assertIn(["write_build", "build-570"], events)
         self.assertNotIn(["write_build", "build-569"], events)
+
+    def test_processing_wait_shares_the_testflight_timeout(self):
+        result, events = self.run_release(APPSTORE_BUILD="570", PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS="14400")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(next(event[1] for event in events if event[0] == "wait")["timeout_duration"], 14400)
+        result, events = self.run_release("timeout", PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS="600")
+        self.assertNotEqual(result.returncode, 0)
+        for text in ("1.1 (569)", "600 seconds", "upload is preserved; nothing was submitted", "rerun the same command",
+                     "PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS"):
+            self.assertIn(text, result.stderr)
+        self.assertNotIn("BuildWatcher exceeded", result.stderr)
+        self.assertFalse(self.writes(events))
+
+    def test_an_invalid_timeout_fails_before_login(self):
+        for mode in ("preflight", "submit"):
+            for value in ("", "0", "1.5", "forever"):
+                with self.subTest(mode=mode, value=value):
+                    result, events = self.run_release(APPSTORE_MODE=mode, PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS=value)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS", result.stderr)
+                    self.assertEqual(events, [])
+
+    def test_requests_use_the_api_key_only(self):
+        result, events = self.run_release()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(events[0], ["token", {"key_id": "test-key", "issuer_id": "test-issuer",
+                                               "filepath": "/private/key.p8"}])
+        self.assertNotIn("username", next(event[1] for event in events if event[0] == "login"))
+        for mode in ("status", "base", "preflight", "submit"):
+            for name in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID"):
+                with self.subTest(mode=mode, missing=name):
+                    result, events = self.run_release(APPSTORE_MODE=mode, PODHAVEN_APPSTORE_BASE_PATH="/dev/null",
+                                                      **{name: ""})
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("need an API key", result.stderr)
+                    self.assertEqual(events, [])
 
     def test_submission_requires_an_exact_build(self):
         result, events = self.run_release(APPSTORE_BUILD="")

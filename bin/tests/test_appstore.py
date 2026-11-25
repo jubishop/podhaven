@@ -108,11 +108,13 @@ class AppStoreCommandTests(unittest.TestCase):
         (self.repo / "PodHaven.xcodeproj").mkdir()
         self.project = self.repo / "PodHaven.xcodeproj/project.pbxproj"
         self.project.write_text("\tMARKETING_VERSION = 1.0.1;\n\tOTHER = keep;\n")
-        for name in ("appstore", "version", "deploy.sh", "release-notes"):
+        for name in ("appstore", "_release_lock.py", "version", "deploy.sh", "release-notes"):
             shutil.copy2(ROOT / "bin" / name, self.repo / "bin" / name)
         (self.repo / "bin/shipit").symlink_to("deploy.sh")
         commands = self.base / "commands"
         home = install_gate(self.repo, commands)
+        with (self.repo / ".gitignore").open("a") as ignored:
+            ignored.write("build/\n")
         for name in ("fastlane", "xcodebuild", "llm", "xcbeautify", "mktemp", "gh", "rm", "sentry", "dwarfdump"):
             path = commands / name
             source = FAKE
@@ -125,9 +127,11 @@ class AppStoreCommandTests(unittest.TestCase):
                     "APPSTORE_FIXTURE": str(self.base), "TEST_ALL_FIXTURE": str(self.base), "GIT_CONFIG_NOSYSTEM": "1",
                     "APPSTORE_DEBUG_IDS": json.dumps(DEBUG_IDS),
                     "GIT_CONFIG_GLOBAL": os.devnull, "HOME": str(home)}
-        for key in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID", "PODHAVEN_APPSTORE_NOTES",
-                    "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+        for key in ("PODHAVEN_APPSTORE_NOTES", "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE",
+                    "PODHAVEN_RELEASE_LOCK_FD", "PODHAVEN_RELEASE_LOCK_PID"):
             self.env.pop(key, None)
+        (self.base / "AuthKey.p8").write_text("fake key")
+        self.env.update(ASC_KEY_PATH=str(self.base / "AuthKey.p8"), ASC_KEY_ID="key", ASC_ISSUER_ID="issuer")
         self.git("init", "-b", "main")
         self.git("config", "user.name", "Release Test")
         self.git("config", "user.email", "release@example.invalid")
@@ -345,7 +349,8 @@ class AppStoreCommandTests(unittest.TestCase):
         result = self.run_command("--release", "1.1", "--notes", "Public notes")
         self.assertEqual(result.returncode, 0, result.stderr)
         events = [(event[0], event[1]) for event in self.events() if event[0] in ("xcodebuild", "sentry")]
-        symbols = events.index(("sentry", ["debug-files", "upload", str(self.base / "logs/PodHaven.xcarchive"), "--wait"]))
+        archive = self.repo / "build/release/v1.1b570/PodHaven.xcarchive"
+        symbols = events.index(("sentry", ["debug-files", "upload", str(archive), "--wait"]))
         checks = [index for index, (name, args) in enumerate(events) if args[:1] == ["api"]]
         upload = next(index for index, (name, args) in enumerate(events) if "-exportArchive" in args)
         self.assertEqual(sorted(events[index][1][1].split("?query=")[1] for index in checks),
@@ -567,7 +572,7 @@ class AppStoreCommandTests(unittest.TestCase):
                      ("--release", "1.1;OTHER", "--notes", "Fix"),
                      ("--release", "1.1.1", "--notes", "Fix"),
                      ("--release", "1.1.1", "--notes", "Fix", "--build", "569"),
-                     ("--release", "1.0", "--notes", "Fix"), ("--api-key-id", "key")):
+                     ("--release", "1.0", "--notes", "Fix")):
             with self.subTest(args=args[:2]):
                 self.setUp()
                 result = self.run_command(*args)
@@ -575,6 +580,20 @@ class AppStoreCommandTests(unittest.TestCase):
                 self.assertFalse(self.events())
                 self.assertEqual(self.git("rev-parse", "HEAD"), self.initial)
                 self.assertFalse(self.git("status", "--porcelain"))
+
+    def test_a_missing_api_key_stops_before_anything(self):
+        for args, env, message in ((("--status",), {"ASC_KEY_PATH": ""}, "need an API key"),
+                                   (("--notes", "Fixes"), {"ASC_ISSUER_ID": ""}, "need an API key"),
+                                   (("--api-key-id", "key", "--notes", "Fixes"), {"ASC_KEY_PATH": "", "ASC_KEY_ID": ""},
+                                    "need an API key"),
+                                   (("--api-key", "missing.p8", "--status"), {}, "does not exist")):
+            with self.subTest(args=args):
+                self.setUp()
+                result = self.run_command(*args, **env)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+                self.assertFalse(self.events())
+                self.assertEqual(self.git("rev-parse", "HEAD"), self.initial)
 
     def test_release_accepts_a_major_version_without_dots(self):
         result = self.run_command("--release", "2", "--notes", "Major release")
@@ -595,11 +614,23 @@ class AppStoreCommandTests(unittest.TestCase):
         self.assertEqual(self.events("fastlane")[0][3], str(self.base / "key.p8"))
 
     def test_parallel_release_is_rejected(self):
-        with (self.repo / ".git/podhaven-appstore.lock").open("w") as lock:
+        with (self.repo / ".git/podhaven-release.lock").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            lock.write("pid 1 since 2026-11-24 09:00:00 PST: bin/testflight in elsewhere\n")
+            lock.flush()
             result = self.run_command("--release", "1.1", "--notes", "Fixes")
         self.assertNotEqual(result.returncode, 0)
+        self.assertIn("bin/testflight in elsewhere", result.stderr)
         self.assertFalse(self.events())
+
+    def test_the_upload_inherits_the_release_lock_and_tags_with_the_notes(self):
+        notes = "# Better playback\n• Fixed skipping."
+        result = self.run_command("--release", "1.1", "--notes", notes)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.git("tag", "-l", "--format=%(contents)", "v1.1b570"), notes)
+        self.assertFalse(any(event[0] == "llm" for event in self.events()))
+        with (self.repo / ".git/podhaven-release.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
 if __name__ == "__main__":

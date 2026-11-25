@@ -4,6 +4,12 @@ lane :distribute_testflight do |options|
   PodHavenTestFlight.run(options)
 end
 
+desc "Add, remove, or list the testers in the external Everyone group"
+lane :manage_testers do
+  require_relative "testflight"
+  PodHavenTestFlight.manage_testers
+end
+
 desc "Show App Store status or submit an uploaded PodHaven build"
 lane :manage_appstore do |options|
   require_relative "appstore"

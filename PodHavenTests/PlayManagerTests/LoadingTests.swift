@@ -487,8 +487,9 @@ import Testing
     try await PlayHelpers.waitFor(.loading(originalEpisode.episode.title))
     try await PlayHelpers.waitForAudioActive(true)
 
-    audioSession.configureError { $0 = TestError.simulatedFailure }
-    try await playManager.play(incomingEpisode)
+    try await PlayHelpers.failingAudioSessionConfiguration {
+      try await playManager.play(incomingEpisode)
+    }
     originalRelease.signal()
     await #expect(throws: (any Error).self) {
       try await originalPlay.value
@@ -499,7 +500,6 @@ import Testing
     #expect(sharedState.onDeck == nil)
     try await PlayHelpers.waitForNoCurrentItem()
 
-    audioSession.configureError { $0 = nil }
     await playManager.restorePersistedEpisodeForForeground()
 
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
@@ -557,8 +557,11 @@ import Testing
     await dequeueStarted.wait()
     try await PlayHelpers.waitForOnDeck(establishedEpisode)
 
-    audioSession.configureError { $0 = TestError.simulatedFailure }
-    #expect(try await playManager.load(incomingEpisode) == false)
+    #expect(
+      try await PlayHelpers.failingAudioSessionConfiguration {
+        try await playManager.load(incomingEpisode)
+      } == false
+    )
     finishDequeue.signal()
     #expect(try await establishedLoad.value == true)
 
@@ -574,9 +577,9 @@ import Testing
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
 
-    audioSession.configureError { $0 = TestError.simulatedFailure }
-
-    let loaded = try await playManager.load(podcastEpisode)
+    let loaded = try await PlayHelpers.failingAudioSessionConfiguration {
+      try await playManager.load(podcastEpisode)
+    }
     #expect(loaded == false)
 
     try await PlayHelpers.waitFor(.stopped)
@@ -598,8 +601,11 @@ import Testing
     await playManager.play()
     try await PlayHelpers.waitFor(.playing)
 
-    audioSession.configureError { $0 = TestError.simulatedFailure }
-    #expect(try await playManager.load(incomingEpisode) == false)
+    #expect(
+      try await PlayHelpers.failingAudioSessionConfiguration {
+        try await playManager.load(incomingEpisode)
+      } == false
+    )
 
     #expect(sharedState.onDeck?.id == playingEpisode.id)
     #expect(sharedState.playbackStatus == .playing)
@@ -617,8 +623,9 @@ import Testing
     await playManager.play()
     try await PlayHelpers.waitFor(.playing)
 
-    audioSession.configureError { $0 = TestError.simulatedFailure }
-    await playManager.handlePlaybackFailure()
+    try await PlayHelpers.failingAudioSessionConfiguration {
+      await playManager.handlePlaybackFailure()
+    }
 
     try await PlayHelpers.waitFor(.stopped)
     try await PlayHelpers.waitForQueue([podcastEpisode])
@@ -935,11 +942,13 @@ import Testing
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
 
-    audioSession.configureError { $0 = TestError.simulatedFailure }
-    #expect(try await playManager.load(podcastEpisode) == false)
+    #expect(
+      try await PlayHelpers.failingAudioSessionConfiguration {
+        try await playManager.load(podcastEpisode)
+      } == false
+    )
     try await PlayHelpers.waitFor(.stopped)
 
-    audioSession.configureError { $0 = nil }
     try await playManager.load(podcastEpisode)
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
     try await PlayHelpers.waitFor(.paused)
