@@ -13,17 +13,21 @@ import service_guard
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def run_fastlane(scenario, **env):
+    settings = {**os.environ, "TESTFLIGHT_SCENARIO": scenario,
+                "PODHAVEN_TESTFLIGHT_NOTES": "Fixed playback", "ASC_KEY_PATH": "/private/key.p8",
+                "ASC_KEY_ID": "test-key", "ASC_ISSUER_ID": "test-issuer", **env}
+    if "PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS" not in env:
+        settings.pop("PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS", None)
+    result = hang_guard.run(["ruby", str(ROOT / "bin/tests/testflight_fakes.rb"),
+                             str(ROOT / "fastlane/Fastfile")], env=settings,
+                            text=True, capture_output=True)
+    return result, json.loads(result.stdout)
+
+
 class TestFlightTests(unittest.TestCase):
     def run_lane(self, scenario="success", **env):
-        settings = {**os.environ, "TESTFLIGHT_SCENARIO": scenario,
-                    "PODHAVEN_TESTFLIGHT_NOTES": "Fixed playback", "ASC_KEY_PATH": "",
-                    "ASC_KEY_ID": "", "ASC_ISSUER_ID": "", **env}
-        if "PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS" not in env:
-            settings.pop("PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS", None)
-        result = hang_guard.run(["ruby", str(ROOT / "bin/tests/testflight_fakes.rb"),
-                                 str(ROOT / "fastlane/Fastfile")], env=settings,
-                                text=True, capture_output=True)
-        return result, json.loads(result.stdout)
+        return run_fastlane(scenario, **env)
 
     def test_waits_for_exact_build_submits_and_verifies_assignment(self):
         result, events = self.run_lane()
@@ -63,6 +67,7 @@ class TestFlightTests(unittest.TestCase):
         self.assertIn("Build Uploads", result.stderr)
         self.assertNotIn("BuildWatcher exceeded", result.stderr)
         self.assertFalse(any(event[0] in ("distribute", "expire", "success") for event in events))
+        self.assertIn("no distribution was attempted", result.stderr)
 
     def test_processing_wait_accepts_a_longer_timeout(self):
         result, events = self.run_lane("slow_processing", PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS="14400")
@@ -195,7 +200,7 @@ class TestFlightTests(unittest.TestCase):
     def test_reuse_cannot_rebuild_an_active_review(self):
         result, events = self.run_lane("active_review")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("without --reuse", result.stderr)
+        self.assertIn("without --distribute-only", result.stderr)
         self.assertIn("1.0.1 (568)", result.stderr)
         self.assertFalse(any(event[0] in ("expire", "distribute") for event in events))
 
@@ -242,17 +247,119 @@ class TestFlightTests(unittest.TestCase):
                 self.assertFalse(any(event[0] == "success" for event in events))
 
     def test_api_key_is_loaded_from_a_path(self):
-        result, events = self.run_lane(ASC_KEY_PATH="/private/key.p8", ASC_KEY_ID="test-key",
-                                       ASC_ISSUER_ID="test-issuer")
+        result, events = self.run_lane()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(events[0], ["token", {"key_id": "test-key", "issuer_id": "test-issuer",
                                                "filepath": "/private/key.p8"}])
+        login = next(event[1] for event in events if event[0] == "login")
+        self.assertNotIn("username", login)
+
+    def test_a_missing_api_key_fails_before_login(self):
+        for lane in ("distribute_testflight", "manage_testers"):
+            for name in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID"):
+                with self.subTest(lane=lane, missing=name):
+                    result, events = self.run_lane(TESTFLIGHT_LANE=lane, PODHAVEN_TESTERS_LIST="true", **{name: ""})
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("need an API key", result.stderr)
+                    self.assertEqual(events, [])
 
     def test_blank_or_oversized_notes_fail_before_login(self):
         for notes in ("  ", "a" * 4001):
             result, events = self.run_lane(PODHAVEN_TESTFLIGHT_NOTES=notes)
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(events, [])
+
+
+
+class TesterTests(unittest.TestCase):
+    def run_testers(self, scenario="testers", add=(), remove=(), list_testers=False):
+        result, events = run_fastlane(
+            scenario, TESTFLIGHT_LANE="manage_testers", PODHAVEN_TESTFLIGHT_NOTES="",
+            PODHAVEN_TESTERS_ADD="".join(email + "\n" for email in add),
+            PODHAVEN_TESTERS_REMOVE="".join(email + "\n" for email in remove),
+            PODHAVEN_TESTERS_LIST="true" if list_testers else "false")
+        return result, events
+
+    def writes(self, events):
+        return [event for event in events if event[0].startswith("write_")]
+
+    def messages(self, events):
+        return [event[1] for event in events if event[0] in ("message", "success")]
+
+    def test_a_new_email_is_created_in_everyone_and_invited(self):
+        result, events = self.run_testers(add=["new@example.com"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.writes(events), [
+            ["write_create", ["everyone-id"], {"email": "new@example.com"}],
+            ["write_post", "v1/betaTesterInvitations", {"data": {"type": "betaTesterInvitations", "relationships": {
+                "app": {"data": {"type": "apps", "id": "podhaven-id"}},
+                "betaTester": {"data": {"type": "betaTesters", "id": "new-id"}}}}}]])
+        queries = [event[1] for event in events if event[0] == "testers"]
+        self.assertEqual(queries, [{"email": "new@example.com", "betaGroups": "everyone-id"},
+                                   {"email": "new@example.com"},
+                                   {"email": "new@example.com", "betaGroups": "everyone-id"}])
+        self.assertIn("new@example.com is in Everyone and invited to TestFlight.", self.messages(events))
+
+    def test_a_created_tester_apple_already_invited_gets_no_second_invitation(self):
+        result, events = self.run_testers("created_invited", add=["new@example.com"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([event[0] for event in self.writes(events)], ["write_create"])
+        self.assertIn("new@example.com is in Everyone; TestFlight lists them as INVITED.", self.messages(events))
+
+    def test_a_team_tester_joins_everyone(self):
+        result, events = self.run_testers(add=["bob@example.com"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.writes(events), [["write_join", "everyone-id", ["bob-id"]]])
+        self.assertIn("Adding bob@example.com, already a TestFlight tester on the team, to Everyone.",
+                      self.messages(events))
+
+    def test_a_member_is_left_alone_and_a_revoked_one_is_invited_again(self):
+        result, events = self.run_testers(add=["alice@example.com"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.writes(events), [])
+        self.assertIn("alice@example.com is already in Everyone as INSTALLED; nothing changed.", self.messages(events))
+        result, events = self.run_testers(add=["gone@example.com"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([event[0] for event in self.writes(events)], ["write_join", "write_post"])
+        self.assertEqual(self.writes(events)[-1][2]["data"]["relationships"]["betaTester"]["data"]["id"], "gone-id")
+
+    def test_an_unconfirmed_addition_fails(self):
+        result, events = self.run_testers("add_unconfirmed", add=["new@example.com"])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("does not list new@example.com in Everyone", result.stderr)
+        self.assertFalse(any(event[0] == "write_post" for event in events))
+
+    def test_removal_leaves_the_team_and_other_groups_and_is_read_back(self):
+        result, events = self.run_testers(remove=["alice@example.com"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.writes(events), [["write_leave", "alice-id", ["everyone-id"]]])
+        self.assertEqual(sum(event[0] == "testers" for event in events), 2)
+        self.assertIn("alice@example.com is no longer in Everyone.", self.messages(events))
+        for email in ("bob@example.com", "gone@example.com", "nobody@example.com"):
+            with self.subTest(email=email):
+                result, events = self.run_testers(remove=[email])
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.writes(events), [])
+                self.assertIn(email + " is not in Everyone; nothing changed.", self.messages(events))
+        result, events = self.run_testers("remove_unconfirmed", remove=["alice@example.com"])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("still lists alice@example.com in Everyone", result.stderr)
+
+    def test_listing_shows_everyone_after_removals_then_additions(self):
+        result, events = self.run_testers(add=["bob@example.com"], remove=["alice@example.com"], list_testers=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([event[0] for event in self.writes(events)], ["write_leave", "write_join"])
+        messages = self.messages(events)
+        listing = messages[messages.index("Everyone has 3 testers:") + 1:]
+        self.assertEqual(listing, ["Bob <bob@example.com>: ACCEPTED, invited by email",
+                                   "gone@example.com: REVOKED, invited by email",
+                                   "Pat Lee (no email): INSTALLED, joined through the public link"])
+
+    def test_listing_an_empty_group(self):
+        result, events = self.run_testers("empty", list_testers=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Everyone has no testers.", self.messages(events))
+        self.assertEqual(self.writes(events), [])
 
 
 if __name__ == "__main__":
