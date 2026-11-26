@@ -102,21 +102,44 @@ import Testing
     #expect(try await observatory.tags().get()[id: tag.id]?.name == "News")
   }
 
-  @Test("deleteTag confirms before deleting")
+  @Test("deleteTag asks first, keeps a tag on Cancel, and deletes one on Delete")
   func deleteTagConfirmsBeforeDeleting() async throws {
-    let tag = try await repo.insertTag(UnsavedTag(name: "News"))
-    let viewModel = TagEditorViewModel(
-      mode: .edit(tag.id),
-      name: tag.name,
-      icon: tag.icon,
+    let kept = try await repo.insertTag(UnsavedTag(name: "News"))
+    let deleted = try await repo.insertTag(UnsavedTag(name: "Tech"))
+    let keptViewModel = TagEditorViewModel(
+      mode: .edit(kept.id),
+      name: kept.name,
+      icon: kept.icon,
       podcastCount: 2,
       episodeCount: 1
     )
+    let deletedViewModel = TagEditorViewModel(
+      mode: .edit(deleted.id),
+      name: deleted.name,
+      icon: deleted.icon,
+      podcastCount: 0,
+      episodeCount: 0
+    )
 
-    viewModel.deleteTag()
+    keptViewModel.deleteTag()
+    let cancelled = try await answerAlert("Cancel")
 
-    #expect(alert.config?.title == "Delete Tag?")
-    #expect(try await observatory.tags().get()[id: tag.id] != nil)
+    #expect(cancelled.title == "Delete Tag?")
+    #expect(
+      cancelled.message
+        == "\"News\" is used by 2 podcasts and 1 episode. Are you sure you want to delete it?"
+    )
+    #expect(try await observatory.tags().get()[id: kept.id] != nil)
+
+    deletedViewModel.deleteTag()
+    let confirmed = try await answerAlert("Delete")
+
+    #expect(confirmed.message == "Are you sure you want to delete \"Tech\"?")
+    try await Wait.until(
+      { @MainActor in try await self.observatory.tags().get()[id: deleted.id] == nil },
+      { "Expected Delete to remove tag \(deleted.id)" }
+    )
+    #expect(try await observatory.tags().get()[id: kept.id] != nil)
   }
 
   @Test("create mode inserts a new tag with the trimmed name and chosen icon")
