@@ -13,9 +13,10 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
 
-  // Optional override for scoringContextInputsWithoutPartialSignals(). Each
-  // call pops one entry off the front of the script; once the script is
-  // empty the fake falls through to the wrapped real observatory. Tests use
+  // Optional override for
+  // scoringContextInputsWithoutPartialSignals(embeddingRevision:). Each call
+  // pops one entry off the front of the script; once the script is empty the
+  // fake falls through to the wrapped real observatory. Tests use
   // this to inject an observation that throws on iteration so the engine's
   // retry loop has something to recover from.
   let scoringContextInputsScript = ThreadSafe<
@@ -359,17 +360,22 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.embeddedCandidateEpisodes(filter: filter)
   }
 
-  func scoringContextInputsWithoutPartialSignals()
-    -> AsyncValueObservation<ScoringContextInputs>
-  {
-    recordCall(methodName: "scoringContextInputsWithoutPartialSignals", parameters: ())
+  func scoringContextInputsWithoutPartialSignals(
+    embeddingRevision: Int
+  ) -> AsyncValueObservation<ScoringContextInputs> {
+    recordCall(
+      methodName: "scoringContextInputsWithoutPartialSignals",
+      parameters: embeddingRevision
+    )
     var script = scoringContextInputsScript()
     if let next = script.first {
       script.removeFirst()
       scoringContextInputsScript(script)
       return next()
     }
-    return observatory.scoringContextInputsWithoutPartialSignals()
+    return observatory.scoringContextInputsWithoutPartialSignals(
+      embeddingRevision: embeddingRevision
+    )
   }
 
   func embeddingWorkSignal() -> AsyncValueObservation<

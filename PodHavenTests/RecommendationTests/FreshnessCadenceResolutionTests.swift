@@ -57,7 +57,8 @@ class FreshnessCadenceResolutionTests {
   }
 
   private func resolvedCadence(for podcastID: Podcast.ID) async throws -> FreshnessCadence? {
-    try await recommendationRepo.allScoringContextInputs().freshnessCadences[podcastID]
+    try await recommendationRepo.allScoringContextInputs(embeddingRevision: 1)
+      .freshnessCadences[podcastID]
   }
 
   // MARK: - Tests

@@ -205,8 +205,8 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     return try await recommendationRepo.allCandidateEpisodes()
   }
 
-  func allScoringContextInputs() async throws -> ScoringContextInputs {
-    recordCall(methodName: "allScoringContextInputs", parameters: ())
+  func allScoringContextInputs(embeddingRevision: Int) async throws -> ScoringContextInputs {
+    recordCall(methodName: "allScoringContextInputs", parameters: embeddingRevision)
     let shouldGate: Bool = scoringContextInputsGateState { state -> Bool in
       guard state.armed else { return false }
       state.armed = false
@@ -229,7 +229,9 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
         }
       }
     }
-    return try await recommendationRepo.allScoringContextInputs()
+    return try await recommendationRepo.allScoringContextInputs(
+      embeddingRevision: embeddingRevision
+    )
   }
 
   func whiteningTransform(
