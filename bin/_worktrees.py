@@ -21,6 +21,7 @@ from _knowledge import atomic_json, git, git_environment, primary_checkout, read
 LABEL = "com.jubi.podhaven.worktree-cleanup"
 RESOLVED = "PodHaven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
 RENAME_SWAP = 0x2
+SHARED_PACKAGES = "Xcode packages are shared with other checkouts; run bin/prep-worktree."
 
 
 def xcode_hash(path):
@@ -65,7 +66,9 @@ def checkout_cache(paths, checkout):
 
 
 def package_folder(root):
-    """Return the checkout's own SwiftPM folder, where its Xcode builds resolve packages."""
+    """Return the checkout's own SwiftPM folder for an Xcode build to resolve packages in, as
+    require_private_packages leaves it."""
+    require_private_packages(root)
     paths = layout(root)
     return checkout_cache(paths, paths["root"]) / "SourcePackages"
 
@@ -179,6 +182,8 @@ def sweep(root, apply=False):
             except (OSError, ValueError, subprocess.SubprocessError) as error:
                 report["deferred"].append({"path": str(folder), "reason": str(error)})
         if apply:
+            # A checkout that links the seed reads the paths it recorded, and holds up the seed's refresh.
+            report["deferred"] += move_linked_checkouts(paths, live)
             report["seed"] = refresh_seed(paths, live)
             atomic_json(paths["state"] / "cleanup.json", report)
     return report
@@ -308,32 +313,68 @@ def refresh_seed(paths, checkouts):
 
 
 def make_packages_private(paths, directory):
-    """Give one checkout's DerivedData its own packages, cloned from the seed; Xcode resolves afresh without them."""
+    """Give one checkout's DerivedData its own packages, cloned from the seed; Xcode resolves afresh without them.
+
+    Return a note when a link stays or Xcode must resolve the packages afresh."""
     directory.mkdir(parents=True, exist_ok=True)
     packages = directory / "SourcePackages"
     if packages.is_symlink():
         if packages.resolve() != paths["packages"]:
-            print("Preserved existing SourcePackages link; inspect with bin/doctor-xcode: " + str(packages))
-            return
+            return "Preserved existing SourcePackages link; inspect with bin/doctor-xcode: " + str(packages)
         if path_in_use(directory):
-            print("Packages stay shared while this checkout's DerivedData is in use; bin/prep-worktree retries: "
-                  + str(directory))
-            return
+            return ("Packages stay shared while this checkout's DerivedData is in use; bin/prep-worktree retries: "
+                    + str(directory))
         if not packages.is_dir():
             packages.unlink()
     elif packages.exists():
-        return
+        return None
     if not paths["packages"].is_dir():
-        return
+        return None
     try:
         clone_packages(paths, paths["packages"], packages)
     except (OSError, ValueError) as error:
         if packages.is_symlink():
             # Checkouts that still link the seed may read paths it recorded through this link.
-            print("Packages stay shared until bin/prep-worktree can clone the seed into " + str(packages) + ": "
-                  + str(error))
-        else:
-            print("Xcode will resolve packages afresh in " + str(packages) + ": " + str(error))
+            return ("Packages stay shared until bin/prep-worktree can clone the seed into " + str(packages) + ": "
+                    + str(error))
+        return "Xcode will resolve packages afresh in " + str(packages) + ": " + str(error)
+    return None
+
+
+def move_linked_checkouts(paths, checkouts):
+    """Move each checkout that still links the seed onto a clone of it while no build or Xcode runs; return a deferral
+    for each link that stays."""
+    deferred = []
+    for checkout in checkouts:
+        directory = checkout_cache(paths, Path(checkout))
+        packages = directory / "SourcePackages"
+        if not packages.is_symlink() or packages.resolve() != paths["packages"]:
+            continue
+        reason = ("Build or Xcode activity; automatic cleanup will retry" if build_activity(include_ide=True)
+                  else make_packages_private(paths, directory))
+        if packages.is_symlink():
+            deferred.append({"path": str(directory), "reason": reason})
+    return deferred
+
+
+def require_private_packages(root):
+    """Before an Xcode build, move a checkout that still links the seed onto a clone of it, or raise with the remedy.
+
+    Preparation manages only checkouts with a primary, so a worktree of a bare mirror, such as the second Mac's lane,
+    has no link to move."""
+    if sys.platform != "darwin" or not (root / "PodHaven.xcodeproj").is_dir() or not primary_checkout(root):
+        return
+    paths = layout(root)
+    directory = checkout_cache(paths, paths["root"])
+    packages = directory / "SourcePackages"
+    if not packages.is_symlink() or packages.resolve() != paths["packages"]:
+        return
+    with maintenance_lock(paths):
+        note = make_packages_private(paths, directory)
+    if note:
+        print(note, flush=True)
+    if packages.is_symlink():
+        raise RuntimeError(SHARED_PACKAGES)
 
 
 def prepare_xcode(root):
@@ -362,7 +403,9 @@ def prepare_xcode(root):
         if refresh["status"] == "refreshed":
             print("Refreshed the package seed from " + refresh["source"] + ".")
         for directory in directories:
-            make_packages_private(paths, directory)
+            note = make_packages_private(paths, directory)
+            if note:
+                print(note)
         suffix = Path("PodHaven.xcodeproj/project.xcworkspace/xcuserdata") / (getpass.getuser() + ".xcuserdatad/WorkspaceSettings.xcsettings")
         source, target = paths["primary"] / suffix, root / suffix
         if source.is_file() and not target.exists():
@@ -391,7 +434,7 @@ def xcode_health(root):
     report = dict(diagnose_xcode(root), issues=[], notices=[])
     if report["available"]:
         if not report["packages_private"]:
-            report["issues"].append("Xcode packages are shared with other checkouts; run bin/prep-worktree.")
+            report["issues"].append(SHARED_PACKAGES)
         if not report["agent_loaded"]:
             report["notices"].append("Hourly cleanup is not loaded; run bin/install-cleanup-agent in the primary checkout.")
         if report["cleanup_error"]:

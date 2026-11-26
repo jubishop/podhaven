@@ -195,6 +195,10 @@ elif name == 'sample':
     path.write_text('Analysis of sampling PodHaven (pid ' + args[0] + ')\n')
     if path.name.endswith('-2.sample.txt'):
         os.kill(int(args[0]), signal.SIGTERM)
+elif name == 'lsof':
+    # A process has files open in the folder lsof lists, or none does.
+    if not os.environ.get('TEST_FOLDER_IN_USE'): sys.exit(1)
+    print('Xcode 4242 user cwd DIR ' + args[-1])
 elif name == 'check' and '--no-reuse' not in args and (base / 'check-passed').exists():
     print('Reused the application checks that passed earlier; bin/check --full --no-reuse runs them again.')
 elif name in ('check', 'lint-swift-format'):
@@ -231,6 +235,9 @@ if 'TEST_ALL_FIXTURE' in os.environ:
     os.getloadavg = getloadavg
 '''
 BASE_LOAD = [1.5, 1.25, 1.0]
+# bin/test-all and the scripts and modules it uses.
+GATE = ("test-all", "check-swift-results", "_my_mac_lock.py", "_test_lane.py", "_test_lane_host.py",
+        "_validation_slot.py", "_worktrees.py", "_knowledge.py")
 PHASES = ["tooling", "swift-lint", "macros", "xcodebuild", "siri-performance", "opml-performance"]
 FOCUSED = ("/bin/sh", "-c", "echo held; read line; true")
 TEST_HOST = "com.artisanalsoftware.PodHaven.debug"
@@ -276,15 +283,14 @@ class TestAllFixture(unittest.TestCase):
         self.base = Path(temporary.name)
         self.repo = self.base / "repo"
         (self.repo / "bin").mkdir(parents=True)
-        for name in ("test-all", "check-swift-results", "_my_mac_lock.py", "_test_lane.py", "_test_lane_host.py",
-                     "_validation_slot.py"):
+        for name in GATE:
             shutil.copy2(ROOT / "bin" / name, self.repo / "bin" / name)
         (self.base / "python").mkdir()
         (self.base / "python/sitecustomize.py").write_text(LOAD)
         self.commands = self.base / "commands"
         self.commands.mkdir()
         for path in (self.commands / "xcodebuild", self.commands / "xcrun", self.commands / "sw_vers",
-                     self.commands / "sample",
+                     self.commands / "sample", self.commands / "lsof",
                      self.repo / "bin/check", self.repo / "bin/lint-swift-format",
                      self.repo / ".agents/skills/example/test_skill.py",
                      self.repo / ".agents/scripts/example/test_helper.py"):
@@ -773,6 +779,11 @@ class TestAllTests(TestAllFixture):
         self.assertEqual(self.report()["result"], "passed")
 
     def test_inherited_host_sdk_does_not_override_the_app_sdk(self):
+        # Apple's Git shim, unlike Homebrew's Git, fails under an SDKROOT that names no SDK.
+        git = self.commands / "git"
+        git.write_text(f'#!/bin/sh\n[ -z "$SDKROOT" ] || {{ echo "git: SDKROOT reached Git" >&2; exit 1; }}\n'
+                       f'exec {shutil.which("git")} "$@"\n')
+        git.chmod(0o755)
         result = self.run_all(SDKROOT="/wrong/MacOSX.sdk")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
