@@ -45,8 +45,8 @@ also retries an unfinished version push before it can upload anything.
 
 `bin/version`, `bin/shipit`, and fresh `bin/appstore` releases check the
 supported macOS, Xcode, and Swift versions before version changes or external
-writes. Distribution with `--reuse` skips local build validation because it
-uses an existing upload. Read-only version, status, and help commands do not
+writes. Distribution with `--distribute-only` skips local build validation
+because it uses an existing upload. Read-only version, status, and help commands do not
 run tests or builds.
 
 Before a version push or fresh archive, the commands use `bin/test-all --ensure`.
@@ -66,12 +66,55 @@ checks, and automated skill and tooling tests. The result-bundle and raw-log
 gate requires zero skipped tests and warnings. See the
 [local test workflow](development-workflow.md#current-revision-swift-validation).
 
+Evidence from the [second Mac](development-workflow.md#second-mac) counts like
+evidence from this Mac. A clean release checkout's run may go there; it passes
+only when it tested exactly the release commit's files with this Mac's Xcode,
+Swift, and macOS, and its logs and result bundles come back into this
+checkout's `.cache/test-all/`, where the same reuse and verification rules
+apply.
+
 Evidence stays under `.cache/test-all/`. A version push retry and the archive
 following that push reuse unchanged evidence. Deployment verifies it again
 before upload with `bin/test-all --verify`, which fails if the checkout,
 toolchain, or artifacts changed during archiving. A completed upload retry
 continues distribution or publication without testing or uploading another
 build. Submitting an explicit existing App Store build also skips local builds.
+
+## Release tooling
+
+Both release commands match Screenr's, as Screenr's
+[release commands decision](https://github.com/jubishop/screenr/blob/main/docs/ios-app.md#release-commands-shared-with-podhaven--2026-11-09)
+records, so one set of flags and behavior covers both apps.
+
+- **API key only:** every App Store Connect request, including Xcode's
+  upload, uses the API key in `ASC_KEY_PATH`, `ASC_KEY_ID`, and
+  `ASC_ISSUER_ID`, or in the `--api-key`, `--api-key-id`, and
+  `--api-issuer-id` options. Without all three, a command stops before any
+  other work. There is no Apple ID login, since it can ask for a two-factor
+  code that an agent can't give. Keep the private key outside the repository.
+  External distribution needs the App Manager or Admin role.
+- **One release at a time:** `bin/testflight` and `bin/appstore` hold one lock,
+  `podhaven-release.lock` in the clone's common Git directory, so it covers
+  every checkout: two runs would pick the same build number from the same tags.
+  A run that finds it held stops at once and names its holder. The upload that
+  `bin/appstore` runs inherits its lock, and the tester options take none.
+- **Processing wait:** both commands check processing every 30 seconds for up
+  to two hours. `PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS` sets another positive
+  whole number of seconds for both, and the lanes reject any other value
+  before they log in.
+- **Archives:** each build's archive and xcodebuild logs stay in
+  `build/release/<tag>/`, which Git ignores. A fresh archive starts the folder
+  over, a failed run leaves it for its logs, and each upload removes all but
+  the newest three tags' folders.
+- **Tag message:** a new tag's message is the build's release notes, kept
+  verbatim: the "What to Test" notes for TestFlight, the public "What's New"
+  notes for the App Store. Its GitHub release shows the same notes.
+- **Fastlane pin:** the lanes in `fastlane/` build on fastlane's internal
+  classes and match one of its error messages, so an upgrade could break
+  releases while the tooling tests, which fake fastlane, still pass. fastlane
+  2.241.2 was pinned with `brew pin fastlane` on 2026-11-09; leave it pinned
+  until [issue #981](https://github.com/jubishop/podhaven/issues/981) replaces
+  fastlane with a small direct client.
 
 ## Upload to TestFlight
 
@@ -96,7 +139,8 @@ If the current version is an App Store version,
 The upload then uses that version and a new build number. The command waits
 for processing and assigns the exact build to the external Everyone group with
 [generated notes](#generated-release-notes), or with `--notes "What testers
-should try"` when supplied.
+should try"` when supplied. The notes become the build's tag message. Without
+`--notes`, a rerun on the tagged commit reuses them.
 
 Before every upload, the command sends the archive's dSYMs and other debug
 files to Sentry. It then confirms that Sentry holds DWARF debug information for
@@ -123,9 +167,9 @@ build in testing for Everyone is already the tagged build at `HEAD`, the
 command publishes whichever of its tag and release is missing before reporting
 nothing to do.
 
-TestFlight processing is checked every 30 seconds for up to two hours. Set
-`PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS` to a positive whole number of seconds to
-change that wait. A timeout preserves the upload and stops before distribution.
+TestFlight processing is checked every 30 seconds for up to two hours, or for
+`PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS`. A timeout preserves the upload and
+stops before distribution.
 Check the build's status under TestFlight's Build Uploads in App Store Connect.
 If processing is still pending, rerun the command; the completed upload is
 reused. Apple can continue processing after the command stops. See
@@ -159,11 +203,11 @@ example, `bin/version 2.1.2` followed by `bin/shipit` uploads `2.1.2`.
 ### Distribute an existing TestFlight build
 
 ```sh
-bin/testflight --reuse
+bin/testflight --distribute-only
 ```
 
-Use `--reuse` to send an existing upload to Everyone after the current commit
-has changed. It selects the highest build number among local TestFlight tags
+Use `--distribute-only`, or its alias `--reuse`, to send an existing upload to
+Everyone after the current commit has changed. It selects the highest build number among local TestFlight tags
 such as `v2.1.2b600`; App Store tags are excluded. Release ordering uses the
 numeric build number, not the full version string.
 
@@ -173,18 +217,49 @@ missing. It does not fall back to an older build or create a new upload.
 Selection uses this checkout's tags; it does not fetch tags or discover
 uploads made outside these release commands.
 
-`--reuse` requires a clean `main` checkout; `--force` permits another clean
-branch. Generated notes end at the reused build's tag. It skips version changes, local builds and tests,
-uploads, Git pushes, and GitHub release publication. Fastlane waits for the
+`--distribute-only` requires a clean `main` checkout; `--force` permits another
+clean branch. It uses the notes in the tag's message unless `--notes` replaces
+them, so it needs no `llm`. Tags up to `v1.7.1b595` hold an `llm` summary of the
+raw diff instead, so pass `--notes` for one of those. It skips version
+changes, local builds and tests, uploads, Git pushes, and GitHub release
+publication. Fastlane waits for the
 exact build, submits it for beta review when needed, enables tester
 notifications, and verifies assignment to Everyone. Repeat the command to
 retry distribution while that tag remains the newest local TestFlight build.
 It can expire an older waiting review after validating the selected uploaded
-build. If the older build is actively under review, `--reuse` stops and asks
-for a normal `testflight` run, which can build the next patch version.
+build. If the older build is actively under review, `--distribute-only` stops
+and asks for a normal `testflight` run, which can build the next patch version.
 
-Without `--reuse`, a retry reuses a completed upload only when the
+Without `--distribute-only`, a retry reuses a completed upload only when the
 highest-numbered release tag still points to the current commit.
+
+### Manage testers
+
+```sh
+bin/testflight --add-tester friend@example.com
+bin/testflight --remove-tester friend@example.com
+bin/testflight --testers
+```
+
+These options change or list the testers in Everyone without a release. They
+repeat and combine, but not with `--notes`, `--distribute-only`, or `--force`,
+and they need only the API key: no Git, Sentry, `llm`, or release lock. Emails
+are matched without regard to case. A run removes, then adds, then lists, so
+the listing shows its changes.
+
+- **`--add-tester EMAIL`:** does nothing if the email is already in Everyone.
+  Otherwise a tester the team already has, such as one shared with Screenr,
+  joins the group, and anyone else is created in it. The command reads the
+  membership back, and when App Store Connect still lists the tester as
+  `NOT_INVITED` or `REVOKED`, it sends the TestFlight invitation itself, since
+  Apple's documentation doesn't say whether adding a tester sends one.
+- **`--remove-tester EMAIL`:** takes the tester out of Everyone only, so they
+  stay on the team and in other groups and apps. It reads the removal back, and
+  does nothing for an email not in the group.
+- **`--testers`:** lists Everyone's testers with their name, email, state, and
+  whether they joined by email or the public link.
+
+The add and remove calls have run only against fakes, as in Screenr.
 
 ## Release on the App Store
 
@@ -255,7 +330,8 @@ The release command requires clean `main` and performs these steps:
 5. Replace an older pending version when present, set the public release notes, and submit for App Review.
 6. Verify the selected build, notes, submission, and automatic release after approval.
 
-Processing is checked every 30 seconds for up to 30 minutes. Apple review
+Processing is checked every 30 seconds for up to two hours, or for
+`PODHAVEN_TESTFLIGHT_TIMEOUT_SECONDS`, as for TestFlight. Apple review
 continues after the command finishes. The local version remains at the
 requested release number; the next `shipit` starts the next TestFlight patch.
 
@@ -307,9 +383,10 @@ continue with the generated notes.
 The start tag must exist in the checkout and be an ancestor of the end
 revision. If it is missing, no build is in testing, or the App Store has no
 live version, the command stops before changes; fetch tags or supply `--notes`.
-A TestFlight retry generates notes again, except that an automatic patch
-version advance keeps the run's notes. An App Store retry reuses the notes in its
-release receipt.
+A TestFlight retry of a tagged build, with or without `--distribute-only`,
+reuses the notes in its tag message, and an automatic patch version advance
+keeps the run's notes. An App Store retry reuses the notes in its release
+receipt.
 
 ## Retry a release
 
@@ -329,8 +406,9 @@ notes verifies the existing submission. After new commits, an automatic release
 selects the next minor version. An unfinished release must be retried first.
 
 The command keeps one release receipt in Git metadata. It replaces a completed
-receipt when a new release starts and prevents concurrent release commands
-in the same checkout. It does not accumulate release history there.
+receipt when a new release starts and does not accumulate release history
+there. The [release lock](#release-tooling) keeps another release command from
+running meanwhile in any checkout of the clone.
 
 To submit a known existing App Store build explicitly, including when the
 local receipt is unavailable and the release number is above the local version:

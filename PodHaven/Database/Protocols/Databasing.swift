@@ -12,7 +12,7 @@ protocol Databasing: Sendable {
   // MARK: - Global Readers
 
   func allPodcasts(_ filter: SQLExpression) async throws -> [Podcast]
-  func allPodcasts(_ filter: SQLExpression, order: SQLOrdering, limit: Int) async throws
+  func allPodcasts(_ filter: SQLExpression, order: [SQLOrdering], limit: Int) async throws
     -> [Podcast]
 
   // MARK: - Series Readers
@@ -32,6 +32,7 @@ protocol Databasing: Sendable {
   func episode(_ episodeID: Episode.ID) async throws -> Episode?
   func transcriptionCheckpoint(_ episodeID: Episode.ID) async throws
     -> TranscriptionCheckpoint?
+  func publisherTranscriptByteCount() async throws -> Int
   func episodesMatching(
     podcastID: Podcast.ID,
     guids: [GUID],
@@ -204,6 +205,10 @@ protocol Databasing: Sendable {
 
   func updateLastUpdates(
     _ refreshes: [(id: Podcast.ID, lastUpdate: Date, feedValidators: HTTPValidators?)]
+  ) async throws
+
+  func recordRefreshFailures(
+    _ failures: [(id: Podcast.ID, failureCount: Int, backoffUntil: Date)]
   ) async throws
 
   @discardableResult

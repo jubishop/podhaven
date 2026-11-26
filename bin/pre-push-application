@@ -3,13 +3,20 @@
 
 The managed pre-push hook runs this after its document checks, with Git's arguments and standard input.
 Tooling is every path under bin/ and .agents/, whose tests read skill prose, and every other non-Markdown
-path outside the application targets. Each revision is checked in a disposable linked worktree, so
-uncommitted edits neither hide nor cause a failure, and bin/check --full reuses a recent pass for its tree.
+path outside the application targets except Project Starter's manifest, which every bin/check mode compares
+with the managed files. Each revision is checked in a disposable linked worktree, so uncommitted edits neither
+hide nor cause a failure, and bin/check --full reuses a recent pass for its tree. A gate that SIGTERM or SIGHUP stops
+removes its worktree; SIGKILL can't be caught, so each run first removes the worktrees that killed gates left, sparing
+any whose folder holds a running gate's lock, or no lock.
 Git opens an SSH connection before this hook and leaves it idle, so a full run can outlast it; over SSH without
 a keepalive, the gate keeps a full run's recorded pass and refuses the push so that a retry reuses it at once."""
+import contextlib
+import fcntl
 import os
 from pathlib import Path
 import re
+import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -18,11 +25,23 @@ from _checks import pass_record
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLING = ("bin/", ".agents/")
+MANIFEST = ".project-starter.json"
 APPLICATION = ("PodHaven/", "PodHaven.xcodeproj/", "PodHavenIntents/", "PodHavenMacros/", "PodHavenShare/",
                "PodHavenTests/", "PodHavenWidget/")
 # Git exports repository selectors and -c settings to hooks; the checks must see a plain environment.
 ENVIRONMENT = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
 KEEPALIVE = re.compile(r"ServerAliveInterval[\s=]+0*[1-9]", re.IGNORECASE)
+PREFIX = "podhaven-pre-push-"
+LOCK = "lock"
+STOPS = (signal.SIGHUP, signal.SIGTERM)
+
+
+def stop(number, frame):
+    """Raise SystemExit, as Python raises KeyboardInterrupt for SIGINT, so the cleanup runs."""
+    # A repeat, such as the second SIGHUP a closing terminal can send, must not interrupt the cleanup.
+    for each in STOPS:
+        signal.signal(each, signal.SIG_IGN)
+    raise SystemExit(128 + number)
 
 
 def git(*args, check=True):
@@ -37,13 +56,72 @@ def commit_of(revision):
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def gate_checkouts():
+    """Return the registered worktrees that are gates' disposable checkouts."""
+    fields = git("worktree", "list", "--porcelain", "-z").stdout.split("\0")
+    paths = [Path(field.removeprefix("worktree ")) for field in fields if field.startswith("worktree ")]
+    return [path for path in paths if path.name == "checkout" and path.parent.name.startswith(PREFIX)]
+
+
+def remove(checkout):
+    """Remove a gate's checkout, its registration, and its folder, any of which may already be gone."""
+    # A second force removes a registration that an interrupted git worktree add left locked.
+    result = git("worktree", "remove", "--force", "--force", str(checkout), check=False)
+    # It may never have been registered, or another gate removed it after listing it.
+    if result.returncode and checkout in gate_checkouts():
+        raise RuntimeError(result.stderr.strip() or "Could not remove " + str(checkout))
+    if checkout.parent.exists():
+        shutil.rmtree(checkout.parent)
+
+
+def remove_abandoned_checkouts():
+    """Remove each checkout that a killed gate left registered; a running gate holds the lock in its folder."""
+    for checkout in gate_checkouts():
+        try:
+            lock = os.open(checkout.parent / LOCK, os.O_RDONLY)
+        except FileNotFoundError:
+            # A folder without its lock is a finishing gate's or an older gate's, which took none and may still run.
+            if checkout.parent.exists():
+                continue
+            lock = None  # The folder is gone, as when macOS clears old temporary files, but Git keeps the registration.
+        try:
+            if lock is not None:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    continue
+            remove(checkout)
+        except (OSError, RuntimeError) as error:
+            print("Could not remove " + str(checkout) + ", which an interrupted tooling pre-push check left: " +
+                  str(error), file=sys.stderr)
+        finally:
+            if lock is not None:
+                os.close(lock)
+
+
+@contextlib.contextmanager
+def disposable_checkout(commit):
+    """Yield a linked worktree at commit, holding the lock in its folder until both are removed."""
+    folder = Path(tempfile.mkdtemp(prefix=PREFIX)).resolve()
+    checkout = folder / "checkout"
+    lock = os.open(folder / LOCK, os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        git("-c", "core.hooksPath=/dev/null", "worktree", "add", "--quiet", "--detach", str(checkout), commit)
+        yield checkout
+    finally:
+        remove(checkout)
+        os.close(lock)
+
+
 def changes_tooling(remote, commit):
     """Report whether pushing commit over the remote's old commit, or as a new ref, changes tooling."""
     if set(remote) != {"0"} and commit_of(remote):
         paths = git("diff", "--no-renames", "--name-only", "-z", remote, commit).stdout
     else:
         paths = git("log", "-m", "--no-renames", "--name-only", "-z", "--format=", commit, "--not", "--remotes").stdout
-    return any(path.startswith(TOOLING) or not (path.endswith(".md") or path.startswith(APPLICATION))
+    return any(path.startswith(TOOLING)
+               or not (path.endswith(".md") or path == MANIFEST or path.startswith(APPLICATION))
                for path in paths.split("\0") if path)
 
 
@@ -79,6 +157,8 @@ def recorded_pass(commit):
 
 
 def main():
+    for number in STOPS:
+        signal.signal(number, stop)
     if len(sys.argv) != 3:
         raise ValueError("Usage: bin/pre-push-application <remote> <url>")
     idle = idles_over_ssh(sys.argv[2])
@@ -93,17 +173,13 @@ def main():
         commit = set(local) != {"0"} and commit_of(local)
         if commit and commit not in revisions and changes_tooling(remote, commit):
             revisions[commit] = remote_ref
+    remove_abandoned_checkouts()
     full_runs = []
     for commit, remote_ref in revisions.items():
         print("Running bin/check --full on " + commit[:12] + ", which changes repository tooling.", flush=True)
         before = recorded_pass(commit)
-        with tempfile.TemporaryDirectory(prefix="podhaven-pre-push-") as temporary:
-            checkout = Path(temporary) / "checkout"
-            git("-c", "core.hooksPath=/dev/null", "worktree", "add", "--quiet", "--detach", str(checkout), commit)
-            try:
-                code = subprocess.run([str(checkout / "bin/check"), "--full"], cwd=checkout, env=ENVIRONMENT).returncode
-            finally:
-                git("worktree", "remove", "--force", str(checkout))
+        with disposable_checkout(commit) as checkout:
+            code = subprocess.run([str(checkout / "bin/check"), "--full"], cwd=checkout, env=ENVIRONMENT).returncode
         if code:
             print("bin/check --full failed for " + commit[:12] + ", pushed to " + remote_ref +
                   ", so Git refused the push. Fix the tooling, commit, and push again.", file=sys.stderr)

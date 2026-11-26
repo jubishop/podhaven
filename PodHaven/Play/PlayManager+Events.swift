@@ -27,7 +27,7 @@ extension PlayManager {
 
     if status == .stopped {
       do {
-        try Container.shared.setAudioSessionActive()(false)
+        try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
       } catch {
         Self.log.caughtError(
           "setStatus: failed to deactivate audio session",
@@ -101,7 +101,7 @@ extension PlayManager {
     let avPlayerCurrentTime = await podAVPlayer.currentTime()
     let avPlayerPlaybackStatus = await podAVPlayer.playbackStatus()
     let applicationState = await Container.shared.uiApplication().applicationState
-    let routeOutputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType.rawValue)
+    let routeOutputs = audioSession.currentRouteOutputs.map(\.rawValue)
     let infoCenter = Container.shared.mpNowPlayingInfoCenter()
     let nowPlayingElapsed =
       infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double
@@ -136,7 +136,7 @@ extension PlayManager {
         avPlayerCurrentTime: \(avPlayerCurrentTime)
         nowPlayingElapsed: \(nowPlayingElapsedString)
         sharedPlaybackStatus: \(sharedState.playbackStatus)
-        avPlayerPlaybackStatus: \(avPlayerPlaybackStatus)
+        avPlayerPlaybackStatus: \(avPlayerPlaybackStatus?.description ?? "unknown")
         ignoreRemoteScrubCommands: \(ignoreRemoteScrubCommands)
         appState: \(applicationState)
         routeOutputs: \(routeOutputs)
@@ -246,7 +246,7 @@ extension PlayManager {
     beginMediaServicesRecovery(interruptedEpisodeID: interruptedEpisodeID)
     Self.log.debug("handleMediaServicesReset: preserved interrupted playback for user action")
 
-    let audioSessionConfigured = await Container.shared.configureAudioSession()()
+    let audioSessionConfigured = await Self.configureAudioSession()
     let resumeEpisode: (id: Episode.ID, title: String)?
     if let preservedOnDeck {
       resumeEpisode = (preservedOnDeck.id, preservedOnDeck.title)
@@ -377,12 +377,11 @@ extension PlayManager {
           let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue)
         else { continue }
 
-        let session = AVAudioSession.sharedInstance()
         let previousRoute =
           notification.userInfo?[AVAudioSessionRouteChangePreviousRouteKey]
           as? AVAudioSessionRouteDescription
         let previousOutputs = previousRoute?.outputs.map(\.portType.rawValue) ?? []
-        let currentOutputs = session.currentRoute.outputs.map(\.portType.rawValue)
+        let currentOutputs = audioSession.currentRouteOutputs.map(\.rawValue)
         Self.log.info(
           """
           Audio route changed
@@ -456,24 +455,27 @@ extension PlayManager {
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await notification in notifications(AVPlayerItem.newErrorLogEntryNotification) {
-        guard let item = notification.object as? AVPlayerItem
-        else { Assert.fatal("newErrorLogEntryNotification: \(notification) is invalid") }
+        guard let item = notification.object as? AVPlayerItem else {
+          Self.log.warning("Ignoring newErrorLogEntryNotification without a player item")
+          continue
+        }
 
         guard await podAVPlayer.isCurrentItem(item) else {
           Self.log.warning("Ignoring newErrorLogEntryNotification from non-current item")
           continue
         }
 
-        guard let errorLog = item.errorLog()
-        else { Assert.fatal("newErrorLogEntryNotification fired but errorLog() returned nil?") }
+        guard let errorLog = item.errorLog(), let event = errorLog.events.last else {
+          Self.log.warning("Ignoring newErrorLogEntryNotification without an error log entry")
+          continue
+        }
 
         Self.log.warning(
           """
-          Error log events for episode \
-            \(String(describing: sharedState.onDeck?.id)) (\(errorLog.events.count)):
-            \(errorLog.events.map { event in
-              String(describing: event.errorComment)
-            }.joined(separator: "\n  "))
+          Error log event \(errorLog.events.count) for episode \
+          \(String(describing: sharedState.onDeck?.id)): \
+          \(event.errorDomain) \(event.errorStatusCode) \
+          \(String(describing: event.errorComment))
           """
         )
       }
@@ -547,7 +549,7 @@ extension PlayManager {
           // still-at-the-start episode, and unlike the suppression window it
           // also covers manual next/previous transitions.
           let onDeckDuration = onDeck.duration.seconds
-          let playbackTime = await podAVPlayer.currentTime().seconds
+          let playbackTime = await currentPlaybackTime().seconds
           if onDeckDuration > remoteScrubEndEpsilon,
             position >= onDeckDuration - remoteScrubEndEpsilon,
             playbackTime < remoteScrubJustStartedThreshold

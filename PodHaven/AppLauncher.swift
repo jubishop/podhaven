@@ -66,10 +66,11 @@ struct AppLauncher: Sendable {
     Self.removeRetiredChartDiagnostics()
     guard AppInfo.environment != .testing else { return }
 
-    // Registered here rather than in the foreground-gated startSystemMonitoring
-    // so background-only launches still capture exit metrics.
+    // Started here rather than in prepareForForeground so background-only
+    // launches still capture exit metrics and memory warnings.
     MXMetricManager.shared.add(metricKitMonitor)
     Self.log.debug("Registered MetricKit subscriber")
+    Container.shared.memoryWarningMonitor().start()
 
     // Force DB initialization so schema migrations run immediately.
     Container.shared.initializeAppDB()
@@ -110,10 +111,10 @@ struct AppLauncher: Sendable {
 
     // Must be synchronous so AirPods/lock-screen controls register before iOS
     // evaluates background-launch capability. Sync failure falls back to the
-    // async retry factory.
+    // async retry.
     do {
-      let session = AVAudioSession.sharedInstance()
-      try session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
+      let session = Container.shared.audioSession()
+      try session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio, options: [])
       try session.setMode(.spokenAudio)
       CommandCenter.registerRemoteCommandHandlers()
     } catch {
@@ -122,10 +123,10 @@ struct AppLauncher: Sendable {
         error
       )
       Task {
-        // Give mediaservicesd a moment to respawn before the factory's first attempt,
+        // Give mediaservicesd a moment to respawn before the retry's first attempt,
         // since the sync call just confirmed it's down.
         try? await Container.shared.sleeper().sleep(for: .milliseconds(250))
-        guard await Container.shared.configureAudioSession()() else { return }
+        guard await PlayManager.configureAudioSession() else { return }
         CommandCenter.registerRemoteCommandHandlers()
       }
     }
@@ -171,7 +172,6 @@ struct AppLauncher: Sendable {
       await AppInfo.finalizeEnvironment()
       await Self.applySentryEnvironment()
       guard AppInfo.environment != .testing else { return }
-      guard !Task.isCancelled else { return }
 
       let transcriptionAvailability = self.transcriptionAvailability
       Task(priority: self.taskPriority(.utility)) {
@@ -186,7 +186,6 @@ struct AppLauncher: Sendable {
           Self.log.info("Siri authorization status: \(status.rawValue)")
         }
       }
-      guard !Task.isCancelled else { return }
 
       Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
       Self.log.debug("My device?: \(AppInfo.myDevice)")
@@ -196,17 +195,12 @@ struct AppLauncher: Sendable {
 
       // No-op if an intent already triggered prepareForPlayback during the cold launch.
       await self.prepareForPlayback()
-      guard !Task.isCancelled else { return }
 
       await self.measureStartup("recommendationEngine") { self.recommendationEngine.start() }
-      await self.measureStartup("memoryWarningMonitor") {
-        await Container.shared.memoryWarningMonitor().start()
-      }
       operation.record(.completed)
     }
 
     guard AppInfo.environment != .testing else { return }
-    guard !Task.isCancelled else { return }
     await playManager.restorePersistedEpisodeForForeground()
   }
 

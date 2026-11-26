@@ -50,6 +50,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   }
 
   private static let log = Log.as(LogSubsystem.Cache.backgroundDelegate)
+  private static let maxCacheFileExtensionBytes = 16
 
   private let completions = ThreadSafe<[URLSessionConfiguration.ID: @MainActor () -> Void]>([:])
   private let finalizations = ThreadSafe<[URLSessionConfiguration.ID: FinalizationState]>([:])
@@ -693,7 +694,9 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   }
 
   private func cacheFileExtension(for mediaURL: URL?) -> String {
-    guard let fileExtension = mediaURL?.pathExtension, !fileExtension.isEmpty else { return "mp3" }
+    guard let fileExtension = mediaURL?.pathExtension, !fileExtension.isEmpty,
+      fileExtension.utf8.count <= Self.maxCacheFileExtensionBytes
+    else { return "mp3" }
     return fileExtension
   }
 }

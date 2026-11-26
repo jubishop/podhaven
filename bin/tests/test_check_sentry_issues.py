@@ -2,11 +2,11 @@ import json
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -15,6 +15,9 @@ SCRIPT = ROOT / "bin/check-sentry-issues"
 FEEDBACK_SCRIPT = ROOT / "bin/check-sentry-feedback"
 PERMALINK = "https://artisanal-software.sentry.io/issues/"
 FINDINGS = "<!-- analyze-sentry-issue-findings:start -->\n<!-- analyze-sentry-issue-findings:end -->"
+BY_BOT = {"user": {"login": "github-actions[bot]", "type": "Bot"}}
+BY_OWNER = {"user": {"login": "JubiShop", "type": "User"}}
+BY_STRANGER = {"user": {"login": "stranger", "type": "User"}}
 
 
 def sentry_issue(identifier, short_id):
@@ -67,6 +70,9 @@ def record(kind, **values):
 def option(name):
     return arguments[arguments.index(name) + 1]
 
+def options(name):
+    return [value for flag, value in zip(arguments, arguments[1:]) if flag == name]
+
 if command == "sentry":
     if arguments[:2] == ["auth", "status"]:
         raise SystemExit(0)
@@ -80,9 +86,9 @@ elif arguments[0] == "api":
         record("comments-read", endpoint=endpoint)
         print((directory / "comments.json").read_text())
 elif arguments[:2] == ["issue", "edit"]:
-    record("label", issue=arguments[2], label=option("--add-label"))
+    record("label", issue=arguments[2], labels=options("--add-label"))
 elif arguments[:2] == ["issue", "create"]:
-    record("create", title=option("--title"), label=option("--label"),
+    record("create", title=option("--title"), labels=options("--label"),
            body=Path(option("--body-file")).read_text())
     print("https://github.com/jubishop/podhaven/issues/900")
 elif arguments[:2] == ["issue", "comment"]:
@@ -93,16 +99,16 @@ else:
         path.chmod(0o755)
 
     def run_check(self, script=SCRIPT, **environment):
-        return subprocess.run(
+        return hang_guard.run(
             ["/bin/bash", str(script)], cwd=ROOT, env={**self.env, **environment},
-            text=True, capture_output=True, timeout=30,
+            text=True, capture_output=True,
         )
 
     def test_creates_intake_for_untracked_issue_ignoring_mentions_and_pull_requests(self):
         self.write("sentry.json", {"data": [sentry_issue("7001", "PODHAVEN-A1")], "hasMore": False})
         self.write("issues.json", [[
-            {"number": 10, "state": "open", "labels": [], "body": "Mentions PODHAVEN-A1 only"},
-            {"number": 11, "state": "open", "labels": [], "pull_request": {},
+            {"number": 10, "state": "open", **BY_BOT, "labels": [], "body": "Mentions PODHAVEN-A1 only"},
+            {"number": 11, "state": "open", **BY_BOT, "labels": [], "pull_request": {},
              "body": "<!-- sentry-issue:7001 -->"},
         ]])
 
@@ -112,7 +118,7 @@ else:
         create, comment = self.writes()
         self.assertEqual(create["kind"], "create")
         self.assertEqual(create["title"], "Triage Sentry issue PODHAVEN-A1")
-        self.assertEqual(create["label"], "sentry-issue")
+        self.assertEqual(create["labels"], ["sentry-issue", "p2"])
         self.assertTrue(create["body"].startswith("<!-- sentry-issue:7001 -->\n"))
         self.assertIn(f"[PODHAVEN-A1]({PERMALINK}7001/)", create["body"])
         self.assertEqual(comment["kind"], "comment")
@@ -125,7 +131,7 @@ else:
     def test_open_intake_gets_label_and_one_instruction_comment(self):
         self.write("sentry.json", {"data": [sentry_issue("7002", "PODHAVEN-A2")], "hasMore": False})
         self.write("issues.json", [[
-            {"number": 20, "state": "open", "labels": [],
+            {"number": 20, "state": "open", **BY_BOT, "labels": [],
              "body": "<!-- sentry-issue:7002 -->\n<!-- analyze-sentry-issue-findings:start -->"},
         ]])
 
@@ -133,16 +139,16 @@ else:
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         writes = self.writes()
-        self.assertEqual(writes[0], {"kind": "label", "issue": "20", "label": "sentry-issue"})
+        self.assertEqual(writes[0], {"kind": "label", "issue": "20", "labels": ["sentry-issue"]})
         self.assertEqual(writes[1]["kind"], "comments-read")
         self.assertEqual(writes[2]["kind"], "comment")
         self.assertEqual(writes[2]["issue"], "20")
         self.assertEqual(len(writes), 3)
 
         (self.directory / "writes.json").unlink()
-        self.write("comments.json", [[{"body": "<!-- snissue:7002 -->\nInstructions"}]])
+        self.write("comments.json", [[{**BY_BOT, "body": "<!-- snissue:7002 -->\nInstructions"}]])
         self.write("issues.json", [[
-            {"number": 20, "state": "open", "labels": [{"name": "sentry-issue"}],
+            {"number": 20, "state": "open", **BY_BOT, "labels": [{"name": "sentry-issue"}],
              "body": "<!-- sentry-issue:7002 -->"},
         ]])
         result = self.run_check()
@@ -155,25 +161,25 @@ else:
             sentry_issue("7004", "PODHAVEN-A4"),
         ], "hasMore": False})
         self.write("issues.json", [[
-            {"number": 30, "state": "open", "labels": [{"name": "sentry-issue"}],
+            {"number": 30, "state": "open", **BY_BOT, "labels": [{"name": "sentry-issue"}],
              "body": "<!-- sentry-issue:7003 -->\n" + FINDINGS},
-            {"number": 31, "state": "open", "labels": [{"name": "bug"}],
+            {"number": 31, "state": "open", **BY_OWNER, "labels": [{"name": "bug"}],
              "body": f"Legacy analysis of {PERMALINK}7004/events/abc/\n\n## Sentry closeout\n\nResolve it."},
         ]])
 
         result = self.run_check()
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.writes(), [{"kind": "label", "issue": "31", "label": "sentry-issue"}])
+        self.assertEqual(self.writes(), [{"kind": "label", "issue": "31", "labels": ["sentry-issue"]}])
         self.assertIn("Already analyzed: PODHAVEN-A3 in issue #30", result.stdout)
         self.assertIn("Already analyzed: PODHAVEN-A4 in issue #31", result.stdout)
 
     def test_open_tracking_issue_wins_over_closed_ones(self):
         self.write("sentry.json", {"data": [sentry_issue("7005", "PODHAVEN-A5")], "hasMore": False})
         self.write("issues.json", [[
-            {"number": 41, "state": "closed", "labels": [{"name": "sentry-issue"}],
+            {"number": 41, "state": "closed", **BY_BOT, "labels": [{"name": "sentry-issue"}],
              "body": "<!-- sentry-issue:7005 -->\n" + FINDINGS},
-            {"number": 40, "state": "open", "labels": [{"name": "sentry-issue"}],
+            {"number": 40, "state": "open", **BY_OWNER, "labels": [{"name": "sentry-issue"}],
              "body": f"{PERMALINK}7005/\n\n## Sentry closeout"},
         ]])
 
@@ -186,8 +192,8 @@ else:
     def test_recurrence_after_closed_tracking_opens_linked_intake(self):
         self.write("sentry.json", {"data": [sentry_issue("7006", "PODHAVEN-A6")], "hasMore": False})
         self.write("issues.json", [[
-            {"number": 52, "state": "closed", "labels": [], "body": f"See {PERMALINK}7006/"},
-            {"number": 51, "state": "closed", "labels": [{"name": "sentry-issue"}],
+            {"number": 52, "state": "closed", **BY_OWNER, "labels": [], "body": f"See {PERMALINK}7006/"},
+            {"number": 51, "state": "closed", **BY_BOT, "labels": [{"name": "sentry-issue"}],
              "body": "<!-- sentry-issue:7006 -->\n" + FINDINGS},
         ]])
 
@@ -196,11 +202,95 @@ else:
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         create, comment = self.writes()
         self.assertEqual(create["title"], "Triage recurrence of Sentry issue PODHAVEN-A6")
-        self.assertEqual(create["label"], "sentry-issue")
+        self.assertEqual(create["labels"], ["sentry-issue", "p2"])
         self.assertTrue(create["body"].startswith("<!-- sentry-issue:7006 -->\n"))
         self.assertIn("#51, #52", create["body"])
         self.assertIn("<!-- fix-issue-prerequisite: analyze-sentry-issue 7006 -->", comment["body"])
         self.assertIn("created 1 recurrence issue(s)", result.stdout)
+
+    def test_issues_from_other_accounts_never_track_errors(self):
+        self.write("sentry.json", {"data": [
+            sentry_issue("7020", "PODHAVEN-C1"),
+            sentry_issue("7021", "PODHAVEN-C2"),
+            sentry_issue("7022", "PODHAVEN-C3"),
+        ], "hasMore": False})
+        labels = [{"name": "sentry-issue"}]
+        self.write("issues.json", [[
+            {"number": 96, "state": "open", **BY_STRANGER, "labels": labels, "body": f"See {PERMALINK}7022/"},
+            {"number": 95, "state": "open", **BY_STRANGER, "labels": labels,
+             "body": "<!-- sentry-issue:7021 -->\n" + FINDINGS},
+            {"number": 94, "state": "open", **BY_STRANGER, "labels": labels,
+             "body": "<!-- sentry-issue:7020 -->\n" + FINDINGS},
+            {"number": 92, "state": "open", "user": None, "labels": labels, "body": "<!-- sentry-issue:7020 -->"},
+            {"number": 91, "state": "closed", **BY_OWNER, "labels": labels,
+             "body": f"{PERMALINK}7021/\n\n## Sentry closeout"},
+            {"number": 90, "state": "open", **BY_BOT, "labels": labels,
+             "body": "<!-- sentry-issue:7020 -->\n" + FINDINGS},
+        ]])
+
+        result = self.run_check()
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Already analyzed: PODHAVEN-C1 in issue #90", result.stdout)
+        recurrence, recurrence_comment, create, create_comment = self.writes()
+        self.assertEqual(recurrence["title"], "Triage recurrence of Sentry issue PODHAVEN-C2")
+        self.assertIn("**Earlier tracking issues:** #91\n", recurrence["body"])
+        self.assertIn("<!-- snissue:7021 -->", recurrence_comment["body"])
+        self.assertEqual(create["title"], "Triage Sentry issue PODHAVEN-C3")
+        self.assertIn("<!-- snissue:7022 -->", create_comment["body"])
+
+    def test_issues_from_other_accounts_never_track_feedback(self):
+        link = "https://artisanal-software.sentry.io/issues/feedback/?feedbackSlug=podhaven%3A"
+        self.write("sentry.json", {"data": [
+            {"id": "7030", "shortId": "PODHAVEN-D1", "permalink": link + "7030"},
+            {"id": "7031", "shortId": "PODHAVEN-D2", "permalink": link + "7031"},
+        ], "hasMore": False})
+        findings = "<!-- analyze-sentry-feedback-findings:start -->\n<!-- analyze-sentry-feedback-findings:end -->"
+        labels = [{"name": "sentry-feedback"}]
+        self.write("issues.json", [[
+            {"number": 86, "state": "open", **BY_STRANGER, "labels": labels, "body": f"See {link}7031\n{findings}"},
+            {"number": 85, "state": "open", **BY_STRANGER, "labels": labels,
+             "body": f"<!-- sentry-feedback:podhaven:7030 -->\n{findings}"},
+            {"number": 80, "state": "closed", **BY_BOT, "labels": labels,
+             "body": f"<!-- sentry-feedback:podhaven:7030 -->\n{findings}"},
+        ]])
+
+        result = self.run_check(FEEDBACK_SCRIPT)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Already analyzed: podhaven:7030 in issue #80", result.stdout)
+        create, comment = self.writes()
+        self.assertEqual(create["title"], "Triage Sentry feedback PODHAVEN-D2")
+        self.assertIn("<!-- sfeedback:podhaven:7031 -->", comment["body"])
+        self.assertIn("created 1 issue(s), found 1 already tracked", result.stdout)
+
+    def test_only_the_bot_comment_counts_as_instructions(self):
+        for script, item, issue_body, comment_marker in (
+            (SCRIPT, sentry_issue("7040", "PODHAVEN-E1"), "<!-- sentry-issue:7040 -->", "<!-- snissue:7040 -->"),
+            (FEEDBACK_SCRIPT, {"id": "7041", "shortId": "PODHAVEN-E2",
+                               "permalink": f"{PERMALINK}feedback/?feedbackSlug=podhaven%3A7041"},
+             "<!-- sentry-feedback:podhaven:7041 -->", "<!-- sfeedback:podhaven:7041 -->"),
+        ):
+            with self.subTest(script=script.name):
+                (self.directory / "writes.json").unlink(missing_ok=True)
+                self.write("sentry.json", {"data": [item], "hasMore": False})
+                self.write("issues.json", [[
+                    {"number": 97, "state": "open", **BY_BOT, "labels": [{"name": "sentry-issue"},
+                                                                       {"name": "sentry-feedback"}],
+                     "body": issue_body},
+                ]])
+                self.write("comments.json", [[
+                    {**BY_STRANGER, "body": comment_marker},
+                    {**BY_OWNER, "body": f"Quoting {comment_marker}"},
+                ]])
+
+                result = self.run_check(script)
+
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                writes = self.writes()
+                self.assertEqual([write["kind"] for write in writes], ["comments-read", "comment"])
+                self.assertEqual(writes[1]["issue"], "97")
+                self.assertIn(comment_marker, writes[1]["body"])
 
     def test_closed_feedback_tracking_issue_stays_tracked_for_good(self):
         link = "https://artisanal-software.sentry.io/issues/feedback/?feedbackSlug=podhaven%3A"
@@ -209,13 +299,13 @@ else:
             {"id": "7011", "shortId": "PODHAVEN-B2", "permalink": link + "7011"},
         ], "hasMore": False})
         self.write("issues.json", [[
-            {"number": 70, "state": "closed", "labels": [{"name": "sentry-feedback"}],
+            {"number": 70, "state": "closed", **BY_BOT, "labels": [{"name": "sentry-feedback"}],
              "body": "<!-- sentry-feedback:podhaven:7010 -->\n"
                      "<!-- analyze-sentry-feedback-findings:start -->\n<!-- analyze-sentry-feedback-findings:end -->"},
-            {"number": 71, "state": "closed", "labels": [{"name": "sentry-feedback"}],
+            {"number": 71, "state": "closed", **BY_BOT, "labels": [{"name": "sentry-feedback"}],
              "body": "<!-- sentry-feedback:podhaven:7011 -->"},
         ]])
-        self.write("comments.json", [[{"body": "<!-- sfeedback:podhaven:7011 -->"}]])
+        self.write("comments.json", [[{**BY_BOT, "body": "<!-- sfeedback:podhaven:7011 -->"}]])
 
         result = self.run_check(FEEDBACK_SCRIPT)
 
@@ -225,21 +315,46 @@ else:
         self.assertIn("Already tracked: podhaven:7011 in issue #71", result.stdout)
         self.assertIn("created 0 issue(s), found 2 already tracked", result.stdout)
 
+    def test_feedback_checker_tracks_the_newest_marked_issue(self):
+        link = "https://artisanal-software.sentry.io/issues/feedback/?feedbackSlug=podhaven%3A7012"
+        marker = "<!-- sentry-feedback:podhaven:7012 -->"
+        findings = "<!-- analyze-sentry-feedback-findings:start -->\n<!-- analyze-sentry-feedback-findings:end -->"
+        labels = [{"name": "sentry-feedback"}]
+        self.write("sentry.json", {"data": [{"id": "7012", "shortId": "PODHAVEN-B3", "permalink": link}],
+                                   "hasMore": False})
+        self.write("issues.json", [[
+            {"number": 84, "state": "open", **BY_BOT, "labels": labels, "pull_request": {}, "body": marker},
+            {"number": 83, "state": "open", **BY_BOT, "labels": labels, "body": f"See {link}\n{findings}"},
+            {"number": 82, "state": "closed", **BY_BOT, "labels": labels, "body": marker},
+            {"number": 81, "state": "open", **BY_BOT, "labels": labels, "body": f"{marker}\n{findings}"},
+        ]])
+
+        result = self.run_check(FEEDBACK_SCRIPT)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        read, comment = self.writes()
+        self.assertEqual(read, {"kind": "comments-read",
+                                "endpoint": "repos/jubishop/podhaven/issues/82/comments?per_page=100"})
+        self.assertEqual((comment["kind"], comment["issue"]), ("comment", "82"))
+        self.assertIn("Already tracked: podhaven:7012 in issue #82", result.stdout)
+
     def test_dry_run_writes_nothing(self):
         self.write("sentry.json", {"data": [
             sentry_issue("7007", "PODHAVEN-A7"),
             sentry_issue("7008", "PODHAVEN-A8"),
         ], "hasMore": False})
         self.write("issues.json", [[
-            {"number": 60, "state": "closed", "labels": [], "body": f"{PERMALINK}7008/"},
+            {"number": 60, "state": "closed", **BY_BOT, "labels": [], "body": f"{PERMALINK}7008/"},
         ]])
 
         result = self.run_check(DRY_RUN="true")
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.writes(), [])
-        self.assertIn("Would create issue: Triage Sentry issue PODHAVEN-A7", result.stdout)
-        self.assertIn("Would create issue: Triage recurrence of Sentry issue PODHAVEN-A8 (after #60)", result.stdout)
+        self.assertIn("Would create issue: Triage Sentry issue PODHAVEN-A7 with labels sentry-issue, p2\n",
+                      result.stdout)
+        self.assertIn("Would create issue: Triage recurrence of Sentry issue PODHAVEN-A8 (after #60)"
+                      " with labels sentry-issue, p2\n", result.stdout)
 
     def test_lists_unresolved_issues_except_feedback_and_probe_only_issues(self):
         self.write("sentry.json", {"data": [], "hasMore": False})
@@ -263,9 +378,10 @@ else:
                 self.assertTrue('scope.setTag(value: run, key: "diagnostic-run")' in probe.read_text(),
                                 "Sentry intake skips probe events only by their diagnostic-run tag")
 
-    def test_skill_lists_the_same_issues_as_the_checker(self):
+    def test_skill_lists_and_tracks_issues_through_the_picker(self):
         skill = (ROOT / ".agents/skills/analyze-sentry-issue/SKILL.md").read_text()
-        self.assertIn("--query 'is:unresolved !issue.category:feedback !has:diagnostic-run'", skill)
+        self.assertIn("`bin/snissue --list`", skill)
+        self.assertIn("`bin/snissue --track <numeric-id>`", skill)
 
     def test_skill_trusts_the_checker_comment_author(self):
         skill = (ROOT / ".agents/skills/analyze-sentry-issue/SKILL.md").read_text()

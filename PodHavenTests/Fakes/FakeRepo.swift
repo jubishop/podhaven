@@ -17,6 +17,10 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   private var afterMarkFinishedHandler: AfterMarkFinished?
   private var beforeCurrentTimeUpdate: (@Sendable () async -> Void)?
 
+  // One-shot error to throw from `updateSaveInCache(_ episodeID:saveInCache:)`.
+  // Cleared on use so subsequent calls reach the real repo.
+  nonisolated let updateSaveInCacheError = ThreadSafe<(any Error & Sendable)?>(nil)
+
   // One-shot error to throw from `updateSaveInCache(_ episodeIDs:saveInCache:)`.
   // Cleared on use so subsequent calls reach the real repo.
   nonisolated let updateSaveInCacheBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
@@ -28,6 +32,10 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // One-shot error to throw from `markSubscribed(_ podcastIDs:level:)`.
   // Cleared on use so subsequent calls reach the real repo.
   nonisolated let markSubscribedBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
+
+  // Replaces the measured publisher transcript size when set, standing in for
+  // a library too large to build in a test.
+  nonisolated let publisherTranscriptByteCountOverride = ThreadSafe<Int?>(nil)
 
   // When true, the next `episode(_:Episode.ID)` call parks until
   // `resumeAllEpisodeFetchSuspensions()` fires; cleared on use. Counts are
@@ -80,7 +88,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   private nonisolated let suspendedPlaybackUpdateCount = ThreadSafe<Int>(0)
   private var playbackUpdateSuspensions: [CheckedContinuation<Void, Never>] = []
 
-  private let repo: Repo
+  let repo: Repo
 
   init(_ repo: Repo) {
     self.repo = repo
@@ -98,7 +106,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   func allPodcasts(
     _ filter: SQLExpression,
-    order: SQLOrdering,
+    order: [SQLOrdering],
     limit: Int
   ) async throws -> [Podcast] {
     recordCall(
@@ -173,6 +181,12 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   {
     recordCall(methodName: "transcriptionCheckpoint", parameters: episodeID)
     return try await repo.transcriptionCheckpoint(episodeID)
+  }
+
+  func publisherTranscriptByteCount() async throws -> Int {
+    recordCall(methodName: "publisherTranscriptByteCount")
+    if let override = publisherTranscriptByteCountOverride() { return override }
+    return try await repo.publisherTranscriptByteCount()
   }
 
   func resumeAllEpisodeFetchSuspensions() {
@@ -435,83 +449,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func deletePodcast(_ podcastID: Podcast.ID) async throws -> Bool {
     recordCall(methodName: "delete", parameters: podcastID)
     return try await repo.deletePodcast(podcastID)
-  }
-
-  @discardableResult
-  func insertTag(_ unsavedTag: UnsavedTag) async throws -> Tag {
-    recordCall(methodName: "insertTag", parameters: unsavedTag)
-    return try await repo.insertTag(unsavedTag)
-  }
-
-  @discardableResult
-  func updateTag(_ tagID: Tag.ID, name: String, icon: LucideIcon) async throws -> Bool {
-    recordCall(methodName: "updateTag", parameters: (tagID: tagID, name: name, icon: icon))
-    return try await repo.updateTag(tagID, name: name, icon: icon)
-  }
-
-  @discardableResult
-  func deleteTag(_ tagID: Tag.ID) async throws -> Bool {
-    recordCall(methodName: "deleteTag", parameters: tagID)
-    return try await repo.deleteTag(tagID)
-  }
-
-  func addTag(_ tagID: Tag.ID, to podcastID: Podcast.ID) async throws {
-    recordCall(methodName: "addTag", parameters: (tagID: tagID, podcastID: podcastID))
-    try await repo.addTag(tagID, to: podcastID)
-  }
-
-  @discardableResult
-  func removeTag(_ tagID: Tag.ID, from podcastID: Podcast.ID) async throws -> Bool {
-    recordCall(methodName: "removeTag", parameters: (tagID: tagID, podcastID: podcastID))
-    return try await repo.removeTag(tagID, from: podcastID)
-  }
-
-  func addTag(_ tagID: Tag.ID, toPodcasts podcastIDs: [Podcast.ID]) async throws {
-    recordCall(
-      methodName: "addTag",
-      parameters: (tagID: tagID, podcastIDs: podcastIDs)
-    )
-    try await repo.addTag(tagID, toPodcasts: podcastIDs)
-  }
-
-  @discardableResult
-  func removeTag(_ tagID: Tag.ID, fromPodcasts podcastIDs: [Podcast.ID]) async throws -> Int {
-    recordCall(
-      methodName: "removeTag",
-      parameters: (tagID: tagID, podcastIDs: podcastIDs)
-    )
-    return try await repo.removeTag(tagID, fromPodcasts: podcastIDs)
-  }
-
-  func addTag(_ tagID: Tag.ID, to episodeID: Episode.ID) async throws {
-    recordCall(methodName: "addTag", parameters: (tagID: tagID, episodeID: episodeID))
-    try await repo.addTag(tagID, to: episodeID)
-  }
-
-  @discardableResult
-  func removeTag(_ tagID: Tag.ID, from episodeID: Episode.ID) async throws -> Bool {
-    recordCall(
-      methodName: "removeTag",
-      parameters: (tagID: tagID, episodeID: episodeID)
-    )
-    return try await repo.removeTag(tagID, from: episodeID)
-  }
-
-  func addTag(_ tagID: Tag.ID, toEpisodes episodeIDs: [Episode.ID]) async throws {
-    recordCall(
-      methodName: "addTag",
-      parameters: (tagID: tagID, episodeIDs: episodeIDs)
-    )
-    try await repo.addTag(tagID, toEpisodes: episodeIDs)
-  }
-
-  @discardableResult
-  func removeTag(_ tagID: Tag.ID, fromEpisodes episodeIDs: [Episode.ID]) async throws -> Int {
-    recordCall(
-      methodName: "removeTag",
-      parameters: (tagID: tagID, episodeIDs: episodeIDs)
-    )
-    return try await repo.removeTag(tagID, fromEpisodes: episodeIDs)
   }
 
   // MARK: - Episode Writers
@@ -847,6 +784,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       methodName: "updateSaveInCache",
       parameters: (episodeID: episodeID, saveInCache: saveInCache)
     )
+    if let injected = updateSaveInCacheError({ error in
+      let captured = error
+      error = nil
+      return captured
+    }) {
+      throw injected
+    }
     return try await repo.updateSaveInCache(episodeID, saveInCache: saveInCache)
   }
 
@@ -958,6 +902,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       }
     }
     try await repo.updateLastUpdates(refreshes)
+  }
+
+  func recordRefreshFailures(
+    _ failures: [(id: Podcast.ID, failureCount: Int, backoffUntil: Date)]
+  ) async throws {
+    recordCall(methodName: "recordRefreshFailures", parameters: failures)
+    try await repo.recordRefreshFailures(failures)
   }
 
   func resumeAllUpdateLastUpdatesSuspensions() {

@@ -1,7 +1,7 @@
 #!/usr/bin/env fish
 
 function __snissue_usage
-    echo "Usage: snissue [issue-url|issue-short-id|issue-id]"
+    echo "Usage: snissue [--list | --track issue-url|issue-id | issue-url|issue-short-id|issue-id]"
 end
 
 function __snissue_parse_reference --argument-names reference
@@ -18,15 +18,49 @@ function __snissue_parse_reference --argument-names reference
     end
 end
 
-function __snissue_pick
-    set -g __snissue_selected_id
-
-    for dependency in sentry jq gh
+function __snissue_require
+    for dependency in $argv
         if not type -q "$dependency"
-            echo "Error: $dependency is required to list Sentry issues"
+            echo "Error: $dependency is required to look up Sentry issues"
             return 1
         end
     end
+end
+
+# Sets __snissue_issues_json to every PodHaven GitHub issue and pull request as one flat array.
+function __snissue_fetch_issues
+    set -l pages (gh api --paginate --slurp \
+        'repos/jubishop/podhaven/issues?state=all&per_page=100')
+    set -l github_status $status
+    if test $github_status -ne 0
+        echo "Error: could not fetch PodHaven GitHub issues"
+        return $github_status
+    end
+    set -g __snissue_issues_json (printf '%s\n' $pages | jq -c '
+        if type != "array" or any(.[]; type != "array") then
+            error("expected paginated GitHub issues")
+        else [.[][]] end')
+    if test $status -ne 0
+        echo "Error: GitHub returned invalid issue data"
+        return 1
+    end
+end
+
+# Prints "<number>\t<open|closed>\t<analyzed|intake>\t<marker|link>" for each issue tracking the ID, canonical first.
+function __snissue_matches --argument-names id
+    printf '%s\n' $__snissue_issues_json | jq -r -L "$__snissue_bin" --arg id "$id" '
+        include "_sentry_tracking";
+        sentry_issue_tracking($id; "jubishop")[]
+        | [.number, .state, (if .analyzed then "analyzed" else "intake" end), .match]
+        | @tsv'
+end
+
+# Sets __snissue_rows to "<id>\t<display>" rows, newest first; list rows are plain, with full issue references.
+function __snissue_collect --argument-names format
+    set -g __snissue_rows
+
+    __snissue_require sentry jq gh
+    or return
 
     set -l issue_json (sentry issue list artisanal-software/podhaven \
         --query 'is:unresolved !issue.category:feedback !has:diagnostic-run' \
@@ -42,8 +76,9 @@ function __snissue_pick
         return $list_status
     end
 
-    set -l has_more (printf '%s\n' $issue_json | jq -r '
-        if type == "array" then false
+    set -l has_more (printf '%s\n' $issue_json | jq -rs '
+        if length == 1 then .[0] else error("expected one response") end
+        | if type == "array" then false
         elif type == "object" and (.data | type) == "array" then (.hasMore // false)
         else error("expected an issue array") end')
     if test $status -ne 0
@@ -82,71 +117,83 @@ function __snissue_pick
     end
     if test (count $raw_rows) -eq 0
         echo "No unresolved Sentry issues found."
-        return 1
+        return 0
     end
 
-    set -l github_issues_json (gh api --paginate --slurp \
-        'repos/jubishop/podhaven/issues?state=all&per_page=100')
-    set -l github_status $status
-    if test $github_status -ne 0
-        echo "Error: could not fetch PodHaven GitHub issues"
-        return $github_status
-    end
+    __snissue_fetch_issues
+    or return
 
-    set -l cyan (set_color --bold cyan)
-    set -l dim (set_color brblack)
-    set -l normal (set_color normal)
-    set -l issue_rows
+    set -l cyan
+    set -l dim
+    set -l normal
+    set -l issue_prefix jubishop/podhaven#
+    if test "$format" != list
+        set cyan (set_color --bold cyan)
+        set dim (set_color brblack)
+        set normal (set_color normal)
+        set issue_prefix "#"
+    end
 
     for raw_row in $raw_rows
         set -l parts (string split \t -- "$raw_row")
         set -l id "$parts[1]"
         set -l short_id "$parts[2]"
-        set -l github_match (printf '%s\n' $github_issues_json | jq -r --arg id "$id" '
-                if type != "array" or any(.[]; type != "array") then
-                    error("expected paginated GitHub issues")
-                else . end
-                | ("<!-- sentry-issue:" + $id + " -->") as $marker
-                | ("https?://(artisanal-software[.])?sentry[.]io/(organizations/artisanal-software/)?issues/"
-                    + $id + "([/?#[:space:]<>)]|$)") as $link
-                | [
-                    .[][]
-                    | select(has("pull_request") | not)
-                    | (.body // "") as $body
-                    | select(($body | contains($marker)) or ($body | test($link)))
-                    | . + {
-                        marked: ($body | contains($marker)),
-                        analyzed: (
-                            (($body | contains("<!-- analyze-sentry-issue-findings:start -->"))
-                                and ($body | contains("<!-- analyze-sentry-issue-findings:end -->")))
-                            or (($body | contains($marker) | not) and ($body | test("(?m)^## Sentry closeout[[:space:]]*$")))
-                        )
-                    }
-                ]
-                | sort_by([(if .state == "open" then 0 else 1 end), (if .marked then 0 else 1 end), -.number])
-                | first(.[])
-                | [
-                    .number,
-                    (if .state != "open" then "closed" elif .analyzed then "analyzed" else "intake" end)
-                ]
-                | @tsv')
-        if test $status -ne 0
+        set -l github_matches (__snissue_matches "$id")
+        or begin
             echo "Error: GitHub returned invalid issue data"
             return 1
         end
 
         set -l tracking untracked
-        if test -n "$github_match"
-            set -l github_parts (string split \t -- "$github_match")
-            if test (count $github_parts) -ne 2; or not string match -qr '^[0-9]+$' -- "$github_parts[1]"; or not contains -- "$github_parts[2]" intake analyzed closed
-                echo "Error: GitHub returned invalid issue data"
-                return 1
+        if test (count $github_matches) -gt 0
+            set -l github_parts (string split \t -- "$github_matches[1]")
+            if test "$github_parts[2]" = open
+                set tracking "$issue_prefix$github_parts[1] $github_parts[3]"
+            else
+                set tracking "$issue_prefix$github_parts[1] closed"
             end
-            set tracking "#$github_parts[1] $github_parts[2]"
         end
 
         set -l display "$cyan$short_id$normal  $id — $parts[3]  $dim($parts[4]; $parts[5] events; $parts[6] users; GitHub: $tracking)$normal"
-        set -a issue_rows (string join \t -- "$id" "$display")
+        set -a __snissue_rows (string join \t -- "$id" "$display")
+    end
+end
+
+function __snissue_track --argument-names reference
+    set -l id (__snissue_parse_reference "$reference")
+    if not string match -qr '^[0-9]+$' -- "$id"
+        echo "Error: '$reference' is not a numeric PodHaven Sentry issue ID or Sentry issue URL"
+        return 1
+    end
+    __snissue_require jq gh
+    or return
+    __snissue_fetch_issues
+    or return
+    set -l matches (__snissue_matches "$id")
+    or begin
+        echo "Error: GitHub returned invalid issue data"
+        return 1
+    end
+
+    if test (count $matches) -eq 0
+        echo "No tracking issue for Sentry issue $id."
+        return 0
+    end
+    echo "Tracking issues for Sentry issue $id, canonical first:"
+    for match in $matches
+        set -l parts (string split \t -- "$match")
+        echo "jubishop/podhaven#$parts[1] $parts[2] $parts[3] $parts[4]"
+    end
+end
+
+function __snissue_pick
+    set -g __snissue_selected_id
+
+    __snissue_collect picker
+    or return
+    set -l issue_rows $__snissue_rows
+    if test (count $issue_rows) -eq 0
+        return 1
     end
 
     set -l selection
@@ -193,12 +240,28 @@ function __snissue_pick
 end
 
 function __snissue_main
+    if test (count $argv) -ge 1; and test "$argv[1]" = --track
+        if test (count $argv) -ne 2
+            __snissue_usage
+            return 1
+        end
+        __snissue_track "$argv[2]"
+        return
+    end
     if test (count $argv) -gt 1
         __snissue_usage
         return 1
     end
     if test (count $argv) -eq 1; and contains -- "$argv[1]" -h --help
         __snissue_usage
+        return 0
+    end
+    if test (count $argv) -eq 1; and test "$argv[1]" = --list
+        __snissue_collect list
+        or return
+        for row in $__snissue_rows
+            string split -m 1 -f 2 \t -- "$row"
+        end
         return 0
     end
 
@@ -231,5 +294,6 @@ function __snissue_main
     claude --dangerously-skip-permissions "/analyze-sentry-issue $reference"
 end
 
+set -g __snissue_bin (path resolve (path dirname (status filename)))
 __snissue_main $argv
 exit $status

@@ -2,26 +2,63 @@
 
 import AVFoundation
 import Foundation
+import Logging
 
 extension PlayManager {
   // MARK: - Seeking
 
   func seekForward(_ interval: TimeInterval? = nil) async {
     let duration = interval ?? userSettings.skipForwardInterval
-    let currentTime = await podAVPlayer.currentTime()
+    let currentTime = await currentPlaybackTime()
     await seek(to: currentTime + CMTime.seconds(duration))
   }
 
   func seekBackward(_ interval: TimeInterval? = nil) async {
     let duration = interval ?? userSettings.skipBackwardInterval
-    let currentTime = await podAVPlayer.currentTime()
+    let currentTime = await currentPlaybackTime()
     await seek(to: currentTime - CMTime.seconds(duration))
   }
 
+  func currentPlaybackTime() async -> CMTime {
+    if let onDeck = await onDeckAwaitingRecoveryReload() { return onDeck.currentTime }
+    return await podAVPlayer.currentTime()
+  }
+
   func seek(to time: CMTime) async {
+    guard time.isNumeric else {
+      Self.log.warning("seek: ignoring non-numeric target \(time)")
+      return
+    }
     cancelWidgetRouteRecovery(reason: "userSeek")
-    NowPlayingInfo.setCurrentTime(time)
-    await podAVPlayer.seek(to: time)
+    let playerTime = await podAVPlayer.currentTime().safe
+    let recoveryEpisodeID = await onDeckAwaitingRecoveryReload()?.id
+    let currentTime = max(playerTime, sharedState.onDeck?.currentTime.safe ?? .zero)
+    let duration = sharedState.onDeck?.duration.safe ?? .zero
+    // The duration is an estimate, so it stops capping seeks once the live or restored
+    // position runs past it.
+    let target =
+      duration > .zero && currentTime <= duration
+      ? time.clamped(to: .zero...duration) : max(time, .zero)
+    NowPlayingInfo.setCurrentTime(target)
+    guard let recoveryEpisodeID else { return await podAVPlayer.seek(to: target) }
+
+    Self.log.debug("seek: \(target) for episode \(recoveryEpisodeID) awaiting recovery reload")
+    stateManager.setCurrentTime(target)
+    // Saves run in seek order, so a reload resumes from the latest seek.
+    let previousSave = onDeckRecoveryPositionSave
+    let save = Task {
+      await previousSave?.value
+      do {
+        try await repo.updateCurrentTime(recoveryEpisodeID, currentTime: target)
+      } catch {
+        Self.log.caughtError(
+          "seek: failed to save \(target) for recovery episode \(recoveryEpisodeID)",
+          error
+        )
+      }
+    }
+    onDeckRecoveryPositionSave = save
+    await save.value
   }
 
   // MARK: - Chapter Navigation

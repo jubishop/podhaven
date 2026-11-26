@@ -10,8 +10,13 @@ import Testing
 
 @Suite("of PodcastsListViewModel tests", .container)
 @MainActor final class PodcastsListViewModelTests {
+  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
+  @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
+
+  private var session: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
 
   @Test("selectedPodcastsTagIntersection collapses to common tags across selection")
   func selectedPodcastsTagIntersectionAcrossSelection() async throws {
@@ -181,6 +186,82 @@ import Testing
     }
   }
 
+  // MARK: - Queueing the latest episode
+
+  // Regression: with no latest episode, both actions did nothing and said nothing.
+  @Test("queueing the latest episode of a podcast with no episodes tells the user")
+  func queueLatestEpisodeWithoutEpisodesAlerts() async throws {
+    try await LogCapture.withSink { sink in
+      let podcastID =
+        try await repo.insertSeries(
+          UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(title: "Empty"))
+        )
+        .id
+      let entries = try await observatory.listablePodcastsWithEpisodeMetadata().get()
+      let podcast = try #require(entries.first { $0.id == podcastID }).podcast
+      let viewModel = PodcastsListViewModel(title: "Test")
+      let alert = alert
+
+      viewModel.queueLatestEpisodeToTop(podcast)
+      try await Wait.until(
+        { @MainActor in alert.config != nil },
+        { @MainActor in "Expected queueing to the top to report the missing episode" }
+      )
+
+      alert.config = nil
+      viewModel.queueLatestEpisodeToBottom(podcast)
+      try await Wait.until(
+        { @MainActor in alert.config != nil },
+        { @MainActor in "Expected queueing to the bottom to report the missing episode" }
+      )
+      withExtendedLifetime(viewModel) {}
+
+      let notices = sink.captured()
+        .filter { $0.level == .notice && $0.message.contains("no episode to queue") }
+      #expect(notices.count == 2)
+      let fakeQueue = try #require(queue as? FakeQueue)
+      try fakeQueue.expectNoCall(methodName: "unshift")
+      try fakeQueue.expectNoCall(methodName: "append")
+    }
+  }
+
+  // MARK: - Loading
+
+  // Regression: a failed podcast observation fell through to the empty-state
+  // message, as if no podcast matched the filters.
+  @Test("a failed podcast observation reports a load failure, not an empty list")
+  func failedObservationReportsFailure() async throws {
+    let viewModel = PodcastsListViewModel(
+      title: "Broken",
+      filter: { $0.filter(sql: "no_such_column = 1") }
+    )
+
+    await viewModel.execute()
+
+    #expect(viewModel.loadingState == .failed)
+  }
+
+  @Test("a loaded podcast observation reports loaded")
+  func loadedObservationReportsLoaded() async throws {
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(title: "Loaded"))
+    )
+    let viewModel = PodcastsListViewModel(title: "Loaded")
+    #expect(viewModel.loadingState == .loading)
+
+    let execution = Task { await viewModel.execute() }
+    defer { execution.cancel() }
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.loadingState == .loaded && viewModel.podcastList.allEntries.count == 1
+      },
+      { @MainActor in
+        "Expected the observation to load; got \(viewModel.loadingState)"
+      }
+    )
+  }
+
   // MARK: - Subscribing a selection
 
   @Test("subscribeSelectedPodcasts logs a count, not a line per podcast")
@@ -274,7 +355,7 @@ import Testing
       $0.level == .error && $0.message.contains("subscribeSelectedPodcasts")
     }
     #expect(failures.count == 1, "\(captured.map(\.message))")
-    #expect(Container.shared.alert().config?.title == "Error")
+    #expect(alert.config?.title == "Error")
     let podcasts = try await repo.allPodcasts(AppDB.noOp)
     #expect(podcasts.allSatisfy { !$0.subscribed })
   }
@@ -296,7 +377,7 @@ import Testing
       )
     }
 
-    #expect(Container.shared.alert().config == nil)
+    #expect(alert.config == nil)
   }
 
   @Test("applyTagToSelectedPodcasts alerts when tagging fails")
@@ -310,11 +391,43 @@ import Testing
 
     viewModel.applyTagToSelectedPodcasts(deletedTag.id)
 
-    let alert = Container.shared.alert()
+    let alert = alert
     try await Wait.until(
       { @MainActor in alert.config?.title == "Error" },
       { "applyTagToSelectedPodcasts never alerted on the failed tag write" }
     )
+  }
+
+  // MARK: - Refreshing
+
+  @Test("refreshPodcasts refreshes only the listed stale podcasts")
+  func refreshPodcastsRefreshesOnlyListedPodcasts() async throws {
+    var listedIDs: Set<Podcast.ID> = []
+    for index in 0..<3 {
+      let podcast = try await Create.podcast(
+        feedURL: FeedURL(SyntheticFeed.url(index)),
+        title: SyntheticFeed.title(index),
+        lastUpdate: 2.hoursAgo
+      )
+      await session.respond(
+        to: SyntheticFeed.url(index),
+        data: SyntheticFeed.rss(index: index, episodes: 1)
+      )
+      if index < 2 {
+        listedIDs.insert(podcast.id)
+      }
+    }
+    let viewModel = PodcastsListViewModel(title: "Test")
+    try await loadEntries(
+      into: viewModel,
+      podcasts: try await observatory.listablePodcastsWithEpisodeMetadata().get()
+        .filter { listedIDs.contains($0.id) }
+    )
+
+    try await viewModel.refreshPodcasts()
+
+    let requests = await session.requests
+    #expect(Set(requests) == [SyntheticFeed.url(0), SyntheticFeed.url(1)], "\(requests)")
   }
 
   // MARK: - Helpers

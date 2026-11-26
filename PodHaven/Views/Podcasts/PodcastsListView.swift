@@ -2,6 +2,7 @@
 
 import AVFoundation
 import FactoryKit
+import GRDB
 import IdentifiedCollections
 import Logging
 import SwiftUI
@@ -78,13 +79,18 @@ struct PodcastsListView: View {
 
   @ViewBuilder
   private var podcastsView: some View {
-    if viewModel.isLoading {
+    switch viewModel.loadingState {
+    case .loading:
       loadingView
-    } else if viewModel.podcastList.filteredEntries.isEmpty {
-      noPodcastsMessage
-    } else {
-      podcastList
-        .animation(.default, value: viewModel.podcastList.filteredEntries)
+    case .loaded:
+      if viewModel.podcastList.filteredEntries.isEmpty {
+        noPodcastsMessage
+      } else {
+        podcastList
+          .animation(.default, value: viewModel.podcastList.filteredEntries)
+      }
+    case .failed:
+      failureMessage
     }
   }
 
@@ -172,6 +178,15 @@ struct PodcastsListView: View {
       Spacer()
     }
   }
+
+  private var failureMessage: some View {
+    VStack {
+      Text("Couldn't load podcasts.")
+        .foregroundColor(.secondary)
+        .padding()
+      Spacer()
+    }
+  }
 }
 
 // MARK: - Preview
@@ -235,5 +250,18 @@ struct PodcastsListView: View {
       print("Preview error: \(error)")
     }
   }
+}
+
+#Preview("Load Failure") {
+  NavigationStack {
+    PodcastsListView(
+      viewModel: PodcastsListViewModel(
+        title: "My Podcasts",
+        // An unknown column makes the podcast observation fail.
+        filter: { $0.filter(sql: "missing_column = 1") }
+      )
+    )
+  }
+  .preview()
 }
 #endif

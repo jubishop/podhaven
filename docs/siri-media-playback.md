@@ -82,6 +82,16 @@ writer was held. Each publication holds a UIKit background task, so
 a background write's catalog normally lands before iOS suspends the app.
 Launch removes a staged file that a crash left behind.
 
+TestFlight 1.7.1 (595) was the first build with this design. From November 7
+to 24, 2026, its commit publications that took at least a second had a median
+of 4.3 seconds and a 90th percentile of 7.4 seconds in a 190-podcast,
+112,000-episode library. Three publications, on two of its five devices and
+likely spanning app suspension, took 8 to 60 minutes. Sentry held no Siri
+resolution failure from any build. The owner decided that only an
+`unavailable` resolution failure that lines up with a publication window, not
+the window's length, would justify incremental or otherwise faster
+publication, so coalescing alone stays.
+
 ### Launch freshness
 
 Every launch used to rebuild the catalog, reading every episode row and

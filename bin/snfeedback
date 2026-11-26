@@ -1,7 +1,7 @@
 #!/usr/bin/env fish
 
 function __snfeedback_usage
-    echo "Usage: snfeedback [feedback-url|feedback-slug|feedback-id]"
+    echo "Usage: snfeedback [--list | [--track] feedback-url|feedback-slug|feedback-id]"
 end
 
 function __snfeedback_parse_reference --argument-names reference
@@ -26,21 +26,47 @@ function __snfeedback_parse_reference --argument-names reference
     echo "$slug"
 end
 
-function __snfeedback_pick
-    set -g __snfeedback_selected_slug
-
+function __snfeedback_require_tools
     if not type -q sentry
-        echo "Error: sentry is required to list Sentry feedback"
+        echo "Error: sentry is required to look up Sentry feedback"
         return 1
     end
     if not type -q jq
-        echo "Error: jq is required to list Sentry feedback"
+        echo "Error: jq is required to look up Sentry feedback"
         return 1
     end
     if not type -q gh
         echo "Error: gh is required to find tracked Sentry feedback"
         return 1
     end
+end
+
+# Sets __snfeedback_issues_json to every PodHaven GitHub issue and pull request, one page per array.
+function __snfeedback_fetch_issues
+    set -g __snfeedback_issues_json (gh api --paginate --slurp \
+        'repos/jubishop/podhaven/issues?state=all&per_page=100')
+    set -l github_status $status
+    if test $github_status -ne 0
+        echo "Error: could not fetch PodHaven GitHub issues"
+        return $github_status
+    end
+end
+
+# Prints "<number>\t<state>\t<analyzed|intake>\t<marker|link>" for each issue tracking the slug, canonical first.
+function __snfeedback_matches --argument-names slug permalink
+    printf '%s\n' $__snfeedback_issues_json | jq -r -L "$__snfeedback_bin" --arg slug "$slug" --arg permalink "$permalink" '
+        include "_sentry_tracking";
+        [.[][]] | sentry_feedback_tracking($slug; $permalink; "jubishop")[]
+        | [.number, .state, (if .analyzed then "analyzed" else "intake" end), .match]
+        | @tsv'
+end
+
+# Sets __snfeedback_rows to "<slug>\t<display>" rows, newest first; list rows are plain, with full issue references.
+function __snfeedback_collect --argument-names format
+    set -g __snfeedback_rows
+
+    __snfeedback_require_tools
+    or return
 
     set -l issue_json (sentry issue list artisanal-software/podhaven \
         --query 'issue.category:feedback is:unresolved' \
@@ -55,8 +81,11 @@ function __snfeedback_pick
         return $list_status
     end
 
-    set -l has_more (printf '%s\n' $issue_json | jq -r '
-        if type == "array" then false else (.hasMore // false) end')
+    set -l has_more (printf '%s\n' $issue_json | jq -rs '
+        if length == 1 then .[0] else error("expected one response") end
+        | if type == "array" then false
+        elif type == "object" and (.data | type) == "array" then (.hasMore // false)
+        else error("expected a feedback array") end')
     set -l pagination_status $status
     if test $pagination_status -ne 0
         echo "Error: sentry returned invalid feedback data"
@@ -67,13 +96,8 @@ function __snfeedback_pick
         return 1
     end
 
-    set -l github_issues_json (gh api --paginate --slurp \
-        'repos/jubishop/podhaven/issues?state=all&per_page=100')
-    set -l github_status $status
-    if test $github_status -ne 0
-        echo "Error: could not fetch PodHaven GitHub issues"
-        return $github_status
-    end
+    __snfeedback_fetch_issues
+    or return
 
     set -l raw_rows (printf '%s\n' $issue_json | jq -r '
         def oneline:
@@ -82,7 +106,7 @@ function __snfeedback_pick
             | gsub("  +"; " ")
             | sub("^ +"; "")
             | sub(" +$"; "");
-        (if type == "array" then . else (.data // []) end)
+        (if type == "array" then . else .data end)
         | sort_by(.id | tonumber)
         | reverse
         | .[]
@@ -106,14 +130,21 @@ function __snfeedback_pick
 
     if test (count $raw_rows) -eq 0
         echo "No unresolved Sentry feedback found."
-        return 1
+        return 0
     end
 
-    set -l cyan (set_color --bold cyan)
-    set -l magenta (set_color magenta)
-    set -l dim (set_color brblack)
-    set -l normal (set_color normal)
-    set -l feedback_rows
+    set -l cyan
+    set -l magenta
+    set -l dim
+    set -l normal
+    set -l issue_prefix jubishop/podhaven#
+    if test "$format" != list
+        set cyan (set_color --bold cyan)
+        set magenta (set_color magenta)
+        set dim (set_color brblack)
+        set normal (set_color normal)
+        set issue_prefix "#"
+    end
 
     for raw_row in $raw_rows
         set -l parts (string split \t -- "$raw_row")
@@ -128,30 +159,7 @@ function __snfeedback_pick
         set -l contact "$parts[4]"
         set -l permalink "$parts[5]"
         set -l slug "podhaven:$id"
-        set -l issue_marker "<!-- sentry-feedback:$slug -->"
-        set -l analysis_start_marker '<!-- analyze-sentry-feedback-findings:start -->'
-        set -l analysis_end_marker '<!-- analyze-sentry-feedback-findings:end -->'
-        set -l github_match (printf '%s\n' $github_issues_json | jq -r \
-            --arg issue_marker "$issue_marker" \
-            --arg analysis_start_marker "$analysis_start_marker" \
-            --arg analysis_end_marker "$analysis_end_marker" \
-            --arg permalink "$permalink" '
-                def candidate_issues:
-                    .[][]
-                    | select(has("pull_request") | not);
-                (
-                    first(candidate_issues | select((.body // "") | contains($issue_marker)))
-                    // first(candidate_issues | select($permalink != "" and ((.body // "") | contains($permalink))))
-                )
-                | [
-                    (.number | tostring),
-                    .state,
-                    (if (
-                        ((.body // "") | contains($analysis_start_marker))
-                        and ((.body // "") | contains($analysis_end_marker))
-                    ) then "analyzed" else "intake" end)
-                ]
-                | @tsv')
+        set -l github_matches (__snfeedback_matches "$slug" "$permalink")
         set -l github_match_status $status
         if test $github_match_status -ne 0
             echo "Error: GitHub returned invalid issue data"
@@ -159,22 +167,80 @@ function __snfeedback_pick
         end
 
         set -l tracking untracked
-        if test -n "$github_match"
-            set -l github_parts (string split \t -- "$github_match")
-            if test (count $github_parts) -ne 3
+        if test (count $github_matches) -gt 0
+            set -l github_parts (string split \t -- "$github_matches[1]")
+            if test (count $github_parts) -ne 4
                 echo "Error: GitHub returned an invalid matching issue"
                 return 1
             end
 
             if test "$github_parts[2]" = closed
-                set tracking "#$github_parts[1] closed"
+                set tracking "$issue_prefix$github_parts[1] closed"
             else
-                set tracking "#$github_parts[1] $github_parts[3]"
+                set tracking "$issue_prefix$github_parts[1] $github_parts[3]"
             end
         end
 
         set -l display "$cyan$short_id$normal  $magenta$slug$normal — \"$message\"  $dim($contact; GitHub: $tracking)$normal"
-        set -a feedback_rows (string join \t -- "$slug" "$display")
+        set -a __snfeedback_rows (string join \t -- "$slug" "$display")
+    end
+end
+
+function __snfeedback_track --argument-names reference
+    set -l slug (__snfeedback_parse_reference "$reference")
+    if test -z "$slug"
+        echo "Error: '$reference' is not a PodHaven feedback slug, ID, or Sentry feedback URL"
+        return 1
+    end
+    __snfeedback_require_tools
+    or return
+
+    set -l id (string replace podhaven: '' -- "$slug")
+    set -l feedback_json (sentry issue view "artisanal-software/$id" --fresh --json --fields id,shortId,permalink)
+    set -l view_status $status
+    if test $view_status -ne 0
+        echo "Error: could not fetch PodHaven feedback $slug from Sentry"
+        return $view_status
+    end
+    set -l feedback (printf '%s\n' $feedback_json | jq -r --arg id "$id" '
+        select(type == "object" and (.id | tostring) == $id)
+        | [(.shortId // "PODHAVEN-?"), (.permalink // "")]
+        | @tsv')
+    set -l parse_status $status
+    if test $parse_status -ne 0; or test (count $feedback) -ne 1
+        echo "Error: sentry returned invalid feedback data"
+        return 1
+    end
+    set -l feedback_parts (string split \t -- "$feedback")
+
+    __snfeedback_fetch_issues
+    or return
+    set -l matches (__snfeedback_matches "$slug" "$feedback_parts[2]")
+    set -l match_status $status
+    if test $match_status -ne 0
+        echo "Error: GitHub returned invalid issue data"
+        return $match_status
+    end
+
+    if test (count $matches) -eq 0
+        echo "No tracking issue for $slug ($feedback_parts[1])."
+        return 0
+    end
+    echo "Tracking issues for $slug ($feedback_parts[1]), canonical first:"
+    for match in $matches
+        set -l parts (string split \t -- "$match")
+        echo "jubishop/podhaven#$parts[1] $parts[2] $parts[3] $parts[4]"
+    end
+end
+
+function __snfeedback_pick
+    set -g __snfeedback_selected_slug
+
+    __snfeedback_collect picker
+    or return
+    set -l feedback_rows $__snfeedback_rows
+    if test (count $feedback_rows) -eq 0
+        return 1
     end
 
     set -l selection
@@ -220,9 +286,25 @@ function __snfeedback_pick
 end
 
 function __snfeedback_main
+    if test (count $argv) -ge 1; and test "$argv[1]" = --track
+        if test (count $argv) -ne 2
+            __snfeedback_usage
+            return 1
+        end
+        __snfeedback_track "$argv[2]"
+        return
+    end
     if test (count $argv) -gt 1
         __snfeedback_usage
         return 1
+    end
+    if test (count $argv) -eq 1; and test "$argv[1]" = --list
+        __snfeedback_collect list
+        or return
+        for row in $__snfeedback_rows
+            string split -m 1 -f 2 \t -- "$row"
+        end
+        return 0
     end
 
     if not git rev-parse --is-inside-work-tree >/dev/null 2>&1
@@ -256,5 +338,6 @@ function __snfeedback_main
     claude --dangerously-skip-permissions "/analyze-sentry-feedback $slug"
 end
 
+set -g __snfeedback_bin (path resolve (path dirname (status filename)))
 __snfeedback_main $argv
 exit $status

@@ -22,21 +22,8 @@ while IFS= read -r sentry_issue; do
   ISSUE_MARKER="<!-- sentry-issue:$ID -->"
   BODY_PATH="$WORK_DIR/issue-body.md"
 
-  MATCHES="$(jq -c \
-    --arg marker "$ISSUE_MARKER" \
-    --arg link "https?://(artisanal-software[.])?sentry[.]io/(organizations/artisanal-software/)?issues/$ID([/?#[:space:]<>)]|\$)" \
-    '[.[]
-      | (.body // "") as $body
-      | select(($body | contains($marker)) or ($body | test($link)))
-      | . + {
-          marked: ($body | contains($marker)),
-          analyzed: (
-            (($body | contains("<!-- analyze-sentry-issue-findings:start -->"))
-              and ($body | contains("<!-- analyze-sentry-issue-findings:end -->")))
-            or (($body | contains($marker) | not) and ($body | test("(?m)^## Sentry closeout[[:space:]]*$")))
-          )
-        }]
-      | sort_by([(if .marked then 0 else 1 end), -.number])' \
+  MATCHES="$(jq -c -L "$(dirname "${BASH_SOURCE[0]}")" --arg id "$ID" --arg owner "${GH_REPO%%/*}" \
+    'include "_sentry_tracking"; sentry_issue_tracking($id; $owner)' \
     "$ISSUES_JSON")"
   OPEN_MATCH="$(jq -c 'first(.[] | select(.state == "open")) // empty' <<< "$MATCHES")"
 

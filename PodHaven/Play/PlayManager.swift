@@ -32,9 +32,10 @@ final class PlayManager {
     case establishedPlayback(Episode.ID)
   }
 
-  private enum LoadTransitionPlayback {
+  private enum LoadTransitionPlayback: Equatable {
     case automatic
     case paused
+    case requested(origin: PlaybackRequestOrigin, requestID: UUID)
   }
 
   private enum InterruptedPlayback {
@@ -65,8 +66,10 @@ final class PlayManager {
     case play(Episode.ID)
   }
 
+  @DynamicInjected(\.audioSession) var audioSession
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.commandCenterStream) var commandCenterStream
+  @DynamicInjected(\.continuousClockNow) var continuousClockNow
   @DynamicInjected(\.dateProvider) var dateProvider
   @DynamicInjected(\.fileManager) var fileManager
   @DynamicInjected(\.imagePipeline) var imagePipeline
@@ -89,7 +92,7 @@ final class PlayManager {
 
   // MARK: - Configurable Constants
 
-  let recoveryDebounceInterval: TimeInterval = 5
+  let recoveryDebounceInterval: Duration = .seconds(5)
   let routeChangeAssociationWindow: TimeInterval = 5
   let routeChangeProgressTolerance: TimeInterval = 0.5
   let routeChangeRecoveryDelay: Duration = .seconds(1)
@@ -105,7 +108,7 @@ final class PlayManager {
   // MARK: - State Management
 
   var autoAdvance: AutoAdvance?
-  var lastRecoveryAttempt: (episodeID: Episode.ID, time: Date)?
+  var lastRecoveryAttempt: (episodeID: Episode.ID, time: ContinuousClock.Instant)?
   var lastMediaServicesResetAt: Date?
   var latestAudioRouteChange: AudioRouteChange?
   var imageFetchTask: Task<Void, Never>?
@@ -120,6 +123,7 @@ final class PlayManager {
   private var lastLoggedTime = Date.distantPast
   private var lastNowPlayingElapsedWrite: CMTime?
   var onDeckRecoveryState = OnDeckRecoveryState.none
+  var onDeckRecoveryPositionSave: Task<Void, Never>?
   var pendingPlaybackRequest = PendingPlaybackRequest.none
   var widgetRouteRecovery: WidgetRouteRecovery?
   var widgetRouteRecoveryTask: Task<Void, Never>?
@@ -269,7 +273,7 @@ final class PlayManager {
 
     var phaseStart = Date()
     Self.log.debug("performLoad: configuring audio session")
-    let audioSessionConfigured = await Container.shared.configureAudioSession()()
+    let audioSessionConfigured = await Self.configureAudioSession()
     Self.log.debug(
       """
       performLoad: configured audio session result=\(audioSessionConfigured) \
@@ -406,7 +410,7 @@ final class PlayManager {
       guard try shouldFinishEstablishedLoad(loadID) else { return true }
       let playbackStatus = await podAVPlayer.playbackStatus()
       guard try shouldFinishEstablishedLoad(loadID) else { return true }
-      setStatus(playbackStatus)
+      if let playbackStatus { setStatus(playbackStatus) }
       loadTransition?.state = .preservingPlayback
       Self.log.debug(
         """
@@ -505,6 +509,16 @@ final class PlayManager {
     switch outcome {
     case .succeeded:
       loadTransition = nil
+      guard case .requested(let origin, let requestID) = transition.playback,
+        let episodeID = transition.loadingEpisodeID
+      else { return }
+      await beginPlaybackRequest(
+        origin: origin,
+        requestID: requestID,
+        episodeID: episodeID,
+        snapshot: podAVPlayer.playbackSnapshot()
+      )
+      await fulfillPendingPlaybackRequest(preserving: requestID)
     case .didNotLoad, .failed:
       switch transition.state {
       case .preservingPlayback:
@@ -595,6 +609,21 @@ final class PlayManager {
   }
 
   func play(origin: PlaybackRequestOrigin = .application, requestID: UUID = UUID()) async {
+    // A play during a load joins the load's request instead of superseding it.
+    if let loadingEpisodeID = loadTransition?.loadingEpisodeID,
+      loadingEpisodeID != sharedState.onDeck?.id
+    {
+      if case .play(let pendingEpisodeID) = pendingPlaybackRequest,
+        pendingEpisodeID == loadingEpisodeID
+      {
+        Self.log.debug("play: episode \(loadingEpisodeID) already plays once loaded")
+        return
+      }
+      pendingPlaybackRequest = .play(loadingEpisodeID)
+      loadTransition?.playback = .requested(origin: origin, requestID: playbackRequestRevision)
+      Self.log.debug("play: playing episode \(loadingEpisodeID) once loaded")
+      return
+    }
     newPlaybackRequest(requestID)
     cancelWidgetRouteRecovery(reason: "newPlay")
     loadTransition?.playback = .automatic

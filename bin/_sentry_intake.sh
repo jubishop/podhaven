@@ -2,18 +2,20 @@
 # Shared scaffolding for bin/check-sentry-feedback and bin/check-sentry-issues.
 # A checker sets LABEL, COMMENT_MARKER, ANALYSIS_SKILL, TRIAGE_COMMAND, and
 # SENTRY_DETAILS, then calls intake_start before matching its Sentry items.
+# A new issue starts at INTAKE_PRIORITY until its analysis sets the real one.
 
 # shellcheck source=.agents/scripts/sentry-cli/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.agents/scripts/sentry-cli/lib.sh"
 
 GH_REPO="${GH_REPO:-jubishop/podhaven}"
 DRY_RUN="${DRY_RUN:-false}"
+INTAKE_PRIORITY="p2"
 TRACKED=0
 COMMENTS_ADDED=0
 
 # intake_start <sentry-query> <item-kind> <plural-item-kind>
-# Writes the complete Sentry list to SENTRY_JSON and every GitHub issue, without
-# pull requests, to ISSUES_JSON.
+# Writes the complete Sentry list to SENTRY_JSON and every GitHub issue and pull
+# request to ISSUES_JSON, for the checker's tracking matcher to filter.
 intake_start() {
   local query="$1" kind="$2" plural="$3"
 
@@ -67,7 +69,8 @@ intake_start() {
   gh api --paginate --slurp \
     "repos/$GH_REPO/issues?state=all&per_page=100" \
     > "$WORK_DIR/all-issues.json"
-  jq '[.[][] | select(has("pull_request") | not) | {number, state, body, labels: [.labels[]?.name]}]' \
+  jq '[.[][] | {number, state, body, labels: [.labels[]?.name], user: (.user // {} | {login, type})}
+    + (if has("pull_request") then {pull_request} else {} end)]' \
     "$WORK_DIR/all-issues.json" \
     > "$ISSUES_JSON"
 
@@ -129,8 +132,8 @@ intake_track() {
   gh api --paginate --slurp \
     "repos/$GH_REPO/issues/$number/comments?per_page=100" \
     > "$comments_path"
-  if ! jq -e --arg marker "<!-- $COMMENT_MARKER:$argument -->" \
-    'any(.[][]; (.body // "") | contains($marker))' \
+  if ! jq -e -L "$(dirname "${BASH_SOURCE[0]}")" --arg marker "<!-- $COMMENT_MARKER:$argument -->" \
+    'include "_sentry_tracking"; any(.[][]; sentry_intake_bot and ((.body // "") | contains($marker)))' \
     "$comments_path" >/dev/null; then
     intake_comment "$number" "$argument" "$link_text" "$permalink"
   fi
@@ -143,7 +146,7 @@ intake_create() {
   local issue_url
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    echo "Would create issue: $title$note"
+    echo "Would create issue: $title$note with labels $LABEL, $INTAKE_PRIORITY"
     intake_comment "the new issue for $link_text" "$argument" "$link_text" "$permalink"
     return
   fi
@@ -152,6 +155,7 @@ intake_create() {
     --repo "$GH_REPO" \
     --title "$title" \
     --label "$LABEL" \
+    --label "$INTAKE_PRIORITY" \
     --body-file "$body_path")"
   printf -v "$counter" '%s' "$((${!counter} + 1))"
   intake_comment "$issue_url" "$argument" "$link_text" "$permalink"

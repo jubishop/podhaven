@@ -24,40 +24,57 @@ RUNTIME_DIAGNOSTIC = re.compile(
 BUILD_WARNING = re.compile(r"(?:^|\s)warning:", re.IGNORECASE)
 
 
-SENTRY_HINT_DEPRECATION = (
-    "setter for 'beforeSendWithHint' is deprecated: In the next major version, "
-    "the hint parameter will be added to `beforeSend` directly and this callback "
-    "will be removed. Use this only to adopt hints ahead of the next major version."
+APP_HANG_DEPRECATION = (
+    "is deprecated: App Hang tracking is deprecated and will be removed in v10 because it can "
+    "produce less relevant stack traces and false positives. Enable the MetricKit integration "
+    "for system-provided hang diagnostics."
 )
 
 
-def sentry_hint_location():
-    source = Path(__file__).resolve().parents[1] / "PodHaven/AppLauncher.swift"
-    if not source.is_file():
-        return None
-    lines = [number for number, line in enumerate(source.read_text().splitlines(), 1)
-             if line.strip() == "options.beforeSendWithHint = { event, hint in"]
-    return (source, lines[0]) if len(lines) == 1 else None
+# Each approved Sentry deprecation: its source file, the exact source line, and the warning message.
+APPROVED_SENTRY_DEPRECATIONS = (
+    ("PodHaven/AppLauncher.swift", "options.beforeSendWithHint = { event, hint in",
+     "setter for 'beforeSendWithHint' is deprecated: In the next major version, "
+     "the hint parameter will be added to `beforeSend` directly and this callback "
+     "will be removed. Use this only to adopt hints ahead of the next major version."),
+    ("PodHaven/Logging/AppHangReportingGate.swift", "func pause() { SentrySDK.pauseAppHangTracking() }",
+     f"'pauseAppHangTracking()' {APP_HANG_DEPRECATION}"),
+    ("PodHaven/Logging/AppHangReportingGate.swift", "func resume() { SentrySDK.resumeAppHangTracking() }",
+     f"'resumeAppHangTracking()' {APP_HANG_DEPRECATION}"),
+)
+
+
+def approved_sentry_deprecations():
+    root = Path(__file__).resolve().parents[1]
+    approved = []
+    for relative, statement, message in APPROVED_SENTRY_DEPRECATIONS:
+        source = root / relative
+        if not source.is_file():
+            continue
+        lines = [number for number, line in enumerate(source.read_text().splitlines(), 1)
+                 if line.strip() == statement]
+        if len(lines) == 1:
+            approved.append((source, lines[0], message))
+    return approved
 
 
 def approved_sentry_warning(warning):
-    location = sentry_hint_location()
-    if not location or warning.get("issueType") != "DeprecatedDeclaration":
-        return False
-    if warning.get("message", "").lower() != SENTRY_HINT_DEPRECATION.lower():
+    if warning.get("issueType") != "DeprecatedDeclaration":
         return False
     url = urlparse(warning.get("sourceURL", ""))
-    return (url.scheme == "file" and Path(unquote(url.path)) == location[0]
-            and parse_qs(url.fragment).get("StartingLineNumber") == [str(location[1] - 1)])
+    return url.scheme == "file" and any(
+        warning.get("message", "").lower() == message.lower()
+        and Path(unquote(url.path)) == source
+        and parse_qs(url.fragment).get("StartingLineNumber") == [str(line - 1)]
+        for source, line, message in approved_sentry_deprecations())
 
 
 def approved_sentry_log_warning(line):
-    location = sentry_hint_location()
-    if not location:
-        return False
-    return re.fullmatch(
-        re.escape(str(location[0])) + ":" + str(location[1]) + r":\d+: warning: "
-        + re.escape(SENTRY_HINT_DEPRECATION) + r"(?: \[#DeprecatedDeclaration\])?", line) is not None
+    return any(
+        re.fullmatch(
+            re.escape(str(source)) + ":" + str(number) + r":\d+: warning: "
+            + re.escape(message) + r"(?: \[#DeprecatedDeclaration\])?", line) is not None
+        for source, number, message in approved_sentry_deprecations())
 
 
 def failures(summary, build, runtime_logs, build_log):
@@ -168,7 +185,7 @@ def main():
         return 1
     accepted = sum(approved_sentry_warning(warning) for warning in data["build"].get("warnings", []))
     print(f"Swift validation passed: {data['summary']['passedTests']} tests; "
-          f"{accepted} approved Sentry hint deprecation warnings; zero other build/runtime diagnostics")
+          f"{accepted} approved Sentry deprecation warnings; zero other build/runtime diagnostics")
     return 0
 
 

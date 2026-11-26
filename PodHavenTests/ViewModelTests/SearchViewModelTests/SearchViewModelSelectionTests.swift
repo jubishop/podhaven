@@ -15,7 +15,10 @@ import Testing
     Container.shared.podcastFeedSession() as! FakeDataFetchable
   }
 
-  @Test("subscribeSelectedPodcasts saves unsaved results and subscribes them with one count line")
+  @Test(
+    "subscribeSelectedPodcasts saves unsaved results and subscribes them with one count line",
+    .timeLimit(.minutes(5))
+  )
   func subscribeSelectedSavesAndLogsSummary() async throws {
     let podcastCount = 5
     await SyntheticFeed.respond(feedSession, episodes: 1)
@@ -23,15 +26,16 @@ import Testing
     let viewModel = try await makeViewModel(podcastCount: podcastCount)
     viewModel.podcastList.selectAllEntries()
 
-    let captured = try await LogCapture.withSink { sink in
+    let summarized = AsyncLatch<Void>()
+    let captured = try await LogCapture.withSink(
+      onCapture: { entry in
+        if entry.message.contains("subscribed \(podcastCount) of \(podcastCount)") {
+          summarized.open()
+        }
+      }
+    ) { sink in
       viewModel.subscribeSelectedPodcasts()
-      try await Wait.until(
-        {
-          sink.captured()
-            .contains { $0.message.contains("subscribed \(podcastCount) of \(podcastCount)") }
-        },
-        { "no subscribe summary among \(sink.captured().map(\.message))" }
-      )
+      try await summarized.wait()
       return sink.captured()
     }
 
@@ -42,7 +46,10 @@ import Testing
     #expect(perPodcastLines.isEmpty, "\(perPodcastLines.map(\.message))")
   }
 
-  @Test("subscribeSelectedPodcasts alerts when a result fails to save and subscribes the rest")
+  @Test(
+    "subscribeSelectedPodcasts alerts when a result fails to save and subscribes the rest",
+    .timeLimit(.minutes(5))
+  )
   func subscribeSelectedAlertsOnSaveFailure() async throws {
     let podcastCount = 3
     let failingIndex = 1
@@ -55,17 +62,16 @@ import Testing
     let viewModel = try await makeViewModel(podcastCount: podcastCount)
     viewModel.podcastList.selectAllEntries()
 
-    try await LogCapture.withSink { sink in
+    let summarized = AsyncLatch<Void>()
+    try await LogCapture.withSink(
+      onCapture: { entry in
+        if entry.message.contains("subscribed \(podcastCount - 1) of \(podcastCount)") {
+          summarized.open()
+        }
+      }
+    ) { _ in
       viewModel.subscribeSelectedPodcasts()
-      try await Wait.until(
-        {
-          sink.captured()
-            .contains {
-              $0.message.contains("subscribed \(podcastCount - 1) of \(podcastCount)")
-            }
-        },
-        { "no subscribe summary among \(sink.captured().map(\.message))" }
-      )
+      try await summarized.wait()
     }
 
     #expect(Container.shared.alert().config?.title == "Error")

@@ -465,6 +465,23 @@ import Testing
     try await PlayHelpers.waitFor(.waiting)
   }
 
+  @Test("an unknown time control status is ignored")
+  func unknownTimeControlStatusIsIgnored() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.waitFor(.paused)
+
+    let unknownStatus = try #require(AVPlayer.TimeControlStatus(rawValue: 99))
+    avPlayer.queuePlayStatuses([unknownStatus])
+    await playManager.play()
+    await playManager.toggle()
+    #expect(sharedState.playbackStatus == .paused)
+
+    avPlayer.resumePlayback()
+    try await PlayHelpers.waitFor(.playing)
+  }
+
   @Test("pause saves current position to database immediately")
   func pauseSavesCurrentPositionToDatabaseImmediately() async throws {
     await playManager.start()
@@ -523,6 +540,47 @@ import Testing
 
   enum LoadPhase: CaseIterable { case audioSession, asset }
 
+  private struct SuspendedLoad {
+    let phase: LoadPhase
+    let assetStarted: AsyncSemaphore
+    let finishAsset: AsyncSemaphore
+
+    func waitUntilSuspended() async throws {
+      switch phase {
+      case .audioSession: try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
+      case .asset: await assetStarted.wait()
+      }
+    }
+
+    func resume() async throws {
+      switch phase {
+      case .audioSession: try await PlayHelpers.recoverAudioSessionConfiguration()
+      case .asset: finishAsset.signal()
+      }
+    }
+  }
+
+  // The audio session phase holds the load in configuration backoff, before the
+  // outgoing episode leaves the deck; the asset phase holds it after.
+  private func suspendLoad(
+    of podcastEpisode: PodcastEpisode,
+    during phase: LoadPhase
+  ) async -> SuspendedLoad {
+    let assetStarted = AsyncSemaphore(value: 0)
+    let finishAsset = AsyncSemaphore(value: 0)
+    switch phase {
+    case .audioSession:
+      PlayHelpers.failAudioSessionConfiguration()
+    case .asset:
+      await episodeAssetLoader.respond(to: podcastEpisode.episode.mediaURL) { _ in
+        assetStarted.signal()
+        await finishAsset.wait()
+        return (true, .seconds(60))
+      }
+    }
+    return SuspendedLoad(phase: phase, assetStarted: assetStarted, finishAsset: finishAsset)
+  }
+
   @Test("toggle during a load cancels its pending playback", arguments: LoadPhase.allCases)
   func toggleDuringLoadCancelsPendingPlayback(phase: LoadPhase) async throws {
     await playManager.start()
@@ -530,36 +588,90 @@ import Testing
     try await playManager.load(currentEpisode)
     let playCount = avPlayer.playCallCount
 
-    let phaseStarted = AsyncSemaphore(value: 0)
-    let finishPhase = AsyncSemaphore(value: 0)
-    switch phase {
-    case .audioSession:
-      Container.shared.configureAudioSession.context(.test) {
-        {
-          phaseStarted.signal()
-          await finishPhase.wait()
-          return true
-        }
-      }
-      Container.shared.configureAudioSession.reset(.scope)
-    case .asset:
-      await episodeAssetLoader.respond(to: incomingEpisode.episode.mediaURL) { _ in
-        phaseStarted.signal()
-        await finishPhase.wait()
-        return (true, .seconds(60))
-      }
-    }
+    let suspendedLoad = await suspendLoad(of: incomingEpisode, during: phase)
     let incomingPlay = Task { try await playManager.play(incomingEpisode) }
     defer {
       incomingPlay.cancel()
-      finishPhase.signal()
+      suspendedLoad.finishAsset.signal()
     }
-    await phaseStarted.wait()
+    try await suspendedLoad.waitUntilSuspended()
 
     await playManager.toggle()
-    finishPhase.signal()
+    try await suspendedLoad.resume()
 
     #expect(try await incomingPlay.value == .superseded)
+    try await PlayHelpers.waitForOnDeck(incomingEpisode)
+    try await PlayHelpers.waitFor(.paused)
+    #expect(avPlayer.timeControlStatus == .paused)
+    #expect(avPlayer.playCallCount == playCount)
+  }
+
+  @Test("play during a load keeps its pending playback", arguments: LoadPhase.allCases)
+  func playDuringLoadKeepsPendingPlayback(phase: LoadPhase) async throws {
+    await playManager.start()
+    let (currentEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+    try await playManager.load(currentEpisode)
+
+    let suspendedLoad = await suspendLoad(of: incomingEpisode, during: phase)
+    let incomingPlay = Task { try await playManager.play(incomingEpisode) }
+    defer {
+      incomingPlay.cancel()
+      suspendedLoad.finishAsset.signal()
+    }
+    try await suspendedLoad.waitUntilSuspended()
+
+    await playManager.play()
+    try await suspendedLoad.resume()
+
+    #expect(try await incomingPlay.value == .ready)
+    try await PlayHelpers.waitForOnDeck(incomingEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(avPlayer.timeControlStatus == .playing)
+  }
+
+  @Test("play during a load plays the loading episode", arguments: LoadPhase.allCases)
+  func playDuringLoadPlaysLoadingEpisode(phase: LoadPhase) async throws {
+    await playManager.start()
+    let (currentEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+    try await playManager.load(currentEpisode)
+
+    let suspendedLoad = await suspendLoad(of: incomingEpisode, during: phase)
+    let incomingLoad = Task { try await playManager.load(incomingEpisode) }
+    defer {
+      incomingLoad.cancel()
+      suspendedLoad.finishAsset.signal()
+    }
+    try await suspendedLoad.waitUntilSuspended()
+
+    await playManager.play()
+    try await suspendedLoad.resume()
+
+    #expect(try await incomingLoad.value)
+    try await PlayHelpers.waitForOnDeck(incomingEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(avPlayer.timeControlStatus == .playing)
+  }
+
+  @Test("pause after a play during a load leaves the loaded episode paused")
+  func pauseAfterPlayDuringLoadLeavesLoadedEpisodePaused() async throws {
+    await playManager.start()
+    let (currentEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+    try await playManager.load(currentEpisode)
+    let playCount = avPlayer.playCallCount
+
+    let suspendedLoad = await suspendLoad(of: incomingEpisode, during: .asset)
+    let incomingLoad = Task { try await playManager.load(incomingEpisode) }
+    defer {
+      incomingLoad.cancel()
+      suspendedLoad.finishAsset.signal()
+    }
+    try await suspendedLoad.waitUntilSuspended()
+
+    await playManager.play()
+    await playManager.pause()
+    try await suspendedLoad.resume()
+
+    #expect(try await incomingLoad.value)
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
     try await PlayHelpers.waitFor(.paused)
     #expect(avPlayer.timeControlStatus == .paused)

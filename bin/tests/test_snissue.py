@@ -2,11 +2,11 @@ import json
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 
@@ -14,6 +14,9 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "bin/snissue"
 FISH = shutil.which("fish")
 FINDINGS = "<!-- analyze-sentry-issue-findings:start -->\n<!-- analyze-sentry-issue-findings:end -->"
+BY_BOT = {"user": {"login": "github-actions[bot]", "type": "Bot"}}
+BY_OWNER = {"user": {"login": "JubiShop", "type": "User"}}
+BY_STRANGER = {"user": {"login": "stranger", "type": "User"}}
 
 
 class SentryIssueLauncherTests(unittest.TestCase):
@@ -39,20 +42,20 @@ class SentryIssueLauncherTests(unittest.TestCase):
             "hasMore": False,
         })
         self.write("gh.json", [[
-            {"number": 90, "state": "open", "title": "PODHAVEN-AC", "body": "<!-- sentry-issue:1003 -->",
+            {"number": 90, "state": "open", **BY_BOT, "title": "PODHAVEN-AC", "body": "<!-- sentry-issue:1003 -->",
              "pull_request": {}},
-            {"number": 91, "state": "open", "title": "PODHAVEN-AC0", "body": ""},
-            {"number": 92, "state": "open", "title": "", "body": "https://artisanal-software.sentry.io/issues/10030/"},
-            {"number": 93, "state": "open", "title": "PODHAVEN-AC", "body": "Reference only"},
-            {"number": 41, "state": "closed", "title": "Earlier fix",
+            {"number": 91, "state": "open", **BY_BOT, "title": "PODHAVEN-AC0", "body": ""},
+            {"number": 92, "state": "open", **BY_BOT, "title": "", "body": "https://artisanal-software.sentry.io/issues/10030/"},
+            {"number": 93, "state": "open", **BY_BOT, "title": "PODHAVEN-AC", "body": "Reference only"},
+            {"number": 41, "state": "closed", **BY_BOT, "title": "Earlier fix",
              "body": "<!-- sentry-issue:1001 -->\n" + FINDINGS},
         ], [
-            {"number": 42, "state": "closed", "title": "Tracked issue",
+            {"number": 42, "state": "closed", **BY_OWNER, "title": "Tracked issue",
              "body": "https://artisanal-software.sentry.io/issues/1003/?query=is%3Aunresolved"},
-            {"number": 43, "state": "open", "title": "Investigate PODHAVEN-AA", "body": None},
-            {"number": 44, "state": "open", "title": "Triage Sentry issue PODHAVEN-AB",
+            {"number": 43, "state": "open", **BY_BOT, "title": "Investigate PODHAVEN-AA", "body": None},
+            {"number": 44, "state": "open", **BY_BOT, "title": "Triage Sentry issue PODHAVEN-AB",
              "body": "<!-- sentry-issue:1002 -->\n<!-- analyze-sentry-issue-findings:start -->"},
-            {"number": 45, "state": "open", "title": "Legacy analysis",
+            {"number": 45, "state": "open", **BY_OWNER, "title": "Legacy analysis",
              "body": "https://artisanal-software.sentry.io/issues/1001/\n\n## Sentry closeout\n"},
         ]])
 
@@ -90,10 +93,10 @@ else:
         path.chmod(0o755)
 
     def run_command(self, *arguments, input=None):
-        return subprocess.run(
+        return hang_guard.run(
             [FISH, "--no-config", str(SCRIPT), *arguments],
             cwd=ROOT / "PodHavenTests", env=self.env,
-            input=input, text=True, capture_output=True, timeout=15,
+            input=input, text=True, capture_output=True,
         )
 
     def assert_launched(self, result, reference):
@@ -159,11 +162,119 @@ else:
         self.assertEqual(calls.count("gh"), 1)
         self.assertEqual(calls.count("sentry"), 1)
 
+    def test_list_prints_plain_rows_without_picking_or_launching(self):
+        for command in ("fzf", "claude"):
+            (self.bin / command).unlink()
+        result = self.run_command("--list")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(result.stdout.splitlines(), [
+            "PODHAVEN-AC  1003 — Synthetic new issue  "
+            "(error; 4 events; 2 users; GitHub: jubishop/podhaven#42 closed)",
+            "PODHAVEN-AB  1002 — Synthetic middle issue  "
+            "(unknown; ? events; ? users; GitHub: jubishop/podhaven#44 intake)",
+            "PODHAVEN-AA  1001 — Synthetic old issue  "
+            "(warning; 12 events; 3 users; GitHub: jubishop/podhaven#45 analyzed)",
+        ])
+        self.assertEqual((self.directory / "calls").read_text().splitlines(), ["sentry", "gh"])
+
+    def test_list_of_nothing_succeeds_without_github(self):
+        self.write("sentry.json", {"data": [], "hasMore": False})
+        result = self.run_command("--list")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "No unresolved Sentry issues found.\n")
+        self.assertFalse((self.directory / "gh.args").exists())
+
+    def test_list_failures_stop(self):
+        for command, message in (
+            ("sentry", "could not fetch unresolved"),
+            ("gh", "could not fetch PodHaven GitHub issues"),
+        ):
+            with self.subTest(command=command):
+                self.env["SNISSUE_FAIL"] = command
+                self.assert_stopped(self.run_command("--list"), message)
+        del self.env["SNISSUE_FAIL"]
+        payload = self.read("sentry.json")
+        payload["hasMore"] = True
+        self.write("sentry.json", payload)
+        self.assert_stopped(self.run_command("--list"), "refusing to show a partial list")
+
+    def test_track_lists_every_tracking_issue_canonical_first(self):
+        for command in ("sentry", "fzf", "claude"):
+            (self.bin / command).unlink()
+        link = "https://artisanal-software.sentry.io/issues/1004/"
+        self.write("gh.json", [[
+            {"number": 60, "state": "open", **BY_OWNER, "body": f"See {link}"},
+            {"number": 59, "state": "closed", **BY_BOT, "body": "<!-- sentry-issue:1004 -->\n" + FINDINGS},
+            {"number": 58, "state": "open", **BY_BOT, "body": "<!-- sentry-issue:1004 -->"},
+            {"number": 61, "state": "open", **BY_BOT, "body": "<!-- sentry-issue:1004 -->", "pull_request": {}},
+        ], [
+            {"number": 57, "state": "closed", **BY_OWNER, "body": f"{link}\n\n## Sentry closeout\n"},
+            {"number": 56, "state": "open", **BY_BOT, "body": "<!-- sentry-issue:1004 -->\n" + FINDINGS},
+            {"number": 55, "state": "open", **BY_BOT, "body": "Mentions PODHAVEN-AD and issues/10040/ only"},
+        ]])
+        tracked = [
+            "Tracking issues for Sentry issue 1004, canonical first:",
+            "jubishop/podhaven#58 open intake marker",
+            "jubishop/podhaven#56 open analyzed marker",
+            "jubishop/podhaven#60 open intake link",
+            "jubishop/podhaven#59 closed analyzed marker",
+            "jubishop/podhaven#57 closed analyzed link",
+        ]
+        for reference, expected in (
+            ("1004", tracked),
+            ("https://sentry.io/organizations/artisanal-software/issues/1004/", tracked),
+            ("1005", ["No tracking issue for Sentry issue 1005."]),
+        ):
+            with self.subTest(reference=reference):
+                (self.directory / "calls").unlink(missing_ok=True)
+                result = self.run_command("--track", reference)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(result.stderr, "")
+                self.assertEqual(result.stdout.splitlines(), expected)
+                self.assertEqual(self.read("gh.args"), [
+                    "api", "--paginate", "--slurp", "repos/jubishop/podhaven/issues?state=all&per_page=100",
+                ])
+                self.assertEqual((self.directory / "calls").read_text().splitlines(), ["gh"])
+
+    def test_track_failures_stop(self):
+        for arguments in (("--track",), ("--track", "1003", "1001")):
+            with self.subTest(arguments=arguments):
+                self.assert_stopped(self.run_command(*arguments), "Usage: snissue")
+        self.assert_stopped(self.run_command("--track", "PODHAVEN-AC"), "not a numeric PodHaven Sentry issue ID")
+        self.assertFalse((self.directory / "calls").exists())
+        self.env["SNISSUE_FAIL"] = "gh"
+        self.assert_stopped(self.run_command("--track", "1003"), "could not fetch PodHaven GitHub issues")
+        del self.env["SNISSUE_FAIL"]
+        for payload in ({"error": "synthetic failure"}, [[{"state": "open", **BY_BOT, "body": "<!-- sentry-issue:1003 -->"}]]):
+            with self.subTest(payload=payload):
+                self.write("gh.json", payload)
+                self.assert_stopped(self.run_command("--track", "1003"), "invalid issue data")
+
+    def test_issues_from_other_accounts_never_track(self):
+        link = "https://artisanal-software.sentry.io/issues/1003/"
+        self.write("gh.json", [[
+            {"number": 95, "state": "open", **BY_STRANGER, "body": "<!-- sentry-issue:1003 -->\n" + FINDINGS},
+            {"number": 94, "state": "open", **BY_STRANGER, "body": f"See {link}"},
+            {"number": 93, "state": "open", "user": {"login": "github-actions", "type": "User"},
+             "body": "<!-- sentry-issue:1003 -->"},
+            {"number": 92, "state": "open", "user": None, "body": "<!-- sentry-issue:1003 -->"},
+            {"number": 42, "state": "closed", **BY_OWNER, "body": link},
+        ]])
+        self.assert_launched(self.run_command(), "1003")
+        self.assertIn("GitHub: #42 closed", self.read("picker.json")[0])
+        result = self.run_command("--track", "1003")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [
+            "Tracking issues for Sentry issue 1003, canonical first:",
+            "jubishop/podhaven#42 closed intake link",
+        ])
+
     def test_mentions_and_pull_requests_do_not_track(self):
         self.write("gh.json", [[
-            {"number": 90, "state": "open", "title": "", "body": "<!-- sentry-issue:1003 -->",
+            {"number": 90, "state": "open", **BY_BOT, "title": "", "body": "<!-- sentry-issue:1003 -->",
              "pull_request": {}},
-            {"number": 93, "state": "open", "title": "PODHAVEN-AC", "body": "Reference only"},
+            {"number": 93, "state": "open", **BY_BOT, "title": "PODHAVEN-AC", "body": "Reference only"},
         ]])
         self.assert_launched(self.run_command(), "1003")
         self.assertIn("GitHub: untracked", self.read("picker.json")[0])
@@ -190,7 +301,7 @@ else:
         self.assert_stopped(self.run_command(), "refusing to show a partial list")
 
     def test_invalid_sentry_data_is_rejected(self):
-        for payload in ("invalid json", '{}', '{"data": {}}', '{"data": [{"id": "unsafe"}]}'):
+        for payload in ("invalid json", "", '{}', '{"data": {}}', '{"data": [{"id": "unsafe"}]}'):
             with self.subTest(payload=payload):
                 (self.directory / "sentry.json").write_text(payload)
                 self.assert_stopped(self.run_command(), "invalid issue data")

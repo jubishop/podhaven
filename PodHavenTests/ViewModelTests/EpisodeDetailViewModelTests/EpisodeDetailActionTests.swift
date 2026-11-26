@@ -38,6 +38,10 @@ import Testing
         )
       )
     )
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
+    )
     let startTime = 120
     let startCMTime = CMTime.seconds(Double(startTime))
     let viewModel = EpisodeDetailViewModel(
@@ -107,7 +111,10 @@ import Testing
     )
     #expect(avPlayer.seekRequests.filter { $0 == startCMTime }.isEmpty)
 
-    await episodeAssetLoader.clearCustomHandler(for: podcastEpisode.episode)
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
+    )
     viewModel.disappear()
     viewModel.appear()
 
@@ -180,10 +187,11 @@ import Testing
     try await PlayHelpers.waitForOnDeck(priorEpisode)
     try await PlayHelpers.waitFor(.paused)
 
-    audioSession.configureError { $0 = TestError.simulatedFailure }
+    PlayHelpers.failAudioSessionConfiguration()
 
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(requestedEpisode))
     viewModel.playAt(timestamp: "0:10")
+    try await PlayHelpers.advanceAudioSessionRetryBackoff()
 
     try await Wait.until(
       { @MainActor in self.alert.config != nil },

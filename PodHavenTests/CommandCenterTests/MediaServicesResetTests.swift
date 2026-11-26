@@ -46,6 +46,10 @@ import Testing
       let (podcastEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes(
         Create.unsavedEpisode(currentTime: resumeTime)
       )
+      await episodeAssetLoader.respond(
+        to: podcastEpisode.episode.mediaURL,
+        data: (true, .seconds(240))
+      )
 
       try await queue.unshift(queuedEpisode.id)
       try await PlayHelpers.load(podcastEpisode)
@@ -54,11 +58,11 @@ import Testing
       let initialAVPlayer = avPlayer
       initialAVPlayer.timeObservers.removeAll()
       initialAVPlayer.advanceTime(to: .zero)
-      let initialConfigureCallCount = await audioSession.configureCallCount
+      let initialConfigureCallCount = audioSession.configureCallCount
       let initialLoadCount = await episodeAssetLoader.responseCount(
         for: podcastEpisode.episode.mediaURL
       )
-      let initialActivationCount = await audioSession.activeCalls.filter(\.self).count
+      let initialActivationCount = audioSession.activeCalls.filter(\.self).count
       let resetAt = Date(timeIntervalSince1970: 1_800_000_000)
       Container.shared.fakeDate().freeze(at: resetAt)
 
@@ -85,7 +89,7 @@ import Testing
         await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
           == initialLoadCount
       )
-      #expect(await audioSession.activeCalls.filter(\.self).count == initialActivationCount)
+      #expect(audioSession.activeCalls.filter(\.self).count == initialActivationCount)
       let preservedEpisode = try #require(try await repo.podcastEpisode(podcastEpisode.id))
       #expect(preservedEpisode.currentTime == resumeTime)
       try await Wait.until(
@@ -217,14 +221,14 @@ import Testing
     )
     #expect(sharedState.playbackStatus == .paused)
 
-    audioSession.configureError { $0 = TestError.simulatedFailure }
-    try await playManager.play(replacementEpisode)
+    try await PlayHelpers.failingAudioSessionConfiguration {
+      try await playManager.play(replacementEpisode)
+    }
 
     try await PlayHelpers.waitForOnDeck(interruptedEpisode)
     #expect(sharedState.playbackStatus == .paused)
     try await PlayHelpers.waitForQueue([])
 
-    audioSession.configureError { $0 = nil }
     await playManager.play()
 
     let recoveryLoadCount = await episodeAssetLoader.responseCount(
@@ -242,6 +246,10 @@ import Testing
     let resumeTime = CMTime.seconds(123)
     let (interruptedEpisode, replacementEpisode) = try await Create.twoPodcastEpisodes(
       Create.unsavedEpisode(currentTime: resumeTime)
+    )
+    await episodeAssetLoader.respond(
+      to: interruptedEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
     )
 
     try await PlayHelpers.load(interruptedEpisode)
@@ -300,6 +308,10 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode(
       Create.unsavedEpisode(currentTime: resumeTime)
     )
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
+    )
 
     try await PlayHelpers.load(podcastEpisode)
     try await PlayHelpers.waitFor(resumeTime)
@@ -344,7 +356,10 @@ import Testing
       { @MainActor in "Expected an alert after the failed recovery load" }
     )
 
-    await episodeAssetLoader.clearCustomHandler(for: podcastEpisode.episode)
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
+    )
     await playManager.play()
 
     try await PlayHelpers.waitFor(.playing)
@@ -397,7 +412,7 @@ import Testing
       PlayHelpers.setupCommandHandling()
       await playManager.start()
       let initialAVPlayer = avPlayer
-      let initialCallCount = await audioSession.configureCallCount
+      let initialCallCount = audioSession.configureCallCount
       #expect(sharedState.onDeck == nil)
       #expect(sharedState.playbackStatus == .stopped)
 
@@ -441,12 +456,13 @@ import Testing
       try await PlayHelpers.load(podcastEpisode)
       try await PlayHelpers.pause()
       let initialAVPlayer = avPlayer
-      let initialActivationCount = await audioSession.activeCalls.filter(\.self).count
+      let initialActivationCount = audioSession.activeCalls.filter(\.self).count
 
-      audioSession.configureError { $0 = TestError.simulatedFailure }
+      PlayHelpers.failAudioSessionConfiguration()
 
       notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
         .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+      try await PlayHelpers.advanceAudioSessionRetryBackoff()
 
       try await Wait.until(
         { await avPlayer != initialAVPlayer },
@@ -460,7 +476,7 @@ import Testing
       #expect(sharedState.playbackStatus == .paused)
       try await PlayHelpers.waitForQueue([])
       #expect(sharedState.currentEpisodeID == podcastEpisode.id)
-      #expect(await audioSession.activeCalls.filter(\.self).count == initialActivationCount)
+      #expect(audioSession.activeCalls.filter(\.self).count == initialActivationCount)
       try await Wait.until(
         {
           sink.captured()
@@ -488,7 +504,7 @@ import Testing
       await playManager.start()
       let podcastEpisode = try await Create.podcastEpisode()
       let initialAVPlayer = avPlayer
-      let initialCallCount = await audioSession.configureCallCount
+      let initialCallCount = audioSession.configureCallCount
       let initialLoadCount = await episodeAssetLoader.responseCount(
         for: podcastEpisode.episode.mediaURL
       )
@@ -522,7 +538,7 @@ import Testing
         await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
           == initialLoadCount
       )
-      #expect(await audioSession.activeCalls.filter(\.self).isEmpty)
+      #expect(audioSession.activeCalls.filter(\.self).isEmpty)
     }
   }
 
@@ -554,9 +570,9 @@ import Testing
       let initialLoadCount = await episodeAssetLoader.responseCount(
         for: podcastEpisode.episode.mediaURL
       )
-      let initialActivationCount = await audioSession.activeCalls.filter(\.self).count
+      let initialActivationCount = audioSession.activeCalls.filter(\.self).count
 
-      let initialConfigureCallCount = await audioSession.configureCallCount
+      let initialConfigureCallCount = audioSession.configureCallCount
       notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
         .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
 
@@ -594,7 +610,7 @@ import Testing
         await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
           == initialLoadCount
       )
-      #expect(await audioSession.activeCalls.filter(\.self).count == initialActivationCount)
+      #expect(audioSession.activeCalls.filter(\.self).count == initialActivationCount)
     }
   }
 
@@ -713,7 +729,7 @@ import Testing
 
     await loadStarted.wait()
     let initialAVPlayer = avPlayer
-    let configureCallCount = await audioSession.configureCallCount
+    let configureCallCount = audioSession.configureCallCount
 
     notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
       .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
@@ -811,6 +827,10 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode(
       Create.unsavedEpisode(currentTime: resumeTime)
     )
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
+    )
 
     try await PlayHelpers.load(podcastEpisode)
     try await PlayHelpers.waitFor(resumeTime)
@@ -858,7 +878,7 @@ import Testing
       let episodeAssetLoader = Container.shared.fakeEpisodeAssetLoader()
       let alert = Container.shared.alert()
       let initialAVPlayer = Container.shared.avPlayer() as! FakeAVPlayer
-      let initialConfigureCallCount = await audioSession.configureCallCount
+      let initialConfigureCallCount = audioSession.configureCallCount
 
       PlayHelpers.setupCommandHandling()
       #expect(sharedState.currentEpisodeID == podcastEpisode.id)
@@ -892,7 +912,7 @@ import Testing
       #expect(
         await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL) == 0
       )
-      #expect(await audioSession.activeCalls.filter(\.self).isEmpty)
+      #expect(audioSession.activeCalls.filter(\.self).isEmpty)
       try await Wait.until(
         { @MainActor in alert.config?.title == "Audio Services Restarted" },
         { @MainActor in "Expected an audio-services reset explanation" }

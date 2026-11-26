@@ -10,7 +10,13 @@ import XMLCoder
 
 extension Container {
   var podcastOPMLSession: Factory<any DataFetchable> {
-    Factory(self) { URLSession.shared }
+    Factory(self) {
+      let configuration = URLSessionConfiguration.default
+      configuration.timeoutIntervalForRequest = Double(10)
+      configuration.timeoutIntervalForResource = Double(30)
+      return URLSession(configuration: configuration)
+    }
+    .scope(.cached)
   }
 }
 
@@ -29,12 +35,14 @@ struct PodcastOPML: Codable, Sendable {
   private static let log = Log.as(LogSubsystem.Feed.opml)
 
   static let contentType = UTType(importedAs: "public.opml", conformingTo: .xml)
+  static let downloadByteLimit = 4 * 1024 * 1024
 
   // MARK: - Import Methods
 
   static func parse(_ url: URL) async throws -> PodcastOPML {
     log.debug("Parsing url: \(url)")
-    let data = try await Container.shared.podcastOPMLSession().validatedData(from: url)
+    let data = try await Container.shared.podcastOPMLSession()
+      .validatedData(from: url, byteLimit: downloadByteLimit)
     do {
       return try await parse(data)
     } catch {
@@ -55,6 +63,29 @@ struct PodcastOPML: Codable, Sendable {
 
     let decoder = XMLDecoder()
     return try decoder.decode(PodcastOPML.self, from: data)
+  }
+
+  @concurrent static func isOPML(_ data: Data) async -> Bool {
+    let detector = RootElementDetector()
+    let parser = XMLParser(data: data)
+    unsafe parser.delegate = detector
+    parser.parse()
+    return detector.rootElementName?.lowercased() == "opml"
+  }
+
+  private final class RootElementDetector: NSObject, XMLParserDelegate {
+    private(set) var rootElementName: String?
+
+    func parser(
+      _ parser: XMLParser,
+      didStartElement elementName: String,
+      namespaceURI: String?,
+      qualifiedName qName: String?,
+      attributes attributeDict: [String: String] = [:]
+    ) {
+      rootElementName = elementName
+      parser.abortParsing()
+    }
   }
 
   // MARK: - Nesting Limit

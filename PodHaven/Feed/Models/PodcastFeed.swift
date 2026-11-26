@@ -109,18 +109,19 @@ struct EpisodeFeed: Sendable, Equatable {
   // MARK: - Private Helpers
 
   private var duration: CMTime? {
-    guard let timeComponents = rssEpisode.iTunes.duration?.split(separator: ":"),
-      timeComponents.count <= 3
-    else { return nil }
+    guard let rawDuration = rssEpisode.iTunes.duration else { return nil }
 
-    var seconds = 0
-    var multiplier = 1
-    for value in timeComponents.reversed() {
-      guard let value = Int(value) else { return nil }
-      seconds += multiplier * value
-      multiplier *= 60
+    let timeComponents = rawDuration.split(separator: ":", omittingEmptySubsequences: false)
+    guard timeComponents.count <= 3 else { return nil }
+
+    var seconds = 0.0
+    for component in timeComponents {
+      guard let value = Double(component), value.isFinite, value >= 0 else { return nil }
+      seconds = seconds * 60 + value
     }
-    return CMTime.seconds(Double(seconds))
+    let duration = CMTime.seconds(seconds)
+    guard duration.isNumeric else { return nil }
+    return duration
   }
 
   // MARK: - Equatable
@@ -171,12 +172,15 @@ enum PodcastFeedError: Error, LocalizedError, CustomNSError, Sendable {
 struct PodcastFeed: Sendable, Stringable {
   private static let log = Log.as(LogSubsystem.Feed.podcast)
 
+  static let downloadByteLimit = 32 * 1024 * 1024
+
   // MARK: - Static Parsing Methods
 
   static func parse(_ url: FeedURL) async throws -> PodcastFeed {
     let data: Data
     do {
-      data = try await Container.shared.podcastFeedSession().validatedData(from: url.rawValue)
+      data = try await Container.shared.podcastFeedSession()
+        .validatedData(from: url.rawValue, byteLimit: downloadByteLimit)
     } catch let error as HTTPStatusError where error.statusCode == 404 || error.statusCode == 410 {
       throw PodcastFeedError.unavailable(error)
     }
@@ -292,11 +296,12 @@ struct PodcastFeed: Sendable, Stringable {
 
   func toUnsavedPodcast(
     merging podcast: Podcast? = nil,
+    feedURL: FeedURL? = nil,
     iTunesID: ITunesPodcastID? = nil,
     subscriptionDate: Date? = nil
   ) throws -> UnsavedPodcast {
     try UnsavedPodcast(
-      feedURL: updatedFeedURL,
+      feedURL: feedURL ?? updatedFeedURL,
       iTunesID: iTunesID ?? podcast?.iTunesID,
       title: rssPodcast.title,
       image: image,
