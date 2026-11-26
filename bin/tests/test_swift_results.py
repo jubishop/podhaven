@@ -94,7 +94,8 @@ class SwiftResultTests(unittest.TestCase):
                         {"nodeType": "Test Case", "name": "outgoingFeedbackAttachments()",
                          "nodeIdentifier": "AppLauncherTests/outgoingFeedbackAttachments()",
                          "result": "Passed", "children": [
-                             {"nodeType": "Repetition", "name": "Repetition 4", "result": "Passed",
+                             {"nodeType": "Repetition", "name": "Repetition 4", "nodeIdentifier": "4",
+                              "result": "Passed",
                               "children": [{"nodeType": "Runtime Warning", "name": warning}
                                            for warning in warnings]}]}]}]}]}]
 

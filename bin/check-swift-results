@@ -113,7 +113,8 @@ def runtime_warnings(tree):
         if isinstance(node, dict):
             if node.get("nodeType") == "Runtime Warning":
                 problems.append(f"Runtime warning in {identifier}: {node.get('name', '')}")
-            identifier = node.get("nodeIdentifier", identifier)
+            if node.get("nodeType") == "Test Case":
+                identifier = node.get("nodeIdentifier", identifier)
             for value in node.values():
                 visit(value, identifier)
         elif isinstance(node, list):
