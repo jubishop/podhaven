@@ -4,7 +4,10 @@
 
 Release `com.artisanalsoftware.PodHaven@<version>+<build>` maps to git tag
 `v<version>b<build>`, such as `v1.7.1b595`; prefer the event's
-`git-commit-hash` when present.
+`git-commit-hash` when present. A MetricKit event takes that tag, and for
+Sentry's own MetricKit events its release too, from the later launch that sent
+it, so take its build from the diagnostic's metadata: the `metrickit_crash`
+context or the raw payload attachment.
 
 Test whether the failing build contains each fix the tracking review found with
 `git merge-base --is-ancestor <fix-commit> <build-commit>`. A recurrence in a
@@ -24,9 +27,11 @@ event user is proven to be the same device. Analyze the logs through
 timestamp in the launch whose `sessionID` is the event's `log-session-id` tag,
 and add the widget log when widget behavior is plausible.
 
-MetricKit diagnostics arrive on the launch after the incident, so search the
-whole attachment by the `MetricKit` category rather than only around the
-Sentry timestamp.
+MetricKit diagnostics arrive on the launch after the incident, which is the
+launch a MetricKit event's `log-session-id` names: look for the failing launch
+among the attachment's earlier launches by the diagnostic's build and period,
+and search the whole attachment by the `MetricKit` category rather than only
+around the Sentry timestamp.
 
 ## Targeted Sentry structured logs
 
