@@ -28,30 +28,29 @@ Analyze with `scripts/log_summary.py "$LOG_PATH"`, whose `--help` gives its scop
 
 ## OS unified log
 
-PodHaven mirrors every swift-log entry to the unified log in Simulator, My Mac, and device builds, interleaved with the system and framework events, such as XPC, AVFoundation, and networking, that the file log never captures: use it when the OS is in the failure path. Unlike the file log, it isn't rate-limited, but it carries only each entry's message, without metadata or call site. Triage the file log with `log_summary.py`, then pull the same window from the unified log with `log show --start/--end`.
+PodHaven mirrors every swift-log entry to the unified log in Simulator, My Mac, and device builds, interleaved with the system and framework events, such as XPC, AVFoundation, and networking, that the file log never captures: use it when the OS is in the failure path. Unlike the file log, it isn't rate-limited, but it carries only each entry's message, without metadata or call site.
+
+Only a `log stream --debug` running as the app logs gets `Debug` entries, most of PodHaven's: `log show`, on the live store or a `log collect` archive, never has them, and has `Info` entries only until the memory buffer rolls. So for a past failure, triage the file log with `log_summary.py`, then pull the same window with `log show --start/--end` for its OS events; to see PodHaven's debug entries among them, stream while the user reproduces.
 
 - Filter by process: `PodHaven` on the Simulator and My Mac alike. The extensions run as `PodHavenWidget`, `PodHavenShare`, and `PodHavenIntents`, and the last two log only here. Subsystems share no prefix: each is a `LogSubsystem` type's name, such as `Feed` or `Play`, `PodHaven` for `Log.as("…")` string loggers, or `PodHavenShare` for the share extension. A subsystem filter misses string loggers, in the file log too.
 - Levels remap: trace and debug to `Debug`, info to `Info`, notice to `Default`, warning and error to `Error`, and critical to `Fault`, so predicate on `messageType`.
-- `log show` and `log stream` hide `Debug` and `Info` without `--info --debug`, and most app entries are debug.
+- Both commands hide `Debug` and `Info` without `--info --debug`.
 - Messages are public, never `<private>`.
 - Call `/usr/bin/log`, since zsh's `log` builtin shadows a bare `log`.
 
 ```bash
-# My Mac (macDev): stream live, or `show --last 30m` with the same flags
-/usr/bin/log stream --info --debug --style compact \
-  --predicate 'process == "PodHaven" AND eventType == "logEvent" AND NOT subsystem BEGINSWITH "com.apple"'
+P='process == "PodHaven" AND eventType == "logEvent" AND NOT subsystem BEGINSWITH "com.apple"'
 
-# Keep a capture to query again, since the live buffer rolls
-/usr/bin/log collect --last 30m --output /tmp/podhaven-mymac.logarchive
-/usr/bin/log show /tmp/podhaven-mymac.logarchive --info --debug --style compact \
-  --predicate 'process == "PodHaven" AND eventType == "logEvent" AND NOT subsystem BEGINSWITH "com.apple"'
+# My Mac (macDev)
+/usr/bin/log stream --info --debug --style compact --predicate "$P"
+/usr/bin/log show --start '2026-11-26 09:00:00' --end '2026-11-26 09:10:00' \
+  --info --debug --style compact --predicate "$P"
 
-# Simulator
-xcrun simctl spawn booted log show --last 30m --info --debug --style compact \
-  --predicate 'process == "PodHaven" AND eventType == "logEvent" AND NOT subsystem BEGINSWITH "com.apple"'
+# Simulator: the same commands through simctl
+xcrun simctl spawn booted log stream --info --debug --style compact --predicate "$P"
 ```
 
-Drop the `com.apple` exclusion to see the surrounding framework events; keeping it is best-effort, since other framework subsystems, such as `IOSurface`, still slip through. `--style ndjson` emits JSON for `jq`.
+Drop the `com.apple` exclusion to see the surrounding framework events; keeping it is best-effort, since other framework subsystems, such as `IOSurface`, still slip through. `--style ndjson` emits JSON for `jq`; redirect a stream to a file to query it again.
 
 ## Reporting
 
