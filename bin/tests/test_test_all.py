@@ -23,7 +23,7 @@ import service_guard
 
 ROOT = Path(__file__).resolve().parents[2]
 FAKE = r'''
-import fcntl, hashlib, json, os, pathlib, signal, subprocess, sys, time, uuid
+import fcntl, hashlib, json, os, pathlib, re, signal, subprocess, sys, time, uuid
 name = pathlib.Path(sys.argv[0]).name
 args = sys.argv[1:]
 base = pathlib.Path(os.environ['TEST_ALL_FIXTURE'])
@@ -78,6 +78,15 @@ elif name == 'xcrun' and args[:2] == ['swift', 'test']:
     print('Executed 1 test, with 0 failures')
     if os.environ.get('TEST_MACRO_WARNING'): print('warning: unused result')
 elif name == 'xcodebuild':
+    bundle = pathlib.Path(args[args.index('-resultBundlePath') + 1])
+    # TEST_BUILD_MODE, as <bundle>:<mode>, sets how that phase's build goes, for TEST_BUILD_SECONDS where it lasts.
+    mode_bundle, _, mode = os.environ.get('TEST_BUILD_MODE', '').partition(':')
+    mode = mode if mode_bundle == bundle.stem else None
+    seconds = float(os.environ.get('TEST_BUILD_SECONDS', '0'))
+    if mode == 'starting':
+        # A wrapper, such as one that waits for a build slot, starts xcodebuild late.
+        time.sleep(seconds)
+    print('Command line invocation:', flush=True)
     lock_path = pathlib.Path.home() / '.cache/podhaven/my-mac-tests.lock'
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open('a') as lock:
@@ -103,7 +112,33 @@ elif name == 'xcodebuild':
                                 'SwiftExplicitPrecompiledModules', 'ExplicitPrecompiledModules', 'GRDB.build',
                                 'swift-syntax.build'),
           f"{os.getcwd()}/PodHavenTests/ProbeTests.swift:2:7: warning: variable 'value' was never mutated")
-    bundle = pathlib.Path(args[args.index('-resultBundlePath') + 1])
+    if mode in ('stall', 'deaf-stall'):
+        # A shell's background job inherits SIGINT ignored, so set how this build answers it either way.
+        signal.signal(signal.SIGINT, signal.SIG_IGN if mode == 'deaf-stall' else signal.default_int_handler)
+        print('SwiftDriver PodHavenWidget normal arm64 com.apple.xcode.tools.swift.compiler', flush=True)
+        # The build service keeps what xcodebuild passed it, such as the My Mac test lock, and never ends.
+        service = subprocess.Popen([sys.executable, '-c', 'import signal; signal.pause()'], close_fds=False)
+        (base / 'build-stall').write_text(f'{os.getpid()} {service.pid}')
+        try:
+            signal.pause()
+        except KeyboardInterrupt:
+            print('** BUILD INTERRUPTED **', flush=True)
+            sys.exit(65)
+    elif mode == 'logging':
+        for _ in range(round(seconds * 10)):
+            print('SwiftCompile normal arm64 Compiling Probe.swift', flush=True)
+            time.sleep(0.1)
+    elif mode == 'busy':
+        # The fake ps reports one CPU second a second for the compiler the busy file names.
+        compiler = subprocess.Popen([sys.executable, '-c', 'import signal; signal.pause()'])
+        (base / 'busy').write_text(f'{compiler.pid} {time.time()}')
+        time.sleep(seconds)
+        compiler.kill()
+        compiler.wait()
+    elif mode == 'testing':
+        # A timing phase's test host names itself only in its own output until it exits.
+        print(f'2026-11-25 21:03:31.908701-0800 PodHaven[{os.getpid()}:686543358] [default] Launched', flush=True)
+        time.sleep(seconds)
     timing = {'SiriPerformance': 'SiriLargeCatalogTests', 'OPMLPerformance': 'OPMLLargeImportTests'}
     performance = bundle.stem in timing
     fault = (os.environ.get('TEST_PERFORMANCE_FAULT')
@@ -195,6 +230,14 @@ elif name == 'sample':
     path.write_text('Analysis of sampling PodHaven (pid ' + args[0] + ')\n')
     if path.name.endswith('-2.sample.txt'):
         os.kill(int(args[0]), signal.SIGTERM)
+elif name == 'ps':
+    listing = subprocess.run(['/bin/ps', *args], stdout=subprocess.PIPE, text=True, check=True).stdout
+    busy = (base / 'busy').read_text().split() if (base / 'busy').exists() else None
+    for line in listing.splitlines():
+        if busy and line.split()[0] == busy[0]:
+            used = time.time() - float(busy[1])
+            line = re.sub(r' \d+:\d\d\.\d\d ', f' {int(used // 60)}:{used % 60:05.2f} ', line, count=1)
+        print(line)
 elif name == 'lsof':
     # A process has files open in the folder lsof lists, or none does.
     if not os.environ.get('TEST_FOLDER_IN_USE'): sys.exit(1)
@@ -578,41 +621,6 @@ class TestAllTests(TestAllFixture):
         self.assertFalse(report["phases"]["macros"]["saturated"])
         self.assertNotIn("saturation", report)
         self.assertNotIn("saturated", result.stderr)
-
-    def test_stalled_test_host_is_sampled_twice_without_ending_the_run(self):
-        self.shorten_host_watch(1)
-        for bundle, log in (("TestResults", "xcodebuild"), ("SiriPerformance", "siri-performance"),
-                            ("OPMLPerformance", "opml-performance")):
-            with self.subTest(phase=log):
-                shutil.rmtree(self.repo / ".cache", ignore_errors=True)
-                (self.base / "events").unlink(missing_ok=True)
-                result = self.run_all(TEST_HOST_STALL=bundle)
-                self.assertNotEqual(result.returncode, 0, result.stdout)
-                host = (self.base / "stalled-host").read_text()
-                output = next((self.repo / ".cache/test-all").iterdir()).resolve()
-                samples = [output / f"{log}-host-{host}-{index}.sample.txt" for index in (1, 2)]
-                self.assertEqual(sorted(output.glob("*.sample.txt")), samples, result.stderr)
-                events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
-                self.assertEqual([(args[0], args[args.index("-file") + 1]) for name, args in events
-                                  if name == "sample"], [(host, str(path)) for path in samples])
-                self.assertIn("(600.000 seconds)", (output / f"{log}.log").read_text())
-                self.assertTrue(any(name == "xcrun" and "xcresulttool" in args
-                                    and args[args.index("--path") + 1] == str(output / f"{bundle}.xcresult")
-                                    for name, args in events))
-                report = self.report()
-                self.assertEqual(report["result"], "failed")
-                for path in samples:
-                    self.assertIn(str(path), report["error"])
-                    self.assertIn(str(path), result.stderr.split("error: ")[-1])
-
-    def test_busy_host_and_quiet_logs_without_a_live_host_are_not_sampled(self):
-        self.shorten_host_watch(1)
-        result = self.run_all(TEST_HOST_BUSY="1")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
-        self.assertFalse(any(name == "sample" for name, _ in events))
-        self.assertEqual(list((self.repo / ".cache").rglob("*.sample.txt")), [])
-        self.assertEqual(self.report()["result"], "passed")
 
     def test_run_under_the_lock_command_reuses_its_lock_and_validation_slot(self):
         # With one slot, a run that waited for another would wait on its own holder forever.

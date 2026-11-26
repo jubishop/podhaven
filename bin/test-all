@@ -3,7 +3,7 @@
 
 import argparse
 import calendar
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -12,6 +12,7 @@ from pathlib import Path
 import plistlib
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -33,10 +34,20 @@ EVIDENCE_NAME = re.compile(r"\d{8}-\d{6}-\w+")
 os.environ.pop("SDKROOT", None)
 TEST_ENVIRONMENT = dict(os.environ)
 HOST_PID = re.compile(rb" - PodHaven \((\d+)\)'")
+# xcodebuild's first line. Anything before it, such as a wrapper waiting for a build slot, isn't the build.
+XCODEBUILD_STARTED = b"Command line invocation:"
+# The test host names itself in its own output, which a timing phase's log shows first, and XCTest names it too.
+TEST_HOST_STARTED = re.compile(rb" PodHaven\[\d+:| - PodHaven \(\d+\)'")
 QUIET_LOG_SECONDS = 120
 SAMPLE_GAP_SECONDS = 60
 SAMPLE_SECONDS = 10
 SAMPLE_TIMEOUT_SECONDS = 120
+# A build has stalled once its log stays quiet, and its processes use under BUILD_IDLE_CPU_SECONDS, for this long.
+BUILD_STALL_SECONDS = 300
+BUILD_IDLE_CPU_SECONDS = 3
+BUILD_POLL_SECONDS = 10
+# How long a stalled xcodebuild has to stop after its interrupt before it is killed.
+STOP_SECONDS = 30
 POLL_SECONDS = 1
 LOAD_SAMPLE_SECONDS = 5
 # How often a run that waits for a lane looks for a free one on this Mac and on the second Mac.
@@ -161,61 +172,148 @@ def host_alive(pid):
     return True
 
 
-def sample_stalled_host(process, log):
-    """Once the log stops growing while the test host it names is alive, sample that host twice."""
+def process_table():
+    """Return each process's parent, start time, CPU seconds, and executable, by process ID."""
+    table = {}
+    for line in subprocess.check_output(["ps", "-A", "-o", "pid=,ppid=,lstart=,time=,comm="], text=True,
+                                        env={**TEST_ENVIRONMENT, "LC_ALL": "C"}).splitlines():
+        pid, parent, *start, used, command = line.split(None, 8)
+        minutes, _, seconds = used.rpartition(":")
+        table[int(pid)] = (int(parent), " ".join(start), int(minutes or 0) * 60 + float(seconds), command)
+    return table
+
+
+def process_tree(table, root):
+    """Return the entries in table for root and every process descended from it."""
+    tree, pending = {}, [root]
+    while pending:
+        pid = pending.pop()
+        if pid in table and pid not in tree:
+            tree[pid] = table[pid]
+            pending.extend(child for child, (parent, *_) in table.items() if parent == pid)
+    return tree
+
+
+def sample(targets):
+    """Sample each process in targets, a list of (pid, description, path), all at once."""
+    deadline = time.monotonic() + SAMPLE_TIMEOUT_SECONDS
+    samplers = []
+    for pid, description, path in targets:
+        try:
+            samplers.append((description, path, subprocess.Popen(
+                ["sample", str(pid), str(SAMPLE_SECONDS), "-mayDie", "-file", str(path)], env=TEST_ENVIRONMENT,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)))
+        except OSError as error:
+            print(f"Could not sample {description}: {error}", file=sys.stderr, flush=True)
+    for description, path, sampler in samplers:
+        try:
+            output = sampler.communicate(timeout=max(0, deadline - time.monotonic()))[0]
+            failure = f"exit code {sampler.returncode}: {output}".strip() if sampler.returncode else ""
+        except subprocess.TimeoutExpired as error:
+            sampler.kill()
+            sampler.communicate()
+            failure = str(error)
+        if failure or not path.is_file():
+            print(f"Could not sample {description}: {failure or 'sample wrote no report'}",
+                  file=sys.stderr, flush=True)
+        else:
+            print(f"Sampled {description}: {path}", file=sys.stderr, flush=True)
+
+
+def sample_stalled_host(process, log, host):
+    """Sample the test host twice, SAMPLE_GAP_SECONDS apart, unless xcodebuild ends first."""
+    print(f"{log} has not grown for {QUIET_LOG_SECONDS} seconds while test host {host} runs; sampling it",
+          file=sys.stderr, flush=True)
+    sample([(host, f"test host {host}", log.with_name(f"{log.stem}-host-{host}-1.sample.txt"))])
+    try:
+        process.wait(timeout=SAMPLE_GAP_SECONDS)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    sample([(host, f"test host {host}", log.with_name(f"{log.stem}-host-{host}-2.sample.txt"))])
+
+
+def stop_stalled_build(process, log, tree):
+    """Sample a stalled build's processes, then stop them all, since any of them may hold the run's slots and locks.
+
+    Return the error that fails the phase."""
+    print(f"xcodebuild has made no progress for {BUILD_STALL_SECONDS} seconds before any test host started: {log} "
+          f"has not grown, and its processes used under {BUILD_IDLE_CPU_SECONDS} CPU seconds; sampling and stopping them",
+          file=sys.stderr, flush=True)
+    targets = []
+    for pid, (_, _, _, command) in tree.items():
+        executable = re.sub(r"[^\w.-]", "_", Path(command).name)
+        targets.append((pid, f"{executable} {pid}", log.with_name(f"{log.stem}-build-{executable}-{pid}.sample.txt")))
+    sample(targets)
+    tree = process_tree(process_table(), process.pid)
+    process.send_signal(signal.SIGINT)
+    try:
+        process.wait(timeout=STOP_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+    # A process that outlives xcodebuild is still the one it started only while its start time matches.
+    table = process_table()
+    for pid, (_, start, _, _) in tree.items():
+        if pid != process.pid and pid in table and table[pid][1] == start:
+            with suppress(ProcessLookupError):
+                os.kill(pid, signal.SIGKILL)
+    samples = "".join(f"\nBuild sample: {path}" for _, _, path in targets if path.is_file())
+    return f"xcodebuild stalled before its tests started ({log.stem}), so bin/test-all stopped it; see {log}{samples}"
+
+
+def watch_xcodebuild(process, log):
+    """Watch an xcodebuild test run's log until it ends, to stop a build that stalls and sample a test host that does.
+
+    The build has stalled when, after xcodebuild starts and before any test host does, its log stays quiet and its
+    processes stay idle for BUILD_STALL_SECONDS. Return the error that fails the phase, or None."""
     with log.open("rb") as reader:
-        recent, host, quiet_since = b"", None, time.monotonic()
+        recent, host, started, testing = b"", None, False, False
+        quiet_since = idle_since = next_poll = time.monotonic()
+        idle_cpu, seen = 0.0, {}
         while True:
             try:
                 process.wait(timeout=POLL_SECONDS)
-                return
+                return None
             except subprocess.TimeoutExpired:
                 pass
+            now = time.monotonic()
             if chunk := reader.read():
-                quiet_since = time.monotonic()
+                quiet_since = idle_since = now
+                idle_cpu = 0.0
                 recent += chunk
+                started = started or XCODEBUILD_STARTED in recent
+                testing = testing or bool(TEST_HOST_STARTED.search(recent))
                 hosts = HOST_PID.findall(recent)
                 host = int(hosts[-1]) if hosts else host
                 recent = recent[-64:]
-            elif host and time.monotonic() - quiet_since >= QUIET_LOG_SECONDS and host_alive(host):
-                break
-    print(f"{log} has not grown for {QUIET_LOG_SECONDS} seconds while test host {host} runs; sampling it",
-          file=sys.stderr, flush=True)
-    for index in (1, 2):
-        path = log.with_name(f"{log.stem}-host-{host}-{index}.sample.txt")
-        try:
-            result = subprocess.run(["sample", str(host), str(SAMPLE_SECONDS), "-mayDie", "-file", str(path)],
-                                    env=TEST_ENVIRONMENT, capture_output=True, text=True,
-                                    timeout=SAMPLE_TIMEOUT_SECONDS)
-            failure = (f"exit code {result.returncode}: {result.stdout}{result.stderr}".strip()
-                       if result.returncode else "")
-        except (OSError, subprocess.SubprocessError) as error:
-            failure = str(error)
-        if failure or not path.is_file():
-            print(f"Could not sample test host {host}: {failure or 'sample wrote no report'}",
-                  file=sys.stderr, flush=True)
-        else:
-            print(f"Sampled test host {host}: {path}", file=sys.stderr, flush=True)
-        if index == 1:
-            try:
-                process.wait(timeout=SAMPLE_GAP_SECONDS)
-                return
-            except subprocess.TimeoutExpired:
-                pass
+            elif host and now - quiet_since >= QUIET_LOG_SECONDS and host_alive(host):
+                sample_stalled_host(process, log, host)
+                return None
+            if started and not testing and now >= next_poll:
+                next_poll = now + BUILD_POLL_SECONDS
+                tree = process_tree(process_table(), process.pid)
+                # A process started since the last poll counts all its CPU time.
+                used = {(pid, start): cpu for pid, (_, start, cpu, _) in tree.items()}
+                idle_cpu += sum(max(0.0, cpu - seen.get(key, 0.0)) for key, cpu in used.items())
+                seen = used
+                if idle_cpu >= BUILD_IDLE_CPU_SECONDS:
+                    idle_since, idle_cpu = now, 0.0
+                elif now - idle_since >= BUILD_STALL_SECONDS and process.poll() is None:
+                    return stop_stalled_build(process, log, tree)
 
 
-def run(command, output, name, *, check=True, require_unittest=False, pass_fds=(), watch_host=False):
+def run(command, output, name, *, check=True, require_unittest=False, pass_fds=(), watch=False):
     log = output / f"{name}.log"
     print(f"Running {name}; log: {log}", flush=True)
     with log.open("w") as stream, subprocess.Popen(command, cwd=ROOT, env=TEST_ENVIRONMENT, stdout=stream,
                                                    stderr=subprocess.STDOUT, pass_fds=pass_fds) as process:
-        if watch_host:
-            sample_stalled_host(process, log)
+        stall = watch_xcodebuild(process, log) if watch else None
         returncode = process.wait()
     if returncode:
         print("\n".join(log.read_text(errors="replace").splitlines()[-35:]), file=sys.stderr)
-        if check:
-            raise RuntimeError(f"{name} failed with exit code {returncode}; see {log}")
+    if stall or returncode and check:
+        raise RuntimeError(stall or f"{name} failed with exit code {returncode}; see {log}")
     if require_unittest:
         contents = log.read_text(errors="replace")
         counts = re.findall(r"^Ran (\d+) tests? in ", contents, re.M)
@@ -494,7 +592,7 @@ def run_here(report, output):
                         "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
                         "-skipMacroValidation", "-resultBundlePath", str(bundle), *selection,
                         "LM_FORCE_LINK_GENERATION=YES",
-                    ], output, log_name, check=False, pass_fds=(lock,), watch_host=True)
+                    ], output, log_name, check=False, pass_fds=(lock,), watch=True)
                     samples = "".join(f"\nTest host sample: {path}"
                                       for path in sorted(output.glob(f"{log_name}-host-*.sample.txt")))
                     if not bundle.is_dir():
