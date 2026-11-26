@@ -334,17 +334,17 @@ struct Observatory: Observing {
   // GRDB-driven stream. Tracked region: rating columns + episodeEmbedding
   // table + freshness cadences. Playback-path columns (currentTime,
   // playbackCoverage, lastPlayedDate) are deliberately NOT referenced — the
-  // observation omits the `PartialSignal` fetch (by passing the default
-  // empty closure to `RecommendationRepo.scoringContextInputs(_:partialSignals:)`)
+  // observation omits the `PartialSignal` fetch (by passing the default empty
+  // closure to `RecommendationRepo.scoringContextInputs(_:embeddingRevision:partialSignals:)`)
   // precisely so per-checkpoint `updatePlayback` writes do not wake this
   // observation. Partial-listen data lands in the engine via the debounced
-  // rebuild (`RecommendationRepo.allScoringContextInputs()`) and the `onDeck`
-  // session-boundary handler.
-  func scoringContextInputsWithoutPartialSignals()
-    -> AsyncValueObservation<ScoringContextInputs>
-  {
+  // rebuild (`RecommendationRepo.allScoringContextInputs(embeddingRevision:)`)
+  // and the `onDeck` session-boundary handler.
+  func scoringContextInputsWithoutPartialSignals(
+    embeddingRevision: Int
+  ) -> AsyncValueObservation<ScoringContextInputs> {
     reader.observe { db in
-      try RecommendationRepo.scoringContextInputs(db)
+      try RecommendationRepo.scoringContextInputs(db, embeddingRevision: embeddingRevision)
     }
   }
 
