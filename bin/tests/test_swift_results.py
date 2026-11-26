@@ -2,12 +2,15 @@
 
 import importlib.machinery
 import importlib.util
+import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
 
+import hang_guard
 import service_guard
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -15,6 +18,24 @@ loader = importlib.machinery.SourceFileLoader("swift_results", str(ROOT / "bin/c
 spec = importlib.util.spec_from_loader(loader.name, loader)
 results = importlib.util.module_from_spec(spec)
 loader.exec_module(results)
+
+PRIORITY_INVERSION = ("Thread Performance Checker: Thread running at User-initiated quality-of-service class "
+                      "waiting on a lower QoS thread running at Background quality-of-service class. "
+                      "Investigate ways to avoid priority inversions")
+
+# Serves the fixtures beside it as xcresulttool's JSON reports and exported test output.
+FAKE_XCRUN = """
+import pathlib, sys
+args = sys.argv[1:]
+fixtures = pathlib.Path(sys.argv[0]).parent
+if args[:2] == ["xcresulttool", "export"]:
+    output = pathlib.Path(args[args.index("--output-path") + 1]) / "PodHavenTests"
+    output.mkdir(parents=True)
+    (output / "StandardOutputAndStandardError.txt").write_text((fixtures / "stdout.txt").read_text())
+else:
+    name = "summary" if "summary" in args else "build" if "build-results" in args else "tests"
+    print((fixtures / f"{name}.json").read_text())
+"""
 
 
 class SwiftResultTests(unittest.TestCase):
@@ -39,10 +60,53 @@ class SwiftResultTests(unittest.TestCase):
     def test_passed_assertions_do_not_hide_runtime_warnings(self):
         for warning in ("Unbalanced calls to begin/end appearance transitions for <UIHostingController>",
                         "Main Thread Checker: UI API called on a background thread",
+                        PRIORITY_INVERSION,
                         "Accessing State's value outside of being installed on a View.",
                         "Modifying state during view update, this will cause undefined behavior."):
             with self.subTest(warning=warning):
                 self.assertTrue(results.failures(self.summary, self.build, {"stdout": warning}, "Build succeeded"))
+
+    def check_bundle(self, nodes):
+        with tempfile.TemporaryDirectory() as folder:
+            fakes = Path(folder) / "bin"
+            fakes.mkdir()
+            xcrun = fakes / "xcrun"
+            xcrun.write_text(f"#!{sys.executable}{FAKE_XCRUN}")
+            xcrun.chmod(0o755)
+            tests = {"testPlanConfigurations": [], "devices": [], "testNodes": nodes}
+            for name, report in (("summary", self.summary), ("build", self.build), ("tests", tests)):
+                (fakes / f"{name}.json").write_text(json.dumps(report))
+            (fakes / "stdout.txt").write_text("Test run with 10 tests passed")
+            bundle = Path(folder) / "TestResults.xcresult"
+            bundle.mkdir()
+            log = Path(folder) / "xcodebuild.log"
+            log.write_text("** TEST SUCCEEDED **")
+            return hang_guard.run(
+                [sys.executable, str(ROOT / "bin/check-swift-results"), str(bundle), "--build-log", str(log)],
+                capture_output=True, text=True,
+                env={**os.environ, "PATH": str(fakes) + os.pathsep + os.environ["PATH"]})
+
+    def test_runtime_warnings_in_the_result_bundle_fail(self):
+        def tree(*warnings):
+            return [{"nodeType": "Test Plan", "name": "PodHaven", "children": [
+                {"nodeType": "Unit test bundle", "name": "PodHavenTests", "children": [
+                    {"nodeType": "Test Suite", "name": "AppLauncherTests", "children": [
+                        {"nodeType": "Test Case", "name": "outgoingFeedbackAttachments()",
+                         "nodeIdentifier": "AppLauncherTests/outgoingFeedbackAttachments()",
+                         "result": "Passed", "children": [
+                             {"nodeType": "Repetition", "name": "Repetition 4", "nodeIdentifier": "4",
+                              "result": "Passed",
+                              "children": [{"nodeType": "Runtime Warning", "name": warning}
+                                           for warning in warnings]}]}]}]}]}]
+
+        clean = self.check_bundle(tree())
+        self.assertEqual(clean.returncode, 0, clean.stderr)
+        self.assertIn("Swift validation passed", clean.stdout)
+        for warning in (PRIORITY_INVERSION, "An unrecognized runtime issue"):
+            with self.subTest(warning=warning):
+                result = self.check_bundle(tree(warning))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"AppLauncherTests/outgoingFeedbackAttachments(): {warning}", result.stderr)
 
     def test_missing_evidence_and_zero_tests_fail(self):
         self.assertTrue(results.failures(self.summary, self.build, {}, "Build succeeded"))

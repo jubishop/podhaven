@@ -715,7 +715,87 @@ import Testing
     #expect(navigation.search.path == [.unsavedPodcastSeries(try podcastFeed.toUnsavedSeries())])
   }
 
+  // MARK: - Stale Shared Files
+
+  @Test("that the sweep removes stale shared copies and keeps fresh copies and other files")
+  func staleSharedCopiesAreRemoved() async throws {
+    Container.shared.fakeDate().freeze()
+    let fakeFileManager = Container.shared.fileManager() as! FakeFileManager
+    let container = try sharedContainerURL()
+    let staleCopies = [
+      container.appendingPathComponent("shared_file_\(UUID().uuidString).opml"),
+      container.appendingPathComponent("shared_file_\(UUID().uuidString).mp3"),
+    ]
+    let freshCopy = container.appendingPathComponent("shared_file_\(UUID().uuidString).opml")
+    let otherFiles = [
+      container.appendingPathComponent("widget-queue.json"),
+      container.appendingPathComponent("old_shared_file_\(UUID().uuidString).opml"),
+      container.appendingPathComponent("Library/shared_file_\(UUID().uuidString).opml"),
+      container.deletingLastPathComponent()
+        .appendingPathComponent("shared_file_\(UUID().uuidString).opml"),
+    ]
+    for url in staleCopies + otherFiles {
+      try await writeSharedFile(at: url, age: ShareService.staleSharedFileAge + .seconds(1))
+    }
+    try await writeSharedFile(at: freshCopy, age: ShareService.staleSharedFileAge - .minutes(1))
+
+    await ShareService.removeStaleSharedFiles()
+
+    for url in staleCopies {
+      #expect(!fakeFileManager.fileExists(at: url))
+    }
+    for url in [freshCopy] + otherFiles {
+      #expect(fakeFileManager.fileExists(at: url))
+      #expect(fakeFileManager.removeItemCallCount(for: url) == 0)
+    }
+  }
+
+  enum StaleCopyRemovalFailure: CaseIterable, Sendable {
+    case alreadyRemoved, denied
+  }
+
+  @Test(
+    "that a stale shared copy the sweep can't remove doesn't stop it removing the rest",
+    arguments: StaleCopyRemovalFailure.allCases
+  )
+  func staleSharedCopyRemovalFailureIsContained(failure: StaleCopyRemovalFailure) async throws {
+    Container.shared.fakeDate().freeze()
+    let fakeFileManager = Container.shared.fileManager() as! FakeFileManager
+    let container = try sharedContainerURL()
+    let failingCopy = container.appendingPathComponent("shared_file_\(UUID().uuidString).opml")
+    let otherCopy = container.appendingPathComponent("shared_file_\(UUID().uuidString).opml")
+    for url in [failingCopy, otherCopy] {
+      try await writeSharedFile(at: url, age: ShareService.staleSharedFileAge + .seconds(1))
+    }
+    switch failure {
+    case .alreadyRemoved:
+      fakeFileManager.runBeforeRemovingItem(at: failingCopy) {
+        try fakeFileManager.removeItem(at: failingCopy)
+      }
+    case .denied:
+      fakeFileManager.setRemoveItemError(CocoaError(.fileWriteNoPermission), for: failingCopy)
+    }
+
+    let captured = await LogCapture.withSink { sink in
+      await ShareService.removeStaleSharedFiles()
+      return sink.captured()
+    }
+
+    #expect(!fakeFileManager.fileExists(at: otherCopy))
+    let errorLogs = captured.filter { $0.level >= .error }
+    #expect(errorLogs.count == (failure == .denied ? 1 : 0))
+  }
+
   // MARK: - Helpers
+
+  private func writeSharedFile(at url: URL, age: Duration) async throws {
+    let fakeFileManager = Container.shared.fileManager() as! FakeFileManager
+    try await fakeFileManager.writeData(Data("copy".utf8), to: url)
+    fakeFileManager.setAddedToDirectoryDate(
+      Container.shared.fakeDate().now.addingTimeInterval(-age.asTimeInterval),
+      for: url
+    )
+  }
 
   private func sharedContainerURL() throws -> URL {
     try #require(

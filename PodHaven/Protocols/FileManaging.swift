@@ -41,6 +41,7 @@ protocol FileManaging {
   func fileExists(atPath path: String) -> Bool
   func fileExists(at url: URL) -> Bool
   func fileSize(for url: URL) throws -> Int64
+  func addedToDirectoryDate(for url: URL) throws -> Date
   func contentsOfDirectory(
     at url: URL,
     includingPropertiesForKeys keys: [URLResourceKey]?,
@@ -105,6 +106,14 @@ extension FileManaging {
   func fileSize(for url: URL) throws -> Int64 {
     let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
     return Int64(resourceValues.fileSize ?? 0)
+  }
+
+  func addedToDirectoryDate(for url: URL) throws -> Date {
+    let resourceValues = try url.resourceValues(forKeys: [.addedToDirectoryDateKey])
+    guard let date = resourceValues.addedToDirectoryDate
+    else { throw CocoaError(.fileReadUnknown, userInfo: [NSFilePathErrorKey: url.path]) }
+
+    return date
   }
 
   func contentsOfDirectory(at url: URL) throws -> [URL] {

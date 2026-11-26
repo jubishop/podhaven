@@ -13,7 +13,7 @@ sys.dont_write_bytecode = True
 
 RUNTIME_DIAGNOSTIC = re.compile(
     r"Unbalanced calls to begin/end appearance transitions|"
-    r"Main Thread Checker:|Thread Sanitizer:|"
+    r"Main Thread Checker:|Thread Sanitizer:|Thread Performance Checker:|"
     r"Publishing changes from|Modifying state during view update|"
     r"Accessing State(?:Object)?'s (?:object|value) (?:without|outside of) being installed|"
     r"Accessing Environment<.*outside of being installed|"
@@ -106,6 +106,25 @@ def failures(summary, build, runtime_logs, build_log):
     return problems
 
 
+def runtime_warnings(tree):
+    problems = []
+
+    def visit(node, identifier):
+        if isinstance(node, dict):
+            if node.get("nodeType") == "Runtime Warning":
+                problems.append(f"Runtime warning in {identifier}: {node.get('name', '')}")
+            if node.get("nodeType") == "Test Case":
+                identifier = node.get("nodeIdentifier", identifier)
+            for value in node.values():
+                visit(value, identifier)
+        elif isinstance(node, list):
+            for value in node:
+                visit(value, identifier)
+
+    visit(tree, "the test run")
+    return problems
+
+
 def check_arguments(tree):
     expected = {
         "WorkerTaskPriorityTests/backgroundExecution(process:)": {
@@ -176,6 +195,7 @@ def main():
     logs = {str(path): path.read_text(errors="replace")
             for path in diagnostics.rglob("StandardOutputAndStandardError.txt")}
     problems = failures(data["summary"], data["build"], logs, args.build_log.read_text(errors="replace"))
+    problems.extend(runtime_warnings(data["tests"]))
     if args.full:
         problems.extend(check_arguments(data["tests"]))
     (output / "diagnostic-failures.json").write_text(json.dumps(problems, indent=2) + "\n")

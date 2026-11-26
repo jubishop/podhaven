@@ -19,6 +19,8 @@ from contextlib import contextmanager
 from _knowledge import atomic_json, git, git_environment, primary_checkout, read_json, stamp
 
 LABEL = "com.jubi.podhaven.worktree-cleanup"
+RESOLVED = "PodHaven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+RENAME_SWAP = 0x2
 
 
 def xcode_hash(path):
@@ -177,6 +179,7 @@ def sweep(root, apply=False):
             except (OSError, ValueError, subprocess.SubprocessError) as error:
                 report["deferred"].append({"path": str(folder), "reason": str(error)})
         if apply:
+            report["seed"] = refresh_seed(paths, live)
             atomic_json(paths["state"] / "cleanup.json", report)
     return report
 
@@ -200,12 +203,12 @@ def relocated(value, roots, target):
     return value
 
 
-def clone_packages(paths, target):
-    """Clone the seed to target with the paths SwiftPM recorded moved into the clone, or raise why it can't be."""
+def clone_packages(paths, source, target):
+    """Clone source packages to target with the paths SwiftPM recorded moved into the clone, or raise why it can't be."""
     staging = target.with_name(target.name + ".preparing")
     if staging.exists():
         shutil.rmtree(staging)
-    clonefile(paths["packages"], staging)
+    clonefile(source, staging)
     try:
         # SwiftPM records absolute paths through whichever folder resolved them: the seed itself or a
         # SourcePackages link in any DerivedData, deleted or not.
@@ -214,7 +217,7 @@ def clone_packages(paths, target):
         def staged(value):
             path = Path(value)
             if not path.is_relative_to(target) or ".." in path.relative_to(target).parts:
-                raise ValueError("The seed records a path outside its packages: " + value)
+                raise ValueError(str(source) + " records a path outside its packages: " + value)
             return staging / path.relative_to(target)
 
         # Each checkout borrows Git objects from, and names as its origin, a clone under repositories.
@@ -238,21 +241,70 @@ def clone_packages(paths, target):
                              for dependency in state["object"].get("dependencies", [])
                              if dependency["state"]["name"] == "sourceControlCheckout"]
             except (KeyError, TypeError, AttributeError) as error:
-                raise ValueError("Unrecognized package metadata in the seed") from error
+                raise ValueError("Unrecognized package metadata in " + str(source)) from error
             for artifact in artifacts:
                 if not staged(artifact).exists():
                     raise ValueError("Missing package artifact " + artifact)
             for subpath, revision in checkouts:
                 repository = staging / "checkouts" / subpath / ".git"
                 if (repository / "index.lock").exists() or (repository / "HEAD").read_text().strip() != revision:
-                    raise ValueError("The seed's " + subpath + " checkout was mid-update")
+                    raise ValueError(str(source) + "'s " + subpath + " checkout was mid-update")
             atomic_json(state_path, state)
         if target.is_symlink():
             target.unlink()
-        staging.rename(target)
+        if target.is_dir():
+            # Exchange the folders atomically, so the seed is never missing, then remove the packages it replaced.
+            swap = ctypes.CDLL(None, use_errno=True).renamex_np
+            swap.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
+            if swap(os.fsencode(staging), os.fsencode(target), RENAME_SWAP):
+                error = ctypes.get_errno()
+                raise OSError(error, os.strerror(error), str(target))
+        else:
+            staging.rename(target)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
+    shutil.rmtree(staging, ignore_errors=True)
+
+
+def resolved_pins(folder):
+    """Return the revision of each package SwiftPM checked out in a package folder, or None if unreadable."""
+    try:
+        dependencies = json.loads((folder / "workspace-state.json").read_bytes())["object"]["dependencies"]
+        return {dependency["packageRef"]["identity"]: dependency["state"]["checkoutState"]["revision"]
+                for dependency in dependencies if dependency["state"]["name"] == "sourceControlCheckout"}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def refresh_seed(paths, checkouts):
+    """Replace a seed pinned other than the default branch with an idle checkout's verified packages at its pins."""
+    try:
+        resolved = json.loads(git("show", "refs/remotes/origin/HEAD:" + RESOLVED, root=paths["primary"]))
+        pins = {pin["identity"]: pin["state"]["revision"] for pin in resolved["pins"]}
+    except (RuntimeError, ValueError, KeyError, TypeError) as error:
+        return {"status": "kept", "reason": "Unreadable default branch package pins: " + str(error)}
+    seed = paths["packages"]
+    if resolved_pins(seed) == pins:
+        return {"status": "current"}
+    # A checkout that links the seed reads the paths it recorded.
+    links = [str(f) for f in paths["derived"].glob("*/SourcePackages") if f.is_symlink() and f.resolve() == seed]
+    if links:
+        return {"status": "kept", "reason": "Linked to the seed: " + ", ".join(links)}
+    reasons = []
+    for checkout in sorted(map(Path, checkouts), key=lambda checkout: (checkout != paths["primary"], checkout)):
+        source = checkout_cache(paths, checkout) / "SourcePackages"
+        if source.is_symlink() or resolved_pins(source) != pins:
+            continue
+        try:
+            if build_activity(include_ide=True) or path_in_use(source):
+                raise ValueError(str(source) + " is in use")
+            clone_packages(paths, source, seed)
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            reasons.append(str(error))
+            continue
+        return {"status": "refreshed", "source": str(source)}
+    return {"status": "kept", "reason": "; ".join(reasons) or "No checkout's packages are at the default branch's pins"}
 
 
 def make_packages_private(paths, directory):
@@ -274,7 +326,7 @@ def make_packages_private(paths, directory):
     if not paths["packages"].is_dir():
         return
     try:
-        clone_packages(paths, packages)
+        clone_packages(paths, paths["packages"], packages)
     except (OSError, ValueError) as error:
         if packages.is_symlink():
             # Checkouts that still link the seed may read paths it recorded through this link.
@@ -289,7 +341,8 @@ def prepare_xcode(root):
         return
     paths = layout(root)
     with maintenance_lock(paths):
-        known = set(read_json(paths["state"] / "worktrees.json", [])) | registered_worktrees(root)
+        live = registered_worktrees(root)
+        known = set(read_json(paths["state"] / "worktrees.json", [])) | live
         atomic_json(paths["state"] / "worktrees.json", sorted(known))
         directories = [checkout_cache(paths, checkout) for checkout in dict.fromkeys((paths["primary"], paths["root"]))]
         seed = paths["packages"]
@@ -305,6 +358,9 @@ def prepare_xcode(root):
                     clonefile(source, seed)
                 except OSError as error:
                     print("Could not seed shared packages from " + str(source) + ": " + str(error))
+        refresh = refresh_seed(paths, live)
+        if refresh["status"] == "refreshed":
+            print("Refreshed the package seed from " + refresh["source"] + ".")
         for directory in directories:
             make_packages_private(paths, directory)
         suffix = Path("PodHaven.xcodeproj/project.xcworkspace/xcuserdata") / (getpass.getuser() + ".xcuserdatad/WorkspaceSettings.xcsettings")
