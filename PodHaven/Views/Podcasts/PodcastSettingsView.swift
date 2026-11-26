@@ -162,6 +162,8 @@ struct PodcastSettingsView: View {
               }
             }
           }
+
+          subscriptionNote
         }
 
         Section("Storage") {
@@ -188,6 +190,8 @@ struct PodcastSettingsView: View {
               viewModel.updateSettings(temp)
             }
           }
+
+          subscriptionNote
         }
 
         if transcriptionAvailability.isAvailable {
@@ -207,6 +211,8 @@ struct PodcastSettingsView: View {
                 viewModel.updateSettings(temp)
               }
             }
+
+            subscriptionNote
           } header: {
             Text("Transcription")
           } footer: {
@@ -282,6 +288,8 @@ struct PodcastSettingsView: View {
                 .font(.footnote)
             }
           }
+
+          subscriptionNote
         }
       }
       .task {
@@ -291,6 +299,15 @@ struct PodcastSettingsView: View {
   }
 
   // MARK: - Private Helpers
+
+  @ViewBuilder
+  private var subscriptionNote: some View {
+    if !viewModel.podcast.subscribed {
+      AppIcon.subscriptionRequired.label
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+    }
+  }
 
   private var formattedPlaybackRate: String {
     let rate = temp.defaultPlaybackRate ?? userSettings.defaultPlaybackRate
@@ -527,5 +544,57 @@ struct PodcastSettingsView: View {
   }
 
   return PreviewWrapper().preview()
+}
+
+private struct AutomationPreviewWrapper: View {
+  @State private var settings: PodcastSettings?
+  @State private var viewModel: PodcastDetailViewModel?
+
+  let subscriptionDate: Date?
+
+  init(subscriptionDate: Date?) {
+    self.subscriptionDate = subscriptionDate
+    Container.shared.transcriptionAvailability().$state.new(.available)
+  }
+
+  var body: some View {
+    Group {
+      if let viewModel, let settings {
+        PodcastSettingsView(viewModel: viewModel, settings: settings)
+      } else {
+        ProgressView()
+      }
+    }
+    .task {
+      let podcast = try! await Create.podcast(
+        title: "Automation Sample",
+        subscriptionDate: subscriptionDate,
+        queueAllEpisodes: .onBottom,
+        autoQueueLimit: PodcastSettings.defaultAutoQueueLimit,
+        cacheAllEpisodes: .cache,
+        alwaysTranscribeNewEpisodes: true,
+        notifyNewEpisodes: true
+      )
+      let displayed = DisplayedPodcast(podcast)
+      settings = displayed.settings
+      viewModel = PodcastDetailViewModel(podcast: displayed)
+      viewModel?.appear()
+    }
+  }
+}
+
+#Preview("Subscribed Automation") {
+  AutomationPreviewWrapper(subscriptionDate: Date()).preview()
+}
+
+#Preview("Unsubscribed Automation") {
+  AutomationPreviewWrapper(subscriptionDate: nil).preview()
+}
+
+#Preview("Unsubscribed Automation - Large Text") {
+  AutomationPreviewWrapper(subscriptionDate: nil)
+    .frame(width: 320)
+    .environment(\.dynamicTypeSize, .xxxLarge)
+    .preview()
 }
 #endif
