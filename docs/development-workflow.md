@@ -469,8 +469,9 @@ and names them in the failure output. It takes at most one pair per phase and
 then keeps waiting for `xcodebuild`, so the samples add evidence without
 ending the run early or changing whether it passes. Comparing the two samples
 shows which threads stayed blocked. Only the app phase's log names its host
-while tests run. A timing phase's log names its host only after
-the host exits, so a stall in that phase leaves no samples.
+in XCTest's form while tests run. A timing phase's log does so only after the
+host exits, and this watch doesn't follow the host's own
+`PodHaven[<pid>:<thread>]` lines, so a stall in that phase leaves no samples.
 
 Each phase's build is watched too. The watch starts at `xcodebuild`'s first
 line, `Command line invocation:`, so a wrapper still waiting to start it, as
