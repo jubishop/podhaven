@@ -18,10 +18,7 @@ argument-hint: "[feedback-url | podhaven:<id> | <id>] [triage notes]"
 
 Triage one PodHaven feedback report and track the actionable result in one
 GitHub issue: what the reporter experienced, what the evidence shows, the
-most likely cause, and the fix or the diagnostics that would reveal it. The
-feedback form attaches the reporter's own logs and photos to the feedback
-event, so those, not the developer's local logs, are the evidence. Sentry
-keeps the private reporter details; the GitHub issue is the durable tracker.
+most likely cause, and the fix or the diagnostics that would reveal it.
 
 The argument is a Sentry feedback URL, a slug such as `podhaven:7485822944`,
 or a bare numeric ID, meaning `podhaven:<id>`. Treat other text given with it
@@ -64,25 +61,18 @@ triage notes so they know the notes were picked up.
 Review the tracking history as `track-sentry-findings` describes, listing
 the feedback's tracking issues with `bin/snfeedback --track <slug>`, which
 leaves out issues the intake's `github-actions[bot]` or the owner,
-`jubishop`, did not open. The first listed is canonical even when closed,
-since a feedback item's tracking issue stays its record. The daily
-`bin/check-sentry-feedback` placeholder is an intake issue. Search earlier issues with
+`jubishop`, did not open. The first listed is canonical even when closed.
+Search earlier issues with
 `gh issue list --repo jubishop/podhaven --state all --search 'label:sentry-feedback,sentry-issue <symptom>'`.
 
 ## Step 2: Fetch the feedback
 
-```bash
-FEEDBACK_WORK="$(mktemp -d /tmp/sentry_feedback.XXXXXX)"
-bash .agents/scripts/sentry-cli/fetch_feedback_bundle.sh <slug> \
-  --out "$FEEDBACK_WORK/bundle"
-```
-
-Keep `FEEDBACK_WORK` for the later steps. The helper's summary gives the
-facts later steps use, such as the reporter's `user.id`, which is the
-device's IDFV, and the Sentry activity after submission; show the user its
-header and the message verbatim. PodHaven's form links no error event and
-records no breadcrumbs, so the attachments and the errors near the report
-carry the evidence.
+Fetch the feedback into a fresh `<bundle>` directory under the triage's
+working directory with
+`.agents/scripts/sentry-cli/fetch_feedback_bundle.sh <slug> --out <bundle>`,
+and show the user its summary header and the message verbatim. PodHaven's
+form links no error event and records no breadcrumbs, so the attachments and
+the errors near the report carry the evidence.
 
 When the feedback resembles a known or already-fixed bug, test the reporter's
 build against the fix as
@@ -92,14 +82,8 @@ describes, and state each result in the report.
 ## Step 3: Find the reporter's errors before the report
 
 Reporters usually write just after something went wrong, so list the errors
-nearest the submission, the reporter's own or, without a reporter ID, the
-release's:
-
-```bash
-bash .agents/scripts/sentry-cli/search_related_errors.sh \
-  --bundle "$FEEDBACK_WORK/bundle"
-```
-
+nearest the submission with
+`.agents/scripts/sentry-cli/search_related_errors.sh --bundle <bundle>`.
 Several distinct errors just before a report usually mean one failure with
 several symptoms. When nothing turns up, say so with the window searched.
 
@@ -153,10 +137,9 @@ these parts, omitting any with nothing to say:
 - **Findings:** direct observations; the inferred root cause with confidence
   and what would raise it; alternatives ruled out and why.
 - **Suggested fix:** the suspect files and functions, the change, and its
-  tests, or, when the cause stays unknown, the diagnostics Step 6 calls for.
+  tests, or, when the cause stays unknown, the diagnostics
+  `track-sentry-findings` calls for.
 - **Open questions** for the reporter that would sharpen the diagnosis.
-- **GitHub issue:** the outcome and URL; the feedback stays unresolved until
-  the issue's work is done.
 
 ## Step 6: Track the findings in GitHub
 
