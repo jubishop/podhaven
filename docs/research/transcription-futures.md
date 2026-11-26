@@ -34,7 +34,9 @@ before using it. Do not infer a real person's identity from a speaker number.
 
 Evaluate whether segment-level global search needs different persistence from
 the current timed segments and Smart List text filters. Define source attribution,
-seek behavior, index size, and deletion rules before changing storage. Summaries
+seek behavior, index size, and deletion rules before changing storage; the
+current guide keeps every publisher transcript under a
+[storage budget](../initiatives/manual-transcripts.md#key-decisions). Summaries
 need their own quality evaluation and a clear account of which transcript and
 model produced them.
 

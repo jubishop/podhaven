@@ -19,6 +19,15 @@ extension PlayManager {
     return episodeID
   }
 
+  // Until Play reloads a recovery episode, the player has no item, so On Deck
+  // holds the episode's position.
+  func onDeckAwaitingRecoveryReload() async -> OnDeck? {
+    guard onDeckRecoveryEpisodeID != nil, await podAVPlayer.episodeID == nil,
+      let onDeck = sharedState.onDeck, onDeck.id == onDeckRecoveryEpisodeID
+    else { return nil }
+    return onDeck
+  }
+
   func onDeckRecoveryEpisode(
     whenLoading podcastEpisode: PodcastEpisode
   ) async throws -> PodcastEpisode? {
@@ -75,6 +84,7 @@ extension PlayManager {
     guard playbackRequestRevision == requestID else { return false }
     guard onDeckRecoveryEpisodeID == episodeID else { return true }
 
+    await onDeckRecoveryPositionSave?.value
     do {
       let podcastEpisode = try await repo.podcastEpisode(episodeID)
       guard playbackRequestRevision == requestID else { return false }
