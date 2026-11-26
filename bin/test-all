@@ -23,12 +23,15 @@ from _my_mac_lock import current_holder, inherited, lock_path, my_mac_lock
 import _test_lane
 import _test_lane_host
 from _validation_slot import HOLDER_VARIABLE, busy, validation_slot
+from _worktrees import require_private_packages
 
 ROOT = Path(__file__).resolve().parents[1]
 DESTINATION = "platform=macOS,name=My Mac"
 RETAINED_RUNS = 5
 EVIDENCE_NAME = re.compile(r"\d{8}-\d{6}-\w+")
-TEST_ENVIRONMENT = {key: value for key, value in os.environ.items() if key != "SDKROOT"}
+# Xcode chooses the SDK for each destination, so nothing this run starts inherits one, Git included.
+os.environ.pop("SDKROOT", None)
+TEST_ENVIRONMENT = dict(os.environ)
 HOST_PID = re.compile(rb" - PodHaven \((\d+)\)'")
 QUIET_LOG_SECONDS = 120
 SAMPLE_GAP_SECONDS = 60
@@ -521,7 +524,8 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--ensure", action="store_true", help="Require clean full evidence; run tests if reuse is unavailable.")
     mode.add_argument("--verify", action="store_true", help="Verify existing clean full evidence without running tests.")
-    mode.add_argument("--preflight", action="store_true", help="Check the toolchain without running tests.")
+    mode.add_argument("--preflight", action="store_true",
+                      help="Check the toolchain and prepare this checkout's Xcode packages without running tests.")
     parser.add_argument("--revision", help="Require this exact commit for --ensure or --verify.")
     args = parser.parse_args()
     if args.revision and not (args.ensure or args.verify):
@@ -543,6 +547,8 @@ def main():
         if not xcode or int(xcode[1]) < 27 or not swift or tuple(map(int, swift.groups())) < (6, 4):
             raise RuntimeError(f"Xcode 27+ and Swift 6.4+ are required; select Xcode with DEVELOPER_DIR.\n"
                                f"{report['xcode']}\n{report['swift']}")
+        # In every mode, since release commands run the preflight before their own Xcode builds.
+        require_private_packages(ROOT)
         if args.preflight:
             return 0
         report["checkout"] = checkout_state()

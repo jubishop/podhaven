@@ -155,10 +155,16 @@ checkout's packages are in use, or any DerivedData links the seed. So after a
 package bump, the first checkout to build at the new pins fetches them, and
 each checkout prepared once a refresh succeeds starts from them. Preparation
 also replaces a checkout's earlier link to the seed with a clone once that
-checkout's DerivedData is idle and the clone verifies. Until then the link
-stays, because checkouts still linking the seed may read paths it recorded
-through that link. Preparation makes a missing seed from a private package
-folder.
+checkout's DerivedData is idle and the clone verifies, and so do
+`bin/test-all` in every mode, including the `--preflight` that release
+commands run before they build, `bin/with-my-mac-lock`, the Sentry smokes, and
+each cleanup sweep, before its refresh, for every checkout of this clone while
+no build or Xcode runs. Until then the link stays, because checkouts still
+linking the seed may read paths it recorded through that link; the commands
+fail before building, naming `bin/prep-worktree`, and the sweep reports a
+deferral. A raw `xcodebuild` or Xcode build in such a checkout can still fail
+on a missing XCFramework. Preparation makes a missing seed from a private
+package folder.
 It copies missing per-user workspace settings from the primary checkout and
 preserves existing settings. It does not start a warm-up build.
 
@@ -405,6 +411,7 @@ two alerts per iteration. `-test-repetition-relaunch-enabled YES` doesn't help:
 each relaunched host runs every Swift Testing iteration again.
 
 Run `bin/test-all --preflight` to check the Xcode, Swift, and macOS versions
+and give the checkout [private packages](#xcode-caches-and-automatic-cleanup)
 without running tests. Release commands run this preflight too.
 
 My Mac code coverage also needs access to the PodHaven app's data. In System
