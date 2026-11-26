@@ -89,22 +89,28 @@ enum CommandCenter: Sendable {
       return .success
     }
     commandCenter.skipForward.addCommandTarget { event in
-      guard let skipEvent = event as? any MPSkipIntervalCommandEventable
-      else { Assert.fatal("Event is not a MPSkipIntervalCommandEventable") }
+      guard let skipEvent = event as? any MPSkipIntervalCommandEventable else {
+        log.warning("Ignoring skipForward event of unexpected type \(type(of: event))")
+        return .commandFailed
+      }
 
       yield(.skipForward(skipEvent.interval))
       return .success
     }
     commandCenter.skipBackward.addCommandTarget { event in
-      guard let skipEvent = event as? any MPSkipIntervalCommandEventable
-      else { Assert.fatal("Event is not a MPSkipIntervalCommandEventable") }
+      guard let skipEvent = event as? any MPSkipIntervalCommandEventable else {
+        log.warning("Ignoring skipBackward event of unexpected type \(type(of: event))")
+        return .commandFailed
+      }
 
       yield(.skipBackward(skipEvent.interval))
       return .success
     }
     commandCenter.changePlaybackPosition.addCommandTarget { event in
-      guard let positionEvent = event as? any MPChangePlaybackPositionCommandEventable
-      else { Assert.fatal("Event is not a MPChangePlaybackPositionCommandEventable") }
+      guard let positionEvent = event as? any MPChangePlaybackPositionCommandEventable else {
+        log.warning("Ignoring changePlaybackPosition event of unexpected type \(type(of: event))")
+        return .commandFailed
+      }
 
       yield(
         .playbackPosition(
@@ -118,8 +124,10 @@ enum CommandCenter: Sendable {
     commandCenter.changePlaybackRate.supportedPlaybackRates =
       stride(from: 0.8, through: 2.0, by: 0.1).map { NSNumber(value: $0) }
     commandCenter.changePlaybackRate.addCommandTarget { event in
-      guard let rateEvent = event as? any MPChangePlaybackRateCommandEventable
-      else { Assert.fatal("Event is not a MPChangePlaybackRateCommandEventable") }
+      guard let rateEvent = event as? any MPChangePlaybackRateCommandEventable else {
+        log.warning("Ignoring changePlaybackRate event of unexpected type \(type(of: event))")
+        return .commandFailed
+      }
 
       yield(.changePlaybackRate(rateEvent.playbackRate))
       return .success

@@ -417,16 +417,17 @@ extension PlayManager {
           continue
         }
 
-        guard
-          let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey]
-            as? any Error
-        else { Assert.fatal("failedToPlayToEndTimeNotification: \(notification) is invalid") }
-
-        Self.log.caughtError(
-          "AVPlayerItem failed to play to end time",
-          error,
-          level: .warning
-        )
+        if let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey]
+          as? any Error
+        {
+          Self.log.caughtError(
+            "AVPlayerItem failed to play to end time",
+            error,
+            level: .warning
+          )
+        } else {
+          Self.log.warning("AVPlayerItem failed to play to end time without an error")
+        }
 
         await handlePlaybackFailure(preserving: requestID)
       }

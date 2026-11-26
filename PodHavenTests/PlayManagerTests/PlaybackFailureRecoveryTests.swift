@@ -302,15 +302,7 @@ import Testing
   @Test("failure notification honors playback ownership", arguments: NotificationCommand.allCases)
   func notificationHonorsPlaybackOwnership(command: NotificationCommand) async throws {
     let failed = try await Create.podcastEpisode()
-    Container.shared.loadEpisodeAsset.context(.test) {
-      { @concurrent url in
-        await EpisodeAsset(
-          isPlayable: true,
-          duration: .seconds(60),
-          playerItemFactory: { AVPlayerItem(url: url) }
-        )
-      }
-    }
+    loadRealPlayerItems()
     let release = AsyncSemaphore(value: 0)
     let processed = AsyncSemaphore(value: 0)
     let delivered = ThreadSafe(false)
@@ -360,6 +352,56 @@ import Testing
     #expect(avPlayer.timeControlStatus == (command.shouldRecover ? .playing : .paused))
     #expect(avPlayer.playCallCount == playCount + (command.shouldRecover ? 1 : 0))
     #expect(alert.config == nil)
+  }
+
+  @Test("failure notification without an error still recovers playback")
+  func notificationWithoutErrorRecovers() async throws {
+    try await LogCapture.withSink { sink in
+      let failed = try await Create.podcastEpisode()
+      loadRealPlayerItems()
+      PlayHelpers.setupCommandHandling()
+      try await playManager.play(failed)
+      let failedItem = try #require(avPlayer.current as? AVPlayerItem)
+      let revision = playManager.playbackRequestRevision
+      let playCount = avPlayer.playCallCount
+
+      Container.shared.notifier()
+        .continuation(for: AVPlayerItem.failedToPlayToEndTimeNotification)
+        .yield(
+          Notification(name: AVPlayerItem.failedToPlayToEndTimeNotification, object: failedItem)
+        )
+
+      try await Wait.until(
+        { @MainActor in
+          avPlayer.playCallCount == playCount + 1
+            && avPlayer.current as? AVPlayerItem !== failedItem
+        },
+        { @MainActor in "Expected playback to recover onto a new player item" }
+      )
+      #expect(playManager.playbackRequestRevision != revision)
+      #expect(sharedState.onDeck?.id == failed.id)
+      #expect(avPlayer.timeControlStatus == .playing)
+      #expect(alert.config == nil)
+      #expect(
+        sink.captured()
+          .contains {
+            $0.level == .warning
+              && $0.message.contains("failed to play to end time without an error")
+          }
+      )
+    }
+  }
+
+  private func loadRealPlayerItems() {
+    Container.shared.loadEpisodeAsset.context(.test) {
+      { @concurrent url in
+        await EpisodeAsset(
+          isPlayable: true,
+          duration: .seconds(60),
+          playerItemFactory: { AVPlayerItem(url: url) }
+        )
+      }
+    }
   }
 
   private func waitForRecoveredItem(
