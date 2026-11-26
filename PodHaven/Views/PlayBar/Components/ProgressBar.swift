@@ -16,7 +16,8 @@ struct ProgressBar: View {
 
   private var currentHeight: CGFloat { isDragging ? dragHeight : normalHeight }
 
-  private var progress: Double {
+  // A value's position along the bar, from 0 at the start to 1 at the end.
+  nonisolated static func fraction(of value: Double, in range: ClosedRange<Double>) -> Double {
     guard range.upperBound > range.lowerBound else { return 0 }
     return (value.clamped(to: range) - range.lowerBound) / (range.upperBound - range.lowerBound)
   }
@@ -32,7 +33,10 @@ struct ProgressBar: View {
         // Progress track
         RoundedRectangle(cornerRadius: currentHeight / 2)
           .fill(Color.primary)
-          .frame(width: max(0, CGFloat(progress) * geometry.size.width), height: currentHeight)
+          .frame(
+            width: max(0, CGFloat(Self.fraction(of: value, in: range)) * geometry.size.width),
+            height: currentHeight
+          )
 
         // Tick marks
         if let tickMarks {
@@ -72,7 +76,7 @@ struct ProgressBar: View {
 
   private func marker(at time: Double, containerWidth: CGFloat, color: Color) -> some View {
     let markerWidth: CGFloat = 2
-    let position = (time - range.lowerBound) / (range.upperBound - range.lowerBound)
+    let position = Self.fraction(of: time, in: range)
 
     return RoundedRectangle(cornerRadius: markerWidth / 2)
       .fill(color)
@@ -192,6 +196,12 @@ struct ProgressBarPreviewGallery: View {
               "peak near end (edge)",
               value: 300,
               maxPlaybackTime: 595
+            )
+            ProgressBarSample(
+              "unknown duration (markers at start)",
+              duration: 0,
+              tickMarks: [60, 180],
+              maxPlaybackTime: 420
             )
           }
 

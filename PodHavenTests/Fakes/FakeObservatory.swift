@@ -40,6 +40,10 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     [@Sendable () -> AsyncValueObservation<[CandidateEpisode]>]
   >([])
 
+  let episodeIDsScript = ThreadSafe<
+    [@Sendable () -> AsyncValueObservation<[Episode.ID]>]
+  >([])
+
   let embeddingWorkSignalScript = ThreadSafe<
     [@Sendable () -> AsyncValueObservation<
       (
@@ -222,6 +226,12 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
 
   func episodeIDs(filter: SQLExpression) -> AsyncValueObservation<[Episode.ID]> {
     recordCall(methodName: "episodeIDs", parameters: ())
+    var script = episodeIDsScript()
+    if let next = script.first {
+      script.removeFirst()
+      episodeIDsScript(script)
+      return next()
+    }
     return observatory.episodeIDs(filter: filter)
   }
 
