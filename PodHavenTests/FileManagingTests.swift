@@ -48,6 +48,29 @@ struct FileManagingTests {
     #expect(try fileManager.addedToDirectoryDate(for: copy).approximatelyEquals(Date()))
   }
 
+  @Test("the system file manager dates a moved file from its move, not from its source")
+  func systemFileManagerDatesMoveFromArrival() throws {
+    let source = TestFiles.uniqueURL()
+    try fileManager.writeDataSynchronously(Data("source".utf8), to: source)
+    let sourceDate = Date().addingTimeInterval(-.days(400))
+    try FileManager.default.setAttributes(
+      [.creationDate: sourceDate, .modificationDate: sourceDate],
+      ofItemAtPath: source.path
+    )
+    let directory = TestFiles.uniqueURL()
+    try fileManager.createDirectory(at: directory)
+    let destination = directory.appendingPathComponent("moved")
+
+    try fileManager.moveItem(at: source, to: destination)
+
+    let modificationDate = try #require(
+      try destination.resourceValues(forKeys: [.contentModificationDateKey])
+        .contentModificationDate
+    )
+    #expect(modificationDate.approximatelyEquals(sourceDate))
+    #expect(try fileManager.addedToDirectoryDate(for: destination).approximatelyEquals(Date()))
+  }
+
   private func write(_ data: Data, to url: URL, using method: WriteMethod) async throws {
     switch method {
     case .asynchronous:
