@@ -32,6 +32,22 @@ struct FileManagingTests {
     #expect(try await fileManager.readData(from: url) == replacement)
   }
 
+  @Test("the system file manager dates a copied file from its copy, not from its source")
+  func systemFileManagerDatesCopyFromArrival() throws {
+    let source = TestFiles.uniqueURL()
+    try fileManager.writeDataSynchronously(Data("source".utf8), to: source)
+    let sourceDate = Date().addingTimeInterval(-.days(400))
+    try FileManager.default.setAttributes(
+      [.creationDate: sourceDate, .modificationDate: sourceDate],
+      ofItemAtPath: source.path
+    )
+    let copy = TestFiles.uniqueURL()
+
+    try FileManager.default.copyItem(at: source, to: copy)
+
+    #expect(try fileManager.addedToDirectoryDate(for: copy).approximatelyEquals(Date()))
+  }
+
   private func write(_ data: Data, to url: URL, using method: WriteMethod) async throws {
     switch method {
     case .asynchronous:
