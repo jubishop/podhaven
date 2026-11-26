@@ -16,7 +16,7 @@ argument-hint: "[issue-url | PODHAVEN-<id> | <numeric-id>] [triage notes]"
 
 Diagnose one PodHaven error issue and track the actionable result in one
 GitHub issue: what failed, who it affects, the most likely cause, and the best
-fix or mitigation. Do not implement the fix here.
+fix or mitigation.
 
 The argument is a Sentry issue URL, a short ID such as `PODHAVEN-42`, or a
 numeric issue ID. Treat other text given with it as triage notes: scope,
@@ -86,10 +86,9 @@ bin/knowledge search "<terms>"
 ## Step 3: Fetch the evidence
 
 Fetch the issue into an empty directory under the triage's working directory
-with `.agents/scripts/sentry-cli/fetch_issue_bundle.sh`; its
-[response contracts](../../scripts/sentry-cli/README.md) give the bundle's
-files. Pass an event query only when the user scoped the investigation; if it
-matches nothing, adjust the scope or report the absence.
+with `.agents/scripts/sentry-cli/fetch_issue_bundle.sh`. Pass an event query
+only when the user scoped the investigation; if it matches nothing, adjust the
+scope or report the absence.
 
 Inspect enough events to explain meaningful variation across time, release,
 environment, device, or other dominant clusters. Prefer in-app stack frames,
@@ -117,8 +116,7 @@ and history to explain the drift.
 For a recurrence, or a failure that resembles a known fix, test each event's
 build against the earlier fix as
 [PodHaven correlation](references/podhaven-correlation.md#builds-and-known-fixes)
-describes, and state each result. Events only from builds that predate the fix
-are a stale build, not a new defect.
+describes, and state each result.
 
 ## Step 5: Synthesize
 
