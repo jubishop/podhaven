@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+"""Open or update one GitHub issue for each pinned MCP server package whose npm latest release is newer than its pin.
+
+The agent configurations pin each server that npx launches to one exact version, so a release never runs unreviewed.
+This check never changes a pin. Its issue asks for a reviewed bump, which closes it; closing it as not planned skips
+that release until a newer one ships. Only issues the workflow's bot or the repository owner opened count, since
+anyone can copy a marker into an issue in this public repository. A failed registry lookup fails the run after the
+other packages are checked."""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tomllib
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CONFIGURATIONS = (".mcp.json", ".cursor/mcp.json", ".codex/config.toml")
+REGISTRY = "https://registry.npmjs.org/"
+PINNED = re.compile(r"(@?[^@\s]+)@(\d+\.\d+\.\d+)")
+PACKAGE = re.compile(r"(?:@[a-z0-9~][a-z0-9._~-]*/)?[a-z0-9~][a-z0-9._~-]*")
+RELEASE = re.compile(r"(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?")
+GITHUB_REPOSITORY = re.compile(r"github\.com[/:]([\w.-]+)/([\w.-]+?)(?:\.git)?(?:[/#].*)?$")
+COMMIT = re.compile(r"[0-9a-f]{7,40}")
+BOT = "github-actions[bot]"
+PRIORITY = "p3"
+
+
+class RegistryError(Exception):
+    pass
+
+
+def pins():
+    """Map each npx-launched package to the one exact version every configuration pins."""
+    found = {}
+    for configuration in CONFIGURATIONS:
+        text = (ROOT / configuration).read_text()
+        if configuration.endswith(".toml"):
+            servers = tomllib.loads(text)["mcp_servers"]
+        else:
+            servers = json.loads(text)["mcpServers"]
+        for server in servers.values():
+            if server.get("command") != "npx":
+                continue
+            package = next((argument for argument in server.get("args", []) if not argument.startswith("-")), "")
+            pinned = PINNED.fullmatch(package)
+            if not pinned or not PACKAGE.fullmatch(pinned[1]):
+                raise ValueError(f"{configuration}: npx package {package!r} must name one exact version, such as "
+                                 "name@1.2.3")
+            found.setdefault(pinned[1], set()).add(pinned[2])
+    for package, versions in found.items():
+        if len(versions) > 1:
+            raise ValueError(f"{package} pins differ across {', '.join(CONFIGURATIONS)}: {sorted(versions)}")
+    return {package: versions.pop() for package, versions in sorted(found.items())}
+
+
+def release_numbers(version):
+    # Pins are releases, so a prerelease or build of the pinned release is never newer.
+    return tuple(int(part) for part in RELEASE.fullmatch(version).groups()[:3])
+
+
+def lookup(package):
+    """Return npm's latest version of the package and its full registry document."""
+    result = subprocess.run(["curl", "-fsSL", "--retry", "3", "--max-time", "60", REGISTRY + package],
+                            capture_output=True, text=True)
+    if result.returncode:
+        raise RegistryError(f"curl exited {result.returncode}: {result.stderr.strip()}")
+    try:
+        document = json.loads(result.stdout)
+    except ValueError as error:
+        raise RegistryError(f"the registry returned invalid JSON: {error}") from None
+    tags = document.get("dist-tags") if isinstance(document, dict) else None
+    latest = tags.get("latest") if isinstance(tags, dict) else None
+    if not isinstance(latest, str) or not RELEASE.fullmatch(latest):
+        raise RegistryError(f"the registry named no valid latest version: {latest!r}")
+    return latest, document
+
+
+def changes_link(package, document, pinned, latest):
+    """Link the source changes between the commits the two versions were published from, or else npm's versions."""
+    try:
+        old, new = document["versions"][pinned], document["versions"][latest]
+        repository = new.get("repository") or document.get("repository")
+        github = GITHUB_REPOSITORY.search(repository["url"] if isinstance(repository, dict) else repository)
+        heads = old["gitHead"], new["gitHead"]
+        if github and all(COMMIT.fullmatch(head) for head in heads):
+            return f"https://github.com/{github[1]}/{github[2]}/compare/{heads[0]}...{heads[1]}"
+    except (AttributeError, KeyError, TypeError):
+        pass
+    return f"https://www.npmjs.com/package/{package}?activeTab=versions"
+
+
+def issue_text(repository, package, pinned, latest, document):
+    """Return the title and body of the issue that asks for a reviewed bump of the package's pin to latest."""
+    files = ", ".join(f"`{configuration}`" for configuration in CONFIGURATIONS[:-1]) + f", and `{CONFIGURATIONS[-1]}`"
+    guide = f"https://github.com/{repository}/blob/HEAD/docs/development-workflow.md#package-dependencies"
+    return f"Review and bump the {package} pin to {latest}", (
+        f"<!-- mcp-release:{package} -->\n<!-- mcp-release-version:{latest} -->\n"
+        f"npm's latest release of `{package}` is {latest}, newer than the {pinned} that the agent configurations "
+        "pin.\n\n"
+        f"- **Source changes:** [{pinned}...{latest}]({changes_link(package, document, pinned, latest)})\n"
+        f"- **Published changes:** `npm diff --diff={package}@{pinned} --diff={package}@{latest}`\n\n"
+        "Review the release before it runs, since the server runs with the user's full privileges. If it is safe, "
+        f"bump the pin in {files} together, as [package dependencies]({guide}) describes; the bump closes this "
+        "issue. To skip this release, close this issue as not planned.\n\n"
+        "`bin/check-mcp-releases` rewrites this issue when a newer release ships.\n")
+
+
+def tracks(issue, package):
+    # The checker writes the package marker as the body's first line; one quoted in prose or a code block doesn't count.
+    return re.match(rf"(?m)<!-- mcp-release:{re.escape(package)} -->[ \t]*\r?$", issue.get("body") or "") is not None
+
+
+def names_version(issue, version):
+    return re.search(rf"(?m)^<!-- mcp-release-version:{re.escape(version)} -->[ \t]*\r?$",
+                     issue.get("body") or "") is not None
+
+
+def trusted(issue, owner):
+    user = issue.get("user") or {}
+    return "pull_request" not in issue and (
+        (user.get("login") == BOT and user.get("type") == "Bot")
+        or (user.get("type") == "User" and (user.get("login") or "").lower() == owner.lower()))
+
+
+def gh(*arguments, body=None):
+    return subprocess.run(["gh", *arguments], input=body, check=True, capture_output=True, text=True).stdout.strip()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--dry-run", action="store_true", help="report the issue changes without making them")
+    options = parser.parse_args()
+    repository = os.environ.get("GH_REPO") or "jubishop/podhaven"
+    owner = repository.split("/")[0]
+    counts = dict.fromkeys(("current", "created", "updated", "tracked", "skipped", "failed"), 0)
+    issues = None
+    try:
+        pinned_versions = pins()
+        for package, pinned in pinned_versions.items():
+            try:
+                latest, document = lookup(package)
+            except RegistryError as error:
+                print(f"Error: could not read {package}'s latest release from npm: {error}", file=sys.stderr)
+                counts["failed"] += 1
+                continue
+            if release_numbers(latest) <= release_numbers(pinned):
+                print(f"Current: {package}@{pinned}; npm's latest is {latest}")
+                counts["current"] += 1
+                continue
+
+            if issues is None:
+                pages = json.loads(gh("api", "--paginate", "--slurp",
+                                      f"repos/{repository}/issues?state=all&per_page=100"))
+                issues = sorted((issue for page in pages for issue in page if trusted(issue, owner)),
+                                key=lambda issue: issue["number"])
+            tracking = [issue for issue in issues if tracks(issue, package)]
+            existing = next((issue for issue in tracking if issue["state"] == "open"), None)
+            if existing and names_version(existing, latest):
+                print(f"Already tracked: {package}@{latest} in issue #{existing['number']}")
+                counts["tracked"] += 1
+                continue
+            if not existing and any(issue.get("state_reason") == "not_planned"
+                                    and names_version(issue, latest) for issue in tracking):
+                print(f"Skipped: {package}@{latest} was closed as not planned")
+                counts["skipped"] += 1
+                continue
+
+            title, body = issue_text(repository, package, pinned, latest, document)
+            if options.dry_run:
+                action = f"update issue #{existing['number']}" if existing else f"create an issue labeled {PRIORITY}"
+                print(f"Would {action}: {title}")
+                continue
+            if existing:
+                gh("issue", "edit", str(existing["number"]), "--repo", repository, "--title", title,
+                   "--body-file", "-", body=body)
+                print(f"Updated: issue #{existing['number']} for {package}@{latest}")
+                counts["updated"] += 1
+            else:
+                url = gh("issue", "create", "--repo", repository, "--title", title, "--label", PRIORITY,
+                         "--body-file", "-", body=body)
+                print(f"Created: {url} for {package}@{latest}")
+                counts["created"] += 1
+    except subprocess.CalledProcessError as error:
+        print(f"Error: {' '.join(error.cmd[:3])} failed: {(error.stderr or '').strip()}", file=sys.stderr)
+        return 1
+    except (OSError, ValueError, KeyError) as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+    summary = (f"Checked {len(pinned_versions)} pinned MCP package(s): {counts['current']} current, "
+               f"created {counts['created']} issue(s), updated {counts['updated']}, found {counts['tracked']} already "
+               f"tracked, skipped {counts['skipped']} closed as not planned, failed {counts['failed']} lookup(s).")
+    print(summary)
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as stream:
+            stream.write(f"## MCP release check\n\n{summary}\n")
+    return 1 if counts["failed"] else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
