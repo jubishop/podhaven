@@ -72,9 +72,14 @@ final class SentryEnvelopeCapture {
   }
 
   deinit {
-    client.close()
-    session.invalidateAndCancel()
-    CaptureProtocol.requests[host] = nil
+    nonisolated(unsafe) let client = client
+    // Closing waits on Sentry's background-QoS transport, so waiting at a higher QoS inverts priority.
+    DispatchQueue.global(qos: .background)
+      .async { [session, host] in
+        client.close()
+        session.invalidateAndCancel()
+        CaptureProtocol.requests[host] = nil
+      }
   }
 
   func items() async throws -> [Item] {
