@@ -54,6 +54,54 @@ enum PlayHelpers {
     try await waitFor(.paused)
   }
 
+  // Leaves the episode On Deck at currentTime, awaiting the reload Play starts.
+  static func awaitOnDeckRecoveryReload(
+    _ cause: OnDeckRecoveryState.Cause,
+    duration: CMTime,
+    currentTime: CMTime
+  ) async throws -> PodcastEpisode {
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(duration: duration, currentTime: currentTime)
+    )
+    let mediaURL = podcastEpisode.episode.mediaURL
+
+    switch cause {
+    case .failedRestore:
+      sharedState.currentEpisodeID = podcastEpisode.id
+      await episodeAssetLoader.respond(
+        to: mediaURL,
+        error: TestError.assetLoadFailure(podcastEpisode)
+      )
+      await playManager.start()
+    case .mediaServicesReset:
+      await playManager.start()
+      await episodeAssetLoader.respond(to: mediaURL, data: (true, duration))
+      try await load(podcastEpisode)
+      try await waitFor(currentTime)
+      let loadedPlayer = avPlayer
+
+      Container.shared.notifier()
+        .continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+        .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+      try await Wait.until(
+        { await avPlayer != loadedPlayer },
+        { "Expected a new AVPlayer after the media services reset" }
+      )
+      try await Wait.until(
+        { @MainActor in Container.shared.alert().config?.title == "Audio Services Restarted" },
+        { @MainActor in "Expected an audio-services reset explanation" }
+      )
+    }
+
+    try await waitForOnDeck(podcastEpisode)
+    try await waitFor(.paused)
+    try await waitFor(currentTime)
+    #expect(avPlayer.seekRequests.isEmpty)
+    await episodeAssetLoader.respond(to: mediaURL, data: (true, duration))
+    return podcastEpisode
+  }
+
   // MARK: - Audio Session Helpers
 
   static let audioSessionRetryDelays: [Duration] = [

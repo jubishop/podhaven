@@ -229,7 +229,7 @@ import Testing
     #expect(sharedState.playbackStatus == .paused)
     try await PlayHelpers.waitForQueue([])
 
-    await playManager.play()
+    await playManager.play()?.value
 
     let recoveryLoadCount = await episodeAssetLoader.responseCount(
       for: interruptedEpisode.episode.mediaURL
@@ -340,7 +340,7 @@ import Testing
       to: podcastEpisode.episode.mediaURL,
       error: TestError.assetLoadFailure(podcastEpisode)
     )
-    await playManager.play()
+    await playManager.play()?.value
 
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
     try await PlayHelpers.waitFor(resumeTime)
@@ -399,7 +399,7 @@ import Testing
       .write { db in
         try Episode.withIDs([podcastEpisode.id]).deleteAll(db)
       }
-    await playManager.play()
+    await playManager.play()?.value
 
     #expect(sharedState.onDeck == nil)
     #expect(sharedState.currentEpisodeID == nil)
@@ -787,7 +787,7 @@ import Testing
         try await finishLoading.waitUnlessCancelled()
         return (true, .seconds(60))
       }
-      let recoveryTask = Task { await playManager.play() }
+      let recoveryTask = Task { await playManager.play()?.value }
       defer {
         recoveryTask.cancel()
         finishLoading.signal()

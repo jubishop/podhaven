@@ -44,7 +44,7 @@ import Testing
         switch restoration {
         case .startup: await playManager.start()
         case .foreground: await playManager.restorePersistedEpisodeForForeground()
-        case .widget: await playManager.play(origin: .widget)
+        case .widget: await playManager.play(origin: .widget)?.value
         }
         return sink.captured()
       }
@@ -86,7 +86,7 @@ import Testing
     repo.pendingPodcastEpisodeFetchSuspend(true)
     let restoring = Task {
       await LogCapture.withSink { sink in
-        await playManager.play(origin: .widget)
+        await playManager.play(origin: .widget)?.value
         return sink.captured()
       }
     }
@@ -199,7 +199,7 @@ import Testing
     repo.pendingPodcastEpisodeFetchSuspend(true)
     let recovering = Task {
       await LogCapture.withSink { sink in
-        await playManager.play(origin: .widget)
+        await playManager.play(origin: .widget)?.value
         return sink.captured()
       }
     }
@@ -229,7 +229,7 @@ import Testing
     repo.pendingPodcastEpisodeFetchSuspend(true)
     let recovering = Task {
       await LogCapture.withSink { sink in
-        await playManager.play(origin: .widget)
+        await playManager.play(origin: .widget)?.value
         return sink.captured()
       }
     }
@@ -259,7 +259,7 @@ import Testing
       await releaseRecovery.wait()
       throw TestError.simulatedFailure
     }
-    let recovering = Task { await playManager.play(origin: .widget) }
+    let recovering = Task { await playManager.play(origin: .widget)?.value }
     defer { releaseRecovery.signal() }
     await recoveryEntered.wait()
 
