@@ -549,7 +549,7 @@ extension PlayManager {
           // still-at-the-start episode, and unlike the suppression window it
           // also covers manual next/previous transitions.
           let onDeckDuration = onDeck.duration.seconds
-          let playbackTime = await podAVPlayer.currentTime().seconds
+          let playbackTime = await currentPlaybackTime().seconds
           if onDeckDuration > remoteScrubEndEpsilon,
             position >= onDeckDuration - remoteScrubEndEpsilon,
             playbackTime < remoteScrubJustStartedThreshold
