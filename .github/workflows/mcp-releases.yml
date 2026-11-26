@@ -1,0 +1,36 @@
+name: MCP Releases
+
+on:
+  schedule:
+    # Mondays at 14:00 UTC, ~6am PDT / ~7am PST. GitHub cron is UTC-only.
+    - cron: "0 14 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: mcp-releases
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check pinned MCP servers for newer releases
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: 3.x
+          check-latest: true
+
+      - name: Open or update issues for newer releases
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: bin/check-mcp-releases
