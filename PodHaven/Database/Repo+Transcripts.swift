@@ -209,6 +209,16 @@ extension Repo {
     }
   }
 
+  func publisherTranscriptByteCount() async throws -> Int {
+    // octet_length reads only each row's record header, not transcript overflow pages.
+    try await db.read { db in
+      try Episode
+        .filter(Episode.Columns.publisherTranscriptSourceJSON != nil)
+        .select(sum(SQL("octet_length(\(Episode.Columns.transcript))")), as: Int.self)
+        .fetchOne(db) ?? 0
+    }
+  }
+
   func saveTranscriptionCheckpoint(
     _ checkpoint: TranscriptionCheckpoint,
     for episodeID: Episode.ID
