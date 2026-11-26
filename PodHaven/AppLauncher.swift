@@ -201,6 +201,7 @@ struct AppLauncher: Sendable {
       await self.prepareForPlayback()
 
       await self.measureStartup("recommendationEngine") { self.recommendationEngine.start() }
+      await self.measureStartup("cachePurger") { self.cachePurger.start() }
       operation.record(.completed)
     }
 

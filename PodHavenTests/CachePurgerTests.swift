@@ -13,15 +13,19 @@ import Testing
 @Suite("of CachePurger tests", .container)
 @MainActor class CachePurgerTests {
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
+  @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.sleeper) private var sleeper
+  @DynamicInjected(\.stateManager) private var stateManager
   @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
   @DynamicInjected(\.userSettings) private var userSettings
 
   private var fakeBGTaskScheduler: FakeBGTaskScheduler {
     bgTaskScheduler as! FakeBGTaskScheduler
   }
+  private var fakeSleeper: FakeSleeper { sleeper as! FakeSleeper }
   private var fileManager: FakeFileManager {
     Container.shared.fileManager() as! FakeFileManager
   }
@@ -114,6 +118,63 @@ import Testing
     #expect(fakeBGTaskScheduler.pendingIdentifiers.count == 1)
   }
 
+  // MARK: - Triggered Purge Tests
+
+  @Test("lowering the cache size limit purges without a background task")
+  func loweringCacheSizeLimitPurgesWithoutBackgroundTask() async throws {
+    let olderDownload = try await CacheHelpers.createCachedEpisode(
+      title: "Older Download",
+      cachedFilename: "older-download.mp3",
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.4),
+      downloadDate: Date.now.addingTimeInterval(-2 * 24 * 60 * 60)
+    )
+    let newerDownload = try await CacheHelpers.createCachedEpisode(
+      title: "Newer Download",
+      cachedFilename: "newer-download.mp3",
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.4),
+      downloadDate: Date.now.addingTimeInterval(-1 * 24 * 60 * 60)
+    )
+    let olderCachedURL = try #require(olderDownload.cachedURL)
+    cachePurger.start()
+
+    userSettings.$cacheSizeLimitGB.new(userSettings.cacheSizeLimitGB / 2)
+    try await fakeSleeper.waitForSleepRequests(for: CachePurger.purgeDelay)
+    await fakeSleeper.advanceTime(by: CachePurger.purgeDelay)
+
+    try await CacheHelpers.waitForCachedFileRemoved(olderCachedURL)
+    #expect(try await repo.episode(olderDownload.id)?.cacheStatus == .uncached)
+    #expect(try await repo.episode(newerDownload.id)?.cacheStatus == .cached)
+    #expect(fakeBGTaskScheduler.registrations.isEmpty)
+  }
+
+  @Test("a finished download purges without a background task")
+  func finishedDownloadPurgesWithoutBackgroundTask() async throws {
+    let olderDownload = try await CacheHelpers.createCachedEpisode(
+      title: "Older Download",
+      cachedFilename: "older-download.mp3",
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
+      downloadDate: Date.now.addingTimeInterval(-24 * 60 * 60)
+    )
+    let olderCachedURL = try #require(olderDownload.cachedURL)
+    stateManager.start()
+    cacheManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+
+    try await CacheHelpers.simulateBackgroundFinish(
+      taskID,
+      data: Data(count: Int(Double(cachePurger.cacheSizeLimit) * 0.6))
+    )
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await fakeSleeper.waitForSleepRequests(for: CachePurger.purgeDelay)
+    await fakeSleeper.advanceTime(by: CachePurger.purgeDelay)
+
+    try await CacheHelpers.waitForCachedFileRemoved(olderCachedURL)
+    #expect(try await repo.episode(olderDownload.id)?.cacheStatus == .uncached)
+    #expect(try await repo.episode(podcastEpisode.id)?.cacheStatus == .cached)
+    #expect(fakeBGTaskScheduler.registrations.isEmpty)
+  }
+
   // MARK: - Cache Size Calculation Tests
 
   @Test("executePurge does nothing when cache is below limit")
@@ -174,12 +235,11 @@ import Testing
     let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
     let fiveDaysAgo = Date.now.addingTimeInterval(-5 * 24 * 60 * 60)
 
-    // Create episodes that exceed cache limit
     let oldUnplayed = try await CacheHelpers.createCachedEpisode(
       title: "Old Unplayed",
       cachedFilename: "old-unplayed.mp3",
       dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
-      pubDate: fiveDaysAgo
+      downloadDate: fiveDaysAgo
     )
 
     let oldPlayed = try await CacheHelpers.createCachedEpisode(
@@ -187,65 +247,57 @@ import Testing
       cachedFilename: "old-played.mp3",
       dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
       finishDate: fourDaysAgo,
-      pubDate: fiveDaysAgo
+      downloadDate: Date.now
     )
 
     let recentUnplayed = try await CacheHelpers.createCachedEpisode(
       title: "Recent Unplayed",
       cachedFilename: "recent-unplayed.mp3",
-      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6)
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
+      downloadDate: fourDaysAgo
     )
 
     try await cachePurger.executePurge()
 
-    // Finished episode should be deleted first
-    let updatedOldPlayed = try await repo.episode(oldPlayed.id)
-    #expect(updatedOldPlayed?.cacheStatus == .uncached)
-
-    // Next deletion should be the earliest unfinished episode by pubDate
-    let updatedOldUnplayed = try await repo.episode(oldUnplayed.id)
-    #expect(updatedOldUnplayed?.cacheStatus == .uncached)
-
-    // Recent unplayed should still be cached
-    let updatedRecentUnplayed = try await repo.episode(recentUnplayed.id)
-    #expect(updatedRecentUnplayed?.cacheStatus == .cached)
+    #expect(try await repo.episode(oldPlayed.id)?.cacheStatus == .uncached)
+    #expect(try await repo.episode(oldUnplayed.id)?.cacheStatus == .uncached)
+    #expect(try await repo.episode(recentUnplayed.id)?.cacheStatus == .cached)
   }
 
-  @Test("executePurge orders unfinished deletions by pubDate")
-  func executePurgeOrdersUnfinishedDeletionsByPubDate() async throws {
-    let yesterday = Date.now.addingTimeInterval(-1 * 24 * 60 * 60)
-    let today = Date.now
+  @Test("executePurge removes unfinished episodes oldest download first, whatever their pubDate")
+  func executePurgeOrdersUnfinishedDeletionsByDownloadDate() async throws {
+    let twoDaysAgo = Date.now.addingTimeInterval(-2 * 24 * 60 * 60)
+    let fiveDaysAgo = Date.now.addingTimeInterval(-5 * 24 * 60 * 60)
 
-    // Create episodes that exceed cache limit, all recent
-    let recentOlder = try await CacheHelpers.createCachedEpisode(
-      title: "Recent Older",
-      cachedFilename: "recent-older.mp3",
+    let oldEpisodeJustDownloaded = try await CacheHelpers.createCachedEpisode(
+      title: "Old Episode Just Downloaded",
+      cachedFilename: "old-episode-just-downloaded.mp3",
       dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.4),
-      pubDate: yesterday
+      pubDate: fiveDaysAgo,
+      downloadDate: Date.now
     )
 
-    let recentNewer = try await CacheHelpers.createCachedEpisode(
-      title: "Recent Newer",
-      cachedFilename: "recent-newer.mp3",
+    let newEpisodeDownloadedEarlier = try await CacheHelpers.createCachedEpisode(
+      title: "New Episode Downloaded Earlier",
+      cachedFilename: "new-episode-downloaded-earlier.mp3",
       dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.4),
-      pubDate: today
+      pubDate: Date.now,
+      downloadDate: twoDaysAgo
     )
 
-    let _ = try await CacheHelpers.createCachedEpisode(
-      title: "Recent Newest",
-      cachedFilename: "recent-newest.mp3",
-      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.4)
+    let middleEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Middle Episode",
+      cachedFilename: "middle-episode.mp3",
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.4),
+      pubDate: twoDaysAgo,
+      downloadDate: Date.now.addingTimeInterval(-24 * 60 * 60)
     )
 
     try await cachePurger.executePurge()
 
-    // Earliest pubDate should be deleted first among unfinished episodes
-    let updatedRecentOlder = try await repo.episode(recentOlder.id)
-    #expect(updatedRecentOlder?.cacheStatus == .uncached)
-
-    // Newer pubDate should still be cached
-    let updatedRecentNewer = try await repo.episode(recentNewer.id)
-    #expect(updatedRecentNewer?.cacheStatus == .cached)
+    #expect(try await repo.episode(newEpisodeDownloadedEarlier.id)?.cacheStatus == .uncached)
+    #expect(try await repo.episode(oldEpisodeJustDownloaded.id)?.cacheStatus == .cached)
+    #expect(try await repo.episode(middleEpisode.id)?.cacheStatus == .cached)
   }
 
   @Test("executePurge does not remove queued episodes")
