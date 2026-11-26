@@ -103,6 +103,15 @@ after reviewing the release's changes, in all three files at once;
 `bin/tests/test_mcp_config.py` requires every npx-launched server to name one
 exact version everywhere.
 
+The weekly MCP Releases GitHub workflow runs `bin/check-mcp-releases`, which
+compares each pin with npm's `latest` release and never changes a pin. When a
+release is newer, it opens one issue for that package, whose body's first line
+is `<!-- mcp-release:<package> -->`, or rewrites the open one for the newest
+version. The reviewed bump closes that issue; closing it as not planned skips
+that release until a newer one ships. As with Sentry tracking, only issues
+opened by the workflow's bot or the repository owner count. A failed registry
+lookup fails the run after the other packages are checked.
+
 ## Worktrees
 
 Shared worktree, model, and recovery rules are in

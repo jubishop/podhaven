@@ -132,6 +132,7 @@ struct ShareService {
   private func handleSharedFile(_ url: URL) async throws {
     Self.log.debug("handleSharedFile: \(url)")
 
+    guard url.isFileURL else { throw RemoteOPMLError() }
     guard let fileURL = sharedFileURL(url) else { throw URLError(.unsupportedURL) }
     defer {
       do {
