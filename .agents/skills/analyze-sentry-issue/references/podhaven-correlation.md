@@ -28,10 +28,12 @@ timestamp in the launch whose `sessionID` is the event's `log-session-id` tag,
 and add the widget log when widget behavior is plausible.
 
 MetricKit diagnostics arrive on the launch after the incident, which is the
-launch a MetricKit event's `log-session-id` names: look for the failing launch
-among the attachment's earlier launches by the diagnostic's build and period,
-and search the whole attachment by the `MetricKit` category rather than only
-around the Sentry timestamp.
+launch a MetricKit event's `log-session-id` names. A `metrickit_crash` event
+whose `launch_timeline` context has `attribution` `pid_match` names the failing
+launch's `sessionID` and `gitCommitHash`; otherwise look for that launch among
+the attachment's earlier launches by the diagnostic's build and period. Search
+the whole attachment by the `MetricKit` category rather than only around the
+Sentry timestamp.
 
 ## Targeted Sentry structured logs
 
