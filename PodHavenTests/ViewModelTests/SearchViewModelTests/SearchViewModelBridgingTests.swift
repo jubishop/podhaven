@@ -23,7 +23,7 @@ import Testing
     let searchFeedURL = FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!)
     let newestEpisodeDate = Date(timeIntervalSince1970: 321)
 
-    try await repo.insertSeries(
+    let canonicalSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(
           feedURL: canonicalFeedURL,
@@ -39,6 +39,8 @@ import Testing
         ]
       )
     )
+    let tag = try await repo.insertTag(UnsavedTag(name: "Growth"))
+    try await repo.addTag(tag.id, to: canonicalSeries.podcast.id)
 
     let viewModel = SearchViewModel()
     viewModel.searchText = "growth"
@@ -56,6 +58,7 @@ import Testing
           && bridged.episodeCount == 1
           && bridged.mostRecentEpisodeDate == newestEpisodeDate
           && bridged.resolvedFreshnessCadence == .weekly
+          && bridged.tagIDs == [tag.id]
       },
       { @MainActor in
         let bridged = viewModel.searchResults[id: searchFeedURL]
@@ -70,6 +73,7 @@ import Testing
           episodeCount: \(String(describing: bridged?.episodeCount))
           mostRecentEpisodeDate: \(String(describing: bridged?.mostRecentEpisodeDate))
           resolvedFreshnessCadence: \(String(describing: bridged?.resolvedFreshnessCadence))
+          tagIDs: \(String(describing: bridged?.tagIDs))
           """
       }
     )
@@ -103,6 +107,8 @@ import Testing
         ]
       )
     )
+    let tag = try await repo.insertTag(UnsavedTag(name: "Growth"))
+    try await repo.addTag(tag.id, to: savedSeries.podcast.id)
 
     let viewModel = SearchViewModel()
     viewModel.searchText = "growth"
@@ -119,6 +125,7 @@ import Testing
           && bridged.episodeCount == 1
           && bridged.mostRecentEpisodeDate == newestEpisodeDate
           && bridged.resolvedFreshnessCadence == .weekly
+          && bridged.tagIDs == [tag.id]
       },
       { @MainActor in
         let bridged = viewModel.searchResults[id: searchFeedURL]
@@ -132,6 +139,7 @@ import Testing
           episodeCount: \(String(describing: bridged?.episodeCount))
           mostRecentEpisodeDate: \(String(describing: bridged?.mostRecentEpisodeDate))
           resolvedFreshnessCadence: \(String(describing: bridged?.resolvedFreshnessCadence))
+          tagIDs: \(String(describing: bridged?.tagIDs))
           """
       }
     )

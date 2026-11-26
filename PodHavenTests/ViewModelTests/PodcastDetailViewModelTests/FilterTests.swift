@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import Testing
 
 @testable import PodHaven
@@ -10,10 +11,13 @@ import Testing
 // unsaved previews match their in-memory searchableString.
 @Suite("of PodcastDetailViewModel filter tests", .container)
 @MainActor final class FilterTests {
+  @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.sleeper) private var sleeper
 
   private var fakeObservatory: FakeObservatory { observatory as! FakeObservatory }
+  private var fakeSleeper: FakeSleeper { sleeper as! FakeSleeper }
 
   private static let podcastTitleToken = "kaleidoscope"
   private static let episodeTitleToken = "tangerine"
@@ -274,5 +278,90 @@ import Testing
     try await yieldForSpuriousAsyncWork()
 
     _ = try fakeObservatory.expectCalls(methodName: "episodeIDs", count: 0)
+  }
+
+  // Regression: a keystroke still debouncing when the detail disappears used to
+  // start an FTS observation off-screen that nothing cancelled. The query must
+  // instead wait for the detail to return, and then apply.
+  @Test("a filter query that settles off-screen starts its FTS observation only on return")
+  func filterQuerySettlingOffScreenWaitsForReappear() async throws {
+    let series = try await makeSavedSeries()
+    let titleMatchID = series.episodes[0].id
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(series.podcast))
+    try await PodcastDetailTestHelpers.appear(viewModel)
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.count == 2 },
+      { @MainActor in
+        "Expected both saved episodes to load before filtering; got \(viewModel.episodeList.allEntries.count)"
+      }
+    )
+    let debounce = viewModel.filterDebouncer.debounceDuration
+
+    viewModel.filterDebouncer.currentValue = Self.episodeTitleToken
+    try await fakeSleeper.waitForSleepRequests(for: debounce)
+    viewModel.disappear()
+    fakeObservatory.clearAllCalls()
+
+    await fakeSleeper.advanceTime(by: debounce)
+    try await Wait.until(
+      { @MainActor in viewModel.filterDebouncer.debouncedValue == Self.episodeTitleToken },
+      { @MainActor in
+        "Expected the pending query to settle; got '\(viewModel.filterDebouncer.debouncedValue)'"
+      }
+    )
+    try await yieldForSpuriousAsyncWork()
+    _ = try fakeObservatory.expectCalls(methodName: "episodeIDs", count: 0)
+
+    viewModel.appear()
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.episodeID) == [titleMatchID]
+      },
+      { @MainActor in
+        """
+        Expected the query that settled off-screen to apply once the detail returned.
+        filteredEntries: \(viewModel.episodeList.filteredEntries.map { ($0.title, $0.episodeID) })
+        """
+      }
+    )
+  }
+
+  // Regression: a failed FTS observation left the previous query's matches in
+  // place, so the list kept showing results for text the user had replaced.
+  @Test("a failed FTS observation matches the current query against loaded episodes")
+  func failedFilterObservationMatchesLoadedEpisodes() async throws {
+    let series = try await makeSavedSeries()
+    let titleMatchID = series.episodes[0].id
+    let viewModel = try await appearedViewModel(for: series)
+
+    viewModel.filterDebouncer.currentValue = Self.podcastTitleToken
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.filteredEntries.count == 2 },
+      { @MainActor in
+        "Expected the podcast-title query to match both rows; got \(viewModel.episodeList.filteredEntries.count)"
+      }
+    )
+
+    let dbReader = appDB.unsafeTestDB
+    fakeObservatory.episodeIDsScript([
+      {
+        ValueObservation
+          .tracking { _ -> [Episode.ID] in throw TestError.simulatedFailure }
+          .values(in: dbReader)
+      }
+    ])
+    viewModel.filterDebouncer.currentValue = Self.episodeTitleToken
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.episodeID) == [titleMatchID]
+      },
+      { @MainActor in
+        """
+        Expected the failed FTS query to fall back to matching loaded episode titles.
+        filteredEntries: \(viewModel.episodeList.filteredEntries.map { ($0.title, $0.episodeID) })
+        """
+      }
+    )
   }
 }

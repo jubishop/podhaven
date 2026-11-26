@@ -48,6 +48,39 @@ import Testing
     )
   }
 
+  @Test("mostRecentEpisodeDate reports the newest episode under any sort")
+  func mostRecentEpisodeDateIgnoresSort() async throws {
+    let newestPubDate = Date(timeIntervalSince1970: 300)
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Most Recent"),
+      unsavedEpisodes: [
+        try Create.unsavedEpisode(
+          guid: "oldest",
+          title: "Oldest",
+          pubDate: Date(timeIntervalSince1970: 100)
+        ),
+        try Create.unsavedEpisode(guid: "newest", title: "Newest", pubDate: newestPubDate),
+        try Create.unsavedEpisode(
+          guid: "middle",
+          title: "Middle",
+          pubDate: Date(timeIntervalSince1970: 200)
+        ),
+      ]
+    )
+    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    viewModel.currentSortMethod = .oldestFirst
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.first?.title == "Oldest" },
+      { @MainActor in
+        "Expected oldestFirst to lead with the oldest episode; got \(viewModel.episodeList.allEntries.map(\.title))"
+      }
+    )
+
+    #expect(viewModel.mostRecentEpisodeDate == newestPubDate)
+  }
+
   @Test("refreshing a series under newestFirst places a new episode at the top, not the bottom")
   func refreshMergesNewEpisodeAtTopUnderNewestFirstSort() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/refresh-sort.rss")!)
