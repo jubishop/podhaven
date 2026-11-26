@@ -2,7 +2,7 @@ name: MCP Releases
 
 on:
   schedule:
-    # Mondays at 14:00 UTC, ~6am PDT / ~7am PST. GitHub cron is UTC-only.
+    # Mondays at 14:00 UTC, 7am PDT / 6am PST. GitHub cron is UTC-only.
     - cron: "0 14 * * 1"
   workflow_dispatch:
 

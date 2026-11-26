@@ -109,9 +109,14 @@ def issue_text(repository, package, pinned, latest, document):
         "`bin/check-mcp-releases` rewrites this issue when a newer release ships.\n")
 
 
-def marked(issue, marker):
-    # A marker counts only on a line of its own, as the checker writes it, not quoted in prose.
-    return re.search(rf"(?m)^<!-- {re.escape(marker)} -->[ \t]*\r?$", issue.get("body") or "") is not None
+def tracks(issue, package):
+    # The checker writes the package marker as the body's first line; one quoted in prose or a code block doesn't count.
+    return re.match(rf"(?m)<!-- mcp-release:{re.escape(package)} -->[ \t]*\r?$", issue.get("body") or "") is not None
+
+
+def names_version(issue, version):
+    return re.search(rf"(?m)^<!-- mcp-release-version:{re.escape(version)} -->[ \t]*\r?$",
+                     issue.get("body") or "") is not None
 
 
 def trusted(issue, owner):
@@ -152,14 +157,14 @@ def main():
                                       f"repos/{repository}/issues?state=all&per_page=100"))
                 issues = sorted((issue for page in pages for issue in page if trusted(issue, owner)),
                                 key=lambda issue: issue["number"])
-            tracking = [issue for issue in issues if marked(issue, f"mcp-release:{package}")]
+            tracking = [issue for issue in issues if tracks(issue, package)]
             existing = next((issue for issue in tracking if issue["state"] == "open"), None)
-            if existing and marked(existing, f"mcp-release-version:{latest}"):
+            if existing and names_version(existing, latest):
                 print(f"Already tracked: {package}@{latest} in issue #{existing['number']}")
                 counts["tracked"] += 1
                 continue
             if not existing and any(issue.get("state_reason") == "not_planned"
-                                    and marked(issue, f"mcp-release-version:{latest}") for issue in tracking):
+                                    and names_version(issue, latest) for issue in tracking):
                 print(f"Skipped: {package}@{latest} was closed as not planned")
                 counts["skipped"] += 1
                 continue

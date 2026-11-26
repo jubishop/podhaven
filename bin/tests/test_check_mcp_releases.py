@@ -126,6 +126,8 @@ else:
         ], [
             {"number": 12, "state": "open", **BY_OWNER,
              "body": f"Find it by a marker such as `<!-- mcp-release:{PACKAGE} -->`."},
+            {"number": 13, "state": "open", **BY_OWNER,
+             "body": f"The checker writes bodies like this:\n\n```\n{tracking_body('1.1.0')}\n```\n"},
         ]])
 
         result = self.run_check("--dry-run")
