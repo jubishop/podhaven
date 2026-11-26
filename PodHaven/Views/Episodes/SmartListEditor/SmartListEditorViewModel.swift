@@ -185,7 +185,7 @@ class SmartListEditorViewModel {
     }
   }
 
-  func delete() {
+  private func delete() {
     guard case .edit(let id) = mode else { return }
     Task { [weak self] in
       guard let self else { return }
