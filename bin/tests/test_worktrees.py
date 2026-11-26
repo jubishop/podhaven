@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -321,6 +322,56 @@ class CacheTests(unittest.TestCase):
         self.prepare(linked)
         self.assertFalse(folder.exists() or folder.is_symlink())
 
+    def link_to_the_seed(self, checkout):
+        folder = self.packages(checkout)
+        folder.parent.mkdir(parents=True)
+        folder.symlink_to(self.shared, target_is_directory=True)
+        return folder
+
+    @unittest.skipUnless(sys.platform == "darwin", "Xcode preparation is macOS-only")
+    def test_a_build_moves_a_checkout_still_linked_to_the_seed_onto_a_clone_of_it(self):
+        linked = self.linked_checkout()
+        # SwiftPM recorded the seed's paths through a DerivedData folder that is gone.
+        self.seed(self.derived / "PodHaven-removedcheckout/SourcePackages")
+        folder = self.link_to_the_seed(linked)
+        self.assertEqual(caches.package_folder(linked), folder)
+        self.assertFalse(folder.is_symlink())
+        state = json.loads((folder / "workspace-state.json").read_text())["object"]
+        self.assertEqual(Path(state["artifacts"][0]["path"]), folder / "artifacts/sentry/Sentry.xcframework")
+        self.assertEqual(Path(state["artifacts"][0]["path"]).read_text(), "Keep the shared artifact")
+        before = (folder / "workspace-state.json").read_bytes()
+        caches.require_private_packages(linked)
+        self.assertEqual((folder / "workspace-state.json").read_bytes(), before)
+
+    @unittest.skipUnless(sys.platform == "darwin", "Xcode preparation is macOS-only")
+    def test_a_build_fails_with_the_remedy_while_the_link_must_stay(self):
+        linked = self.linked_checkout()
+        self.seed(self.shared)
+        folder = self.link_to_the_seed(linked)
+
+        def refused(reason):
+            with redirect_stdout(io.StringIO()) as output, \
+                    self.assertRaisesRegex(RuntimeError, "^" + re.escape(caches.SHARED_PACKAGES) + "$"):
+                caches.require_private_packages(linked)
+            self.assertIn(reason, output.getvalue())
+            self.assertEqual(folder.resolve(), self.shared)
+
+        self.open.side_effect = lambda path: path == folder.parent
+        refused("in use")
+        self.open.side_effect = None
+        (self.shared / "checkouts/Factory/.git/index.lock").touch()
+        refused("stay shared until")
+
+    @unittest.skipUnless(sys.platform == "darwin", "Xcode preparation is macOS-only")
+    def test_a_build_leaves_a_checkout_without_a_primary_as_it_is(self):
+        # The second Mac's lane is a worktree of a bare mirror, which preparation never manages.
+        mirror = self.base / "mirror.git"
+        subprocess.run(["git", "clone", "--quiet", "--bare", str(self.repo), str(mirror)], check=True)
+        lane = self.base / "lane"
+        subprocess.run(["git", "-C", str(mirror), "worktree", "add", "--quiet", "--detach", str(lane)], check=True)
+        (lane / "PodHaven.xcodeproj").mkdir()
+        caches.require_private_packages(lane)
+
     @unittest.skipUnless(sys.platform == "darwin", "Package clones are macOS-only")
     def test_cleanup_refreshes_a_seed_pinned_other_than_the_default_branch_from_the_primary_packages(self):
         self.linked_checkout()
@@ -370,10 +421,9 @@ class CacheTests(unittest.TestCase):
             self.assertFalse(self.shared.with_name(self.shared.name + ".preparing").exists())
             return report["reason"]
 
-        # A linked checkout reads the seed through its link.
-        link = self.packages(linked)
-        link.parent.mkdir(parents=True)
-        link.symlink_to(self.shared, target_is_directory=True)
+        # A linked checkout reads the seed through its link, so a busy one keeps the seed.
+        link = self.link_to_the_seed(linked)
+        self.open.side_effect = lambda path: path == link.parent
         self.assertIn(str(link), kept())
         link.unlink()
         self.open.side_effect = lambda path: path == primary
@@ -385,6 +435,48 @@ class CacheTests(unittest.TestCase):
         lock.unlink()
         self.assertEqual(caches.sweep(self.repo, apply=True)["seed"]["status"], "refreshed")
         self.assert_packages_at_pins(self.shared, "The new pin's artifact")
+
+    @unittest.skipUnless(sys.platform == "darwin", "Package clones are macOS-only")
+    def test_cleanup_moves_an_idle_checkout_still_linked_to_the_seed_onto_a_clone_before_refreshing_the_seed(self):
+        linked = self.linked_checkout()
+        self.seed(self.shared)
+        self.pin_default_branch(PINNED)
+        primary = self.packages(self.repo)
+        self.fill(primary, primary, PINNED, "The new pin's artifact")
+        link = self.link_to_the_seed(linked)
+        # Another clone's checkout is not this cleanup's to move, and keeps the seed while it links it.
+        other = self.packages(self.base / "another clone")
+        other.parent.mkdir(parents=True)
+        other.symlink_to(self.shared, target_is_directory=True)
+        self.busy.return_value = True
+        report = caches.sweep(self.repo, apply=True)
+        self.assertIn({"path": str(link.parent), "reason": "Build or Xcode activity; automatic cleanup will retry"},
+                      report["deferred"])
+        self.assertIn(str(link), report["seed"]["reason"])
+        self.assertTrue(link.is_symlink())
+        self.busy.return_value = False
+        report = caches.sweep(self.repo, apply=True)
+        self.assertEqual(report["deferred"], [])
+        self.assertEqual(report["seed"], {"status": "kept", "reason": "Linked to the seed: " + str(other)})
+        self.assertFalse(link.is_symlink())
+        self.assertEqual((link / "artifacts/sentry/Sentry.xcframework").read_text(), "Keep the shared artifact")
+        other.unlink()
+        self.assertEqual(caches.sweep(self.repo, apply=True)["seed"], {"status": "refreshed", "source": str(primary)})
+        self.assert_packages_at_pins(self.shared, "The new pin's artifact")
+        self.assertEqual((link / "artifacts/sentry/Sentry.xcframework").read_text(), "Keep the shared artifact")
+
+    @unittest.skipUnless(sys.platform == "darwin", "Package clones are macOS-only")
+    def test_cleanup_reports_a_linked_checkout_it_cannot_move_yet(self):
+        linked = self.linked_checkout()
+        self.seed(self.shared)
+        link = self.link_to_the_seed(linked)
+        self.open.side_effect = lambda path: path == link.parent
+        with redirect_stdout(io.StringIO()) as output:
+            report = caches.sweep(self.repo, apply=True)
+        self.assertEqual(output.getvalue(), "")
+        self.assertEqual([item["path"] for item in report["deferred"]], [str(link.parent)])
+        self.assertIn("in use", report["deferred"][0]["reason"])
+        self.assertEqual(link.resolve(), self.shared)
 
     def test_cleanup_agent_runs_the_default_python_that_follows_updates(self):
         home, tools = self.base / "home", self.base / "tools"
