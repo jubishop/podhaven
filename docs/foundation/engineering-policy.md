@@ -215,13 +215,13 @@ run, such as a temporary path, since no pass would match.
 
 ### Pre-push hook
 
-The managed `pre-push` hook enforces the document checks for text. When a
-push changes a Markdown file, it runs `bin/check --documents-only` on each
-pushed revision in a disposable clone, so uncommitted edits neither hide nor
-cause a failure, and Git refuses the push when the check fails or cannot run.
-A new branch counts as changing Markdown when one of its commits that no
-remote-tracking branch holds does. Other pushes skip it; their kind of change
-already runs `bin/check`.
+The managed `pre-push` hook enforces the document checks for text and the
+manifest. When a push changes a Markdown file or `.project-starter.json`, it
+runs `bin/check --documents-only` on each pushed revision in a disposable
+clone, so uncommitted edits neither hide nor cause a failure, and Git refuses
+the push when the check fails or cannot run. A new branch counts as changing
+them when one of its commits that no remote-tracking branch holds does. Other
+pushes skip it; their kind of change already runs `bin/check`.
 
 Put a project's own pre-push checks in an executable
 `bin/pre-push-application`. Once the document checks pass, the hook runs it
@@ -289,7 +289,7 @@ bypass failures in hand-written pages.
 A Project Starter sync writes text and development code that Project
 Starter's release checks already exercised, so it goes directly to the default
 branch without further checks; the [pre-push hook](#pre-push-hook) still
-checks the pages it changes. With no manual follow-up, commit only the
+checks the manifest and pages it changes. With no manual follow-up, commit only the
 synced files, with `[skip ci]` in the message, such as at the end of its
 subject, so GitHub Actions starts no push workflows. End the message with any
 `syncCommitTrailers` the project records, which `bin/sync` prints after the

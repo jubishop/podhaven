@@ -361,8 +361,9 @@ class Knowledge:
             git("config", "--local", "core.hooksPath", "bin/hooks", root=self.root)
         print("Active hooks: " + (configured or "bin/hooks"))
 
-    def changes_markdown(self, remote, commit):
-        """Report whether pushing commit over the remote's old commit, or as a new ref, changes a Markdown file."""
+    def needs_document_checks(self, remote, commit):
+        """Report whether pushing commit over the remote's old commit, or as a new ref, changes a file the document
+        checks read: a Markdown file or the root .project-starter.json, which they compare with the managed files."""
         known = set(remote) != {"0"} and git("rev-parse", "--verify", "--quiet", remote + "^{commit}",
                                              root=self.root, optional=True)
         # Without renames, a page renamed away still counts as removed.
@@ -371,10 +372,10 @@ class Knowledge:
         else:
             paths = git("log", "-m", "--no-renames", "--name-only", "-z", "--format=", commit, "--not", "--remotes",
                         root=self.root)
-        return any(path.endswith(".md") for path in paths.split("\0"))
+        return any(path.endswith(".md") or path == ".project-starter.json" for path in paths.split("\0"))
 
     def check_push(self, updates):
-        """Run bin/check --documents-only on each pushed revision that changes Markdown; return the exit status."""
+        """Run bin/check --documents-only on each pushed revision that needs it; return the exit status."""
         revisions = {}
         for line in updates.splitlines():
             # Git passes the local ref as typed, such as ":/Fix the index", so only it can hold spaces.
@@ -385,7 +386,7 @@ class Knowledge:
             _, local, remote_ref, remote = fields
             commit = set(local) != {"0"} and git("rev-parse", "--verify", "--quiet", local + "^{commit}",
                                                  root=self.root, optional=True)
-            if commit and commit not in revisions and self.changes_markdown(remote, commit):
+            if commit and commit not in revisions and self.needs_document_checks(remote, commit):
                 revisions[commit] = remote_ref
         status = 0
         for commit, remote_ref in revisions.items():
@@ -404,7 +405,7 @@ class Knowledge:
             if result.returncode:
                 print("bin/check --documents-only failed for " + commit[:12] + ", pushed to " + remote_ref +
                       ", so Git refused the push:\n" + (result.stderr or result.stdout).rstrip() +
-                      "\nFix the pages, commit, and push again.", file=sys.stderr)
+                      "\nFix what it names, commit, and push again.", file=sys.stderr)
                 status = 1
         return status
 
