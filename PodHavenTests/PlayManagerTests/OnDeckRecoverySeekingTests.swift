@@ -10,10 +10,7 @@ import Testing
 
 @Suite("of On Deck recovery seeking tests", .container)
 @MainActor struct OnDeckRecoverySeekingTests {
-  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.cacheManager) private var cacheManager
-  @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
-  @DynamicInjected(\.notifier) private var notifier
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
@@ -99,45 +96,11 @@ import Testing
   private func awaitRecoveryReload(_ cause: OnDeckRecoveryState.Cause) async throws
     -> PodcastEpisode
   {
-    let podcastEpisode = try await Create.podcastEpisode(
-      Create.unsavedEpisode(duration: duration, currentTime: savedTime)
+    try await PlayHelpers.awaitOnDeckRecoveryReload(
+      cause,
+      duration: duration,
+      currentTime: savedTime
     )
-    let mediaURL = podcastEpisode.episode.mediaURL
-
-    switch cause {
-    case .failedRestore:
-      sharedState.currentEpisodeID = podcastEpisode.id
-      await episodeAssetLoader.respond(
-        to: mediaURL,
-        error: TestError.assetLoadFailure(podcastEpisode)
-      )
-      await playManager.start()
-    case .mediaServicesReset:
-      await playManager.start()
-      await episodeAssetLoader.respond(to: mediaURL, data: (true, duration))
-      try await PlayHelpers.load(podcastEpisode)
-      try await PlayHelpers.waitFor(savedTime)
-      let loadedPlayer = avPlayer
-
-      notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
-        .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
-
-      try await Wait.until(
-        { await avPlayer != loadedPlayer },
-        { "Expected a new AVPlayer after the media services reset" }
-      )
-      try await Wait.until(
-        { @MainActor in alert.config?.title == "Audio Services Restarted" },
-        { @MainActor in "Expected an audio-services reset explanation" }
-      )
-    }
-
-    try await PlayHelpers.waitForOnDeck(podcastEpisode)
-    try await PlayHelpers.waitFor(.paused)
-    try await PlayHelpers.waitFor(savedTime)
-    #expect(avPlayer.seekRequests.isEmpty)
-    await episodeAssetLoader.respond(to: mediaURL, data: (true, duration))
-    return podcastEpisode
   }
 
   private func waitForPosition(_ time: CMTime, of podcastEpisode: PodcastEpisode)
