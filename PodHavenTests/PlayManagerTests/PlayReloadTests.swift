@@ -61,17 +61,7 @@ import Testing
     }
     defer { finishAsset.signal() }
 
-    mpRemoteCommandCenter.firePlay()
-    await assetStarted.wait()
-    let playRevision = playManager.playbackRequestRevision
-    switch command {
-    case .pause: mpRemoteCommandCenter.firePause()
-    case .togglePlayPause: mpRemoteCommandCenter.fireTogglePlayPause()
-    }
-    try await Wait.until(
-      { await playManager.playbackRequestRevision != playRevision },
-      { "Expected the remote \(command) to run while the reload is suspended" }
-    )
+    try await interruptPlayReload(with: command, once: assetStarted)
     finishAsset.signal()
 
     try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
@@ -79,6 +69,64 @@ import Testing
     try await PlayHelpers.waitFor(.paused)
     #expect(avPlayer.timeControlStatus == .paused)
     #expect(avPlayer.playCallCount == playCount)
+  }
+
+  @Test(
+    "a remote pause or toggle during Play's failing reload keeps the episode On Deck",
+    arguments: Reload.allCases,
+    Command.allCases
+  )
+  func remoteCommandDuringFailingReloadKeepsEpisodeOnDeck(reload: Reload, command: Command)
+    async throws
+  {
+    let podcastEpisode = try await awaitReload(reload)
+    let mediaURL = podcastEpisode.episode.mediaURL
+    let assetStarted = AsyncSemaphore(value: 0)
+    let failAsset = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.respond(to: mediaURL) { _ in
+      assetStarted.signal()
+      await failAsset.wait()
+      throw TestError.assetLoadFailure(podcastEpisode)
+    }
+    defer { failAsset.signal() }
+
+    try await interruptPlayReload(with: command, once: assetStarted)
+    failAsset.signal()
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.paused)
+    try await PlayHelpers.waitForQueue([])
+
+    await episodeAssetLoader.respond(to: mediaURL, data: (true, duration))
+    mpRemoteCommandCenter.firePlay()
+    try await PlayHelpers.waitForCurrentItem(mediaURL)
+    try await PlayHelpers.waitFor(.playing)
+  }
+
+  @Test(
+    "a second play during a recovery reload's audio-session setup joins the reload",
+    arguments: [OnDeckRecoveryState.Cause.failedRestore, .mediaServicesReset]
+  )
+  func secondPlayDuringRecoveryReloadJoinsIt(cause: OnDeckRecoveryState.Cause) async throws {
+    let podcastEpisode = try await PlayHelpers.awaitOnDeckRecoveryReload(
+      cause,
+      duration: duration,
+      currentTime: savedTime
+    )
+    let mediaURL = podcastEpisode.episode.mediaURL
+    let loadCount = await episodeAssetLoader.responseCount(for: mediaURL)
+    PlayHelpers.failAudioSessionConfiguration()
+    mpRemoteCommandCenter.firePlay()
+    try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
+    let playRevision = playManager.playbackRequestRevision
+
+    await playManager.play()
+
+    #expect(playManager.playbackRequestRevision == playRevision)
+    try await PlayHelpers.recoverAudioSessionConfiguration()
+    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    #expect(await episodeAssetLoader.responseCount(for: mediaURL) == loadCount + 1)
   }
 
   @Test(
@@ -97,6 +145,22 @@ import Testing
   }
 
   // MARK: - Helpers
+
+  private func interruptPlayReload(with command: Command, once assetStarted: AsyncSemaphore)
+    async throws
+  {
+    mpRemoteCommandCenter.firePlay()
+    await assetStarted.wait()
+    let playRevision = playManager.playbackRequestRevision
+    switch command {
+    case .pause: mpRemoteCommandCenter.firePause()
+    case .togglePlayPause: mpRemoteCommandCenter.fireTogglePlayPause()
+    }
+    try await Wait.until(
+      { await playManager.playbackRequestRevision != playRevision },
+      { "Expected the remote \(command) to run while the reload is suspended" }
+    )
+  }
 
   private func awaitReload(_ reload: Reload) async throws -> PodcastEpisode {
     switch reload {

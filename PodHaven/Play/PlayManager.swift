@@ -189,7 +189,8 @@ final class PlayManager {
     do {
       return try await task.value
     } catch {
-      guard playbackRequestRevision == acceptedRevision else { throw error }
+      // A pause supersedes the request without replacing the load.
+      guard playbackRequestRevision == acceptedRevision || !task.isCancelled else { throw error }
       if let recoveryEpisode {
         await restoreOnDeckRecoveryPresentation(recoveryEpisode)
       } else if restoresPersistedEpisode, !task.isCancelled, sharedState.onDeck == nil,
@@ -616,7 +617,7 @@ final class PlayManager {
   {
     // A play during a load joins the load's request instead of superseding it.
     if let loadingEpisodeID = loadTransition?.loadingEpisodeID,
-      loadingEpisodeID != sharedState.onDeck?.id
+      loadingEpisodeID != sharedState.onDeck?.id || loadingEpisodeID == onDeckRecoveryEpisodeID
     {
       if case .play(let pendingEpisodeID) = pendingPlaybackRequest,
         pendingEpisodeID == loadingEpisodeID
