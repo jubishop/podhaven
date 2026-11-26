@@ -108,8 +108,9 @@ struct RefreshManager {
     ) { group in
       for podcast in stalePodcasts {
         group.addTask { [podcast] in
+          let outcome: RefreshOutcome
           do {
-            return try await performRefreshCycle(podcast: podcast)
+            outcome = try await performRefreshCycle(podcast: podcast)
           } catch {
             Self.log.caughtError(
               "Failed to refresh podcast: \(podcast.toString)",
@@ -118,6 +119,8 @@ struct RefreshManager {
             )
             return nil
           }
+          guard case .pending(let pending) = outcome else { return nil }
+          return pending
         }
       }
       var results = [PendingFlush](capacity: stalePodcasts.count)
@@ -136,7 +139,7 @@ struct RefreshManager {
     let networkFailed =
       collected.count > 1
       && collected.allSatisfy {
-        if case .failed(_, _, .feedOrNetwork) = $0.result { true } else { false }
+        if case .failed(_, _, .feedOrNetwork, _) = $0.result { true } else { false }
       }
       && stalePodcasts.contains { podcast in
         podcast.refreshFailureCount == 0
@@ -183,19 +186,35 @@ struct RefreshManager {
       """
     )
 
-    if let pending = try await performRefreshCycle(podcast: podcast) {
+    switch try await performRefreshCycle(podcast: podcast) {
+    case .skipped:
+      break
+    case .unrecorded(let error):
+      throw error
+    case .pending(let pending):
       defer { inFlight { $0.remove(pending.url) } }
       // Record the refresh even if the caller is cancelled after the feed write.
       try await Task { try await flush([pending]) }.value
+      if case .failed(_, _, _, let error) = pending.result { throw error }
     }
     await publisherTranscriptProcessor.makeForegroundProgress()
   }
 
   // MARK: - Private Helpers
 
+  private enum RefreshOutcome {
+    // Another refresh holds the feed, or its podcast was deleted mid-refresh.
+    case skipped
+    // Cancellation or lost connectivity, which records no failure.
+    case unrecorded(any Error)
+    // The caller removes the URL from inFlight once this flush commits, so a
+    // racing refresh of the still-stale row can't slip through the gap.
+    case pending(PendingFlush)
+  }
+
   private enum RefreshResult {
     case refreshed(lastUpdate: Date, feedValidators: HTTPValidators?)
-    case failed(failureCount: Int, backoffUntil: Date, cause: FailureCause)
+    case failed(failureCount: Int, backoffUntil: Date, cause: FailureCause, error: any Error)
   }
 
   private enum FailureCause {
@@ -216,7 +235,7 @@ struct RefreshManager {
       switch pending.result {
       case .refreshed(let lastUpdate, let feedValidators):
         refreshes.append((pending.id, lastUpdate, feedValidators))
-      case .failed(let failureCount, let backoffUntil, _):
+      case .failed(let failureCount, let backoffUntil, _, _):
         failures.append((pending.id, failureCount, backoffUntil))
       }
     }
@@ -228,7 +247,11 @@ struct RefreshManager {
     }
   }
 
-  private func failure(of podcast: Podcast, cause: FailureCause) -> PendingFlush {
+  private func failure(
+    of podcast: Podcast,
+    cause: FailureCause,
+    error: any Error
+  ) -> PendingFlush {
     let failureCount = podcast.refreshFailureCount + 1
     var backoff = Self.initialBackoff
     var doublings = failureCount - 1
@@ -245,16 +268,18 @@ struct RefreshManager {
     return PendingFlush(
       id: podcast.id,
       url: podcast.feedURL.rawValue,
-      result: .failed(failureCount: failureCount, backoffUntil: backoffUntil, cause: cause)
+      result: .failed(
+        failureCount: failureCount,
+        backoffUntil: backoffUntil,
+        cause: cause,
+        error: error
+      )
     )
   }
 
-  // When a PendingFlush is returned, the caller owns removing url from
-  // inFlight after the batched flush commits — otherwise a racing refresh of
-  // the still-stale row could slip through the gap.
   private func performRefreshCycle(
     podcast: Podcast
-  ) async throws -> PendingFlush? {
+  ) async throws -> RefreshOutcome {
     let url = podcast.feedURL.rawValue
 
     let alreadyInFlight = inFlight { !$0.insert(url).inserted }
@@ -262,7 +287,7 @@ struct RefreshManager {
       Self.log.debug(
         "performRefreshCycle: \(podcast.toString) already in-flight; skipping"
       )
-      return nil
+      return .skipped
     }
 
     var releaseOnExit = true
@@ -278,10 +303,12 @@ struct RefreshManager {
     } catch let error as HTTPStatusError where error.statusCode == 304 && feedValidators != nil {
       Self.log.trace("performRefreshCycle: \(podcast.toString) not modified")
       releaseOnExit = false
-      return PendingFlush(
-        id: podcast.id,
-        url: url,
-        result: .refreshed(lastUpdate: dateProvider.now, feedValidators: feedValidators)
+      return .pending(
+        PendingFlush(
+          id: podcast.id,
+          url: url,
+          result: .refreshed(lastUpdate: dateProvider.now, feedValidators: feedValidators)
+        )
       )
     } catch {
       let level: Logger.Level
@@ -300,15 +327,28 @@ struct RefreshManager {
         error,
         level: level
       )
-      if Task.isCancelled || error is CancellationError { return nil }
+      if Task.isCancelled || error is CancellationError {
+        return .unrecorded(CancellationError())
+      }
       if let urlError = error as? URLError {
-        if Self.nonFeedURLErrorCodes.contains(urlError.code) { return nil }
-        // An offline fetch waits for connectivity and then times out.
+        if Self.nonFeedURLErrorCodes.contains(urlError.code) { return .unrecorded(error) }
+        // An offline fetch waits for connectivity and then times out, so report
+        // it as offline.
         let path = try await connectionState.currentPath()
-        if !path.isSatisfied { return nil }
+        if !path.isSatisfied {
+          return .unrecorded(
+            URLError(.notConnectedToInternet, userInfo: [NSUnderlyingErrorKey: urlError])
+          )
+        }
       }
       releaseOnExit = false
-      return failure(of: podcast, cause: error is HTTPStatusError ? .feed : .feedOrNetwork)
+      return .pending(
+        failure(
+          of: podcast,
+          cause: error is HTTPStatusError ? .feed : .feedOrNetwork,
+          error: error
+        )
+      )
     }
 
     let existingEpisodes = try await repo.feedMergeEpisodes(
@@ -332,36 +372,41 @@ struct RefreshManager {
       feedURL = podcast.feedURL
     }
 
-    guard
-      let lastUpdate = await applyParsedFeed(
+    let appliedAt: Date?
+    do {
+      appliedAt = try await applyParsedFeed(
         podcast: podcast,
         podcastFeed: podcastFeed,
         feedURL: feedURL,
         existingEpisodes: existingEpisodes
       )
-    else {
-      if Task.isCancelled { return nil }
+    } catch {
+      if Task.isCancelled { return .unrecorded(CancellationError()) }
       releaseOnExit = false
-      return failure(of: podcast, cause: .feed)
+      return .pending(failure(of: podcast, cause: .feed, error: error))
     }
+    guard let lastUpdate = appliedAt else { return .skipped }
     releaseOnExit = false
-    return PendingFlush(
-      id: podcast.id,
-      url: url,
-      result: .refreshed(
-        lastUpdate: lastUpdate,
-        // Validators from the old URL don't describe the feed at its new one.
-        feedValidators: feedURL == podcast.feedURL ? downloadData.validators : nil
+    return .pending(
+      PendingFlush(
+        id: podcast.id,
+        url: url,
+        result: .refreshed(
+          lastUpdate: lastUpdate,
+          // Validators from the old URL don't describe the feed at its new one.
+          feedValidators: feedURL == podcast.feedURL ? downloadData.validators : nil
+        )
       )
     )
   }
 
+  // Returns nil when the podcast was deleted mid-refresh.
   private func applyParsedFeed(
     podcast: Podcast,
     podcastFeed: PodcastFeed,
     feedURL: FeedURL,
     existingEpisodes: [FeedMergeEpisode]
-  ) async -> Date? {
+  ) async throws -> Date? {
     Self.log.trace(
       """
       applyParsedFeed
@@ -389,7 +434,7 @@ struct RefreshManager {
         """,
         error
       )
-      return nil
+      throw error
     }
     let newPodcast = Podcast(
       id: podcast.id,
@@ -474,7 +519,13 @@ struct RefreshManager {
         """,
         error
       )
-      return nil
+      // A deleted podcast's new episodes have no row to reference.
+      if let databaseError = error as? DatabaseError,
+        databaseError.extendedResultCode == .SQLITE_CONSTRAINT_FOREIGNKEY
+      {
+        return nil
+      }
+      throw error
     }
 
     if embeddingWorkCreated {
