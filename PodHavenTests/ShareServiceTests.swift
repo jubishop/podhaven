@@ -350,7 +350,9 @@ import Testing
     #expect(navigation.search.path.isEmpty)
   }
 
-  @Test("that a remote OPML share URL is rejected without fetching or subscribing")
+  @Test(
+    "that a remote OPML share URL is rejected with a clear message, without fetching or subscribing"
+  )
   func remoteOPMLShareURLIsRejected() async throws {
     let libraryFeedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
     let libraryPodcast =
@@ -384,10 +386,19 @@ import Testing
       )
     )
 
-    await #expect(throws: URLError.self) {
-      try await self.shareService.handleIncomingURL(ShareHelpers.shareURL(with: opmlURL))
-    }
+    let error = try #require(
+      await #expect(throws: (any Error).self) {
+        try await self.shareService.handleIncomingURL(ShareHelpers.shareURL(with: opmlURL))
+      }
+    )
 
+    #expect(
+      ErrorKit.message(for: error)
+        == """
+        PodHaven can't import an OPML list from a link. Download the OPML file, then share the \
+        file with PodHaven or import it from Settings → OPML.
+        """
+    )
     #expect(await opmlSession.requests.isEmpty)
     #expect(await feedSession.requests.isEmpty)
     #expect(opmlViewModel.opmlFile == nil)
