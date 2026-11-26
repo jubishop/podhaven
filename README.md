@@ -258,18 +258,19 @@ PodHaven is built using modern Swift practices and a clean, modular architecture
 | Package | Purpose |
 |---------|---------|
 | [GRDB.swift](https://github.com/groue/GRDB.swift) | SQLite database management |
-| [XMLCoder](https://github.com/MaxDesiatov/XMLCoder) | RSS feed parsing |
+| [XMLCoder](https://github.com/CoreOffice/XMLCoder) | RSS feed parsing |
 | [Nuke](https://github.com/kean/Nuke) | Image loading and caching |
 | [Factory](https://github.com/hmlongco/Factory) | Dependency injection |
 | [Tagged](https://github.com/pointfreeco/swift-tagged) | Type-safe identifiers |
 | [Sentry](https://github.com/getsentry/sentry-cocoa) | Error reporting and crash analytics |
 | [IdentifiedCollections](https://github.com/pointfreeco/swift-identified-collections) | Collection utilities |
-| [OrderedCollections](https://github.com/apple/swift-collections) | Foundation collection extensions |
+| [OrderedCollections](https://github.com/apple/swift-collections) | Ordered dictionaries |
 | [Semaphore](https://github.com/groue/Semaphore) | Concurrency utilities |
-| [swift-sharing](https://github.com/pointfreeco/swift-sharing) | Shared state management |
+| [swift-concurrency-extras](https://github.com/pointfreeco/swift-concurrency-extras) | Sendable wrappers for system types |
 | [swift-log](https://github.com/apple/swift-log) | Structured logging |
 | [swift-navigation](https://github.com/pointfreeco/swift-navigation) | Navigation utilities |
 | [swift-algorithms](https://github.com/apple/swift-algorithms) | Algorithm utilities |
+| [swift-syntax](https://github.com/swiftlang/swift-syntax) | Implementations of the app's Swift macros |
 
 ### Testing
 
