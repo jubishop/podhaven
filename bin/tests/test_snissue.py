@@ -301,7 +301,7 @@ else:
         self.assert_stopped(self.run_command(), "refusing to show a partial list")
 
     def test_invalid_sentry_data_is_rejected(self):
-        for payload in ("invalid json", '{}', '{"data": {}}', '{"data": [{"id": "unsafe"}]}'):
+        for payload in ("invalid json", "", '{}', '{"data": {}}', '{"data": [{"id": "unsafe"}]}'):
             with self.subTest(payload=payload):
                 (self.directory / "sentry.json").write_text(payload)
                 self.assert_stopped(self.run_command(), "invalid issue data")
