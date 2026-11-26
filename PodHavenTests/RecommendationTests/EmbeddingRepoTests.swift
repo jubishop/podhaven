@@ -367,6 +367,45 @@ class EmbeddingRepoTests {
     )
   }
 
+  @Test("v90 lets the next pass embed an episode the empty-title failure quarantined")
+  func v90RetriesEmptyTitleQuarantine() async throws {
+    let pe = try await createPodcastEpisode(title: "12:30", description: "Description body")
+    #expect(EmbeddingService.cleanText(pe.episode.title).isEmpty)
+    let embedding = ContextualEmbedding(embedding: ScriptedEmbeddable { _ in [1, 0, 0] })
+    await embedding.requestAndLoadAssetsIfNeeded()
+    let pipelineVersion = EmbeddingPipelineVersion(
+      embeddingRevision: embedding.revision,
+      recipeVersion: EmbeddingService.recipeVersion
+    )
+    for _ in 1...3 {
+      _ = try await recommendationRepo.updateEmbeddingFailureState(
+        failedEpisodeIDs: [pe.episode.id],
+        succeededEpisodeIDs: [],
+        pipelineVersion: pipelineVersion
+      )
+    }
+    #expect(
+      try await recommendationRepo.episodesNeedingEmbeddings(
+        pipelineVersion: pipelineVersion,
+        verifiedBefore: nil
+      ) == []
+    )
+
+    try await appDB.unsafeTestDB.write { db in try Schema.migrateV90(db) }
+
+    let pending = try await recommendationRepo.episodesNeedingEmbeddings(
+      pipelineVersion: pipelineVersion,
+      verifiedBefore: nil
+    )
+    #expect(pending == [pe.episode.id])
+    let result = try await EmbeddingService.upsertEpisodeEmbeddings(
+      forIDs: pending,
+      embedding: embedding
+    )
+    #expect(result.failedEpisodeCount == 0)
+    #expect(try await recommendationRepo.embedding(for: pe.episode.id) != nil)
+  }
+
   @Test("includes episodes whose content updated after embedding creation")
   func staleContentIncluded() async throws {
     let pe = try await createPodcastEpisode(

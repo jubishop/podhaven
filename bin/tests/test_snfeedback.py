@@ -300,6 +300,8 @@ else:
     def test_invalid_sentry_data_is_rejected(self):
         for payload, message in (
             ("invalid json", "invalid feedback data"),
+            ("", "invalid feedback data"),
+            ("{}", "invalid feedback data"),
             ('{"data": {}}', "invalid feedback data"),
             ('{"data": [{"id": "unsafe"}]}', "invalid feedback data"),
             ('{"data": [{"id": "1e3"}]}', "invalid feedback row"),
