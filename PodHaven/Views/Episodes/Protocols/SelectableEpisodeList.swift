@@ -597,6 +597,8 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
         resolvedEpisodes = try await resolvedPodcastEpisodes(for: episodes)
       } catch {
         Self.log.caughtError("transcribeSelectedEpisodes: failed", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
         return
       }
       guard !resolvedEpisodes.isEmpty else {

@@ -10,6 +10,8 @@ import Testing
 @MainActor
 @Suite("of EpisodesListViewModel transcribe gating", .container)
 struct EpisodesListTranscribeTests {
+  private struct InjectedRepoError: Error, Sendable {}
+
   private var repo: any Databasing { Container.shared.repo() }
   private var transcriptionQueue: TranscriptionQueue { Container.shared.transcriptionQueue() }
 
@@ -199,6 +201,24 @@ struct EpisodesListTranscribeTests {
     )
 
     #expect(transcriptionQueue.episodeIDs == [queuedID, eligibleID])
+  }
+
+  @Test("transcribeSelectedEpisodes alerts when resolving the selection fails")
+  func transcribeSelectedEpisodesAlertsOnResolveFailure() async throws {
+    let (viewModel, listables) = try await makeLoadedViewModel()
+    let eligibleID = listables[3].id
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.podcastEpisodesFetchError(InjectedRepoError())
+    let alert = Container.shared.alert()
+
+    EpisodesListTestHelpers.select(viewModel, ids: [eligibleID])
+    viewModel.transcribeSelectedEpisodes()
+
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Error" },
+      { @MainActor in "transcribeSelectedEpisodes never alerted on the failed resolve" }
+    )
+    #expect(!transcriptionQueue.episodeIDs.contains(eligibleID))
   }
 
   @Test("single transcription shows the queue-full alert without error telemetry")

@@ -398,6 +398,34 @@ import Testing
     )
   }
 
+  @Test("deleteSelectedPodcasts alerts when the confirmed delete fails")
+  func deleteSelectedAlertsOnFailure() async throws {
+    let setup = try await setupFourTaggedPodcasts()
+    let viewModel = PodcastsListViewModel(title: "Test")
+    try await loadEntries(into: viewModel, podcasts: setup.entries)
+    viewModel.podcastList.selectAllEntries()
+    let fakeRepo = try #require(repo as? FakeRepo)
+    // Holds the failure until the confirmation closes, so its alert can't race the dismissal.
+    let confirmationClosed = AsyncLatch<Void>()
+    await fakeRepo.beforeNextBulkPodcastDelete {
+      try await confirmationClosed.wait()
+      throw InjectedRepoError()
+    }
+
+    viewModel.deleteSelectedPodcasts()
+    try await answerAlert("Delete")
+    confirmationClosed.open(())
+
+    let alert = alert
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Error" },
+      { "deleteSelectedPodcasts never alerted on the failed delete" }
+    )
+    for podcastID in [setup.pod1, setup.pod2, setup.pod3, setup.pod4] {
+      #expect(try await repo.podcastSeries(podcastID) != nil)
+    }
+  }
+
   // MARK: - Refreshing
 
   @Test("refreshPodcasts refreshes only the listed stale podcasts")
