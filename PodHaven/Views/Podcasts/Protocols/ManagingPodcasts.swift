@@ -33,10 +33,12 @@ extension ManagingPodcasts {
 
       do {
         let podcastID = try await getOrCreatePodcastID(podcast)
-        let latestEpisode = try await repo.latestEpisode(for: podcastID)
-        if let latestEpisode = latestEpisode {
-          try await queue.unshift(latestEpisode.id)
+        guard let latestEpisode = try await repo.latestEpisode(for: podcastID) else {
+          Self.log.notice("queueLatestEpisodeToTop: no episode to queue for \(podcast.title)")
+          alert("\(podcast.title) has no episodes to queue.")
+          return
         }
+        try await queue.unshift(latestEpisode.id)
       } catch {
         Self.log.caughtError("queueLatestEpisodeToTop: failed for \(podcast.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -51,10 +53,12 @@ extension ManagingPodcasts {
 
       do {
         let podcastID = try await getOrCreatePodcastID(podcast)
-        let latestEpisode = try await repo.latestEpisode(for: podcastID)
-        if let latestEpisode = latestEpisode {
-          try await queue.append(latestEpisode.id)
+        guard let latestEpisode = try await repo.latestEpisode(for: podcastID) else {
+          Self.log.notice("queueLatestEpisodeToBottom: no episode to queue for \(podcast.title)")
+          alert("\(podcast.title) has no episodes to queue.")
+          return
         }
+        try await queue.append(latestEpisode.id)
       } catch {
         Self.log.caughtError("queueLatestEpisodeToBottom: failed for \(podcast.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
