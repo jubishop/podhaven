@@ -20,6 +20,9 @@ struct CachePurger: Sendable {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var repo: any Databasing { Container.shared.repo() }
+  private var taskPriority: @Sendable (TaskPriority?) -> TaskPriority? {
+    Container.shared.taskPriority()
+  }
   private var transcriptionQueue: TranscriptionQueue { Container.shared.transcriptionQueue() }
   private var userSettings: UserSettings { Container.shared.userSettings() }
 
@@ -33,10 +36,13 @@ struct CachePurger: Sendable {
     Int64(userSettings.cacheSizeLimitGB * 1024 * 1024 * 1024)
   }
   private let cadence: Duration = .hours(12)
+  static let purgeDelay: Duration = .seconds(5)
 
   // MARK: - State Management
 
   private let purgeLock = ThreadLock()
+  private let purgeDebounce = Debounce(duration: purgeDelay, priority: .background)
+  private let startOnce = Once()
   private let backgroundTaskScheduler: BackgroundTaskScheduler
 
   // MARK: - Initialization
@@ -48,6 +54,29 @@ struct CachePurger: Sendable {
       taskType: .processing(requiresNetworkConnectivity: false),
       executionPriority: .background
     )
+  }
+
+  // MARK: - Triggered Purge
+
+  func start() {
+    startOnce.run {
+      let cacheSizeLimits = userSettings.$cacheSizeLimitGB.stream()
+      Task(priority: taskPriority(.background)) {
+        for await _ in cacheSizeLimits.dropFirst() {
+          schedulePurge()
+        }
+      }
+    }
+  }
+
+  func schedulePurge() {
+    purgeDebounce {
+      do {
+        try await executePurge()
+      } catch {
+        Self.log.caughtError("schedulePurge: purge failed", error)
+      }
+    }
   }
 
   // MARK: - Background Task
@@ -282,15 +311,36 @@ struct CachePurger: Sendable {
       !$0.queued && !$0.saveInCache && $0.id != currentEpisodeID
         && !transcribingEpisodeIDs.contains($0.id)
     }
-    var (unfinishedEpisodes, finishedEpisodes) = unqueuedEpisodes.partitioned(by: \.finished)
-    finishedEpisodes.sort { lhs, rhs in
+    let (unfinishedEpisodes, finishedEpisodes) = unqueuedEpisodes.partitioned(by: \.finished)
+    let finishedInDeletionOrder = finishedEpisodes.sorted { lhs, rhs in
       let lhsDate = lhs.finishDate ?? .distantPast
       let rhsDate = rhs.finishDate ?? .distantPast
 
       return lhsDate < rhsDate
     }
-    unfinishedEpisodes.sort { lhs, rhs in lhs.pubDate < rhs.pubDate }
-    return finishedEpisodes + unfinishedEpisodes
+    let unfinishedInDeletionOrder =
+      unfinishedEpisodes
+      .map { (episode: $0, downloadDate: downloadDate(of: $0)) }
+      .sorted { $0.downloadDate < $1.downloadDate }
+      .map(\.episode)
+    return finishedInDeletionOrder + unfinishedInDeletionOrder
+  }
+
+  // Moves and copies keep a file's source modification date; this date is when
+  // the file entered the cache.
+  private func downloadDate(of episode: Episode) -> Date {
+    guard let cachedURL = episode.cachedURL else { return .distantFuture }
+
+    do {
+      return try fileManager.addedToDirectoryDate(for: cachedURL.rawValue)
+    } catch {
+      Self.log.caughtError(
+        "downloadDate: failed to read when \(cachedURL) was cached (\(episode.toString))",
+        error,
+        level: ErrorKit.isMissingFile(error) ? .debug : .error
+      )
+      return .distantFuture
+    }
   }
 
   // MARK: - Phase Changes
