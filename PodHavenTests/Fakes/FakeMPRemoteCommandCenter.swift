@@ -9,7 +9,8 @@ import MediaPlayer
 
 protocol FakeMPRemoteCommandable: MPRemoteCommandable {
   var handler: ((any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus)? { get set }
-  func fire(_ event: any MPRemoteCommandEventable)
+  @discardableResult
+  func fire(_ event: any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus?
 }
 extension FakeMPRemoteCommandable {
   func addCommandTarget(
@@ -22,10 +23,10 @@ extension FakeMPRemoteCommandable {
     handler = nil
   }
 
-  func fire(_ event: any MPRemoteCommandEventable) {
-    if isEnabled {
-      _ = handler?(event)
-    }
+  @discardableResult
+  func fire(_ event: any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus? {
+    guard isEnabled else { return nil }
+    return handler?(event)
   }
 }
 
@@ -229,6 +230,22 @@ final class FakeMPRemoteCommandCenter: MPRemoteCommandableCenter {
   var rating: any MPRemoteCommandable { _ratingCommand }
 
   // MARK: - Testing Manipulators
+
+  enum TypedEventCommand: CaseIterable {
+    case skipForward, skipBackward, changePlaybackPosition, changePlaybackRate
+  }
+
+  func fire(
+    _ event: any MPRemoteCommandEventable,
+    at command: TypedEventCommand
+  ) -> MPRemoteCommandHandlerStatus? {
+    switch command {
+    case .skipForward: _skipForwardCommand.fire(event)
+    case .skipBackward: _skipBackwardCommand.fire(event)
+    case .changePlaybackPosition: _changePlaybackPositionCommand.fire(event)
+    case .changePlaybackRate: _changePlaybackRateCommand.fire(event)
+    }
+  }
 
   func firePlay() {
     _playCommand.fire(FakeMPRemoteCommandEvent())
