@@ -22,7 +22,18 @@ import SwiftUI
       let visibleActions = actions.filter { $0 != .transcribe }
       return visibleActions.isEmpty ? [.playPause] : visibleActions
     }
-    set { userSettings.$episodeSwipeActions.new(newValue) }
+    // Edits arrive in terms of the visible actions, so a Transcribe hidden
+    // while support is unknown keeps its place in the persisted setting. One
+    // the device can't support is dropped.
+    set {
+      var persisted = newValue
+      if transcriptionAvailability.state == .unknown,
+        let hiddenIndex = userSettings.episodeSwipeActions.firstIndex(of: .transcribe)
+      {
+        persisted.insert(.transcribe, at: min(hiddenIndex, persisted.count))
+      }
+      userSettings.$episodeSwipeActions.new(persisted)
+    }
   }
 
   // The configured actions laid out left-to-right as a swipe reveals them.
@@ -33,8 +44,12 @@ import SwiftUI
     actions.reversed()
   }
 
+  // Counts a Transcribe hidden while support is unknown, which keeps its slot.
   var canAddMore: Bool {
-    actions.count < Self.maxActions
+    let slots =
+      transcriptionAvailability.state == .unknown
+      ? userSettings.episodeSwipeActions.count : actions.count
+    return slots < Self.maxActions
   }
 
   // Actions not yet selected, gating "Tag" on at least one tag existing. These
@@ -51,7 +66,7 @@ import SwiftUI
   }
 
   func add(_ action: UserSettings.EpisodeSwipeAction) {
-    guard actions.count < Self.maxActions, !actions.contains(action) else { return }
+    guard canAddMore, !actions.contains(action) else { return }
     if action == .tag, sharedState.tags.isEmpty { return }
     if action == .transcribe, !transcriptionAvailability.isAvailable { return }
     actions.append(action)
