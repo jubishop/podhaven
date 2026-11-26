@@ -113,8 +113,8 @@ elif name == 'xcodebuild':
                                 'swift-syntax.build'),
           f"{os.getcwd()}/PodHavenTests/ProbeTests.swift:2:7: warning: variable 'value' was never mutated")
     if mode in ('stall', 'deaf-stall'):
-        if mode == 'deaf-stall':
-            signal.signal(signal.SIGINT, signal.SIG_IGN)
+        # A shell's background job inherits SIGINT ignored, so set how this build answers it either way.
+        signal.signal(signal.SIGINT, signal.SIG_IGN if mode == 'deaf-stall' else signal.default_int_handler)
         print('SwiftDriver PodHavenWidget normal arm64 com.apple.xcode.tools.swift.compiler', flush=True)
         # The build service keeps what xcodebuild passed it, such as the My Mac test lock, and never ends.
         service = subprocess.Popen([sys.executable, '-c', 'import signal; signal.pause()'], close_fds=False)
