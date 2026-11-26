@@ -175,6 +175,7 @@ enum CacheHelpers {
     finishDate: Date? = nil,
     pubDate: Date? = nil,
     saveInCache: Bool = false,
+    downloadDate: Date? = nil,
     publisherTranscriptReferences: [PublisherTranscriptReference] = []
   ) async throws -> Episode {
     let unsavedPodcast = try Create.unsavedPodcast()
@@ -197,6 +198,9 @@ enum CacheHelpers {
     if let cachedURL = episode.cachedURL {
       let data = Data(count: dataSize)
       try await fileManager.writeData(data, to: cachedURL.rawValue)
+      if let downloadDate {
+        fileManager.setAddedToDirectoryDate(downloadDate, for: cachedURL.rawValue)
+      }
     }
 
     return episode

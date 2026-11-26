@@ -448,7 +448,7 @@ class EpisodeRatingTests {
       now: Date()
     )
 
-    let inputs = try await recommendationRepo.allScoringContextInputs()
+    let inputs = try await recommendationRepo.allScoringContextInputs(embeddingRevision: 1)
     #expect(inputs.ratedSignals.contains { $0.rating == .loved })
     #expect(inputs.partialSignals.contains { $0.id == listenedID })
   }

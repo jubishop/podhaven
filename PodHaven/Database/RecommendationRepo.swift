@@ -51,9 +51,9 @@ struct RecommendationRepo: Recommending {
     }
   }
 
-  func allScoringContextInputs() async throws -> ScoringContextInputs {
+  func allScoringContextInputs(embeddingRevision: Int) async throws -> ScoringContextInputs {
     try await reader.read { db in
-      try Self.scoringContextInputs(db) { db in
+      try Self.scoringContextInputs(db, embeddingRevision: embeddingRevision) { db in
         try PartialSignal
           .filter(Episode.hasCoverage && !Episode.rated)
           .fetchAll(db)
@@ -63,29 +63,36 @@ struct RecommendationRepo: Recommending {
   }
 
   // Shared builder for both the engine's debounced rebuild (above) and the
-  // GRDB observation in `Observatory.scoringContextInputsWithoutPartialSignals()`.
+  // GRDB observation in
+  // `Observatory.scoringContextInputsWithoutPartialSignals(embeddingRevision:)`.
   // The observation passes the default `{ _ in [] }` so `playbackCoverage` and
   // `lastPlayedDate` stay out of the tracked region — otherwise every 3-second
   // `updatePlayback` write would wake the observation. The rebuild path passes
   // a real fetcher, so partial listens land in the engine through that loop.
+  // Embeddings from other revisions are left out: vectors from another model
+  // live in a different space, so they neither join centroids nor count.
   static func scoringContextInputs(
     _ db: Database,
+    embeddingRevision: Int,
     partialSignals fetchPartialSignals: (Database) throws -> [PartialSignal] = { _ in [] }
   ) throws -> ScoringContextInputs {
     let ratedSignals = try SignalEpisode.filter(Episode.hasRatingSignal).fetchAll(db)
     let partialSignals = try fetchPartialSignals(db)
     let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
+    let currentEmbeddings = EpisodeEmbedding.filter(
+      EpisodeEmbedding.Columns.embeddingRevision == embeddingRevision
+    )
     let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
       signalIDs.isEmpty
       ? IdentifiedArray(id: \.episodeId)
-      : try EpisodeEmbedding
+      : try currentEmbeddings
         .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
         .fetchIdentifiedArray(db, id: \.episodeId)
     return ScoringContextInputs(
       ratedSignals: ratedSignals,
       partialSignals: partialSignals,
       signalEmbeddings: signalEmbeddings,
-      embeddingCount: try EpisodeEmbedding.fetchCount(db),
+      embeddingCount: try currentEmbeddings.fetchCount(db),
       freshnessCadences: try Self.resolveFreshnessCadences(db)
     )
   }

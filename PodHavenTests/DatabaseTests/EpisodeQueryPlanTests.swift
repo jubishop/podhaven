@@ -45,7 +45,9 @@ struct EpisodeQueryPlanTests {
 
   @Test("the recommendation rebuild reads the coverage index")
   func scoringContextInputsUsesIndex() async throws {
-    let plans = try await queryPlans { _ = try await recommendationRepo.allScoringContextInputs() }
+    let plans = try await queryPlans {
+      _ = try await recommendationRepo.allScoringContextInputs(embeddingRevision: 1)
+    }
 
     #expect(plans.contains { $0.contains("episode_covered_on_id") }, "\(plans)")
   }

@@ -60,6 +60,7 @@ extension Container {
 // MARK: - RecommendationEngine
 
 struct RecommendationEngine: Sendable {
+  @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @DynamicInjected(\.continuousClockNow) private var continuousClockNow
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
@@ -99,9 +100,10 @@ struct RecommendationEngine: Sendable {
   private static let whiteningCountGrowthMax: Float = 1.25
   private static let whiteningCountShrinkMin: Float = 0.8
 
-  // Invalidated by any of: model revision change, recipeVersion bump, count
-  // moving outside [shrink, growth], or the user enabling exploratory mode
-  // when the cached transform was computed with fewer PCs.
+  // Invalidated by any of: model revision change, recipeVersion bump, the
+  // current revision's embedding count moving outside [shrink, growth], or
+  // the user enabling exploratory mode when the cached transform was computed
+  // with fewer PCs.
   private let cachedWhiteningTransform = ThreadSafe<
     (
       transform: WhiteningTransform, revision: Int, recipeVersion: Int,
@@ -190,9 +192,9 @@ struct RecommendationEngine: Sendable {
 
   // Unlike `topRecommendations`, there's no candidate filter, no minimum
   // floor, and no limit. Returns empty if `start()` hasn't yet hydrated
-  // the cache. Candidates without an `EpisodeEmbedding` row are omitted
-  // from the result map, so callers can use map membership as an
-  // "is embedded" check.
+  // the cache. Candidates without an embedding from the current model
+  // revision are omitted from the result map, so callers can use map
+  // membership as an "is scorable" check.
   func recommendations(
     for episodes: [Episode]
   ) async throws -> [Episode.ID: RecommendationScore] {
@@ -219,7 +221,7 @@ struct RecommendationEngine: Sendable {
   }
 
   // Raw scores preserve ordering above the display anchor. Membership comes
-  // from the caller; episodes without embeddings are omitted.
+  // from the caller; episodes without current-revision embeddings are omitted.
   func unscaledRecommendationScores(
     for candidates: [CandidateEpisode]
   ) async throws -> [Episode.ID: Float] {
@@ -238,8 +240,8 @@ struct RecommendationEngine: Sendable {
     )
   }
 
-  // Returns nil if the episode doesn't exist, has no embedding, or the
-  // cache is cold.
+  // Returns nil if the episode doesn't exist, has no current-revision
+  // embedding, or the cache is cold.
   func recommendation(for episodeID: Episode.ID) async throws -> RecommendationScore? {
     guard let episode = try await repo.episode(episodeID) else { return nil }
     return try await recommendations(for: [episode])[episodeID]
@@ -390,6 +392,7 @@ struct RecommendationEngine: Sendable {
   // Frozen snapshot reused until the next rebuild. `deconeMode` is captured
   // here because changing it reshapes the centroids and invalidates the cache.
   private struct ScoringContext: Sendable {
+    let embeddingRevision: Int
     let positiveCentroid: [Float]
     let negativeCentroid: [Float]?
     let podcastAffinities: [Podcast.ID: Float]
@@ -412,10 +415,13 @@ struct RecommendationEngine: Sendable {
   // at fire time so a write between trigger and fire isn't missed.
   private func startObservations() {
     Task(priority: taskPriority(.utility)) {
+      let embeddingRevision = contextualEmbedding.revision
       var retryDelay: Duration = .seconds(1)
       while !Task.isCancelled {
         do {
-          for try await _ in observatory.scoringContextInputsWithoutPartialSignals() {
+          for try await _ in observatory.scoringContextInputsWithoutPartialSignals(
+            embeddingRevision: embeddingRevision
+          ) {
             guard !Task.isCancelled else { return }
             retryDelay = .seconds(1)
             scheduleCacheRebuild()
@@ -475,11 +481,14 @@ struct RecommendationEngine: Sendable {
       }
       do {
         let inputsStart = continuousClockNow()
-        let inputs = try await recommendationRepo.allScoringContextInputs()
+        let embeddingRevision = contextualEmbedding.revision
+        let inputs = try await recommendationRepo.allScoringContextInputs(
+          embeddingRevision: embeddingRevision
+        )
         let deconeMode = Container.shared.userSettings().recommendationDeconeMode
         let whiteningTransform = try await currentWhiteningTransform(
           embeddingCount: inputs.embeddingCount,
-          currentRevision: Container.shared.contextualEmbedding().revision,
+          currentRevision: embeddingRevision,
           principalComponentCount: Self.principalComponentStripCount(for: deconeMode)
         )
         let inputsDuration = continuousClockNow() - inputsStart
@@ -496,6 +505,7 @@ struct RecommendationEngine: Sendable {
         let buildStart = continuousClockNow()
         let context = Self.buildContext(
           from: inputs,
+          embeddingRevision: embeddingRevision,
           whiteningTransform: whiteningTransform,
           deconeMode: deconeMode
         )
@@ -541,6 +551,7 @@ struct RecommendationEngine: Sendable {
 
   private static func buildContext(
     from inputs: ScoringContextInputs,
+    embeddingRevision: Int,
     whiteningTransform: WhiteningTransform?,
     deconeMode: UserSettings.RecommendationDeconeMode
   ) -> ScoringContext? {
@@ -573,6 +584,7 @@ struct RecommendationEngine: Sendable {
     }
 
     return ScoringContext(
+      embeddingRevision: embeddingRevision,
       positiveCentroid: positiveCentroid,
       negativeCentroid: negative,
       podcastAffinities: computePodcastAffinities(
@@ -615,7 +627,9 @@ struct RecommendationEngine: Sendable {
     try scratch.withUnsafeMutableBufferPointer { scratchPtr in
       for (index, candidate) in candidates.enumerated() {
         if index % 64 == 0 { try Task.checkCancellation() }
-        guard let embedding = embeddings[id: candidate.id] else { continue }
+        guard let embedding = embeddings[id: candidate.id],
+          embedding.embeddingRevision == context.embeddingRevision
+        else { continue }
         scores[candidate.id] = unsafe scoreCandidate(
           embedding: embedding,
           podcastID: candidate.podcastID,
@@ -891,11 +905,14 @@ struct RecommendationEngine: Sendable {
 
   // Hot path: cached transform read. Cold path: one streaming corpus scan
   // plus power iteration. See `cachedWhiteningTransform` for invalidation.
+  // `embeddingCount` counts only `currentRevision` rows, so the transform is
+  // recomputed as re-embedding after a revision change grows that corpus.
   private func currentWhiteningTransform(
     embeddingCount: Int,
     currentRevision: Int,
     principalComponentCount: Int
   ) async throws -> WhiteningTransform? {
+    guard embeddingCount > 0 else { return nil }
     let currentRecipeVersion = EmbeddingService.recipeVersion
     if let cached = cachedWhiteningTransform(),
       cached.revision == currentRevision,

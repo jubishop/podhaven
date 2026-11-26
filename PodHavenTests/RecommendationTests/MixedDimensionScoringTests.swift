@@ -6,15 +6,18 @@ import Testing
 
 @testable import PodHaven
 
-// Embeddings from a revision other than the current one leave the engine
-// without a whitening transform, so it scores raw vectors whose dimensions
-// may differ from the centroid's.
+// Embeddings whose dimension differs from the rest of the current revision's
+// corpus must neither score as similar nor move the centroid. Focused mode
+// keeps whitening to mean-centering, so the centroid keeps a direction.
 @Suite("Recommendation scoring with mixed embedding dimensions", .container)
 class MixedDimensionScoringTests {
   @Test("a candidate whose dimension differs from the centroid scores neutral similarity")
   func mismatchedCandidateScoresNeutralSimilarity() async throws {
-    let embeddable = ScriptedEmbeddable(revision: 2) { text in
-      text.contains("Wide") ? [1, 0, 0, 0] : [1, 0, 0]
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Wide") { return [1, 0, 0, 0] }
+      if text.contains("Anchor") { return [0, 1, 0] }
+      return [1, 0, 0]
     }
 
     let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
@@ -25,6 +28,17 @@ class MixedDimensionScoringTests {
       ratings: [.loved, .liked, .liked]
     )
     try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    // Moves the corpus mean off the signals, so centering leaves them a
+    // direction that a wide candidate read as its first three components
+    // would match.
+    let (_, anchors) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Anchor",
+      podcastDescription: "Anchor",
+      episodeDescriptions: ["Anchor"]
+    )
+    try await RecommendationHelpers.embedEpisodes(anchors, embeddable: embeddable)
 
     let (_, candidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 1,
@@ -42,7 +56,8 @@ class MixedDimensionScoringTests {
 
   @Test("signals whose dimension differs from the centroid do not move it")
   func mismatchedSignalsDoNotMoveCentroid() async throws {
-    let embeddable = ScriptedEmbeddable(revision: 2) { text in
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+    let embeddable = ScriptedEmbeddable { text in
       if text.contains("Short") { return [0, 1] }
       if text.contains("Signal") { return [1, 0, 0] }
       return [0, 1, 0]
