@@ -38,7 +38,7 @@ struct PlayPauseIntent: SetValueIntent, AudioPlaybackIntent {
     )
     if value {
       widgetState.playbackStatus = .playing
-      await playManager.play(origin: .widget)
+      await playManager.play(origin: .widget)?.value
       if sharedState.onDeck == nil {
         widgetState.playbackStatus = sharedState.playbackStatus
       }

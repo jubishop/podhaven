@@ -59,6 +59,7 @@ struct CacheManager {
 
   private var alert: Alert { get async { await Container.shared.alert() } }
   private var cacheFileStore: CacheFileStore { Container.shared.cacheFileStore() }
+  private var cachePurger: CachePurger { Container.shared.cachePurger() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var taskPriority: @Sendable (TaskPriority?) -> TaskPriority? {
     Container.shared.taskPriority()
@@ -306,6 +307,7 @@ struct CacheManager {
     )
     if case .installed(let cachedURL) = storage {
       excludeFromBackup(cachedURL.rawValue)
+      cachePurger.schedulePurge()
     }
     return storage
   }
