@@ -21,6 +21,7 @@ struct ShareService {
 
   private static let log = Log.as(LogSubsystem.ShareService.main)
   private static let sharedFilePrefix = "shared_file_"
+  static let staleSharedFileAge: Duration = .hours(24)
 
   // MARK: - URL Analysis
 
@@ -166,6 +167,50 @@ struct ShareService {
     else { return nil }
 
     return fileURL
+  }
+
+  // MARK: - Stale Shared Files
+
+  @concurrent static func removeStaleSharedFiles() async {
+    let fileManager = Container.shared.fileManager()
+    guard
+      let container = fileManager.containerURL(
+        forSecurityApplicationGroupIdentifier: AppInfo.appGroupID
+      )
+    else {
+      log.error("removeStaleSharedFiles: app group container not found")
+      return
+    }
+
+    let fileURLs: [URL]
+    do {
+      fileURLs = try fileManager.contentsOfDirectory(at: container)
+    } catch {
+      log.caughtError("removeStaleSharedFiles: failed to list the app group container", error)
+      return
+    }
+
+    let cutoff = Container.shared.dateProvider().now
+      .addingTimeInterval(-staleSharedFileAge.asTimeInterval)
+    var removedCount = 0
+    for fileURL in fileURLs where fileURL.lastPathComponent.hasPrefix(sharedFilePrefix) {
+      do {
+        guard try fileManager.addedToDirectoryDate(for: fileURL) < cutoff else { continue }
+        try fileManager.removeItem(at: fileURL)
+      } catch {
+        if !ErrorKit.isMissingFile(error) {
+          log.caughtError(
+            "removeStaleSharedFiles: failed to remove \(fileURL.lastPathComponent)",
+            error
+          )
+        }
+        continue
+      }
+      removedCount += 1
+    }
+
+    guard removedCount > 0 else { return }
+    log.info("Removed \(removedCount) stale shared files")
   }
 
   // MARK: - Private URL Analysis
