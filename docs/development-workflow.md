@@ -472,6 +472,25 @@ shows which threads stayed blocked. Only the app phase's log names its host
 while tests run. A timing phase's log names its host only after
 the host exits, so a stall in that phase leaves no samples.
 
+Each phase's build is watched too. The watch starts at `xcodebuild`'s first
+line, `Command line invocation:`, so a wrapper still waiting to start it, as
+for a build slot, never counts, and ends once the log shows a test host, in
+XCTest's form or the host's own `PodHaven[<pid>:<thread>]` lines. The build
+has stalled once, for `BUILD_STALL_SECONDS` (five minutes), its log hasn't
+grown and `xcodebuild` and the processes it started have used under
+`BUILD_IDLE_CPU_SECONDS` of CPU time, so a slow build that keeps logging or
+compiling never counts. The command then samples each of those processes at
+once, such as `xcodebuild` and `SWBBuildService`, as
+`<log>-build-<executable>-<pid>.sample.txt` in the evidence directory. It
+interrupts `xcodebuild`, kills it if it hasn't stopped after `STOP_SECONDS`,
+and kills whatever it started that outlives it, since those processes can keep
+the My Mac test lock and build slot they inherited. The phase then fails with
+an error naming the stall and its samples. The command doesn't retry the
+build: the one stall seen, on 2026-11-25, deadlocked Swift Build's driver
+planning while another worktree built, and a fresh run passed, so failing
+costs a rerun while a retry would hide how often stalls recur
+(jubishop/podhaven#1091).
+
 The command runs automated tests with isolated service fixtures. Live Sentry
 smoke tests in `.agents/scripts/sentry-cli/test_sentry_skills.sh` and real QMD
 smoke tests remain separate because they need external credentials, current
@@ -644,7 +663,7 @@ run no tests.
   PodHaven run beside a Screenr check didn't show a second lane safe, as
   home-infra's page records, and jubishop/home-infra#220 measures again. A run
   there holds no validation slot or My Mac test lock on this Mac. The host's
-  `bin/test-all` takes that Mac's own, so the stalled-host sampling, the test
+  `bin/test-all` takes that Mac's own, so the stall watches, the test
   host's temporary-directory check, and every other check run there as here.
 - **Evidence:** the run's output streams back as it runs, with the host's
   evidence paths shown as this checkout's, and its logs, result bundles, and
