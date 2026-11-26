@@ -264,7 +264,7 @@ PodHaven is built using modern Swift practices and a clean, modular architecture
 | [Tagged](https://github.com/pointfreeco/swift-tagged) | Type-safe identifiers |
 | [Sentry](https://github.com/getsentry/sentry-cocoa) | Error reporting and crash analytics |
 | [IdentifiedCollections](https://github.com/pointfreeco/swift-identified-collections) | Collection utilities |
-| [OrderedCollections](https://github.com/apple/swift-collections) | Ordered dictionaries |
+| [OrderedCollections](https://github.com/apple/swift-collections) | Ordered sets and dictionaries |
 | [Semaphore](https://github.com/groue/Semaphore) | Concurrency utilities |
 | [swift-concurrency-extras](https://github.com/pointfreeco/swift-concurrency-extras) | Sendable wrappers for system types |
 | [swift-log](https://github.com/apple/swift-log) | Structured logging |
