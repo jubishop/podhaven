@@ -137,11 +137,19 @@ and in each package checkout's Git alternates and origin into the clone. It
 refuses a clone whose checkouts or artifacts don't match that metadata, as
 when the seed was caught mid-update, and Xcode then resolves the checkout's
 packages afresh. Builds in a clone never update the seed, so a clone fetches
-only what its pins need beyond it. Preparation also replaces a checkout's
-earlier link to the seed with a clone once that checkout's DerivedData is idle
-and the clone verifies. Until then the link stays, because checkouts still
-linking the seed may read paths it recorded through that link. Preparation
-makes a missing seed from a private package folder.
+only what its pins need beyond it. When the default branch, which
+`origin/HEAD` names, pins packages the seed doesn't, preparation and each
+cleanup sweep replace the seed with a verified clone of a checkout's packages
+resolved at exactly those pins, the primary's first; preparation does so
+before it clones the seed. A refresh waits while a build or Xcode runs, that
+checkout's packages are in use, or any DerivedData links the seed. So after a
+package bump, the first checkout to build at the new pins fetches them, and
+each checkout prepared once a refresh succeeds starts from them. Preparation
+also replaces a checkout's earlier link to the seed with a clone once that
+checkout's DerivedData is idle and the clone verifies. Until then the link
+stays, because checkouts still linking the seed may read paths it recorded
+through that link. Preparation makes a missing seed from a private package
+folder.
 It copies missing per-user workspace settings from the primary checkout and
 preserves existing settings. It does not start a warm-up build.
 
@@ -168,8 +176,9 @@ checks also guard deletion; Xcode does not take our lock. Ambiguous activity
 causes deferral and a later automatic retry.
 
 Inspect candidates with `bin/prune-worktree-caches --dry-run`. Use `bin/doctor-xcode`
-to read the latest removal totals, deferred reasons, errors, whether this
-checkout's packages are private, and hourly job state. The latest report
+to read the latest removal totals, deferred reasons, the seed refresh's
+outcome, errors, whether this checkout's packages are private, and hourly job
+state. The latest report
 replaces its predecessor under the common Git directory's
 `knowledge/xcode/cleanup.json`; fatal errors use a single
 `.cache/worktree-cleanup/last-error.json`. Hourly output does not accumulate logs.
