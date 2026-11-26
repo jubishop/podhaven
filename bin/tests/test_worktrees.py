@@ -23,6 +23,7 @@ sys.path.insert(0, str(SOURCE))
 import _worktrees as caches
 
 REVISION = "a" * 40
+PINNED = "b" * 40
 
 
 class CacheTests(unittest.TestCase):
@@ -63,43 +64,73 @@ class CacheTests(unittest.TestCase):
         return folder
 
     def seed(self, alias):
-        """Fill the shared seed as SwiftPM leaves it: paths recorded through whichever folder resolved them."""
-        shutil.rmtree(self.shared)
-        self.artifact.parent.mkdir(parents=True)
-        self.artifact.write_text("Keep the shared artifact")
-        (self.shared / "artifacts/direct").mkdir()
-        (self.shared / "artifacts/direct/Direct.xcframework").write_text("Recorded through the seed itself")
-        (self.shared / "artifacts/custom").mkdir()
-        (self.shared / "artifacts/custom/Custom.xcframework").write_text("Recorded through a deleted custom location")
-        (self.shared / "repositories/Factory-1/objects").mkdir(parents=True)
-        git = self.shared / "checkouts/Factory/.git"
+        self.fill(self.shared, alias)
+
+    def fill(self, folder, alias, revision=REVISION, artifact="Keep the shared artifact"):
+        """Fill a package folder as SwiftPM leaves it: paths recorded through whichever folder resolved them."""
+        shutil.rmtree(folder, ignore_errors=True)
+        (folder / "artifacts/sentry").mkdir(parents=True)
+        (folder / "artifacts/sentry/Sentry.xcframework").write_text(artifact)
+        (folder / "artifacts/direct").mkdir()
+        (folder / "artifacts/direct/Direct.xcframework").write_text("Recorded through the folder itself")
+        (folder / "artifacts/custom").mkdir()
+        (folder / "artifacts/custom/Custom.xcframework").write_text("Recorded through a deleted custom location")
+        (folder / "repositories/Factory-1/objects").mkdir(parents=True)
+        git = folder / "checkouts/Factory/.git"
         (git / "objects/info").mkdir(parents=True)
-        (git / "HEAD").write_text(REVISION + "\n")
+        (git / "HEAD").write_text(revision + "\n")
         (git / "objects/info/alternates").write_text(str(alias / "repositories/Factory-1/objects") + "\n")
         (git / "config").write_text('[remote "origin"]\n\turl = ' + str(alias / "repositories/Factory-1") + "\n")
-        source = self.shared / "checkouts/Factory/Sources/Factory.swift"
+        source = folder / "checkouts/Factory/Sources/Factory.swift"
         source.parent.mkdir(parents=True)
         source.write_text("// pinned")
         # SwiftPM leaves checkout files and their Git config read-only.
         for path in (git / "config", source):
             path.chmod(0o444)
-        (self.shared / "workspace-state.json").write_text(json.dumps({"version": 7, "object": {
+        (folder / "workspace-state.json").write_text(json.dumps({"version": 7, "object": {
             "artifacts": [{"path": str(alias / "artifacts/sentry/Sentry.xcframework")},
-                          {"path": str(self.shared / "artifacts/direct/Direct.xcframework")},
+                          {"path": str(folder / "artifacts/direct/Direct.xcframework")},
                           {"path": str(self.base / "repro/dd after/SourcePackages/artifacts/custom/Custom.xcframework")}],
             "dependencies": [
-                {"subpath": "Factory", "state": {"name": "sourceControlCheckout", "checkoutState": {"revision": REVISION}}},
-                {"subpath": "podhavenmacros", "state": {"name": "fileSystem", "path": str(self.repo / "PodHavenMacros")}},
+                {"packageRef": {"identity": "factory"}, "subpath": "Factory",
+                 "state": {"name": "sourceControlCheckout", "checkoutState": {"revision": revision}}},
+                {"packageRef": {"identity": "podhavenmacros"}, "subpath": "podhavenmacros",
+                 "state": {"name": "fileSystem", "path": str(self.repo / "PodHavenMacros")}},
             ]}}))
+
+    def pin_default_branch(self, revision):
+        """Commit pins for Factory at revision on the default branch that origin/HEAD names."""
+        resolved = self.repo / "PodHaven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+        resolved.parent.mkdir(parents=True, exist_ok=True)
+        resolved.write_text(json.dumps({"originHash": "fixture", "version": 3, "pins": [
+            {"identity": "factory", "kind": "remoteSourceControl", "location": "https://github.com/hmlongco/Factory",
+             "state": {"branch": "main", "revision": revision}}]}))
+        self.git("add", str(resolved))
+        self.git("-c", "core.hooksPath=/dev/null", "commit", "-m", "Pin packages")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+
+    def worktree(self, checkout):
+        self.git("-c", "core.hooksPath=/dev/null", "worktree", "add", "-b", checkout.name, str(checkout))
+        return checkout
+
+    def assert_packages_at_pins(self, folder, artifact):
+        state = json.loads((folder / "workspace-state.json").read_text())["object"]
+        self.assertEqual(state["dependencies"][0]["state"]["checkoutState"]["revision"], PINNED)
+        self.assertEqual([artifact["path"] for artifact in state["artifacts"]],
+                         [str(folder / "artifacts/sentry/Sentry.xcframework"),
+                          str(folder / "artifacts/direct/Direct.xcframework"),
+                          str(folder / "artifacts/custom/Custom.xcframework")])
+        self.assertEqual((folder / "artifacts/sentry/Sentry.xcframework").read_text(), artifact)
+        self.assertEqual((folder / "checkouts/Factory/.git/objects/info/alternates").read_text(),
+                         str(folder / "repositories/Factory-1/objects") + "\n")
 
     def linked_checkout(self):
         (self.repo / "PodHaven.xcodeproj").mkdir(exist_ok=True)
         (self.repo / "PodHaven.xcodeproj/project.pbxproj").write_text("fixture")
         self.git("add", "PodHaven.xcodeproj/project.pbxproj")
         self.git("-c", "core.hooksPath=/dev/null", "commit", "-m", "Project fixture")
-        linked = self.repo / "worktrees/linked"
-        self.git("-c", "core.hooksPath=/dev/null", "worktree", "add", "-b", "linked", str(linked))
-        return linked
+        return self.worktree(self.repo / "worktrees/linked")
 
     def packages(self, checkout):
         return self.derived / ("PodHaven-" + caches.xcode_hash(checkout / "PodHaven.xcodeproj")) / "SourcePackages"
@@ -289,6 +320,71 @@ class CacheTests(unittest.TestCase):
         folder.symlink_to(self.shared, target_is_directory=True)
         self.prepare(linked)
         self.assertFalse(folder.exists() or folder.is_symlink())
+
+    @unittest.skipUnless(sys.platform == "darwin", "Package clones are macOS-only")
+    def test_cleanup_refreshes_a_seed_pinned_other_than_the_default_branch_from_the_primary_packages(self):
+        self.linked_checkout()
+        self.seed(self.shared)
+        self.pin_default_branch(PINNED)
+        # This checkout sorts before the primary.
+        primary, other = self.packages(self.repo), self.packages(self.worktree(self.base / "early"))
+        self.fill(other, other, PINNED, "Another checkout's artifact")
+        self.fill(primary, primary, PINNED, "The new pin's artifact")
+        source = (primary / "workspace-state.json").read_bytes()
+        self.assertEqual(caches.sweep(self.repo, apply=True)["seed"], {"status": "refreshed", "source": str(primary)})
+        self.assert_packages_at_pins(self.shared, "The new pin's artifact")
+        self.assertFalse(self.shared.with_name(self.shared.name + ".preparing").exists())
+        self.assertEqual((primary / "workspace-state.json").read_bytes(), source)
+        before = (self.shared / "workspace-state.json").read_bytes()
+        self.assertEqual(caches.sweep(self.repo, apply=True)["seed"], {"status": "current"})
+        self.assertEqual((self.shared / "workspace-state.json").read_bytes(), before)
+        later = self.worktree(self.repo / "worktrees/later")
+        self.prepare(later)
+        self.assert_packages_at_pins(self.packages(later), "The new pin's artifact")
+
+    @unittest.skipUnless(sys.platform == "darwin", "Package clones are macOS-only")
+    def test_preparation_refreshes_the_seed_from_another_checkout_before_cloning_it(self):
+        linked = self.linked_checkout()
+        self.seed(self.shared)
+        self.pin_default_branch(PINNED)
+        primary, other = self.packages(self.repo), self.packages(self.worktree(self.repo / "worktrees/other"))
+        self.fill(primary, primary)
+        self.fill(other, other, PINNED, "The new pin's artifact")
+        self.assertIn("Refreshed the package seed from " + str(other), self.prepare(linked))
+        self.assert_packages_at_pins(self.packages(linked), "The new pin's artifact")
+
+    @unittest.skipUnless(sys.platform == "darwin", "Package clones are macOS-only")
+    def test_refresh_keeps_the_seed_while_its_source_is_busy_or_unverified_or_another_checkout_links_the_seed(self):
+        linked = self.linked_checkout()
+        self.seed(self.shared)
+        self.pin_default_branch(PINNED)
+        primary = self.packages(self.repo)
+        self.fill(primary, primary, PINNED, "The new pin's artifact")
+        before = (self.shared / "workspace-state.json").read_bytes()
+
+        def kept():
+            report = caches.sweep(self.repo, apply=True)["seed"]
+            self.assertEqual(report["status"], "kept")
+            self.assertEqual((self.shared / "workspace-state.json").read_bytes(), before)
+            self.assertEqual(self.artifact.read_text(), "Keep the shared artifact")
+            self.assertFalse(self.shared.with_name(self.shared.name + ".preparing").exists())
+            return report["reason"]
+
+        # A linked checkout reads the seed through its link.
+        link = self.packages(linked)
+        link.parent.mkdir(parents=True)
+        link.symlink_to(self.shared, target_is_directory=True)
+        self.assertIn(str(link), kept())
+        link.unlink()
+        self.open.side_effect = lambda path: path == primary
+        self.assertIn(str(primary) + " is in use", kept())
+        self.open.side_effect = None
+        lock = primary / "checkouts/Factory/.git/index.lock"
+        lock.touch()
+        self.assertIn("Factory checkout was mid-update", kept())
+        lock.unlink()
+        self.assertEqual(caches.sweep(self.repo, apply=True)["seed"]["status"], "refreshed")
+        self.assert_packages_at_pins(self.shared, "The new pin's artifact")
 
     def test_cleanup_agent_runs_the_default_python_that_follows_updates(self):
         home, tools = self.base / "home", self.base / "tools"
