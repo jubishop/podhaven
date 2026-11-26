@@ -2,7 +2,7 @@ name: Sentry Intake
 
 on:
   schedule:
-    # 14:00 UTC is ~6am PDT / ~7am PST. GitHub cron is UTC-only.
+    # 14:00 UTC is 7am PDT / 6am PST. GitHub cron is UTC-only.
     - cron: "0 14 * * *"
   workflow_dispatch:
 
