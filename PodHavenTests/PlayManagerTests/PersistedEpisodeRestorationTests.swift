@@ -172,7 +172,7 @@ import Testing
     }
 
     await playManager.start()
-    await playManager.play()
+    await playManager.play()?.value
 
     #expect(sharedState.currentEpisodeID == podcastEpisode.id)
     #expect(sharedState.onDeck == nil)

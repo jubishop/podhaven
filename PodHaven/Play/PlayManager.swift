@@ -189,7 +189,8 @@ final class PlayManager {
     do {
       return try await task.value
     } catch {
-      guard playbackRequestRevision == acceptedRevision else { throw error }
+      // A pause supersedes the request without replacing the load.
+      guard playbackRequestRevision == acceptedRevision || !task.isCancelled else { throw error }
       if let recoveryEpisode {
         await restoreOnDeckRecoveryPresentation(recoveryEpisode)
       } else if restoresPersistedEpisode, !task.isCancelled, sharedState.onDeck == nil,
@@ -608,21 +609,26 @@ final class PlayManager {
     return settledOnDeckID == podcastEpisode.id ? .ready : .unavailable
   }
 
-  func play(origin: PlaybackRequestOrigin = .application, requestID: UUID = UUID()) async {
+  // A reload doesn't hold up the caller, so a pause that follows cancels its
+  // pending play at once; the returned task ends once playback starts or settles.
+  @discardableResult
+  func play(origin: PlaybackRequestOrigin = .application, requestID: UUID = UUID()) async
+    -> Task<Void, Never>?
+  {
     // A play during a load joins the load's request instead of superseding it.
     if let loadingEpisodeID = loadTransition?.loadingEpisodeID,
-      loadingEpisodeID != sharedState.onDeck?.id
+      loadingEpisodeID != sharedState.onDeck?.id || loadingEpisodeID == onDeckRecoveryEpisodeID
     {
       if case .play(let pendingEpisodeID) = pendingPlaybackRequest,
         pendingEpisodeID == loadingEpisodeID
       {
         Self.log.debug("play: episode \(loadingEpisodeID) already plays once loaded")
-        return
+        return nil
       }
       pendingPlaybackRequest = .play(loadingEpisodeID)
       loadTransition?.playback = .requested(origin: origin, requestID: playbackRequestRevision)
       Self.log.debug("play: playing episode \(loadingEpisodeID) once loaded")
-      return
+      return nil
     }
     newPlaybackRequest(requestID)
     cancelWidgetRouteRecovery(reason: "newPlay")
@@ -630,23 +636,29 @@ final class PlayManager {
     guard let episodeID = sharedState.onDeck?.id ?? sharedState.currentEpisodeID else {
       pendingPlaybackRequest = .none
       Self.log.warning("play: nothing to play")
-      return
+      return nil
     }
     pendingPlaybackRequest = .play(episodeID)
+    let reloads = sharedState.onDeck == nil || onDeckRecoveryEpisodeID == episodeID
 
-    guard await reloadOnDeckRecoveryIfNeeded(for: episodeID, preserving: requestID),
-      playbackRequestRevision == requestID
-    else { return }
+    let playback = Task { [weak self] in
+      guard let self,
+        await reloadOnDeckRecoveryIfNeeded(for: episodeID, preserving: requestID),
+        playbackRequestRevision == requestID
+      else { return }
 
-    await restorePersistedEpisodeIfNeeded(preserving: requestID)
-    guard playbackRequestRevision == requestID else { return }
-    await beginPlaybackRequest(
-      origin: origin,
-      requestID: requestID,
-      episodeID: episodeID,
-      snapshot: podAVPlayer.playbackSnapshot()
-    )
-    await fulfillPendingPlaybackRequest(preserving: requestID)
+      await restorePersistedEpisodeIfNeeded(preserving: requestID)
+      guard playbackRequestRevision == requestID else { return }
+      await beginPlaybackRequest(
+        origin: origin,
+        requestID: requestID,
+        episodeID: episodeID,
+        snapshot: podAVPlayer.playbackSnapshot()
+      )
+      await fulfillPendingPlaybackRequest(preserving: requestID)
+    }
+    if !reloads { await playback.value }
+    return playback
   }
 
   func pause() async {
@@ -713,12 +725,14 @@ final class PlayManager {
   // app state decides those toggles.
   func toggle() async {
     interruptedPlayback = .none
-    guard onDeckRecoveryEpisodeID == nil else { return await play() }
     guard loadTransition == nil, case .none = pendingPlaybackRequest else {
       Self.log.debug("toggle: pausing pending playback")
       return await pause()
     }
-    guard sharedState.onDeck != nil else { return await play() }
+    guard onDeckRecoveryEpisodeID == nil, sharedState.onDeck != nil else {
+      await play()
+      return
+    }
     let requestID = UUID()
     newPlaybackRequest(requestID)
     cancelWidgetRouteRecovery(reason: "userToggle")
