@@ -559,7 +559,9 @@ actor RefreshManagerTests {
 
     let plainText = "GoDaddy has moved this domain".data(using: .utf8)!
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: plainText)
-    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
+    await #expect(throws: PodcastFeedError.self) {
+      try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
+    }
 
     try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
     try fakeRepo.expectNoCall(methodName: "updateLastUpdates")
@@ -581,7 +583,9 @@ actor RefreshManagerTests {
 
     let html = "<html><body><h1>404 Not Found</h1></body></html>".data(using: .utf8)!
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: html)
-    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
+    await #expect(throws: DecodingError.self) {
+      try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
+    }
 
     try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
     try fakeRepo.expectNoCall(methodName: "updateLastUpdates")
@@ -607,7 +611,9 @@ actor RefreshManagerTests {
       """
       .data(using: .utf8)!
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: xml)
-    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
+    await #expect(throws: DecodingError.self) {
+      try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
+    }
 
     try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
     try fakeRepo.expectNoCall(methodName: "updateLastUpdates")
@@ -631,7 +637,9 @@ actor RefreshManagerTests {
       to: podcastSeries.podcast.feedURL.rawValue,
       error: URLError(.notConnectedToInternet)
     )
-    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
+    await #expect(throws: URLError.self) {
+      try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
+    }
 
     try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
     try fakeRepo.expectNoCall(methodName: "updateLastUpdates")

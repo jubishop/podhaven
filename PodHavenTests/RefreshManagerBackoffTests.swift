@@ -113,7 +113,9 @@ actor RefreshManagerBackoffTests {
       stalenessThreshold: .minutes(1)
     )
     let podcast = try #require(try await repo.podcast(podcastID))
-    try await refreshManager.refreshSeries(podcast: podcast)
+    await #expect(throws: HTTPStatusError.self) {
+      try await refreshManager.refreshSeries(podcast: podcast)
+    }
 
     #expect(
       Array(await session.requests.dropFirst(requestCount))
