@@ -22,7 +22,9 @@ over HTTPS. An `.opml` link opens only a `shared_file_*` copy that the share
 extension wrote to the app group container. The app deletes that copy once it
 handles the link, and each launch deletes copies that arrived in the container
 over a day earlier, such as those a failed launch left; it deletes no other
-file.
+file. A web `.opml` link, such as Safari shares for an OPML page, fetches
+nothing; the app says to share a downloaded OPML file or import one in Settings
+instead.
 Every OPML import, including one chosen in Settings, lists its feeds and
 subscribes to nothing until the user taps Import.
 
