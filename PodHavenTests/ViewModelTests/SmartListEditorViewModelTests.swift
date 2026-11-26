@@ -190,20 +190,39 @@ import Testing
     #expect(saved.filter.groups.isEmpty)
   }
 
-  @Test("requestDelete confirms with an alert before deleting")
+  @Test("requestDelete asks first, keeps a list on Cancel, and deletes one on Delete")
   func requestDeleteConfirmsBeforeDeleting() async throws {
-    let existing = try #require(try await smartListRepo.fetchAll().first)
-    let viewModel = SmartListEditorViewModel(
-      mode: .edit(existing.id),
-      title: existing.title,
-      filter: existing.filter
+    let lists = try await smartListRepo.fetchAll()
+    try #require(lists.count >= 2)
+    let kept = lists[0]
+    let deleted = lists[1]
+    let keptViewModel = SmartListEditorViewModel(
+      mode: .edit(kept.id),
+      title: kept.title,
+      filter: kept.filter
+    )
+    let deletedViewModel = SmartListEditorViewModel(
+      mode: .edit(deleted.id),
+      title: deleted.title,
+      filter: deleted.filter
     )
 
-    viewModel.requestDelete()
+    keptViewModel.requestDelete()
+    let cancelled = try await answerAlert("Cancel")
 
-    #expect(alert.config?.title == "Delete Smart List?")
-    let persisted = try #require(try await smartListRepo.fetchOne(existing.id))
-    #expect(persisted.id == existing.id)
+    #expect(cancelled.title == "Delete Smart List?")
+    #expect(cancelled.message == "Are you sure you want to delete \"\(kept.title)\"?")
+    #expect(try await smartListRepo.fetchOne(kept.id) != nil)
+
+    deletedViewModel.requestDelete()
+    let confirmed = try await answerAlert("Delete")
+
+    #expect(confirmed.message == "Are you sure you want to delete \"\(deleted.title)\"?")
+    try await Wait.until(
+      { @MainActor in try await self.smartListRepo.fetchOne(deleted.id) == nil },
+      { "Expected Delete to remove smart list \(deleted.id)" }
+    )
+    #expect(try await smartListRepo.fetchOne(kept.id) != nil)
   }
 
   @Test("requestDelete does nothing in create mode")
@@ -213,23 +232,6 @@ import Testing
     viewModel.requestDelete()
 
     #expect(alert.config == nil)
-  }
-
-  @Test("delete removes the row in edit mode")
-  func deleteRemovesRow() async throws {
-    let existing = try #require(try await smartListRepo.fetchAll().first)
-    let viewModel = SmartListEditorViewModel(
-      mode: .edit(existing.id),
-      title: existing.title,
-      filter: existing.filter
-    )
-
-    viewModel.delete()
-
-    try await Wait.until(
-      { @MainActor in try await self.smartListRepo.fetchOne(existing.id) == nil },
-      { "Expected delete to remove the row" }
-    )
   }
 
   // MARK: - Validation
