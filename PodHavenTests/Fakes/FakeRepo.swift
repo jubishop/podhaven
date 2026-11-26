@@ -33,6 +33,10 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // Cleared on use so subsequent calls reach the real repo.
   nonisolated let markSubscribedBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
 
+  // Replaces the measured publisher transcript size when set, standing in for
+  // a library too large to build in a test.
+  nonisolated let publisherTranscriptByteCountOverride = ThreadSafe<Int?>(nil)
+
   // When true, the next `episode(_:Episode.ID)` call parks until
   // `resumeAllEpisodeFetchSuspensions()` fires; cleared on use. Counts are
   // nonisolated so tests poll without contending for the actor (same pattern
@@ -177,6 +181,12 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   {
     recordCall(methodName: "transcriptionCheckpoint", parameters: episodeID)
     return try await repo.transcriptionCheckpoint(episodeID)
+  }
+
+  func publisherTranscriptByteCount() async throws -> Int {
+    recordCall(methodName: "publisherTranscriptByteCount")
+    if let override = publisherTranscriptByteCountOverride() { return override }
+    return try await repo.publisherTranscriptByteCount()
   }
 
   func resumeAllEpisodeFetchSuspensions() {

@@ -32,6 +32,7 @@ protocol Databasing: Sendable {
   func episode(_ episodeID: Episode.ID) async throws -> Episode?
   func transcriptionCheckpoint(_ episodeID: Episode.ID) async throws
     -> TranscriptionCheckpoint?
+  func publisherTranscriptByteCount() async throws -> Int
   func episodesMatching(
     podcastID: Podcast.ID,
     guids: [GUID],
