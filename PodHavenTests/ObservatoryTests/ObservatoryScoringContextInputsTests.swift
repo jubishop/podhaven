@@ -16,7 +16,13 @@ actor ObservatoryScoringContextInputsTests {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.appDB) private var appDB
 
+  private static let embeddingRevision = 1
+
   // MARK: - Helpers
+
+  private func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
+    observatory.scoringContextInputsWithoutPartialSignals(embeddingRevision: Self.embeddingRevision)
+  }
 
   private func upsertEpisode(
     podcast: Podcast,
@@ -59,7 +65,8 @@ actor ObservatoryScoringContextInputsTests {
 
   private func upsertEmbedding(
     for episode: Episode,
-    vector: [Float] = [1, 0, 0]
+    vector: [Float] = [1, 0, 0],
+    revision: Int = embeddingRevision
   ) async throws {
     let data = UnsavedEpisodeEmbedding.vectorData(from: vector)
     try await recommendationRepo.upsertEmbeddings([
@@ -67,7 +74,7 @@ actor ObservatoryScoringContextInputsTests {
         episodeId: episode.id,
         vector: data,
         sourceHash: "hash-\(episode.id)",
-        embeddingRevision: 1,
+        embeddingRevision: revision,
         dimension: vector.count,
         verificationDate: Date()
       )
@@ -78,7 +85,7 @@ actor ObservatoryScoringContextInputsTests {
 
   @Test("emits empty inputs when DB has no signal episodes")
   func emptyState() async throws {
-    let inputs = try await observatory.scoringContextInputsWithoutPartialSignals().get()
+    let inputs = try await scoringContextInputs().get()
     #expect(inputs.ratedSignals.isEmpty)
     #expect(inputs.signalEmbeddings.isEmpty)
     #expect(inputs.embeddingCount == 0)
@@ -101,7 +108,7 @@ actor ObservatoryScoringContextInputsTests {
       )
     }
 
-    let inputs = try await observatory.scoringContextInputsWithoutPartialSignals().get()
+    let inputs = try await scoringContextInputs().get()
     #expect(inputs.freshnessCadences[manualPodcast.id] == .evergreen)
   }
 
@@ -117,7 +124,7 @@ actor ObservatoryScoringContextInputsTests {
       )
     }
 
-    let inputs = try await observatory.scoringContextInputsWithoutPartialSignals().get()
+    let inputs = try await scoringContextInputs().get()
     #expect(inputs.freshnessCadences[podcast.id] == .daily)
   }
 
@@ -133,7 +140,7 @@ actor ObservatoryScoringContextInputsTests {
       )
     }
 
-    let inputs = try await observatory.scoringContextInputsWithoutPartialSignals().get()
+    let inputs = try await scoringContextInputs().get()
     #expect(inputs.freshnessCadences[podcast.id] == .weekly)
   }
 
@@ -151,7 +158,7 @@ actor ObservatoryScoringContextInputsTests {
       )
     }
 
-    let inputs = try await observatory.scoringContextInputsWithoutPartialSignals().get()
+    let inputs = try await scoringContextInputs().get()
     #expect(inputs.freshnessCadences[podcast.id] == .weekly)
   }
 
@@ -160,14 +167,14 @@ actor ObservatoryScoringContextInputsTests {
     let podcast = try await insertPodcast(title: "Brand New")
     _ = try await upsertEpisode(podcast: podcast, title: "Only one")
 
-    let inputs = try await observatory.scoringContextInputsWithoutPartialSignals().get()
+    let inputs = try await scoringContextInputs().get()
     #expect(inputs.freshnessCadences[podcast.id] == .default)
   }
 
   @Test("podcasts without any episodes are absent from the cadence map")
   func absentWhenNoEpisodesAndAuto() async throws {
     let podcast = try await insertPodcast(title: "Empty")
-    let inputs = try await observatory.scoringContextInputsWithoutPartialSignals().get()
+    let inputs = try await scoringContextInputs().get()
     #expect(inputs.freshnessCadences[podcast.id] == nil)
   }
 
@@ -189,7 +196,7 @@ actor ObservatoryScoringContextInputsTests {
     let cadence = ThreadSafe<FreshnessCadence?>(nil)
     Task {
       do {
-        for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
+        for try await inputs in scoringContextInputs() {
           cadence(inputs.freshnessCadences[podcastID])
         }
       } catch {
@@ -237,7 +244,7 @@ actor ObservatoryScoringContextInputsTests {
     let unrated = try await upsertEpisode(podcast: podcast, title: "Unrated")
     try await upsertEmbedding(for: loved, vector: [1, 0, 0])
 
-    let inputs = try await observatory.scoringContextInputsWithoutPartialSignals().get()
+    let inputs = try await scoringContextInputs().get()
 
     #expect(inputs.ratedSignals.count == 1)
     let lovedSignal = try #require(inputs.ratedSignals.first { $0.id == loved.id })
@@ -269,10 +276,13 @@ actor ObservatoryScoringContextInputsTests {
     )
 
     // Partial signals are filled in by the engine's rebuild path
-    // (`RecommendationRepo.allScoringContextInputs()`), not by the GRDB observation —
+    // (`RecommendationRepo.allScoringContextInputs(embeddingRevision:)`), not by
+    // the GRDB observation —
     // playback columns are deliberately excluded from the observation's
     // tracked region.
-    let inputs = try await recommendationRepo.allScoringContextInputs()
+    let inputs = try await recommendationRepo.allScoringContextInputs(
+      embeddingRevision: Self.embeddingRevision
+    )
     #expect(inputs.partialSignals.count == 1)
     #expect(inputs.partialSignals.first?.id == episode.id)
   }
@@ -287,7 +297,7 @@ actor ObservatoryScoringContextInputsTests {
     let emissionCount = Counter()
     Task {
       do {
-        for try await _ in observatory.scoringContextInputsWithoutPartialSignals() {
+        for try await _ in scoringContextInputs() {
           await emissionCount.increment()
         }
       } catch {
@@ -389,10 +399,49 @@ actor ObservatoryScoringContextInputsTests {
     let candidate = try await upsertEpisode(podcast: podcast, title: "Candidate")
     try await upsertEmbedding(for: candidate)
 
-    let inputs = try await observatory.scoringContextInputsWithoutPartialSignals().get()
+    let inputs = try await scoringContextInputs().get()
     #expect(inputs.ratedSignals.isEmpty)
     #expect(inputs.signalEmbeddings.isEmpty)
     #expect(inputs.embeddingCount == 1)
+  }
+
+  @Test("leaves out embeddings from other revisions")
+  func leavesOutOtherRevisionEmbeddings() async throws {
+    let podcast = try await insertPodcast()
+    let staleSignal = try await upsertEpisode(podcast: podcast, title: "Loved", rating: .loved)
+    try await upsertEmbedding(for: staleSignal, revision: Self.embeddingRevision + 1)
+    let staleCandidate = try await upsertEpisode(podcast: podcast, title: "Stale")
+    try await upsertEmbedding(for: staleCandidate, revision: Self.embeddingRevision + 1)
+    let currentCandidate = try await upsertEpisode(podcast: podcast, title: "Current")
+    try await upsertEmbedding(for: currentCandidate)
+
+    let inputs = try await scoringContextInputs().get()
+    #expect(inputs.ratedSignals.map(\.id) == [staleSignal.id])
+    #expect(inputs.signalEmbeddings.isEmpty)
+    #expect(inputs.embeddingCount == 1)
+  }
+
+  @Test("re-emits when a row is re-embedded under the current revision")
+  func reEmitsOnReembedding() async throws {
+    let podcast = try await insertPodcast()
+    let candidate = try await upsertEpisode(podcast: podcast, title: "Candidate")
+    try await upsertEmbedding(for: candidate, revision: Self.embeddingRevision + 1)
+
+    let embeddingCount = Counter(initialValue: -1)
+    Task {
+      do {
+        for try await inputs in scoringContextInputs() {
+          await embeddingCount(inputs.embeddingCount)
+        }
+      } catch {
+        Issue.record(error)
+      }
+    }
+    try await embeddingCount.wait(for: 0)
+
+    try await upsertEmbedding(for: candidate)
+
+    try await embeddingCount.wait(for: 1)
   }
 
   @Test("re-emits when a new rating arrives")
@@ -403,7 +452,7 @@ actor ObservatoryScoringContextInputsTests {
     let signalCount = Counter()
     Task {
       do {
-        for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
+        for try await inputs in scoringContextInputs() {
           await signalCount(inputs.ratedSignals.count)
         }
       } catch {
@@ -431,7 +480,7 @@ actor ObservatoryScoringContextInputsTests {
     let embeddingCount = Counter()
     Task {
       do {
-        for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
+        for try await inputs in scoringContextInputs() {
           await embeddingCount(inputs.signalEmbeddings.count)
         }
       } catch {
@@ -465,7 +514,7 @@ actor ObservatoryScoringContextInputsTests {
     let emissionCount = Counter()
     Task {
       do {
-        for try await _ in observatory.scoringContextInputsWithoutPartialSignals() {
+        for try await _ in scoringContextInputs() {
           await emissionCount.increment()
         }
       } catch {
@@ -494,7 +543,7 @@ actor ObservatoryScoringContextInputsTests {
     let signalCount = Counter()
     Task {
       do {
-        for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
+        for try await inputs in scoringContextInputs() {
           await signalCount(inputs.ratedSignals.count)
         }
       } catch {
@@ -523,7 +572,7 @@ actor ObservatoryScoringContextInputsTests {
     let embeddingCount = Counter()
     Task {
       do {
-        for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
+        for try await inputs in scoringContextInputs() {
           await embeddingCount(inputs.signalEmbeddings.count)
         }
       } catch {
@@ -574,7 +623,7 @@ actor ObservatoryScoringContextInputsTests {
     let emissionCount = Counter()
     Task {
       do {
-        for try await _ in observatory.scoringContextInputsWithoutPartialSignals() {
+        for try await _ in scoringContextInputs() {
           await emissionCount.increment()
         }
       } catch {

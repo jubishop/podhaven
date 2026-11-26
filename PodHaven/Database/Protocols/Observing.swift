@@ -87,7 +87,9 @@ protocol Observing: Sendable {
   // MARK: - Recommendations
 
   func embeddedCandidateEpisodes(filter: SQLExpression) -> AsyncValueObservation<[CandidateEpisode]>
-  func scoringContextInputsWithoutPartialSignals() -> AsyncValueObservation<ScoringContextInputs>
+  func scoringContextInputsWithoutPartialSignals(
+    embeddingRevision: Int
+  ) -> AsyncValueObservation<ScoringContextInputs>
   func embeddingWorkSignal() -> AsyncValueObservation<
     (
       latestEpisodeContentUpdate: Date?,

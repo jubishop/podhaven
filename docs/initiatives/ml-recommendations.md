@@ -144,6 +144,8 @@ Files: `PodHaven/Recommendations/Models/ScoringContextInputs.swift`, `Observator
 
 Rejected alternatives: TTL cache, waiter-dict pattern (cache state ballooned to context+initialized+waiters), AsyncOnce-gated `start() async` (let public methods stay non-blocking instead), denormalized score column, bundling scores into Repo queries.
 
+**Decision — 2026-11-24 (jubishop/podhaven#979):** scoring uses only embeddings of the current `NLContextualEmbedding` revision. The scoring inputs take that revision, so signal embeddings and `embeddingCount` cover only its rows; `scoreEpisodes` skips candidates embedded under another revision; and the whitening transform scans only its rows, with its cache keyed on that count, so it's recomputed as re-embedding after an OS update grows the new revision's corpus. Until an episode is re-embedded it gets no score, and re-embedding runs newest first, so recent episodes regain scores first. Keeping old-revision vectors with unwhitened or per-revision scoring was rejected: vectors from two models live in different spaces even when their dimensions match.
+
 ### On-demand embedding processing — updated 2026-07-21
 
 `EmbeddingProcessor` drains continuously while the app is active and keeps a `BGProcessingTask` pending while backgrounded only when embedding work may exist. The foreground observer still debounces content-change emissions before querying `episodesNeedingEmbeddings`; periodic one-hour submissions are gone. Background requests use the scheduler's on-demand mode with a one-minute earliest begin date, and draining an empty backlog cancels any successor request.
