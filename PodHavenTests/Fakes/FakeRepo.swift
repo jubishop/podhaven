@@ -10,11 +10,13 @@ import Tagged
 
 actor FakeRepo: Databasing, Sendable, FakeCallable {
   typealias AfterMarkFinished = @Sendable (Episode.ID) async -> Void
+  typealias BeforeBulkPodcastDelete = @Sendable () async throws -> Void
 
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
   nonisolated let refreshEpisodeRowsRead = ThreadSafe<Int>(0)
   private var afterMarkFinishedHandler: AfterMarkFinished?
+  private var beforeBulkPodcastDeleteHandler: BeforeBulkPodcastDelete?
   private var beforeCurrentTimeUpdate: (@Sendable () async -> Void)?
 
   // One-shot error to throw from `updateSaveInCache(_ episodeID:saveInCache:)`.
@@ -28,6 +30,10 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // One-shot error to throw from `episode(_:Episode.ID)`. Cleared on use so
   // subsequent calls reach the real repo.
   nonisolated let episodeFetchError = ThreadSafe<(any Error & Sendable)?>(nil)
+
+  // One-shot error to throw from `podcastEpisodes(_ episodeIDs:)`. Cleared on
+  // use so subsequent calls reach the real repo.
+  nonisolated let podcastEpisodesFetchError = ThreadSafe<(any Error & Sendable)?>(nil)
 
   // One-shot error to throw from `markSubscribed(_ podcastIDs:level:)`.
   // Cleared on use so subsequent calls reach the real repo.
@@ -321,6 +327,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   func podcastEpisodes(_ episodeIDs: [Episode.ID]) async throws -> [PodcastEpisode] {
     recordCall(methodName: "podcastEpisodes", parameters: episodeIDs)
+    if let injected = podcastEpisodesFetchError({ error in
+      let captured = error
+      error = nil
+      return captured
+    }) {
+      throw injected
+    }
     let result = try await repo.podcastEpisodes(episodeIDs)
     if pendingPodcastEpisodesFetchSuspend() {
       pendingPodcastEpisodesFetchSuspend(false)
@@ -442,7 +455,18 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   @discardableResult
   func deletePodcast(_ podcastIDs: [Podcast.ID]) async throws -> Int {
     recordCall(methodName: "delete", parameters: podcastIDs)
+    let beforeDelete = beforeBulkPodcastDeleteHandler
+    beforeBulkPodcastDeleteHandler = nil
+    if let beforeDelete {
+      try await beforeDelete()
+    }
     return try await repo.deletePodcast(podcastIDs)
+  }
+
+  // Runs `handler` once before the next bulk podcast delete reaches the real
+  // repo; an error it throws fails that delete.
+  func beforeNextBulkPodcastDelete(_ handler: @escaping BeforeBulkPodcastDelete) {
+    beforeBulkPodcastDeleteHandler = handler
   }
 
   @discardableResult

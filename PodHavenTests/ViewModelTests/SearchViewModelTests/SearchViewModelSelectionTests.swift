@@ -23,6 +23,66 @@ import Testing
     let podcastCount = 5
     await SyntheticFeed.respond(feedSession, episodes: 1)
 
+    let viewModel = try await makeViewModel(podcastCount: podcastCount)
+    viewModel.podcastList.selectAllEntries()
+
+    let summarized = AsyncLatch<Void>()
+    let captured = try await LogCapture.withSink(
+      onCapture: { entry in
+        if entry.message.contains("subscribed \(podcastCount) of \(podcastCount)") {
+          summarized.open()
+        }
+      }
+    ) { sink in
+      viewModel.subscribeSelectedPodcasts()
+      try await summarized.wait()
+      return sink.captured()
+    }
+
+    let podcasts = try await repo.allPodcasts(AppDB.noOp)
+    #expect(podcasts.count == podcastCount)
+    #expect(podcasts.allSatisfy { $0.subscribed })
+    let perPodcastLines = captured.filter { $0.message.contains("to: subscribed") }
+    #expect(perPodcastLines.isEmpty, "\(perPodcastLines.map(\.message))")
+  }
+
+  @Test(
+    "subscribeSelectedPodcasts alerts when a result fails to save and subscribes the rest",
+    .timeLimit(.minutes(5))
+  )
+  func subscribeSelectedAlertsOnSaveFailure() async throws {
+    let podcastCount = 3
+    let failingIndex = 1
+    await SyntheticFeed.respond(feedSession, episodes: 1)
+    await feedSession.respond(
+      to: SyntheticFeed.url(failingIndex),
+      error: URLError(.badServerResponse)
+    )
+
+    let viewModel = try await makeViewModel(podcastCount: podcastCount)
+    viewModel.podcastList.selectAllEntries()
+
+    let summarized = AsyncLatch<Void>()
+    try await LogCapture.withSink(
+      onCapture: { entry in
+        if entry.message.contains("subscribed \(podcastCount - 1) of \(podcastCount)") {
+          summarized.open()
+        }
+      }
+    ) { _ in
+      viewModel.subscribeSelectedPodcasts()
+      try await summarized.wait()
+    }
+
+    #expect(Container.shared.alert().config?.title == "Error")
+    let podcasts = try await repo.allPodcasts(AppDB.noOp)
+    #expect(podcasts.count == podcastCount - 1)
+    #expect(podcasts.allSatisfy { $0.subscribed })
+  }
+
+  // MARK: - Helpers
+
+  private func makeViewModel(podcastCount: Int) async throws -> SearchViewModel {
     let viewModel = SearchViewModel()
     viewModel.podcastList.allEntries = IdentifiedArray(
       uniqueElements: try (0..<podcastCount)
@@ -45,25 +105,6 @@ import Testing
         "filteredEntries didn't populate; got \(viewModel.podcastList.filteredEntries.count)"
       }
     )
-    viewModel.podcastList.selectAllEntries()
-
-    let summarized = AsyncLatch<Void>()
-    let captured = try await LogCapture.withSink(
-      onCapture: { entry in
-        if entry.message.contains("subscribed \(podcastCount) of \(podcastCount)") {
-          summarized.open()
-        }
-      }
-    ) { sink in
-      viewModel.subscribeSelectedPodcasts()
-      try await summarized.wait()
-      return sink.captured()
-    }
-
-    let podcasts = try await repo.allPodcasts(AppDB.noOp)
-    #expect(podcasts.count == podcastCount)
-    #expect(podcasts.allSatisfy { $0.subscribed })
-    let perPodcastLines = captured.filter { $0.message.contains("to: subscribed") }
-    #expect(perPodcastLines.isEmpty, "\(perPodcastLines.map(\.message))")
+    return viewModel
   }
 }
