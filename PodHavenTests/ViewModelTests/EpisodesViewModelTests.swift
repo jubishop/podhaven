@@ -8,7 +8,6 @@ import Testing
 
 @Suite("of EpisodesViewModel tests", .container)
 @MainActor final class EpisodesViewModelTests {
-  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.smartListRepo) private var smartListRepo
 
@@ -136,19 +135,34 @@ import Testing
     )
   }
 
-  @Test("deleteSmartList confirms with an alert before deleting")
+  @Test("deleteSmartList asks first, keeps a list on Cancel, and deletes one on Delete")
   func deleteConfirmsBeforeDeleting() async throws {
     try await withObservingViewModel { viewModel in
       try await Wait.until(
         { @MainActor in viewModel.smartLists.count == 10 },
         { @MainActor in "Expected the 10 seeded lists; got \(viewModel.smartLists.count)" }
       )
+      let kept = viewModel.smartLists[0]
+      let deleted = viewModel.smartLists[1]
 
-      viewModel.deleteSmartList(viewModel.smartLists[0])
+      viewModel.deleteSmartList(kept)
+      let cancelled = try await answerAlert("Cancel")
 
-      #expect(alert.config?.title == "Delete Smart List?")
-      let persisted = try await smartListRepo.fetchAll()
-      #expect(persisted.count == 10)
+      #expect(cancelled.title == "Delete Smart List?")
+      #expect(cancelled.message == "Are you sure you want to delete \"\(kept.title)\"?")
+      #expect(try await smartListRepo.fetchAll().count == 10)
+
+      viewModel.deleteSmartList(deleted)
+      let confirmed = try await answerAlert("Delete")
+
+      #expect(confirmed.message == "Are you sure you want to delete \"\(deleted.title)\"?")
+      let smartListRepo = smartListRepo
+      try await Wait.until(
+        { try await smartListRepo.fetchOne(deleted.id) == nil },
+        { "Expected smart list \(deleted.id) to be deleted" }
+      )
+      #expect(try await smartListRepo.fetchOne(kept.id) != nil)
+      #expect(try await smartListRepo.fetchAll().count == 9)
     }
   }
 }
