@@ -5,7 +5,7 @@ import shutil
 import sys
 
 import fake_caffeinate
-from test_test_all import FAKE as PLATFORM_FAKE, make_container, write_package_pins
+from test_test_all import FAKE as PLATFORM_FAKE, GATE, make_container, write_package_pins
 
 FAKE = PLATFORM_FAKE.replace("base / 'events'", "base / 'gate-events'")
 
@@ -15,8 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def install_gate(repo, commands):
     """Return a disposable HOME; run the gate with it so its validation slots and My Mac test lock stay out of
     the real ones."""
-    for name in ("test-all", "check-swift-results", "_my_mac_lock.py", "_test_lane.py", "_test_lane_host.py",
-                 "_validation_slot.py"):
+    for name in GATE:
         shutil.copy2(ROOT / "bin" / name, repo / "bin" / name)
     commands.mkdir(exist_ok=True)
     for path in (commands / "xcodebuild", commands / "xcrun", commands / "sw_vers",
