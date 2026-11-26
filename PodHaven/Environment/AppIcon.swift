@@ -110,6 +110,7 @@ import SwiftUI
   case recommendationFromPodcast
   case recommendationRecent
   case similarityScore
+  case subscriptionRequired
   case tag
 
   // Sorting
@@ -482,6 +483,13 @@ import SwiftUI
         systemImageName: .recommendation,
         darkColor: .yellow,
         lightColor: .orange
+      )
+    case .subscriptionRequired:
+      return Data(
+        text: "Applies only while subscribed",
+        systemImageName: .error,
+        darkColor: .orange,
+        lightColor: .brown
       )
     case .tag:
       return Data(text: "Tag", systemImageName: .tag, color: .secondary)
