@@ -374,7 +374,8 @@ extension PlayManager {
           notification.userInfo?[AVAudioSessionRouteChangePreviousRouteKey]
           as? AVAudioSessionRouteDescription
         let previousOutputs = previousRoute?.outputs.map(\.portType.rawValue) ?? []
-        let currentOutputs = audioSession.currentRouteOutputs.map(\.rawValue)
+        let currentRoute = audioSession.currentRouteOutputs
+        let currentOutputs = currentRoute.map(\.rawValue)
         Self.log.info(
           """
           Audio route changed
@@ -390,7 +391,7 @@ extension PlayManager {
         )
 
         guard sharedState.onDeck != nil else { continue }
-        if reason == .oldDeviceUnavailable { recordRouteLoss() }
+        if reason == .oldDeviceUnavailable { recordRouteLoss(currentOutputs: currentRoute) }
         await podAVPlayer.savePosition()
         await podAVPlayer.audioRouteChanged()
       }
