@@ -19,7 +19,7 @@ struct PodcastRSSTests {
     #expect(podcast.iTunes.newFeedURL?.absoluteString == "https://changelog.com/podcast/feed")
     #expect(podcast.link?.absoluteString == "https://changelog.com/podcast")
     #expect(
-      podcast.iTunes.image.href.absoluteString
+      podcast.image.absoluteString
         == "https://cdn.changelog.com/static/images/podcasts/podcast-original-f16d0363067166f241d080ee2e2d4a28.png"
     )
     #expect(podcast.feedURL?.absoluteString == "https://changelog.com/podcast/feed")
@@ -57,8 +57,8 @@ struct PodcastRSSTests {
     #expect(episode.pubDate == expectedPubDate)
   }
 
-  @Test("parsing an unparseable pubDate logs a warning and yields nil")
-  func parseUnparseablePubDateLogsWarning() async throws {
+  @Test("parsing an unparseable pubDate yields nil")
+  func parseUnparseablePubDate() async throws {
     let xml = """
       <?xml version="1.0"?>
       <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
@@ -75,15 +75,8 @@ struct PodcastRSSTests {
       </rss>
       """
     let podcast = try await PodcastRSS.parse(Data(xml.utf8))
-    let episode = podcast.episodes.first!
-
-    LogCapture.withSink { sink in
-      #expect(episode.pubDate == nil)
-      let warnings = sink.captured()
-        .filter { $0.label == "Feed/podcast" && $0.message.contains("Unparseable pubDate") }
-      #expect(!warnings.isEmpty)
-      #expect(warnings.allSatisfy { $0.level == .warning })
-    }
+    let episode = try #require(podcast.episodes.first)
+    #expect(episode.pubDate == nil)
   }
 
   @Test("parsing an empty itunes:new-feed-url keeps the feed")
@@ -229,7 +222,7 @@ struct PodcastRSSTests {
     #expect(podcast.episodes.map(\.title) == ["Episode One"])
   }
 
-  @Test("parsing undecodable items drops only those items and logs them once")
+  @Test("parsing undecodable items drops only those items and counts them")
   func parseUndecodableItems() async throws {
     let xml = """
       <?xml version="1.0"?>
@@ -254,17 +247,14 @@ struct PodcastRSSTests {
         </channel>
       </rss>
       """
-    let (podcast, logs) = try await LogCapture.withSink { sink in
-      let podcast = try await PodcastRSS.parse(Data(xml.utf8))
-      return (podcast, sink.captured().filter { $0.message.contains("undecodable RSS items") })
-    }
+    let podcast = try await PodcastRSS.parse(Data(xml.utf8))
 
     #expect(podcast.title == "Undecodable Items")
     #expect(podcast.episodes.map(\.title) == ["Episode One", "Episode Three"])
-    #expect(logs.count == 1)
-    let log = try #require(logs.first)
-    #expect(log.level == .warning)
-    #expect(log.message.hasPrefix("Dropped 2 of 4 undecodable RSS items in 'Undecodable Items'"))
+    let droppedItems = try #require(podcast.droppedItems)
+    #expect(droppedItems.count == 2)
+    #expect(droppedItems.total == 4)
+    #expect(droppedItems.firstError is DecodingError)
   }
 
   @Test("parsing a feed whose every item fails to decode fails")

@@ -33,36 +33,47 @@ extension Date {
 
   static let rfc2822: DateFormatter = feedDateFormatter("EEE, dd MMM yyyy HH:mm:ss zzz")
 
-  private static let rfc2822NoWeekday: DateFormatter = feedDateFormatter(
-    "dd MMM yyyy HH:mm:ss zzz"
-  )
+  // Formats without a zone or offset read as UTC.
+  private static let feedDateFormatters: [DateFormatter] =
+    [rfc2822]
+    + [
+      "dd MMM yyyy HH:mm:ss zzz",
+      "EEE, dd MMM yyyy HH:mm zzz",
+      "dd MMM yyyy HH:mm zzz",
+      "EEE, dd MMM yyyy HH:mm:ss",
+      "dd MMM yyyy HH:mm:ss",
+      "EEE, dd MMM yyyy HH:mm",
+      "dd MMM yyyy HH:mm",
+      "yyyy-MM-dd'T'HH:mm:ssXXXXX",
+      "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX",
+      "yyyy-MM-dd'T'HH:mm:ss",
+      "yyyy-MM-dd'T'HH:mm:ss.SSS",
+      "yyyy-MM-dd",
+    ]
+    .map(feedDateFormatter)
 
-  private static let rfc2822NoSeconds: DateFormatter = feedDateFormatter(
-    "EEE, dd MMM yyyy HH:mm zzz"
-  )
-
-  private static let rfc2822NoWeekdayNoSeconds: DateFormatter = feedDateFormatter(
-    "dd MMM yyyy HH:mm zzz"
-  )
-
-  private static let iso8601: DateFormatter = feedDateFormatter("yyyy-MM-dd'T'HH:mm:ssXXXXX")
-
-  private static let iso8601WithFractionalSeconds: DateFormatter = feedDateFormatter(
-    "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX"
-  )
-
-  private static let dateOnly: DateFormatter = feedDateFormatter("yyyy-MM-dd")
+  // The formatters don't parse these zone abbreviations.
+  private static let feedDateZoneOffsets = [
+    "BST": "+0100",
+    "CET": "+0100",
+    "CEST": "+0200",
+    "AEST": "+1000",
+    "AEDT": "+1100",
+  ]
 
   static func parseFeedDate(_ string: String) -> Date? {
-    let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return nil }
-    if let date = rfc2822.date(from: trimmed) { return date }
-    if let date = rfc2822NoWeekday.date(from: trimmed) { return date }
-    if let date = rfc2822NoSeconds.date(from: trimmed) { return date }
-    if let date = rfc2822NoWeekdayNoSeconds.date(from: trimmed) { return date }
-    if let date = iso8601.date(from: trimmed) { return date }
-    if let date = iso8601WithFractionalSeconds.date(from: trimmed) { return date }
-    return dateOnly.date(from: trimmed)
+    var normalized = string.trimmingCharacters(in: .whitespacesAndNewlines)
+      .replacing(" Sept ", with: " Sep ")
+    guard !normalized.isEmpty else { return nil }
+    if let zone = normalized.split(separator: " ").last,
+      let offset = feedDateZoneOffsets[String(zone)]
+    {
+      normalized = String(normalized.dropLast(zone.count)) + offset
+    }
+    for formatter in feedDateFormatters {
+      if let date = formatter.date(from: normalized) { return date }
+    }
+    return nil
   }
 
   // MARK: - Formatting Helpers

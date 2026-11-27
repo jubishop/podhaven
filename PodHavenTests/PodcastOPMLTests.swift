@@ -120,6 +120,44 @@ struct PodcastOPMLTests {
     #expect(rssFeeds.skippedCount == 2)
   }
 
+  @Test("parsing OPML whose outlines omit text names feeds by title and then feed host")
+  func parseOPMLWithoutOutlineText() async throws {
+    let xml = """
+      <?xml version="1.0" encoding="utf-8"?>
+      <opml version="2.0">
+        <head><title>Title-Only Outlines</title></head>
+        <body>
+          <outline title="feeds">
+            <outline type="rss" title="Hard Fork" xmlUrl="https://feeds.simplecast.com/l2i9YnTd"/>
+            <outline type="rss" text=" " title="Blank Text" xmlUrl="https://example.com/blank.xml"/>
+            <outline type="rss" xmlUrl="http://www.marketplace.org/feed/podcast/marketplace"/>
+            <outline type="rss" text="Text" title="Title" xmlUrl="https://example.com/text.xml"/>
+          </outline>
+        </body>
+      </opml>
+      """
+    let rssFeeds = try await PodcastOPML.parse(Data(xml.utf8)).rssFeeds
+    #expect(
+      rssFeeds.feeds.map(\.title) == ["Hard Fork", "Blank Text", "www.marketplace.org", "Text"]
+    )
+    #expect(rssFeeds.skippedCount == 0)
+  }
+
+  @Test("parsing OPML without a head keeps its feeds and has no title")
+  func parseOPMLWithoutHead() async throws {
+    let xml = """
+      <?xml version="1.0" encoding="utf-8"?>
+      <opml version="2.0">
+        <body>
+          <outline type="rss" text="Hard Fork" xmlUrl="https://feeds.simplecast.com/l2i9YnTd"/>
+        </body>
+      </opml>
+      """
+    let opml = try await PodcastOPML.parse(Data(xml.utf8))
+    #expect(opml.title == nil)
+    #expect(opml.rssFeeds.feeds.map(\.title) == ["Hard Fork"])
+  }
+
   @Test("parsing empty OPML file")
   func parseEmptyOPMLFile() async throws {
     let data = PreviewBundle.loadAsset(named: "empty", in: .OPML)
