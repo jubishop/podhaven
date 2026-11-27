@@ -320,6 +320,17 @@ struct Repo: Databasing {
           .updateAll(db, [lastUpdateAssignment])
       }
 
+      // Rows can trade GUIDs, which would collide midway, so each row whose GUID
+      // changes first parks on a placeholder unique to its row ID.
+      for existingEpisode in existingEpisodes {
+        try Episode
+          .withID(existingEpisode.id)
+          .filter(Episode.Columns.guid != existingEpisode.guid)
+          .updateAll(
+            db,
+            [Episode.Columns.guid.set(to: "podhaven-guid-swap-\(existingEpisode.id.rawValue)")]
+          )
+      }
       for existingEpisode in existingEpisodes {
         try Episode
           .withID(existingEpisode.id)

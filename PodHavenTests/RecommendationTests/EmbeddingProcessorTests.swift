@@ -504,6 +504,7 @@ class EmbeddingProcessorTests {
         vector: UnsavedEpisodeEmbedding.vectorData(from: [1, 0, 0]),
         sourceHash: staleSourceHash,
         embeddingRevision: failingEmbedding.revision,
+        recipeVersion: EmbeddingService.recipeVersion,
         dimension: 3,
         verificationDate: Date.now
       )
@@ -572,6 +573,7 @@ class EmbeddingProcessorTests {
         vector: UnsavedEpisodeEmbedding.vectorData(from: [1, 0, 0]),
         sourceHash: "embedding-before-deterministic-failure",
         embeddingRevision: failingEmbedding.revision,
+        recipeVersion: EmbeddingService.recipeVersion,
         dimension: 3,
         verificationDate: Date.now
       )

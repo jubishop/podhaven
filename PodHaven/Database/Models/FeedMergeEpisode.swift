@@ -23,7 +23,7 @@ struct FeedMergeEpisode: FetchableRecord, Identifiable, RSSUpdatable, Sendable, 
   }
 
   let id: Episode.ID
-  let guid: GUID
+  var guid: GUID
   let mediaURL: MediaURL
   let title: String
   let pubDate: Date

@@ -415,13 +415,6 @@ struct RefreshManager {
       """
     )
 
-    let episodesByMediaURL = Dictionary(
-      uniqueKeysWithValues: existingEpisodes.map { ($0.mediaURL, $0) }
-    )
-    let episodesByGUID = Dictionary(
-      uniqueKeysWithValues: existingEpisodes.map { ($0.guid, $0) }
-    )
-
     let newUnsavedPodcast: UnsavedPodcast
     do {
       newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcast, feedURL: feedURL)
@@ -445,10 +438,12 @@ struct RefreshManager {
     var updatedEpisodes: [FeedMergeEpisode] = []
     var embeddingWorkCreated = false
 
-    for unsavedEpisode in podcastFeed.toUnsavedEpisodes(merging: existingEpisodes) {
-      if let existingEpisode = episodesByMediaURL[unsavedEpisode.mediaURL]
-        ?? episodesByGUID[unsavedEpisode.guid]
-      {
+    let episodeMatches = podcastFeed.toEpisodeMatches(merging: existingEpisodes)
+    var matchedEpisodeIDs = Set<Episode.ID>(capacity: episodeMatches.count)
+    for episodeMatch in episodeMatches {
+      let unsavedEpisode = episodeMatch.unsavedEpisode
+      if let existingEpisode = episodeMatch.storedEpisode {
+        matchedEpisodeIDs.insert(existingEpisode.id)
         let updatedEpisode = FeedMergeEpisode(
           id: existingEpisode.id,
           from: unsavedEpisode
@@ -466,6 +461,18 @@ struct RefreshManager {
         embeddingWorkCreated = true
         unsavedEpisodes.append(unsavedEpisode)
       }
+    }
+
+    // A stored episode that left the feed gives up a GUID an item now holds,
+    // taking the one an item without a GUID gets, so its row and user state stay.
+    let feedGUIDs = Set(episodeMatches.map(\.unsavedEpisode.guid))
+    for existingEpisode in existingEpisodes
+    where !matchedEpisodeIDs.contains(existingEpisode.id)
+      && feedGUIDs.contains(existingEpisode.guid)
+    {
+      var departedEpisode = existingEpisode
+      departedEpisode.guid = GUID(existingEpisode.mediaURL.absoluteString)
+      updatedEpisodes.append(departedEpisode)
     }
 
     Self.log.log(

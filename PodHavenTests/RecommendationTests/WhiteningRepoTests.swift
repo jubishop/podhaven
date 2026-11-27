@@ -17,7 +17,11 @@ class WhiteningRepoTests {
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
 
-  private func seedEmbedding(_ vector: [Float], revision: Int = 1) async throws {
+  private func seedEmbedding(
+    _ vector: [Float],
+    revision: Int = 1,
+    recipeVersion: Int = EmbeddingService.recipeVersion
+  ) async throws {
     let podcastEpisode = try await repo
       .upsertPodcastEpisodes([
         UnsavedPodcastEpisode(
@@ -31,6 +35,7 @@ class WhiteningRepoTests {
       vector: UnsavedEpisodeEmbedding.vectorData(from: vector),
       sourceHash: "hash-\(UUID().uuidString)",
       embeddingRevision: revision,
+      recipeVersion: recipeVersion,
       dimension: vector.count,
       verificationDate: Date()
     )
@@ -128,6 +133,21 @@ class WhiteningRepoTests {
         embeddingRevision: 2,
         principalComponentCount: 0
       )
+    )
+    #expect(transform.mean.count == 3)
+    for x in transform.mean {
+      #expect(abs(x - 1.0 / 3) < 0.0001)
+    }
+  }
+
+  @Test("embeddings from older recipes of the revision are included")
+  func olderRecipesAreIncluded() async throws {
+    try await seedEmbedding([1, 0, 0])
+    try await seedEmbedding([0, 1, 0], recipeVersion: EmbeddingService.recipeVersion - 1)
+    try await seedEmbedding([0, 0, 1], recipeVersion: EmbeddingService.recipeVersion - 1)
+
+    let transform = try #require(
+      await recommendationRepo.whiteningTransform(embeddingRevision: 1, principalComponentCount: 0)
     )
     #expect(transform.mean.count == 3)
     for x in transform.mean {
