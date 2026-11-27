@@ -19,6 +19,17 @@ extension PlayManager {
     let reason: AVAudioSession.RouteChangeReason
   }
 
+  // Apple promises neither that AVPlayer pauses for a lost route nor which of the
+  // pause and the route change comes first, so a lost route counts as a pause
+  // only once paired with an unrequested pause under the same playback request.
+  // A pause after the loss pairs only within the route change association
+  // window, so a loss AVPlayer played through can't claim a later pause.
+  enum RouteLossPause {
+    case none
+    case awaitingPause(revision: UUID, routeLostAt: Date)
+    case awaitingRouteLoss(revision: UUID)
+  }
+
   struct WidgetRouteRecovery {
     enum Phase {
       case requested
@@ -131,6 +142,39 @@ extension PlayManager {
       """
     )
     scheduleWidgetRouteRecoveryFromWaiting(recovery)
+  }
+
+  func recordRouteLoss() {
+    let revision = playbackRequestRevision
+    guard case .awaitingRouteLoss(revision) = routeLossPause else {
+      routeLossPause = .awaitingPause(revision: revision, routeLostAt: dateProvider.now)
+      return
+    }
+    routeLossPause = .none
+    recordSystemPause(reason: "routeLoss")
+  }
+
+  // Any other status, a requested pause, or one a widget route recovery may
+  // still answer with a retry ends the pairing.
+  func pairRouteLoss(with status: PlaybackStatus) async {
+    guard status == .paused else {
+      routeLossPause = .none
+      return
+    }
+    let revision = playbackRequestRevision
+    let playRequested = await podAVPlayer.playRequested(by: revision)
+    guard playRequested, playbackRequestRevision == revision, widgetRouteRecovery == nil else {
+      routeLossPause = .none
+      return
+    }
+    guard case .awaitingPause(revision, let routeLostAt) = routeLossPause,
+      (0...routeChangeAssociationWindow).contains(dateProvider.now.timeIntervalSince(routeLostAt))
+    else {
+      routeLossPause = .awaitingRouteLoss(revision: revision)
+      return
+    }
+    routeLossPause = .none
+    recordSystemPause(reason: "routeLoss")
   }
 
   func handleWidgetRouteRecoveryStatus(_ event: PodAVPlayerEvent<PlaybackStatus>) async {
@@ -366,6 +410,7 @@ extension PlayManager {
       return
     }
     failWidgetRouteRecovery(currentRecovery, reason: "timeout")
+    recordSystemPause(reason: "widgetRouteRecoveryTimeout")
   }
 
   private func ownedWidgetRouteRecovery(requestID: UUID) -> WidgetRouteRecovery? {

@@ -497,10 +497,9 @@ struct PodAVPlayerPlaybackSnapshot {
     guard podcastEpisode.episode.cachedURL != nil else { return false }
     if !(await permitsAutomaticCacheReplacement(podcastEpisode)) { return false }
 
-    let playableItem: any AVPlayableItem
-    let content: CachedAudioContent?
+    let episodeAsset: EpisodeAsset
     do {
-      (_, playableItem, content) = try await loadAsset(
+      episodeAsset = try await performLoadAsset(
         for: podcastEpisode,
         mode: .cacheOnly,
         mediaServicesResetElapsed: nil
@@ -523,9 +522,22 @@ struct PodAVPlayerPlaybackSnapshot {
     }
 
     removeObservers()
-    bind(playableItem, to: episodeID, content: content)
+    bind(episodeAsset.playerItem(), to: episodeID, content: episodeAsset.cacheContent)
     addObservers()
     Self.log.info("swapToCached: swapped to cached version")
+    // Saved after the swap, so a busy database writer can't hold back a seek.
+    if let duration = episodeAsset.duration {
+      Task { [repo] in
+        do {
+          try await repo.updateDuration(episodeID, duration: duration)
+        } catch {
+          Self.log.caughtError(
+            "swapToCached: failed to save duration \(duration) for episode \(episodeID)",
+            error
+          )
+        }
+      }
+    }
     return true
   }
 
@@ -624,12 +636,16 @@ struct PodAVPlayerPlaybackSnapshot {
     cancelAutomaticSilenceWork()
     latestSeekID = seekID
     silenceState.consumedInterval = nil
+    // Publish before the cache swap, so its loading can't hold back the target.
+    currentTimeContinuation.yield(PodAVPlayerEvent(source: seekingSource, value: time))
     await swapToCached(from: seekingSource)
     guard latestSeekID == seekID, episodeID == seekingEpisodeID else { return }
     guard let eventSource else { return }
 
     removePeriodicTimeObserver()
-    currentTimeContinuation.yield(PodAVPlayerEvent(source: eventSource, value: time))
+    if eventSource != seekingSource {
+      currentTimeContinuation.yield(PodAVPlayerEvent(source: eventSource, value: time))
+    }
 
     avPlayer.seek(to: time) { [weak self, eventSource, seekID] completed in
       Task { @MainActor [weak self] in
