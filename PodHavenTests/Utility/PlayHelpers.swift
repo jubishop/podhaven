@@ -145,6 +145,16 @@ enum PlayHelpers {
       avPlayer.pause()
       try await waitFor(.paused)
     }
+    try await sendAudioRouteLoss()
+    if !playerPausesFirst { avPlayer.pause() }
+    try await Wait.until(
+      { @MainActor in playManager.playbackRequestRevision != revision },
+      { "Expected the route-loss pause to count as the latest playback request" }
+    )
+  }
+
+  static func sendAudioRouteLoss() async throws {
+    let routeChangeID = await playManager.latestAudioRouteChange?.id
     Container.shared.notifier()
       .continuation(for: AVAudioSession.routeChangeNotification)
       .yield(
@@ -156,16 +166,9 @@ enum PlayHelpers {
           ]
         )
       )
-    if !playerPausesFirst {
-      try await Wait.until(
-        { @MainActor in await playManager.latestAudioRouteChange?.reason == .oldDeviceUnavailable },
-        { "Expected the route change to be handled" }
-      )
-      avPlayer.pause()
-    }
     try await Wait.until(
-      { @MainActor in playManager.playbackRequestRevision != revision },
-      { "Expected the route-loss pause to count as the latest playback request" }
+      { @MainActor in await playManager.latestAudioRouteChange?.id != routeChangeID },
+      { "Expected the route change to be handled" }
     )
   }
 

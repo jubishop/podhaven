@@ -13,7 +13,7 @@ import Testing
 @Suite("of audio interruption tests", .container)
 @MainActor struct AudioInterruptionTests {
   enum PlayingInterruption: CaseIterable {
-    case reported, playerPausedFirst, reportedTwice, itemFailedDuring
+    case reported, playerPausedFirst, reportedTwice, itemFailedDuring, routeLostWhilePlaying
   }
   enum DeclinedResume: CaseIterable {
     case pausedBefore, pausedDuring, toggledDuring, earlierEndDeclined
@@ -56,6 +56,15 @@ import Testing
       try await PlayHelpers.beginAudioInterruption()
     case .reportedTwice:
       try await PlayHelpers.beginAudioInterruption()
+      try await PlayHelpers.beginAudioInterruption()
+    case .routeLostWhilePlaying:
+      // A route whose loss leaves AVPlayer playing keeps its resume, even
+      // through a later pause AVPlayer makes before an interruption arrives.
+      try await PlayHelpers.sendAudioRouteLoss()
+      let associationWindow = await playManager.routeChangeAssociationWindow
+      Container.shared.fakeDate().freeze(at: Date().addingTimeInterval(associationWindow + 1))
+      avPlayer.pause()
+      try await PlayHelpers.waitFor(.paused)
       try await PlayHelpers.beginAudioInterruption()
     case .itemFailedDuring:
       try await PlayHelpers.beginAudioInterruption()

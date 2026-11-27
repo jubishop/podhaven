@@ -22,9 +22,11 @@ extension PlayManager {
   // Apple promises neither that AVPlayer pauses for a lost route nor which of the
   // pause and the route change comes first, so a lost route counts as a pause
   // only once paired with an unrequested pause under the same playback request.
+  // A pause after the loss pairs only within the route change association
+  // window, so a loss AVPlayer played through can't claim a later pause.
   enum RouteLossPause {
     case none
-    case awaitingPause(revision: UUID)
+    case awaitingPause(revision: UUID, routeLostAt: Date)
     case awaitingRouteLoss(revision: UUID)
   }
 
@@ -145,7 +147,7 @@ extension PlayManager {
   func recordRouteLoss() {
     let revision = playbackRequestRevision
     guard case .awaitingRouteLoss(revision) = routeLossPause else {
-      routeLossPause = .awaitingPause(revision: revision)
+      routeLossPause = .awaitingPause(revision: revision, routeLostAt: dateProvider.now)
       return
     }
     routeLossPause = .none
@@ -165,7 +167,9 @@ extension PlayManager {
       routeLossPause = .none
       return
     }
-    guard case .awaitingPause(revision) = routeLossPause else {
+    guard case .awaitingPause(revision, let routeLostAt) = routeLossPause,
+      (0...routeChangeAssociationWindow).contains(dateProvider.now.timeIntervalSince(routeLostAt))
+    else {
       routeLossPause = .awaitingRouteLoss(revision: revision)
       return
     }
