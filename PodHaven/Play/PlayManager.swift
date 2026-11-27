@@ -127,6 +127,7 @@ final class PlayManager {
   var onDeckRecoveryPositionSave: Task<Void, Never>?
   var pendingPlaybackRequest = PendingPlaybackRequest.none
   var playbackFailureRecovery: (episodeID: Episode.ID, requestID: UUID)?
+  var routeLossPause = RouteLossPause.none
   var widgetRouteRecovery: WidgetRouteRecovery?
   var widgetRouteRecoveryTask: Task<Void, Never>?
 
@@ -758,19 +759,30 @@ final class PlayManager {
     await podAVPlayer.toggle(requestID: requestID)
   }
 
-  // AVPlayer pauses itself for an interruption, possibly before its notification
-  // arrives, so playback requests rather than player status decide whether to resume.
-  func beginAudioInterruption() async {
+  // AVPlayer pauses itself for an interruption or a lost route, possibly before
+  // PodHaven hears of it, so requests rather than player status decide.
+  func playbackRequested() async -> Bool {
     let revision = playbackRequestRevision
     let playRequested = await podAVPlayer.playRequested(by: revision)
-    let pendingPlayback =
-      switch pendingPlaybackRequest {
-      case .play: true
-      case .none: autoAdvance != nil && loadTransition?.playback != .paused
-      }
-    let resumable =
-      interruptedPlayback == .resumable || pendingPlayback
-      || (playRequested && playbackRequestRevision == revision)
+    switch pendingPlaybackRequest {
+    case .play:
+      return true
+    case .none:
+      return (playRequested && playbackRequestRevision == revision)
+        || (autoAdvance != nil && loadTransition?.playback != .paused)
+    }
+  }
+
+  // A system or recovery pause counts as the latest request, so neither a later
+  // interruption nor an item-failure recovery resumes it.
+  func recordSystemPause(reason: String) {
+    interruptedPlayback = .none
+    newPlaybackRequest(UUID())
+    Self.log.info("event=systemPause reason=\(reason)")
+  }
+
+  func beginAudioInterruption() async {
+    let resumable = await playbackRequested() || interruptedPlayback == .resumable
     interruptedPlayback = resumable ? .resumable : .none
     Self.log.info("event=audioInterruptionBegan resumable=\(resumable)")
     await pausePlayback()

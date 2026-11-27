@@ -299,6 +299,23 @@ import Testing
     #expect(try await PlayHelpers.queuedEpisodeIDs == [failed.id])
   }
 
+  @Test("item failure after a route-loss pause reloads the episode without resuming playback")
+  func itemFailureAfterRouteLossPause() async throws {
+    let failed = try await Create.podcastEpisode()
+    PlayHelpers.setupCommandHandling()
+    try await playManager.play(failed)
+    try await PlayHelpers.loseAudioRoute()
+    let originalItem = try #require(avPlayer.current as? FakeAVPlayerItem)
+    let playCount = avPlayer.playCallCount
+
+    originalItem.setStatus(.failed)
+    _ = try await waitForRecoveredItem(replacing: originalItem, status: .paused)
+    #expect(sharedState.onDeck?.id == failed.id)
+    #expect(avPlayer.timeControlStatus == .paused)
+    #expect(avPlayer.playCallCount == playCount)
+    #expect(alert.config == nil)
+  }
+
   @Test("recovery keeps Stop After Current Episode, so the reloaded episode stops at its end")
   func recoveryKeepsStopAfterCurrentEpisode() async throws {
     let (failed, queued) = try await Create.twoPodcastEpisodes()
