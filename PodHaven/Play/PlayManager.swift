@@ -823,7 +823,7 @@ final class PlayManager {
     let autoAdvanceID: UUID? = if finalizationID != nil { await beginAutoAdvance() } else { nil }
     defer { settleAutoAdvanceTransition(autoAdvanceID) }
     do {
-      try await repo.markFinished(episodeID)
+      try await repo.markFinished(episodeID, finishDate: .now)
     } catch {
       Self.log.caughtError("finishEpisode: failed to mark episode \(episodeID) finished", error)
     }

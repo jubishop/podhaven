@@ -5,6 +5,7 @@ import FactoryTesting
 import Foundation
 import SwiftUI
 import Testing
+import UIKit
 import UserNotifications
 
 @testable import PodHaven
@@ -339,5 +340,28 @@ actor UserNotificationManagerTests {
     #expect(request.title == podcastSeries.podcast.title)
     #expect(request.body == "3 new episodes available")
     #expect(request.hasSound == true)
+  }
+
+  @Test("scheduleNewEpisodeNotification removes its staged image when the system rejects it")
+  func scheduleNewEpisodeNotificationRemovesRejectedImage() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let image = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
+      .image { context in
+        UIColor.systemTeal.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+      }
+    Container.shared.fakeDataLoader()
+      .respond(to: podcastEpisode.podcast.image, data: try #require(image.pngData()))
+    fakeCenter.setAuthorizationStatus(.authorized)
+    fakeCenter.setAddError(TestError.simulatedFailure)
+
+    await userNotificationManager.scheduleNewEpisodeNotification(
+      podcast: podcastEpisode.podcast,
+      episodes: [podcastEpisode.episode]
+    )
+
+    let request = try #require(fakeCenter.addedRequests.first)
+    let stagedImage = try #require(request.attachmentURLs.first)
+    #expect(!Container.shared.fileManager().fileExists(at: stagedImage))
   }
 }

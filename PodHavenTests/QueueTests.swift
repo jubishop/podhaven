@@ -697,6 +697,46 @@ class QueueTests {
     #expect(fetchOrder == [0, 1, 2, 3])
   }
 
+  @Test("appending to a full queue sets no queueDate")
+  func appendToFullQueueSetsNoQueueDate() async throws {
+    userSettings.$maxQueueLength.new(5)
+    let newEpisode = try await fetchEpisode("unqtop")
+
+    try await queue.append([newEpisode.id])
+
+    #expect(try await fetchEpisode("unqtop").queueDate == nil)
+  }
+
+  @Test("appending past max queue length sets queueDate only on queued episodes")
+  func appendPastMaxQueueLengthSetsQueueDateOnlyOnQueuedEpisodes() async throws {
+    userSettings.$maxQueueLength.new(6)
+    let queuedEpisode = try await fetchEpisode("unqtop")
+    let droppedEpisode = try await fetchEpisode("unqmiddle")
+
+    try await queue.append([queuedEpisode.id, droppedEpisode.id])
+
+    #expect(try await fetchGUIDs() == ["top", "midtop", "middle", "midbottom", "bottom", "unqtop"])
+    #expect(try await fetchEpisode("unqtop").queueDate != nil)
+    #expect(try await fetchEpisode("unqmiddle").queueDate == nil)
+  }
+
+  @Test("unshifting past max queue length sets queueDate only on queued episodes")
+  func unshiftPastMaxQueueLengthSetsQueueDateOnlyOnQueuedEpisodes() async throws {
+    userSettings.$maxQueueLength.new(2)
+    let episodeIDs = [
+      try await fetchEpisode("unqtop").id,
+      try await fetchEpisode("unqmiddle").id,
+      try await fetchEpisode("unqbottom").id,
+    ]
+
+    try await queue.unshift(episodeIDs)
+
+    #expect(try await fetchGUIDs() == ["unqtop", "unqmiddle"])
+    #expect(try await fetchEpisode("unqtop").queueDate != nil)
+    #expect(try await fetchEpisode("unqmiddle").queueDate != nil)
+    #expect(try await fetchEpisode("unqbottom").queueDate == nil)
+  }
+
   @Test("max queue length at minimum value (50) allows appends")
   func testMaxQueueLengthMinimum() async throws {
     // Set to minimum allowed value

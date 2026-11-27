@@ -211,7 +211,9 @@ actor RefreshManagerFeedFailureTests {
     #expect(await session.sentRequests.last?.value(forHTTPHeaderField: "If-None-Match") == eTag)
   }
 
-  @Test("refreshSeries doesn't throw when its podcast was deleted before the feed write")
+  @Test(
+    "refreshSeries doesn't throw or log an error when its podcast was deleted before the feed write"
+  )
   func refreshSeriesIgnoresDeletedPodcast() async throws {
     let podcast = try await savedPodcast(feedURL: SyntheticFeed.url(0).absoluteString)
     await session.respond(
@@ -220,7 +222,19 @@ actor RefreshManagerFeedFailureTests {
     )
     _ = try await repo.deletePodcast(podcast.id)
 
-    try await refreshManager.refreshSeries(podcast: podcast)
+    let captured = try await LogCapture.withSink { sink in
+      try await refreshManager.refreshSeries(podcast: podcast)
+      return sink.captured()
+    }
+
+    let feedWriteFailureLevels =
+      captured
+      .filter {
+        $0.label == "Feed/refreshManager"
+          && $0.message.contains("Failed to update Podcast ID: \(podcast.id.rawValue)")
+      }
+      .map(\.level)
+    #expect(feedWriteFailureLevels == [.debug])
   }
 
   // MARK: - Helpers

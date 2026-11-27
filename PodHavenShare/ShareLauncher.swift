@@ -63,13 +63,13 @@ enum ShareLauncher {
 
   private static func copyFileToSharedContainer(_ sourceURL: URL) async throws -> URL {
     guard let appGroupID = Bundle.main.infoDictionary?["AppGroupID"] as? String
-    else { fatalError("App group ID not found for ShareLauncher") }
+    else { throw ShareExtensionError.appGroupIDMissing }
 
     guard
       let sharedContainer = FileManager.default.containerURL(
         forSecurityApplicationGroupIdentifier: appGroupID
       )
-    else { fatalError("App group container not found for \(appGroupID)") }
+    else { throw ShareExtensionError.appGroupContainerUnavailable(appGroupID) }
 
     guard let fileSize = try sourceURL.resourceValues(forKeys: [.fileSizeKey]).fileSize
     else { throw ShareExtensionError.fileSizeUnavailable }

@@ -185,6 +185,34 @@ class EpisodePersistenceTests {
     #expect(finished.finishDate != nil)
   }
 
+  @Test("that markFinished keeps an existing finishDate and dates the rest from the date provider")
+  func markFinishedKeepsExistingFinishDate() async throws {
+    let earlierFinishDate = 2.daysAgo
+    let now = 1.hoursAgo
+    Container.shared.fakeDate().freeze(at: now)
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(finishDate: earlierFinishDate),
+          try Create.unsavedEpisode(),
+        ]
+      )
+    )
+    let finishedEpisode = try #require(podcastSeries.episodes.first)
+    let unfinishedEpisode = try #require(podcastSeries.episodes.last)
+
+    try await repo.markFinished([finishedEpisode.id, unfinishedEpisode.id])
+
+    let refinished = try #require(try await repo.episode(finishedEpisode.id))
+    #expect(
+      try #require(refinished.finishDate)
+        .approximatelyEquals(earlierFinishDate, accuracy: .seconds(1))
+    )
+    let newlyFinished = try #require(try await repo.episode(unfinishedEpisode.id))
+    #expect(try #require(newlyFinished.finishDate).approximatelyEquals(now, accuracy: .seconds(1)))
+  }
+
   @Test("that episodes can persist duration")
   func persistDuration() async throws {
     let guid = GUID("guid")

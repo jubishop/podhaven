@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import AVFoundation
+import FactoryKit
 import GRDB
 import Logging
 
@@ -105,5 +106,36 @@ extension Repo {
         .withID(episodeID)
         .updateAll(db, assignments) > 0
     }
+  }
+
+  @discardableResult
+  func markFinished(_ episodeIDs: [Episode.ID], finishDate: FinishDateUpdate) async throws -> Int {
+    Self.playbackLog.debug("markFinished: \(episodeIDs), finishDate: \(finishDate)")
+
+    guard !episodeIDs.isEmpty else { return 0 }
+
+    let now = Container.shared.dateProvider().now
+    return try await writer.write { db in
+      let finishDateAssignment =
+        switch finishDate {
+        case .keepExisting: Episode.Columns.finishDate.set(to: Episode.Columns.finishDate ?? now)
+        case .now: Episode.Columns.finishDate.set(to: now)
+        }
+      return
+        try Episode
+        .withIDs(episodeIDs)
+        .updateAll(
+          db,
+          finishDateAssignment,
+          Episode.Columns.currentTime.set(to: 0),
+          Episode.Columns.maxPlaybackTime.set(to: 0),
+          Episode.Columns.playbackStarted.set(to: false)
+        )
+    }
+  }
+
+  @discardableResult
+  func markFinished(_ episodeID: Episode.ID, finishDate: FinishDateUpdate) async throws -> Bool {
+    try await markFinished([episodeID], finishDate: finishDate) > 0
   }
 }

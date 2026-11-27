@@ -132,6 +132,29 @@ import Testing
     try await PlayHelpers.waitForFinished(podcastEpisode)
   }
 
+  @Test("replaying a finished episode to the end dates its finish from the date provider")
+  func replayingFinishedEpisodeToEndRedatesItsFinish() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(finishDate: 2.daysAgo)
+    )
+    let now = 1.hoursAgo
+    Container.shared.fakeDate().freeze(at: now)
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+    avPlayer.finishEpisode()
+
+    try await Wait.until(
+      {
+        guard let finishDate = try await repo.episode(podcastEpisode.id)?.finishDate
+        else { return false }
+        return finishDate.approximatelyEquals(now, accuracy: .seconds(1))
+      },
+      { "Expected \(podcastEpisode.toString) to be finished at the date provider's now" }
+    )
+  }
+
   @Test("episode loaded over another is marked finished after playing to end")
   func episodeLoadedOverAnotherIsMarkedFinishedAfterPlayingToEnd() async throws {
     await playManager.start()

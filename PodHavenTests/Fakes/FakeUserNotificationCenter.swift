@@ -11,6 +11,7 @@ struct RecordedNotificationRequest: Sendable {
   let body: String
   let hasSound: Bool
   let urlString: String?
+  let attachmentURLs: [URL]
 
   init(from request: UNNotificationRequest) {
     self.identifier = request.identifier
@@ -18,6 +19,7 @@ struct RecordedNotificationRequest: Sendable {
     self.body = request.content.body
     self.hasSound = request.content.sound != nil
     self.urlString = request.content.userInfo["url"] as? String
+    self.attachmentURLs = request.content.attachments.map(\.url)
   }
 }
 
@@ -25,6 +27,7 @@ struct FakeUserNotificationCenter: NotifyingCenter {
   private let _authorizationStatus = ThreadSafe<UNAuthorizationStatus>(.authorized)
   private let _requestAuthorizationResult = ThreadSafe<Bool>(true)
   private let _requestAuthorizationError = ThreadSafe<(any Error)?>(nil)
+  private let _addError = ThreadSafe<(any Error)?>(nil)
 
   private let _addedRequests = ThreadSafe<[RecordedNotificationRequest]>([])
   private let _requestAuthorizationCalls = ThreadSafe<[UNAuthorizationOptions]>([])
@@ -34,6 +37,9 @@ struct FakeUserNotificationCenter: NotifyingCenter {
   func add(_ request: UNNotificationRequest) async throws {
     let recorded = RecordedNotificationRequest(from: request)
     _addedRequests { $0.append(recorded) }
+    if let error = _addError() {
+      throw error
+    }
   }
 
   func authorizationStatus() async -> UNAuthorizationStatus {
@@ -65,6 +71,10 @@ struct FakeUserNotificationCenter: NotifyingCenter {
 
   func setRequestAuthorizationError(_ error: (any Error)?) {
     _requestAuthorizationError { $0 = error }
+  }
+
+  func setAddError(_ error: (any Error)?) {
+    _addError { $0 = error }
   }
 
   func clearAllCalls() {

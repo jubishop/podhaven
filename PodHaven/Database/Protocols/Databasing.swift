@@ -6,6 +6,11 @@ import GRDB
 import Logging
 import Tagged
 
+enum FinishDateUpdate: Sendable {
+  case keepExisting
+  case now
+}
+
 protocol Databasing: Sendable {
   var db: AppDB.Reader { get }
 
@@ -183,10 +188,10 @@ protocol Databasing: Sendable {
   func updateRating(_ episodeID: Episode.ID, rating: EpisodeRating?) async throws -> Bool
 
   @discardableResult
-  func markFinished(_ episodeIDs: [Episode.ID]) async throws -> Int
+  func markFinished(_ episodeIDs: [Episode.ID], finishDate: FinishDateUpdate) async throws -> Int
 
   @discardableResult
-  func markFinished(_ episodeID: Episode.ID) async throws -> Bool
+  func markFinished(_ episodeID: Episode.ID, finishDate: FinishDateUpdate) async throws -> Bool
 
   @discardableResult
   func markSubscribed(_ podcastIDs: [Podcast.ID], level: Logger.Level) async throws -> Int
@@ -226,6 +231,16 @@ extension Databasing {
     -> PodcastSeries
   {
     try await insertSeries(unsavedPodcastSeries, level: .debug)
+  }
+
+  @discardableResult
+  func markFinished(_ episodeIDs: [Episode.ID]) async throws -> Int {
+    try await markFinished(episodeIDs, finishDate: .keepExisting)
+  }
+
+  @discardableResult
+  func markFinished(_ episodeID: Episode.ID) async throws -> Bool {
+    try await markFinished(episodeID, finishDate: .keepExisting)
   }
 
   @discardableResult

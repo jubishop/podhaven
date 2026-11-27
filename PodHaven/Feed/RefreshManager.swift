@@ -519,19 +519,22 @@ struct RefreshManager {
         description +=
           "\nUnsavedEpisodes:\n    \(unsavedEpisodes.map(\.toString).joined(separator: "\n    "))"
       }
+      // A deleted podcast's new episodes have no row to reference.
+      let podcastWasDeleted =
+        if let databaseError = error as? DatabaseError {
+          databaseError.extendedResultCode == .SQLITE_CONSTRAINT_FOREIGNKEY
+        } else {
+          false
+        }
       Self.log.caughtError(
         """
         Failed to update Podcast ID: \(podcast.id.rawValue)
           \(description)
         """,
-        error
+        error,
+        level: podcastWasDeleted ? .debug : .error
       )
-      // A deleted podcast's new episodes have no row to reference.
-      if let databaseError = error as? DatabaseError,
-        databaseError.extendedResultCode == .SQLITE_CONSTRAINT_FOREIGNKEY
-      {
-        return nil
-      }
+      if podcastWasDeleted { return nil }
       throw error
     }
 

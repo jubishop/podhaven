@@ -272,7 +272,26 @@ class EpisodeRefreshTests {
     #expect(queuedTitles == ["newest", "middle"])
   }
 
-  @Test("auto-queue on bottom without autoQueueLimit appends the default limit's newest, oldest first")
+  @Test("that updateSeriesFromFeed dates lastUpdate from the date provider")
+  func updateSeriesFromFeedDatesLastUpdateFromDateProvider() async throws {
+    let podcast = try await Create.podcast()
+    let now = 1.hoursAgo
+    Container.shared.fakeDate().freeze(at: now)
+
+    try await repo.updateSeriesFromFeed(
+      podcast: podcast,
+      updatedPodcast: nil,
+      unsavedEpisodes: [],
+      existingEpisodes: []
+    )
+
+    let updatedPodcast = try #require(try await repo.podcast(podcast.id))
+    #expect(updatedPodcast.lastUpdate.approximatelyEquals(now, accuracy: .seconds(1)))
+  }
+
+  @Test(
+    "auto-queue on bottom without autoQueueLimit appends the default limit's newest, oldest first"
+  )
   func autoQueueOnBottomWithoutLimitAppendsDefaultLimitOldestFirst() async throws {
     let podcast = try await Create.podcast(
       subscriptionDate: Date(),
@@ -298,7 +317,9 @@ class EpisodeRefreshTests {
     #expect(queuedTitles == Array(newestFirstTitles.prefix(limit).reversed()))
   }
 
-  @Test("auto-queue on top without autoQueueLimit unshifts the default limit's newest, newest first")
+  @Test(
+    "auto-queue on top without autoQueueLimit unshifts the default limit's newest, newest first"
+  )
   func autoQueueOnTopWithoutLimitUnshiftsDefaultLimitNewestFirst() async throws {
     let other = try await repo.insertSeries(
       UnsavedPodcastSeries(
