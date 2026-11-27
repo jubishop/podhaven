@@ -18,6 +18,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   private var afterMarkFinishedHandler: AfterMarkFinished?
   private var beforeBulkPodcastDeleteHandler: BeforeBulkPodcastDelete?
   private var beforeCurrentTimeUpdate: (@Sendable () async -> Void)?
+  private var beforeCachedEpisodesFetch: (@Sendable () async -> Void)?
 
   // One-shot error to throw from `updateSaveInCache(_ episodeID:saveInCache:)`.
   // Cleared on use so subsequent calls reach the real repo.
@@ -379,7 +380,15 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   func cachedEpisodes() async throws -> [Episode] {
     recordCall(methodName: "cachedEpisodes")
+    if let beforeCachedEpisodesFetch {
+      self.beforeCachedEpisodesFetch = nil
+      await beforeCachedEpisodesFetch()
+    }
     return try await repo.cachedEpisodes()
+  }
+
+  func beforeNextCachedEpisodesFetch(_ handler: @escaping @Sendable () async -> Void) {
+    beforeCachedEpisodesFetch = handler
   }
 
   func downloadingEpisodeIDs() async throws -> [Episode.ID] {

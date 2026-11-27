@@ -28,11 +28,18 @@ extension PlayManager {
     return onDeck
   }
 
+  // Runs before the load claims its transition, so it records the incoming
+  // episode for a play that arrives meanwhile.
   func onDeckRecoveryEpisode(
     whenLoading podcastEpisode: PodcastEpisode
   ) async throws -> PodcastEpisode? {
     guard let recoveryEpisodeID = onDeckRecoveryEpisodeID else { return nil }
     guard recoveryEpisodeID != podcastEpisode.id else { return podcastEpisode }
+    let requestID = playbackRequestRevision
+    onDeckRecoveryLookup = (podcastEpisode.id, requestID)
+    defer {
+      if onDeckRecoveryLookup?.requestID == requestID { onDeckRecoveryLookup = nil }
+    }
     return try await repo.podcastEpisode(recoveryEpisodeID)
   }
 
