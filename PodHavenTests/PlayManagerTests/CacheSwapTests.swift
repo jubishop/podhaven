@@ -211,6 +211,39 @@ import Testing
     #expect(player.currentTime() == seekTime)
   }
 
+  @Test("a skip during an earlier seek's cache swap moves from that seek's target")
+  func skipDuringCacheSwapMovesFromPendingTarget() async throws {
+    let (episode, player) = try await streaming()
+    let cachedURL = try #require(episode.episode.cachedURL)
+    let originalSeeks = player.seekRequests.count
+    let loadStarted = AsyncSemaphore(value: 0)
+    let finishLoad = AsyncSemaphore(value: 0)
+    await Container.shared.fakeEpisodeAssetLoader()
+      .respond(to: cachedURL) { _ in
+        loadStarted.signal()
+        await finishLoad.wait()
+        return (true, .seconds(60))
+      }
+    defer {
+      finishLoad.signal()
+      finishLoad.signal()
+    }
+    let firstSkip = Task { await Container.shared.playManager().seekForward(5) }
+    await loadStarted.wait()
+    let secondSkip = Task { await Container.shared.playManager().seekForward(5) }
+    await loadStarted.wait()
+
+    finishLoad.signal()
+    finishLoad.signal()
+    await firstSkip.value
+    await secondSkip.value
+    try await PlayHelpers.waitForCurrentItem(cachedURL)
+    try await PlayHelpers.waitForPeriodicTimeObserver()
+    #expect(player.seekRequests.count == originalSeeks + 1)
+    #expect(player.seekRequests.last == .seconds(22))
+    #expect(player.currentTime() == .seconds(22))
+  }
+
   @Test("a seek lands while its cache swap's duration save waits for the writer")
   func seekLandsWhileCacheSwapDurationSaveWaits() async throws {
     let (episode, player) = try await streaming()

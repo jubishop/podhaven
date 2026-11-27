@@ -18,6 +18,7 @@ import Testing
 
   enum Lookup: CaseIterable { case diagnostics, reload }
   enum Command: CaseIterable { case sameEpisode, differentEpisode, pause, stop }
+  enum FailureSignal: CaseIterable { case itemStatus, failedToPlayToEnd }
 
   private var playManager: PlayManager { Container.shared.playManager() }
   private var sharedState: SharedState { Container.shared.sharedState() }
@@ -316,6 +317,106 @@ import Testing
     #expect(alert.config == nil)
   }
 
+  @Test("an item failure during another episode's audio-session setup lets that episode play")
+  func itemFailureDuringOtherEpisodeLoad() async throws {
+    try await LogCapture.withSink { sink in
+      let (failed, selected) = try await Create.twoPodcastEpisodes()
+      let requestID = UUID()
+      let (_, selection) = try await failItemDuringSelection(
+        of: selected,
+        playing: failed,
+        requestID: requestID,
+        in: sink
+      )
+      defer { selection.cancel() }
+
+      try await PlayHelpers.recoverAudioSessionConfiguration()
+
+      #expect(try await selection.value == .ready)
+      try await yieldForSpuriousAsyncWork()
+      #expect(playManager.playbackRequestRevision == requestID)
+      #expect(sharedState.onDeck?.id == selected.id)
+      #expect(PlayHelpers.currentAssetURL == selected.episode.mediaURL.rawValue)
+      #expect(avPlayer.timeControlStatus == .playing)
+      #expect(avPlayer.playCallCount == 2)
+      #expect(await assetLoader.responseCount(for: failed.episode.mediaURL) == 1)
+      #expect(alert.config == nil)
+    }
+  }
+
+  @Test(
+    "an item failure while an episode finishes lets the auto-advance play the next episode",
+    arguments: FailureSignal.allCases
+  )
+  func itemFailureDuringFinishAdvances(signal: FailureSignal) async throws {
+    try await LogCapture.withSink { sink in
+      let (finished, next) = try await Create.twoPodcastEpisodes()
+      if signal == .failedToPlayToEnd { loadRealPlayerItems() }
+      PlayHelpers.setupCommandHandling()
+      try await queue.unshift(next.id)
+      try await playManager.play(finished)
+      let failedItem = avPlayer.current
+      let revision = playManager.playbackRequestRevision
+      let marking = AsyncSemaphore(value: 0)
+      let release = AsyncSemaphore(value: 0)
+      await repo.afterNextMarkFinished { _ in
+        marking.signal()
+        await release.wait()
+      }
+      let finishing = Task { await playManager.finishEpisode(finished.id) }
+      defer { release.signal() }
+      try await marking.waitUnlessCancelled()
+
+      switch signal {
+      case .itemStatus:
+        try #require(failedItem as? FakeAVPlayerItem).setStatus(.failed)
+      case .failedToPlayToEnd:
+        Container.shared.notifier()
+          .continuation(for: AVPlayerItem.failedToPlayToEndTimeNotification)
+          .yield(
+            Notification(
+              name: AVPlayerItem.failedToPlayToEndTimeNotification,
+              object: try #require(failedItem as? AVPlayerItem)
+            )
+          )
+      }
+      try await waitForItemFailureHandling(in: sink, preserving: revision)
+      release.signal()
+      await finishing.value
+
+      try await PlayHelpers.waitForOnDeck(next)
+      try await PlayHelpers.waitFor(.playing)
+      try await yieldForSpuriousAsyncWork()
+      #expect(sharedState.onDeck?.id == next.id)
+      #expect((avPlayer.current?.asset as? AVURLAsset)?.url == next.episode.mediaURL.rawValue)
+      #expect(avPlayer.playCallCount == 2)
+      #expect(alert.config == nil)
+    }
+  }
+
+  @Test("an item failure is recovered once another episode's audio-session setup fails")
+  func itemFailureRecoveredAfterOtherEpisodeLoadFails() async throws {
+    try await LogCapture.withSink { sink in
+      let (failed, selected) = try await Create.twoPodcastEpisodes()
+      let requestID = UUID()
+      let (failedItem, selection) = try await failItemDuringSelection(
+        of: selected,
+        playing: failed,
+        requestID: requestID,
+        in: sink
+      )
+      defer { selection.cancel() }
+
+      try await PlayHelpers.advanceAudioSessionRetryBackoff()
+      #expect(try await selection.value == .unavailable)
+
+      _ = try await waitForRecoveredItem(replacing: failedItem, status: .playing)
+      #expect(sharedState.onDeck?.id == failed.id)
+      #expect(await assetLoader.responseCount(for: failed.episode.mediaURL) == 2)
+      #expect(await assetLoader.responseCount(for: selected.episode.mediaURL) == 0)
+    }
+  }
+
   @Test("recovery keeps Stop After Current Episode, so the reloaded episode stops at its end")
   func recoveryKeepsStopAfterCurrentEpisode() async throws {
     let (failed, queued) = try await Create.twoPodcastEpisodes()
@@ -496,6 +597,40 @@ import Testing
       else { return nil }
       return item
     }
+  }
+
+  // Plays `failed`, then fails its item while the selection's audio-session setup
+  // backs off.
+  private func failItemDuringSelection(
+    of selected: PodcastEpisode,
+    playing failed: PodcastEpisode,
+    requestID: UUID,
+    in sink: LogCapture.Sink
+  ) async throws -> (FakeAVPlayerItem, Task<PlayManager.SelectionResult, any Error>) {
+    PlayHelpers.setupCommandHandling()
+    try await playManager.play(failed)
+    let failedItem = try #require(avPlayer.current as? FakeAVPlayerItem)
+    PlayHelpers.failAudioSessionConfiguration()
+    let selection = Task { try await playManager.play(selected, requestID: requestID) }
+    try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
+    failedItem.setStatus(.failed)
+    try await waitForItemFailureHandling(in: sink, preserving: requestID)
+    return (failedItem, selection)
+  }
+
+  // Returns once the failure either yields to the newer transition or starts a
+  // recovery that supersedes it.
+  private func waitForItemFailureHandling(
+    in sink: LogCapture.Sink,
+    preserving revision: UUID
+  ) async throws {
+    try await Wait.until(
+      { @MainActor in
+        playManager.playbackRequestRevision != revision
+          || sink.captured().contains { $0.message.contains("event=itemFailureYield") }
+      },
+      { "Expected the item failure to yield to the newer transition or supersede it" }
+    )
   }
 
   private func suspendRecovery(at lookup: Lookup) async throws -> Task<Void, Never> {

@@ -23,6 +23,7 @@ import Testing
     case routeLost, routeLostAfterPlayerPaused, routeLostAfterUnendedInterruption
   }
 
+  @DynamicInjected(\.fakeAudioSession) private var audioSession
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.notifier) private var notifier
   @DynamicInjected(\.playManager) private var playManager
@@ -157,6 +158,52 @@ import Testing
     try await PlayHelpers.beginAudioInterruption()
 
     #expect(avPlayer.playCallCount == playCount)
+  }
+
+  @Test(
+    "a route lost during an interruption to a built-in output leaves playback paused",
+    arguments: [AVAudioSession.Port.builtInSpeaker, .builtInReceiver]
+  )
+  func routeLossDuringInterruptionLeavesPlaybackPaused(output: AVAudioSession.Port)
+    async throws
+  {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+    try await PlayHelpers.beginAudioInterruption()
+    try await PlayHelpers.waitFor(.paused)
+    audioSession.routeOutputs([output])
+    try await PlayHelpers.sendAudioRouteLoss()
+    let playCount = avPlayer.playCallCount
+
+    PlayHelpers.endAudioInterruption(shouldResume: true)
+    // Notifications are handled in order, so a later interruption's pause shows
+    // the end was fully handled.
+    try await PlayHelpers.beginAudioInterruption()
+
+    #expect(avPlayer.playCallCount == playCount)
+  }
+
+  @Test(
+    "a route lost during an interruption to another private output keeps its resume",
+    arguments: [AVAudioSession.Port.bluetoothHFP, .carAudio]
+  )
+  func routeLossToPrivateOutputDuringInterruptionResumes(output: AVAudioSession.Port)
+    async throws
+  {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+    try await PlayHelpers.beginAudioInterruption()
+    try await PlayHelpers.waitFor(.paused)
+    audioSession.routeOutputs([output])
+    try await PlayHelpers.sendAudioRouteLoss()
+
+    PlayHelpers.endAudioInterruption(shouldResume: true)
+
+    try await PlayHelpers.waitFor(.playing)
   }
 
   @Test(
