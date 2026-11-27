@@ -126,6 +126,7 @@ final class PlayManager {
   var onDeckRecoveryLookup: (episodeID: Episode.ID, requestID: UUID)?
   var onDeckRecoveryPositionSave: Task<Void, Never>?
   var pendingPlaybackRequest = PendingPlaybackRequest.none
+  var playbackFailureRecovery: (episodeID: Episode.ID, requestID: UUID)?
   var widgetRouteRecovery: WidgetRouteRecovery?
   var widgetRouteRecoveryTask: Task<Void, Never>?
 
@@ -172,7 +173,11 @@ final class PlayManager {
     let task = Task<Bool, any Error> { [weak self] in
       guard let self else { return false }
       do {
-        let loaded = try await performLoad(podcastEpisode, loadID: loadID)
+        let loaded = try await performLoad(
+          podcastEpisode,
+          loadID: loadID,
+          requestID: acceptedRevision
+        )
         let outcome: LoadTransitionOutcome = loaded ? .succeeded : .didNotLoad
         await finishLoadTransition(loadID, outcome: outcome)
         return loaded
@@ -232,12 +237,21 @@ final class PlayManager {
     return claimLoadTransition(for: nil)
   }
 
-  private func performLoad(_ incoming: PodcastEpisode, loadID: UUID) async throws -> Bool {
+  private func performLoad(
+    _ incoming: PodcastEpisode,
+    loadID: UUID,
+    requestID: UUID
+  ) async throws -> Bool {
     let transition = loadTransition
     let outgoing = sharedState.onDeck
     let isOnDeckRecovery = onDeckRecoveryEpisodeID == incoming.id
     let isMediaServicesRecovery =
       onDeckRecoveryState == .awaitingUserAction(incoming.id, .mediaServicesReset)
+    // A recovery reload continues the same playback instead of starting a new one.
+    let continuesPlayback =
+      isMediaServicesRecovery
+      || (playbackFailureRecovery?.episodeID == incoming.id
+        && playbackFailureRecovery?.requestID == requestID)
 
     if let outgoing, outgoing.id == incoming.id, !isOnDeckRecovery {
       try requireLoadTransitionOwnership(loadID)
@@ -306,7 +320,7 @@ final class PlayManager {
         "performLoad: removed player observers in \(Date().timeIntervalSince(phaseStart)) seconds"
       )
 
-      if sharedState.stopAfterCurrentEpisode && !isMediaServicesRecovery {
+      if sharedState.stopAfterCurrentEpisode && !continuesPlayback {
         Self.log.debug("performLoad: new episode starting, clearing stopAfterCurrentEpisode")
         sharedState.setStopAfterCurrentEpisode(false)
       }
@@ -315,11 +329,7 @@ final class PlayManager {
 
       phaseStart = Date()
       Self.log.debug("performLoad: clearing onDeck")
-      if !isMediaServicesRecovery {
-        sharedState.$silenceOverride.new(nil)
-        sharedState.$quietAudioProtectionOverride.new(nil)
-        sharedState.$silenceSourceRejection.new(nil)
-      }
+      if !continuesPlayback { sharedState.clearTemporarySilenceState() }
       try await clearOnDeck(ownedBy: loadID)
       Self.log.debug(
         "performLoad: cleared onDeck in \(Date().timeIntervalSince(phaseStart)) seconds"
@@ -689,9 +699,10 @@ final class PlayManager {
     let previousLoad = loadTask
     let stopID = claimLoadTransition(for: nil)
     loadTransition?.state = .ownsPlaybackState
-    sharedState.$silenceOverride.new(nil)
-    sharedState.$quietAudioProtectionOverride.new(nil)
-    sharedState.$silenceSourceRejection.new(nil)
+    // A playback-failure recovery keeps the episode's silence state for its reload.
+    if playbackFailureRecovery?.requestID != requestID {
+      sharedState.clearTemporarySilenceState()
+    }
     clearOnDeckRecovery()
     await Task { await finishLoadTransition(stopID, outcome: .didNotLoad) }.value
     if let previousLoad, case .failure(let error) = await previousLoad.result {
@@ -805,9 +816,7 @@ final class PlayManager {
       try requireLoadTransitionOwnership(finalizationID)
       suppressRemoteScrubCommands()
       try await clearOnDeck(ownedBy: finalizationID)
-      sharedState.$silenceOverride.new(nil)
-      sharedState.$quietAudioProtectionOverride.new(nil)
-      sharedState.$silenceSourceRejection.new(nil)
+      sharedState.clearTemporarySilenceState()
       if sharedState.stopAfterCurrentEpisode {
         Self.log.debug("finishEpisode: stopAfterCurrentEpisode set, stopping instead of advancing")
         sharedState.setStopAfterCurrentEpisode(false)
