@@ -34,6 +34,10 @@ extension PlayManager {
     await logFailureDiagnostics(episodeID)
     guard playbackRequestRevision == requestID else { return }
     let recoveryRequestID = UUID()
+    playbackFailureRecovery = (episodeID, recoveryRequestID)
+    defer {
+      if playbackFailureRecovery?.requestID == recoveryRequestID { playbackFailureRecovery = nil }
+    }
     await stop(requestID: recoveryRequestID)
     guard playbackRequestRevision == recoveryRequestID else { return }
 
@@ -54,6 +58,7 @@ extension PlayManager {
         guard playbackRequestRevision == recoveryRequestID else { return }
         guard let podcastEpisode else {
           Self.log.warning("handlePlaybackFailure: episode \(episodeID) no longer exists")
+          sharedState.clearTemporarySilenceState()
           return
         }
 
@@ -98,6 +103,7 @@ extension PlayManager {
 
     guard playbackRequestRevision == recoveryRequestID else { return }
     pendingPlaybackRequest = .none
+    sharedState.clearTemporarySilenceState()
     let returnedToQueue: Bool
     do {
       returnedToQueue = try await queue.unshift(episodeID) {
