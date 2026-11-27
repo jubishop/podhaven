@@ -22,10 +22,9 @@ most likely cause, and the fix or the diagnostics that would reveal it.
 
 The argument is a Sentry feedback URL, a slug such as `podhaven:7485822944`,
 or a bare numeric ID, meaning `podhaven:<id>`. Treat other text given with it
-as triage notes, such as hunches or focus areas, and quote them in the
-report. With no reference, list the unresolved feedback (Step 0). Use
-`analyze-sentry-issue` for a Sentry error issue and `analyze-sentry-logs` for
-bulk structured-log triage.
+as triage notes, such as hunches or focus areas. Use `analyze-sentry-issue`
+for a Sentry error issue and `analyze-sentry-logs` for bulk structured-log
+triage.
 
 Read the `track-sentry-findings` skill first and follow it throughout: it
 holds the rules this skill shares with the other Sentry analysis skills, the
@@ -60,8 +59,8 @@ triage notes so they know the notes were picked up.
 
 Review the tracking history as `track-sentry-findings` describes, listing
 the feedback's tracking issues with `bin/snfeedback --track <slug>`, which
-leaves out issues the intake's `github-actions[bot]` or the owner,
-`jubishop`, did not open. The first listed is canonical even when closed.
+already applies that skill's author rule. The first listed is canonical even
+when closed.
 Search earlier issues with
 `gh issue list --repo jubishop/podhaven --state all --search 'label:sentry-feedback,sentry-issue <symptom>'`.
 
@@ -77,7 +76,7 @@ the errors near the report carry the evidence.
 When the feedback resembles a known or already-fixed bug, test the reporter's
 build against the fix as
 [PodHaven correlation](../analyze-sentry-issue/references/podhaven-correlation.md#builds-and-known-fixes)
-describes, and state each result in the report.
+describes.
 
 ## Step 3: Find the reporter's errors before the report
 
@@ -85,25 +84,23 @@ Reporters usually write just after something went wrong, so list the errors
 nearest the submission with
 `.agents/scripts/sentry-cli/search_related_errors.sh --bundle <bundle>`.
 Several distinct errors just before a report usually mean one failure with
-several symptoms. When nothing turns up, say so with the window searched.
+several symptoms.
 
 ## Step 4: Analyze the reporter's attachments
 
 The fetch downloads the feedback event's attachments into the bundle's
-`attachments/`: the reporter's full `log.ndjson` and `widget-log.ndjson`, the
-bounded `recent-log.ndjson` and `recent-widget-log.ndjson` that every
-PodHaven event attaches, and a `screenshot.jpg` or `screenshot-<n>.jpg` for
-each photo the reporter added. Look at the screenshots, and analyze the logs
-as
+`attachments/`: beside the bounded recent logs every event carries, the
+reporter's full `log.ndjson` and `widget-log.ndjson`, and a `screenshot.jpg`
+or `screenshot-<n>.jpg` for each photo the reporter added. Look at the
+screenshots, and analyze the logs as
 [PodHaven correlation](../analyze-sentry-issue/references/podhaven-correlation.md#attachments-and-ndjson-logs)
-describes. The report is almost always about the last app launch before
-submission, the one whose entries carry the event's `log-session-id` as their
-`sessionID`, so keep the analysis to it.
+describes, keeping to the launch the event's `log-session-id` names: the
+report is almost always about it.
 
-The app writes and uploads these files; Sentry only carries them. A log that
-is missing, empty, or ends far from the submission time therefore reflects the
-app's logging or attachment behavior, and any fix for it belongs there. Say
-how it limits the timeline.
+The app writes and uploads these files and Sentry only carries them, so a log
+that is missing, empty, or ends far from the submission reflects the app's
+logging or attachment behavior, where any fix belongs. Say how it limits the
+timeline.
 
 ## Step 5: Synthesize
 
@@ -123,15 +120,15 @@ Write one dense private report, which may carry reporter details, with
 these parts, omitting any with nothing to say:
 
 - **Reporter:** submission time in PT and UTC, contact or "anonymous",
-  release and environment, device and OS, and for a suspected recurrence,
-  which fixes the build does or does not contain.
+  release and environment, device and OS, and which known fixes the build
+  does or does not contain.
 - **What the user said,** quoted verbatim, and the triage notes, quoted.
 - **Prior analysis** from the tracking issue.
 - **Sentry follow-ups:** each note or activity after submission as
   `<PT time> — <author>: <verbatim text>`, or "None", naming any unavailable.
 - **Related Sentry issues,** nearest the submission first, with time, short
-  ID, title, error type, event count, and same-user or release-wide, plus the
-  window searched.
+  ID, title, error type, event count, and same-user or release-wide, or
+  "None", with the window searched.
 - **Timeline (PT):** five to fifteen log lines, widget lines marked
   `[widget]`, enough to support the conclusion.
 - **Findings:** direct observations; the inferred root cause with confidence
