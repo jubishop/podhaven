@@ -291,6 +291,16 @@ Hosted view tests use `withHostedTestWindow` to perform their first layout
 inside the test's dependency context and await UIKit appearance and teardown.
 Keep views installed and preserve their rendered assertions.
 
+My Mac renders text at the default size whatever Dynamic Type size a view or
+its host sets, so tests there can't check large-text layout; previews at the
+largest allowed size check it. On 2026-11-27, body text kept its default
+height at `.accessibility5` set through the `dynamicTypeSize` modifier or
+environment value, or through a `preferredContentSizeCategory` trait override
+on the hosting controller, window, or scene, and measured the same through
+`sizeThatFits` outside a window at `.large` and `.accessibility5`.
+`UIFont.preferredFont(forTextStyle:compatibleWith:)` returned the default
+point size for the largest category (jubishop/podhaven#1123).
+
 On My Mac, hiding the test host, such as with Hide Others from another app,
 minimizing its window, or switching to a Space without its window moves its
 scene to the background, where SwiftUI stops rendering hosted views.

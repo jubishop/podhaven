@@ -182,10 +182,15 @@ struct PodcastDetailView: View {
 
   @ViewBuilder
   private var episodeListView: some View {
-    if viewModel.episodesLoaded {
-      episodeList
-    } else {
+    switch viewModel.episodesState {
+    case .loading:
       loadingEpisodesMessage
+    case .loaded:
+      episodeList
+    case .empty:
+      emptyPodcastMessage
+    case .failed(let message):
+      loadFailedMessage(message)
     }
   }
 
@@ -245,6 +250,36 @@ struct PodcastDetailView: View {
         .padding()
       Spacer()
     }
+  }
+
+  private var emptyPodcastMessage: some View {
+    refreshableMessage {
+      Text("This podcast has no episodes.")
+    }
+  }
+
+  private func loadFailedMessage(_ message: String) -> some View {
+    refreshableMessage {
+      Text("Couldn't load episodes.")
+      Text(message)
+        .font(.footnote)
+      Text("Pull down to try again.")
+        .font(.footnote)
+    }
+  }
+
+  // A scroll view, so pull-to-refresh reaches it and large text can scroll.
+  private func refreshableMessage(@ViewBuilder content: () -> some View) -> some View {
+    ScrollView {
+      VStack(spacing: 8) {
+        content()
+      }
+      .foregroundStyle(.secondary)
+      .multilineTextAlignment(.center)
+      .frame(maxWidth: .infinity)
+      .padding()
+    }
+    .refreshable(action: viewModel.refreshSeries)
   }
 
   // MARK: - Expanded About
@@ -458,5 +493,74 @@ struct PodcastDetailViewPreview: View {
     assetName: "pod_save_america",
     feedURLString: "https://feeds.simplecast.com/dxZsm5kX"
   )
+}
+
+private struct PodcastDetailEpisodesStatePreview: View {
+  enum Feed {
+    case empty
+    case failed
+  }
+
+  let feed: Feed
+  @State private var podcast: UnsavedPodcast?
+
+  var body: some View {
+    NavigationStack {
+      if let podcast {
+        PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: DisplayedPodcast(podcast)))
+      }
+    }
+    .preview()
+    .task {
+      guard podcast == nil else { return }
+
+      let imageURL = URL(string: "https://example.com/\(feed)-podcast.png")!
+      Container.shared.fakeDataLoader()
+        .respond(
+          to: imageURL,
+          data: PreviewBundle.loadImageData(named: "changelog-podcast", in: .EpisodeThumbnails)
+        )
+
+      let feedURL = URL(string: "https://example.com/\(feed)-podcast.rss")!
+      switch feed {
+      case .empty:
+        await PreviewHelpers.dataFetcher
+          .respond(to: feedURL, data: PreviewFeed.rss(for: feedURL, episodeCount: 0))
+      case .failed:
+        await PreviewHelpers.dataFetcher
+          .respond(
+            to: feedURL,
+            error: URLError(
+              .timedOut,
+              userInfo: [NSLocalizedDescriptionKey: "The request timed out."]
+            )
+          )
+      }
+
+      podcast = try! Create.unsavedPodcast(
+        feedURL: FeedURL(feedURL),
+        title: "Preview Podcast",
+        image: imageURL
+      )
+    }
+  }
+}
+
+#Preview("No Episodes") {
+  PodcastDetailEpisodesStatePreview(feed: .empty)
+}
+
+#Preview("No Episodes, Largest Text") {
+  PodcastDetailEpisodesStatePreview(feed: .empty)
+    .environment(\.dynamicTypeSize, .accessibility5)
+}
+
+#Preview("Episodes Failed to Load") {
+  PodcastDetailEpisodesStatePreview(feed: .failed)
+}
+
+#Preview("Episodes Failed to Load, Largest Text") {
+  PodcastDetailEpisodesStatePreview(feed: .failed)
+    .environment(\.dynamicTypeSize, .accessibility5)
 }
 #endif
