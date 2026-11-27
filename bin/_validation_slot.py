@@ -111,7 +111,8 @@ def queue_report(ahead):
 
 
 class Place:
-    """A run's place among the runs waiting for a validation slot, which it takes the first time it has to wait.
+    """A run's place among the runs waiting for a validation slot, which it takes the first time it has to wait, and
+    again behind every run then waiting if it has to wait after leaving.
 
     A run inside the live holder of a slot reuses that slot, so it takes no place and polls only its readiness."""
 
@@ -156,7 +157,7 @@ class Place:
         # Unlink before unlocking: once unlocked, the name can pass to a later waiter's ticket, which this would delete.
         (self.queue / f"{self.number}.lock").unlink(missing_ok=True)
         self.ticket.close()
-        self.ticket = None
+        self.ticket = self.number = None
 
 
 def take(place):
