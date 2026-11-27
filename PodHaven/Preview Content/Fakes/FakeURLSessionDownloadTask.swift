@@ -11,6 +11,7 @@ actor FakeURLSessionDownloadTask: DownloadingTask {
 
   let isResumed = ThreadSafe(false)
   let isCancelled = ThreadSafe(false)
+  let cancelledLatch = AsyncLatch<Void>()
 
   init(
     taskID: URLSessionDownloadTask.ID = URLSessionDownloadTask.ID(
@@ -30,6 +31,7 @@ actor FakeURLSessionDownloadTask: DownloadingTask {
 
   nonisolated func cancel() {
     isCancelled(true)
+    cancelledLatch.open()
   }
 
   func assertResumed(_ resumed: Bool = true) {
