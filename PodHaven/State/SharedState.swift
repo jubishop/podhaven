@@ -156,6 +156,12 @@ struct SharedState: Sendable {
     $stopAfterCurrentEpisode.new(enabled)
   }
 
+  func clearTemporarySilenceState() {
+    $silenceOverride.new(nil)
+    $quietAudioProtectionOverride.new(nil)
+    $silenceSourceRejection.new(nil)
+  }
+
   func setPlayRate(_ rate: Float) {
     guard rate > 0 else { return }
     $playRate.new(rate)

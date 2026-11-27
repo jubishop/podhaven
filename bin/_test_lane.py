@@ -102,11 +102,11 @@ class SecondMac:
         lines = result.stderr.strip().splitlines()
         return f"sending the commit to it failed: {lines[0].strip() if lines else 'no output'}"
 
-    def attempt(self, revision, base, output):
+    def attempt(self, revision, base, output, started=lambda: None):
         """Run bin/test-all in the host's lane unless another run holds the lane, which leaves self.holder naming it.
 
-        Return None for a held lane, else the SSH session's exit status and the folder the host's run named for its
-        evidence, whose files are now in output."""
+        Call started once the run there holds the lane. Return None for a held lane, else the SSH session's exit status
+        and the folder the host's run named for its evidence, whose files are now in output."""
         lock = '"$HOME"/' + shlex.quote(host_side.LOCK)
         holder = f"PodHaven bin/test-all from {socket.gethostname()} for {revision[:12]}"
         command = (f"lockf -s -k -t 0 {lock} {self.host_command('run', revision, base, holder)}; lane=$?; "
@@ -138,13 +138,17 @@ class SecondMac:
         threads = [threading.Thread(target=heartbeat, daemon=True), threading.Thread(target=extract, daemon=True)]
         for thread in threads:
             thread.start()
-        remote_output = None
+        remote_output, running = None, False
         self.holder = None
         for raw in process.stderr:
             line = raw.decode(errors="replace").rstrip("\n")
             if line.startswith("busy: "):
                 self.holder = line.removeprefix("busy: ") or "another run"
                 continue
+            # Only the run there tags its lines, and it starts once it holds the lane.
+            if line[:2] in ("1 ", "2 ") and not running:
+                running = True
+                started()
             stream, text = (line[0], line[2:]) if line[:2] in ("1 ", "2 ") else ("2", line)
             if stream == "1" and (found := EVIDENCE_LINE.match(text)):
                 remote_output = found[1]

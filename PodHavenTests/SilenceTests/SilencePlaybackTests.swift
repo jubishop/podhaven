@@ -539,6 +539,45 @@ import Testing
     #expect(Container.shared.sharedState().silenceOverride?.episodeID == episode.id)
   }
 
+  @Test("time updates keep publishing while a cut's saves wait for the writer")
+  func cutSavesWait() async throws {
+    let (episode, player) = try await prepared(.init(start: 6, end: 18))
+    let repo = try #require(Container.shared.repo() as? FakeRepo)
+    defer {
+      repo.playbackUpdateHold.release()
+      repo.currentTimeUpdateHold.release()
+    }
+    try await PlayHelpers.play()
+    repo.clearAllCalls()
+    repo.playbackUpdateHold.hold()
+    repo.currentTimeUpdateHold.hold()
+    player.advanceTime(to: .seconds(6.5))
+    try await repo.playbackUpdateHold.waitForParked()
+    player.advanceTime(to: .seconds(6.75))
+    try await PlayHelpers.waitFor(.seconds(6.75))
+    #expect(player.preciseSeekRequests.isEmpty)
+    #expect(repo.calls(of: PlaybackUpdate.self).map(\.parameters.currentTime) == [.seconds(6.5)])
+
+    repo.playbackUpdateHold.release()
+    try await repo.currentTimeUpdateHold.waitForParked()
+    try await PlayHelpers.waitForPeriodicTimeObserver()
+    #expect(abs(player.currentTime().seconds - 17.7) < 0.001)
+    player.advanceTime(to: .seconds(19))
+    try await PlayHelpers.waitFor(.seconds(19))
+
+    repo.currentTimeUpdateHold.release()
+    try await Wait.until(maxAttempts: 200) {
+      let saved = try await Container.shared.repo().episode(episode.id)?.currentTime
+      return abs((saved ?? .zero).seconds - 17.7) < 0.001
+    } _: {
+      "The cut's position was not saved"
+    }
+  }
+
+  private typealias PlaybackUpdate = MethodCall<
+    (episodeID: Episode.ID, currentTime: CMTime, playedFrom: CMTime, now: Date)
+  >
+
   @Test("a failed position write after a cut cannot mark skipped audio as heard")
   func failedPositionWrite() async throws {
     let (episode, player) = try await prepared(.init(start: 6, end: 18))

@@ -299,6 +299,71 @@ import Testing
     #expect(try await PlayHelpers.queuedEpisodeIDs == [failed.id])
   }
 
+  @Test("recovery keeps Stop After Current Episode, so the reloaded episode stops at its end")
+  func recoveryKeepsStopAfterCurrentEpisode() async throws {
+    let (failed, queued) = try await Create.twoPodcastEpisodes()
+    PlayHelpers.setupCommandHandling()
+    try await queue.unshift(queued.id)
+    try await playManager.play(failed)
+    sharedState.setStopAfterCurrentEpisode(true)
+    let originalItem = try #require(avPlayer.current as? FakeAVPlayerItem)
+
+    originalItem.setStatus(.failed)
+    _ = try await waitForRecoveredItem(replacing: originalItem, status: .playing)
+    #expect(sharedState.stopAfterCurrentEpisode)
+    await playManager.finishEpisode(failed.id)
+
+    try await PlayHelpers.waitForFinished(failed)
+    #expect(sharedState.playbackStatus == .stopped)
+    #expect(sharedState.onDeck == nil)
+    #expect(avPlayer.current == nil)
+    #expect(try await PlayHelpers.queuedEpisodeIDs == [queued.id])
+    #expect(!sharedState.stopAfterCurrentEpisode)
+  }
+
+  @Test(
+    "recovery keeps the episode's silence choices until a repeat failure returns it to Up Next",
+    arguments: [false, true]
+  )
+  func recoveryKeepsSilenceChoices(paused: Bool) async throws {
+    Container.shared.fakeContinuousClock().freeze()
+    let failed = try await Create.podcastEpisode()
+    PlayHelpers.setupCommandHandling()
+    try await playManager.play(failed)
+    if paused { await playManager.pause() }
+    let status: PlaybackStatus = paused ? .paused : .playing
+    let silenceOverride = SilenceOverride(episodeID: failed.id, mode: .aggressive)
+    let quietAudioProtectionOverride = QuietAudioProtectionOverride(
+      episodeID: failed.id,
+      protection: .low
+    )
+    let silenceSourceRejection = SilenceSourceRejection(
+      episodeID: failed.id,
+      filename: "rejected.mp3",
+      generation: "rejected"
+    )
+    sharedState.$silenceOverride.new(silenceOverride)
+    sharedState.$quietAudioProtectionOverride.new(quietAudioProtectionOverride)
+    sharedState.$silenceSourceRejection.new(silenceSourceRejection)
+    let originalItem = try #require(avPlayer.current as? FakeAVPlayerItem)
+
+    originalItem.setStatus(.failed)
+    let recoveredItem = try await waitForRecoveredItem(replacing: originalItem, status: status)
+    #expect(sharedState.onDeck?.id == failed.id)
+    #expect(sharedState.silenceOverride == silenceOverride)
+    #expect(sharedState.quietAudioProtectionOverride == quietAudioProtectionOverride)
+    #expect(sharedState.silenceSourceRejection == silenceSourceRejection)
+    #expect(sharedState.effectiveSilenceMode == .aggressive)
+    #expect(sharedState.effectiveQuietAudioProtection == .low)
+
+    recoveredItem.setStatus(.failed)
+    try await Wait.until({ await alert.config != nil }, { "Expected a playback failure alert" })
+    #expect(try await PlayHelpers.queuedEpisodeIDs == [failed.id])
+    #expect(sharedState.silenceOverride == nil)
+    #expect(sharedState.quietAudioProtectionOverride == nil)
+    #expect(sharedState.silenceSourceRejection == nil)
+  }
+
   @Test("failure notification honors playback ownership", arguments: NotificationCommand.allCases)
   func notificationHonorsPlaybackOwnership(command: NotificationCommand) async throws {
     let failed = try await Create.podcastEpisode()

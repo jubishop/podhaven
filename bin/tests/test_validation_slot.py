@@ -29,6 +29,24 @@ with validation_slot(sys.argv[2]):
 '''
 
 
+# Waits in the queue as HOLDER, as bin/test-all waits for both Macs, then on a line of input leaves it, as that run
+# does once the second Mac's lane takes it, and on another waits here again, as it does when that run can't count.
+REJOINING_DRIVER = r'''
+import sys
+sys.path.insert(0, sys.argv[1])
+from _validation_slot import Place, validation_slot
+place = Place(sys.argv[2])
+if not place.poll():
+    print("queued", flush=True)
+sys.stdin.readline()
+place.leave()
+print("left", flush=True)
+sys.stdin.readline()
+with validation_slot(sys.argv[2], place):
+    print("held " + sys.argv[2], flush=True)
+'''
+
+
 def driver(holder, *command):
     return [sys.executable, "-B", "-c", DRIVER, str(BIN), holder, *command]
 
@@ -138,6 +156,32 @@ class ValidationSlotTests(unittest.TestCase):
         self.assertEqual(last.stderr.read(), "Took validation slot 1\n")
         self.assertEqual(last.stdout.read(), "held fourth\nran\n")
         self.assertEqual(hang_guard.wait(last), 0)
+        self.assertEqual(self.queue(), [])
+
+    def test_a_run_that_waits_again_after_leaving_the_queue_waits_behind_the_runs_that_queued_meanwhile(self):
+        holder = self.hold("holder", PODHAVEN_VALIDATION_SLOTS="1")
+        rejoining = self.start([sys.executable, "-B", "-c", REJOINING_DRIVER, str(BIN), "rejoining"],
+                               PODHAVEN_VALIDATION_SLOTS="1")
+        self.assertEqual(rejoining.stdout.readline(), "queued\n")
+        later = self.start(driver("later"), PODHAVEN_VALIDATION_SLOTS="1")
+        self.assert_waiting(later, 1, (holder.pid, "holder"), ahead=1)
+        rejoining.stdin.write("leave\n")
+        rejoining.stdin.flush()
+        self.assertEqual(rejoining.stdout.readline(), "left\n")
+        self.assertEqual(later.stderr.readline(), queued(0))
+        # Stopping the later run leaves the freed slot free when the other one comes back for it.
+        os.kill(later.pid, signal.SIGSTOP)
+        self.release(holder)
+        rejoining.stdin.close()
+        self.assert_waiting(rejoining, 1, None, ahead=1)
+        os.kill(later.pid, signal.SIGCONT)
+        self.assertEqual(later.stderr.readline(), "Took validation slot 1\n")
+        self.assertEqual(later.stdout.readline(), "held later\n")
+        self.assert_changed(rejoining, (later.pid, "later"), 0)
+        self.release(later)
+        self.assertEqual(rejoining.stderr.read(), "Took validation slot 1\n")
+        self.assertEqual(rejoining.stdout.read(), "held rejoining\n")
+        self.assertEqual(hang_guard.wait(rejoining), 0)
         self.assertEqual(self.queue(), [])
 
     def test_a_waiting_run_that_is_killed_leaves_the_queue(self):
