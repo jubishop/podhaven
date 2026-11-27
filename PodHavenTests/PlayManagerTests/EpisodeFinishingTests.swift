@@ -132,6 +132,19 @@ import Testing
     try await PlayHelpers.waitForFinished(podcastEpisode)
   }
 
+  @Test("episode loaded over another is marked finished after playing to end")
+  func episodeLoadedOverAnotherIsMarkedFinishedAfterPlayingToEnd() async throws {
+    await playManager.start()
+    let (replacedEpisode, podcastEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await playManager.load(replacedEpisode)
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+
+    avPlayer.finishEpisode()
+    try await PlayHelpers.waitForFinished(podcastEpisode)
+  }
+
   @Test("finishEpisode clears onDeck and marks episode finished")
   func finishEpisodeClearsOnDeckAndMarksEpisodeFinished() async throws {
     await playManager.start()
