@@ -94,82 +94,6 @@ class PodcastDetailViewModel:
     sortMethod: SortMethod.newestFirst.sortMethod
   )
 
-  enum SortMethod: SortingMethod {
-    case newestFirst
-    case oldestFirst
-    case recentlyAdded
-    case longest
-    case shortest
-    case recentlyFinished
-    case recentlyQueued
-    case recommendationScore
-
-    var appIcon: AppIcon {
-      switch self {
-      case .newestFirst:
-        return .sortByNewest
-      case .oldestFirst:
-        return .sortByOldest
-      case .recentlyAdded:
-        return .sortByRecentlyAdded
-      case .longest:
-        return .sortByLongest
-      case .shortest:
-        return .sortByShortest
-      case .recentlyFinished:
-        return .sortByRecentlyFinished
-      case .recentlyQueued:
-        return .sortByMostRecentlyQueued
-      case .recommendationScore:
-        return .sortByRecommendationScore
-      }
-    }
-
-    var sortMethod: (@Sendable (ListedEpisode, ListedEpisode) -> Bool)? {
-      switch self {
-      case .newestFirst:
-        return { $0.pubDate > $1.pubDate }
-      case .oldestFirst:
-        return { $0.pubDate < $1.pubDate }
-      case .recentlyAdded:
-        return { lhs, rhs in
-          let lhsDate = lhs.creationDate ?? Date.distantFuture
-          let rhsDate = rhs.creationDate ?? Date.distantFuture
-          return lhsDate > rhsDate
-        }
-      case .longest:
-        return { $0.duration > $1.duration }
-      case .shortest:
-        return { $0.duration < $1.duration }
-      case .recentlyFinished:
-        return { lhs, rhs in
-          let lhsDate = lhs.finishDate ?? Date.distantPast
-          let rhsDate = rhs.finishDate ?? Date.distantPast
-          return lhsDate > rhsDate
-        }
-      case .recentlyQueued:
-        return { lhs, rhs in
-          let lhsDate = lhs.queueDate ?? Date.distantPast
-          let rhsDate = rhs.queueDate ?? Date.distantPast
-          return lhsDate > rhsDate
-        }
-      case .recommendationScore:
-        // Scoring is async; the recommendation coordinator installs the real
-        // comparator once the recommendation scores land.
-        return nil
-      }
-    }
-
-    var filterMethod: (@Sendable (ListedEpisode) -> Bool)? {
-      switch self {
-      case .recentlyFinished:
-        return { $0.finished }
-      case .recentlyQueued:
-        return { $0.previouslyQueued }
-      default: return nil
-      }
-    }
-  }
   // recommendationScore is hidden until the engine's scoring cache is warm:
   // a cold cache can't score saved candidates or compute unsaved similarity,
   // so the option would surface an empty or pubDate-only list. Reading the
@@ -488,7 +412,30 @@ class PodcastDetailViewModel:
   // nil means the row falls back to the plain date icon.
   private(set) var resolvedFreshnessCadence: FreshnessCadence?
 
-  var episodesLoaded: Bool { !episodeList.allEntries.isEmpty }
+  enum EpisodesState: Equatable {
+    case loading
+    case loaded
+    case empty
+    case failed(String)
+  }
+
+  // `episodeList` sorts off the main actor, so its entries can trail `state`;
+  // a finished load reads as loading until its episodes land.
+  var episodesState: EpisodesState {
+    if !episodeList.allEntries.isEmpty { return .loaded }
+    switch episodesLoad {
+    case .pending: return .loading
+    case .finished: return state.episodeCount == 0 ? .empty : .loading
+    case .failed(let message): return .failed(message)
+    }
+  }
+
+  var episodesLoaded: Bool {
+    switch episodesState {
+    case .loaded, .empty: return true
+    case .loading, .failed: return false
+    }
+  }
 
   var tags: IdentifiedArrayOf<Tag> { state.savedSeries?.tags ?? [] }
   var allTags: IdentifiedArrayOf<Tag> { sharedState.tags }
@@ -603,6 +550,13 @@ class PodcastDetailViewModel:
   private(set) var state: PodcastDetailState
   @ObservationIgnored private var stateRevision = 0
 
+  private enum EpisodesLoad {
+    case pending
+    case finished
+    case failed(String)
+  }
+  private var episodesLoad = EpisodesLoad.pending
+
   @ObservationIgnored private let lifecycle = DetailLifecycle()
 
   func appear() {
@@ -626,6 +580,19 @@ class PodcastDetailViewModel:
       Self.log.debug("performAppear: exiting, duration=\(duration)")
     }
 
+    if case .failed = episodesLoad { episodesLoad = .pending }
+    do {
+      try await loadSeries()
+    } catch {
+      if case .pending = episodesLoad, shouldShow(error) {
+        episodesLoad = .failed(ErrorKit.message(for: error))
+      }
+      throw error
+    }
+    episodesLoad = .finished
+  }
+
+  private func loadSeries() async throws {
     try Task.checkCancellation()
 
     let observationAlreadyActive = lifecycle.observationTask?.isCancelled == false
@@ -746,7 +713,13 @@ class PodcastDetailViewModel:
   func refreshSeries() async {
     guard lifecycle.isOnScreen else { return }
     do {
-      if let series = state.savedSeries,
+      if case .failed = episodesState {
+        Self.log.debug("retrying failed first load of \(state.toString)")
+        try await loadSeries()
+        try Task.checkCancellation()
+        guard lifecycle.isOnScreen else { return }
+        episodesLoad = .finished
+      } else if let series = state.savedSeries,
         let podcast = try await repo.podcast(series.id)
       {
         try Task.checkCancellation()
@@ -760,13 +733,14 @@ class PodcastDetailViewModel:
         try await loadPresentationFromFeed()
         try Task.checkCancellation()
         guard lifecycle.isOnScreen else { return }
+        episodesLoad = .finished
       }
     } catch {
       Self.log.caughtError("refreshSeries: failed for \(state.toString)", error)
-      guard lifecycle.isOnScreen, !Task.isCancelled, !(error is CancellationError),
-        (error as? URLError)?.code != .cancelled
-      else { return }
-      alert(ErrorKit.message(for: error))
+      guard shouldShow(error) else { return }
+      let message = ErrorKit.message(for: error)
+      if case .failed = episodesLoad { episodesLoad = .failed(message) }
+      alert(message)
     }
   }
 
@@ -897,6 +871,12 @@ class PodcastDetailViewModel:
   }
 
   // MARK: - Private Helpers
+
+  // Cancellation, as when the screen goes away, is no failure to show.
+  private func shouldShow(_ error: any Error) -> Bool {
+    lifecycle.isOnScreen && !Task.isCancelled && !(error is CancellationError)
+      && (error as? URLError)?.code != .cancelled
+  }
 
   private func transition(to newState: PodcastDetailState) async {
     stateRevision += 1
