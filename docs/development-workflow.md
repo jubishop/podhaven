@@ -753,10 +753,11 @@ Both skills require the GitHub issue to include a Sentry record and closeout
 instructions. Sentry drops events after its retention period and drops an
 issue once they all age out; a recurrence then gets a new short ID, so later
 triage finds the history by the record's signature. Once the work is done, an
-agent resolves the linked Sentry item, in the fix's commit when there is one,
-or archives an error accepted as noise, and reads back its status;
-`.agents/scripts/sentry-cli/close_sentry_issue.sh` does both for an error
-issue. For PR-backed work, `fix-issue` carries that task into
+agent closes each linked Sentry item with
+`.agents/scripts/sentry-cli/close_sentry_issue.sh`, which reads back its
+status: it resolves an error issue in the fix's commit when there is one,
+resolves a feedback item plainly, or archives an error accepted as noise. For
+PR-backed work, `fix-issue` carries that task into
 `Do After Merging` for the `after-merge` agent to execute and verify after
 GitHub closure. For issue-only work, the agent that finishes the work does it
 before closing the issue or handing closure to a caller that owns it, because
