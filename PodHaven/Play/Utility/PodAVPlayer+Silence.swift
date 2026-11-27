@@ -121,7 +121,7 @@ extension PodAVPlayer {
     silenceState.streamingFallback = nil
     latestSeekID = nil
     avPlayer.cancelPendingSeeks()
-    lastDatabaseUpdateTime = avPlayer.currentTime()
+    resetDatabaseUpdateTime(to: avPlayer.currentTime())
     addPeriodicTimeObserver()
     removeSilenceBoundary()
   }
@@ -274,15 +274,11 @@ extension PodAVPlayer {
       Task { @MainActor [weak self] in
         guard let self, self.latestSeekID == id, self.isCurrent(source) else { return }
         let actual = self.avPlayer.currentTime()
-        self.lastDatabaseUpdateTime = actual
-        await self.saveCurrentTime(actual)
-        guard self.latestSeekID == id, self.isCurrent(source) else { return }
-        self.latestSeekID = nil
         self.silenceState.pending = nil
-        self.currentTimeContinuation.yield(PodAVPlayerEvent(source: source, value: actual))
-        self.addPeriodicTimeObserver()
+        self.resumeTimeUpdates(landedAt: actual, source: source)
         self.refreshSilenceBoundary()
         Self.log.debug("Automatic silence seek completed=\(completed) actual=\(actual.seconds)")
+        await self.saveCurrentTime(actual)
       }
     }
     return true
@@ -420,16 +416,13 @@ extension PodAVPlayer {
           Container.shared.alert()("Could not restore the playback position. Playback is paused.")
         }
         let actual = self.avPlayer.currentTime()
-        self.lastDatabaseUpdateTime = actual
-        await self.saveCurrentTime(actual)
-        guard self.latestSeekID == id, self.isCurrent(source) else { return }
-        self.latestSeekID = nil
         self.silenceState.pending = nil
         self.silenceState.streamingFallback = nil
-        self.currentTimeContinuation.yield(PodAVPlayerEvent(source: source, value: actual))
-        self.addPeriodicTimeObserver()
+        self.resumeTimeUpdates(landedAt: actual, source: source)
         self.finishSilenceReplacementIntent()
         self.refreshSilenceBoundary()
+        await self.saveCurrentTime(actual)
+        guard self.isCurrent(source) else { return }
         await self.shortenSilenceIfNeeded()
       }
     }
