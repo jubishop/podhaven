@@ -78,6 +78,55 @@ struct DateTests {
     )
   }
 
+  @Test("parseFeedDate reads dates without a time zone or offset as UTC")
+  func parseDatesWithoutTimeZone() {
+    let expected = utcDate(year: 2025, month: 9, day: 1, hour: 10, minute: 30, second: 15)
+    #expect(Date.parseFeedDate("Mon, 01 Sep 2025 10:30:15") == expected)
+    #expect(Date.parseFeedDate("01 Sep 2025 10:30:15") == expected)
+    #expect(
+      Date.parseFeedDate("Mon, 01 Sep 2025 10:30") == expected.addingTimeInterval(-15)
+    )
+    #expect(Date.parseFeedDate("01 Sep 2025 10:30") == expected.addingTimeInterval(-15))
+    #expect(Date.parseFeedDate("2025-09-01T10:30:15") == expected)
+    #expect(Date.parseFeedDate("2025-09-01T10:30:15.500") == expected.addingTimeInterval(0.5))
+  }
+
+  @Test("parseFeedDate reads zone abbreviations the system doesn't parse as fixed offsets")
+  func parseFixedOffsetZoneAbbreviations() {
+    #expect(
+      Date.parseFeedDate("Mon, 01 Sep 2025 10:00:00 BST")
+        == utcDate(year: 2025, month: 9, day: 1, hour: 9)
+    )
+    #expect(
+      Date.parseFeedDate("Mon, 01 Sep 2025 10:00:00 CEST")
+        == utcDate(year: 2025, month: 9, day: 1, hour: 8)
+    )
+    #expect(
+      Date.parseFeedDate("Mon, 01 Dec 2025 10:00 CET")
+        == utcDate(year: 2025, month: 12, day: 1, hour: 9)
+    )
+    #expect(
+      Date.parseFeedDate("01 Sep 2025 10:00:00 AEST")
+        == utcDate(year: 2025, month: 9, day: 1)
+    )
+    #expect(
+      Date.parseFeedDate("Mon, 01 Dec 2025 10:00:00 AEDT")
+        == utcDate(year: 2025, month: 11, day: 30, hour: 23)
+    )
+  }
+
+  @Test("parseFeedDate reads Sept as Sep")
+  func parseSeptAbbreviation() {
+    #expect(
+      Date.parseFeedDate("Mon, 01 Sept 2025 10:00:00 +0000")
+        == utcDate(year: 2025, month: 9, day: 1, hour: 10)
+    )
+    #expect(
+      Date.parseFeedDate("1 Sept 2025 10:00 BST")
+        == utcDate(year: 2025, month: 9, day: 1, hour: 9)
+    )
+  }
+
   @Test("parseFeedDate parses date-only values")
   func parseDateOnlyValues() {
     #expect(Date.parseFeedDate("2026-07-07") == utcDate(year: 2026, month: 7, day: 7))

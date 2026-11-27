@@ -331,6 +331,108 @@ struct PodcastFeedTests {
     }
   }
 
+  @Test(
+    "parsing a feed without a channel description falls back to itunes:summary, then empty",
+    arguments: [
+      ("<itunes:summary>Summary only</itunes:summary>", "Summary only"),
+      ("", ""),
+    ]
+  )
+  func parseFeedWithoutDescription(summaryElement: String, expectedDescription: String)
+    async throws
+  {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+        <channel>
+          <title>No Description</title>
+          <itunes:image href="https://example.com/art.jpg"/>
+          \(summaryElement)
+          <item>
+            <title>Episode</title>
+            <guid>episode</guid>
+            <enclosure url="https://example.com/episode.mp3" type="audio/mpeg"/>
+          </item>
+        </channel>
+      </rss>
+      """
+    let feed = try await PodcastFeed.parse(
+      Data(xml.utf8),
+      from: FeedURL(URL(string: "https://example.com/feed.xml")!)
+    )
+
+    let podcast = try feed.toUnsavedPodcast()
+    #expect(podcast.title == "No Description")
+    #expect(podcast.description == expectedDescription)
+    #expect(feed.toUnsavedEpisodes().map(\.guid) == [GUID("episode")])
+  }
+
+  @Test(
+    "parsing a feed uses the channel image url when itunes:image has no usable href",
+    arguments: [
+      ("", "https://example.com/channel.jpg"),
+      (#"<itunes:image href=""/>"#, "https://example.com/channel.jpg"),
+      (#"<itunes:image href="https://example.com/itunes.jpg"/>"#, "https://example.com/itunes.jpg"),
+    ]
+  )
+  func parseFeedWithChannelImage(itunesImageElement: String, expectedImage: String) async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+        <channel>
+          <title>Channel Image</title>
+          <description>Feed with a channel image</description>
+          \(itunesImageElement)
+          <image>
+            <url>http://example.com/channel.jpg</url>
+            <title>Channel Image</title>
+            <link>https://example.com</link>
+          </image>
+          <item>
+            <title>Episode</title>
+            <guid>episode</guid>
+            <enclosure url="https://example.com/episode.mp3" type="audio/mpeg"/>
+          </item>
+        </channel>
+      </rss>
+      """
+    let feed = try await PodcastFeed.parse(
+      Data(xml.utf8),
+      from: FeedURL(URL(string: "https://example.com/feed.xml")!)
+    )
+
+    #expect(try feed.toUnsavedPodcast().image == URL(string: expectedImage))
+  }
+
+  @Test("parsing a feed with neither itunes:image nor a channel image url fails to decode")
+  func parseFeedWithoutAnyImage() async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss version="2.0">
+        <channel>
+          <title>No Image</title>
+          <description>Feed without artwork</description>
+          <image>
+            <title>No Image</title>
+            <link>https://example.com</link>
+          </image>
+          <item>
+            <title>Episode</title>
+            <guid>episode</guid>
+            <enclosure url="https://example.com/episode.mp3" type="audio/mpeg"/>
+          </item>
+        </channel>
+      </rss>
+      """
+
+    await #expect(throws: DecodingError.self) {
+      try await PodcastFeed.parse(
+        Data(xml.utf8),
+        from: FeedURL(URL(string: "https://example.com/feed.xml")!)
+      )
+    }
+  }
+
   @Test("parsing a feed keeps its valid episodes when an item fails to decode")
   func parseFeedWithUndecodableItem() async throws {
     let xml = """
