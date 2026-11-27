@@ -54,18 +54,19 @@ import Testing
 
   @Test("deleting an observed saved series alerts when feed recovery fails")
   func observedDeletionFailureAlerts() async throws {
-    let feedURL = FeedURL(URL(string: "https://example.com/deleted-podcast.rss")!)
-    let feedData = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    await feedSession.respond(to: feedURL.rawValue, data: feedData)
-    let podcastFeed = try await PodcastFeed.parse(feedData, from: feedURL)
-    let savedSeries = try await repo.insertSeries(podcastFeed.toUnsavedSeries())
-    let displayedPodcast = DisplayedPodcast(savedSeries.podcast)
-
-    let viewModel = PodcastDetailViewModel(podcast: displayedPodcast)
+    let savedSeries = try await PodcastDetailTestHelpers.insertSeriesFromFeed(
+      assetName: "hardfork_short",
+      feedURL: FeedURL(try #require(URL(string: "https://example.com/deleted-podcast.rss")))
+    )
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
 
     try await PodcastDetailTestHelpers.appear(viewModel)
 
-    await feedSession.respond(to: feedURL.rawValue, error: URLError(.cannotLoadFromNetwork))
+    // hardfork_short names a new feed URL, which the saved podcast keeps and the re-parse fetches.
+    await feedSession.respond(
+      to: savedSeries.podcast.feedURL.rawValue,
+      error: URLError(.cannotLoadFromNetwork)
+    )
     _ = try await repo.deletePodcast(savedSeries.id)
 
     try await Wait.until(
