@@ -3,6 +3,7 @@
 import FactoryKit
 import FactoryTesting
 import Foundation
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -92,5 +93,145 @@ struct DebounceTests {
     for _ in 0..<10 { await Task.yield() }
 
     #expect(debounce.cancel() == false)
+  }
+
+  @Test("a trigger cancels a running action by default")
+  func triggerCancelsRunningActionByDefault() async throws {
+    let debounce = Debounce(duration: .milliseconds(500))
+    let gate = AsyncSemaphore(value: 0)
+    let started = ThreadSafe(false)
+    let firstWasCancelled = ThreadSafe<Bool?>(nil)
+    let secondRan = ThreadSafe(false)
+
+    debounce {
+      started(true)
+      await gate.wait()
+      firstWasCancelled(Task.isCancelled)
+    }
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: .milliseconds(500))
+    try await Wait.until({ started() }, { "Expected the first action to start." })
+
+    debounce { secondRan(true) }
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    gate.signal()
+    try await Wait.until(
+      { firstWasCancelled() != nil },
+      { "Expected the first action to finish." }
+    )
+    #expect(firstWasCancelled() == true)
+
+    await fakeSleeper.advanceTime(by: .milliseconds(500))
+    try await Wait.until({ secondRan() }, { "Expected the second action to run." })
+  }
+
+  @Test("triggers during a running action let it finish, then rerun the latest once")
+  func triggersDuringRunningActionRerunLatestOnce() async throws {
+    let debounce = Debounce(
+      duration: .milliseconds(500),
+      runningActionPolicy: .finishThenRerun
+    )
+    let gate = AsyncSemaphore(value: 0)
+    let started = ThreadSafe(false)
+    let firstWasCancelled = ThreadSafe<Bool?>(nil)
+    let ran = ThreadSafe<[String]>([])
+
+    debounce {
+      started(true)
+      await gate.wait()
+      firstWasCancelled(Task.isCancelled)
+    }
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: .milliseconds(500))
+    try await Wait.until({ started() }, { "Expected the first action to start." })
+
+    debounce { ran { $0.append("second") } }
+    debounce { ran { $0.append("third") } }
+    #expect(fakeSleeper.pendingCount() == 0, "No rerun should arm while the action runs.")
+
+    gate.signal()
+    try await Wait.until(
+      { firstWasCancelled() != nil },
+      { "Expected the first action to finish." }
+    )
+    #expect(firstWasCancelled() == false)
+
+    // The rerun waits out a full sleep before it runs.
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    #expect(ran().isEmpty)
+    await fakeSleeper.advanceTime(by: .milliseconds(500))
+    try await Wait.until({ !ran().isEmpty }, { "Expected the rerun to run." })
+    try await Wait.until({ !debounce.cancel() }, { "Expected the rerun to settle." })
+    #expect(ran() == ["third"])
+    #expect(fakeSleeper.pendingCount() == 0)
+  }
+
+  @Test("cancel() cancels a running action and drops its pending rerun")
+  func cancelStopsRunningActionAndDropsRerun() async throws {
+    let debounce = Debounce(
+      duration: .milliseconds(500),
+      runningActionPolicy: .finishThenRerun
+    )
+    let gate = AsyncSemaphore(value: 0)
+    let started = ThreadSafe(false)
+    let firstWasCancelled = ThreadSafe<Bool?>(nil)
+    let rerunRan = ThreadSafe(false)
+
+    debounce {
+      started(true)
+      await gate.wait()
+      firstWasCancelled(Task.isCancelled)
+    }
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: .milliseconds(500))
+    try await Wait.until({ started() }, { "Expected the first action to start." })
+
+    debounce { rerunRan(true) }
+    #expect(debounce.cancel() == true)
+    gate.signal()
+    try await Wait.until(
+      { firstWasCancelled() != nil },
+      { "Expected the first action to finish." }
+    )
+    #expect(firstWasCancelled() == true)
+
+    // A rerun armed after the cancel would keep cancel() reporting work.
+    try await Wait.until(
+      { !debounce.cancel() },
+      { "Expected no rerun after cancel(), but the debounce still has work." }
+    )
+    #expect(fakeSleeper.pendingCount() == 0)
+    #expect(rerunRan() == false)
+  }
+
+  // Backgrounding cancels a running rebuild and foregrounding retriggers it
+  // while the cancelled action may still be finishing.
+  @Test("a trigger after cancel() arms afresh while the cancelled action finishes")
+  func triggerAfterCancelArmsWhileCancelledActionFinishes() async throws {
+    let debounce = Debounce(
+      duration: .milliseconds(500),
+      runningActionPolicy: .finishThenRerun
+    )
+    let gate = AsyncSemaphore(value: 0)
+    let started = ThreadSafe(false)
+    let secondRan = ThreadSafe(false)
+
+    debounce {
+      started(true)
+      await gate.wait()
+    }
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: .milliseconds(500))
+    try await Wait.until({ started() }, { "Expected the first action to start." })
+
+    #expect(debounce.cancel() == true)
+    debounce { secondRan(true) }
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: .milliseconds(500))
+    try await Wait.until(
+      { secondRan() },
+      { "Expected the trigger after cancel() to run without waiting on the cancelled action." }
+    )
+    gate.signal()
   }
 }

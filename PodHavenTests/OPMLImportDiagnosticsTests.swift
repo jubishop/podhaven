@@ -11,17 +11,17 @@ import Testing
 @Suite("of OPML import diagnostics", .container)
 @MainActor struct OPMLImportDiagnosticsTests {
   @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.fileManager) private var fileManager
   @DynamicInjected(\.opmlViewModel) private var opmlViewModel
-  @DynamicInjected(\.podcastOPMLSession) private var podcastOPMLSession
 
-  private var opmlSession: FakeDataFetchable { podcastOPMLSession as! FakeDataFetchable }
+  private var fakeFileManager: FakeFileManager { fileManager as! FakeFileManager }
 
   @Test("a failed parse sends one event with the OPML file and decoding context")
   func failedParseSendsOneEvent() async throws {
     let captured = captureDiagnostics()
     let url = URL(string: "file:///PodcastAddict_OPML_export.opml")!
     let data = brokenOPML()
-    await opmlSession.respond(to: url, data: data)
+    try await fakeFileManager.writeData(data, to: url)
 
     await opmlViewModel.importOPMLFromURL(url: url)
 
@@ -49,7 +49,10 @@ import Testing
   func successfulImportSendsNoEvent() async throws {
     let captured = captureDiagnostics()
     let url = URL(string: "file:///empty.opml")!
-    await opmlSession.respond(to: url, data: PreviewBundle.loadAsset(named: "empty", in: .OPML))
+    try await fakeFileManager.writeData(
+      PreviewBundle.loadAsset(named: "empty", in: .OPML),
+      to: url
+    )
 
     await opmlViewModel.importOPMLFromURL(url: url)
 
@@ -64,7 +67,7 @@ import Testing
     let url = URL(string: "file:///large.opml")!
     let data = brokenOPML(padding: OPMLImportDiagnostics.maximumAttachmentBytes)
     #expect(data.count > OPMLImportDiagnostics.maximumAttachmentBytes)
-    await opmlSession.respond(to: url, data: data)
+    try await fakeFileManager.writeData(data, to: url)
 
     await opmlViewModel.importOPMLFromURL(url: url)
 
@@ -79,16 +82,24 @@ import Testing
     #expect(attachment.data == data.prefix(OPMLImportDiagnostics.maximumAttachmentBytes))
   }
 
-  @Test("a file over the download limit is refused before parsing")
-  func fileOverDownloadLimitIsRefused() async throws {
+  @Test("a local file over the size limit is refused with an alert that names the file")
+  func fileOverSizeLimitIsRefused() async throws {
     let captured = captureDiagnostics()
-    let url = URL(string: "file:///oversized.opml")!
-    await opmlSession.respond(to: url, data: brokenOPML(padding: PodcastOPML.downloadByteLimit))
+    let url = URL(filePath: "/private/var/mobile/Containers/Shared/AppGroup/Subscriptions.opml")
+    try await fakeFileManager.writeData(
+      brokenOPML(padding: ShareExtensionContract.opmlByteLimit),
+      to: url
+    )
 
     await opmlViewModel.importOPMLFromURL(url: url)
+    let answered = try await answerAlert("Ok")
 
+    #expect(answered.title == "Error")
+    #expect(
+      answered.message
+        == "“Subscriptions.opml” is larger than 4 MB, the largest OPML file PodHaven can import."
+    )
     #expect(captured().isEmpty)
-    #expect(alert.config?.title == "Error")
     #expect(opmlViewModel.opmlFile == nil)
   }
 
@@ -98,7 +109,7 @@ import Testing
     clock.freeze()
     let captured = captureDiagnostics()
     let url = URL(string: "file:///broken.opml")!
-    await opmlSession.respond(to: url, data: brokenOPML())
+    try await fakeFileManager.writeData(brokenOPML(), to: url)
 
     await opmlViewModel.importOPMLFromURL(url: url)
     await opmlViewModel.importOPMLFromURL(url: url)

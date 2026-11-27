@@ -110,7 +110,10 @@ struct PodAVPlayerPlaybackSnapshot {
   var episodeID: Episode.ID?
   var eventSource: PodAVPlayerEventSource?
   private(set) var playbackRequestID: UUID?
-  var lastDatabaseUpdateTime: CMTime?
+  private var lastDatabaseUpdateTime: CMTime?
+  // Renewed when playback moves to a new position, so a save that started
+  // earlier can't move `lastDatabaseUpdateTime` back when it finishes.
+  private var databaseUpdateEpoch = UUID()
   private var playbackTickSave = PlaybackTickSave.idle
   var latestSeekID: UUID?
   var silenceState = SilencePlaybackState()
@@ -175,7 +178,7 @@ struct PodAVPlayerPlaybackSnapshot {
       mediaServicesResetElapsed: mediaServicesResetElapsed
     )
     try Task.checkCancellation()
-    lastDatabaseUpdateTime = podcastEpisode.currentTime
+    resetDatabaseUpdateTime(to: podcastEpisode.currentTime)
     bind(playableItem, to: podcastEpisode.id, content: content)
 
     return podcastEpisode
@@ -420,7 +423,7 @@ struct PodAVPlayerPlaybackSnapshot {
     episodeID = nil
     eventSource = nil
     playbackRequestID = nil
-    lastDatabaseUpdateTime = nil
+    resetDatabaseUpdateTime(to: nil)
     latestSeekID = nil
     silenceState = SilencePlaybackState()
     avPlayer.cancelPendingSeeks()
@@ -632,17 +635,26 @@ struct PodAVPlayerPlaybackSnapshot {
       Task { @MainActor [weak self] in
         guard let self, self.latestSeekID == seekID, self.isCurrent(eventSource) else { return }
         let actual = self.avPlayer.currentTime()
-        self.lastDatabaseUpdateTime = actual
-        await self.saveCurrentTime(actual)
-        guard self.latestSeekID == seekID, self.isCurrent(eventSource) else { return }
-        self.latestSeekID = nil
-        self.currentTimeContinuation.yield(PodAVPlayerEvent(source: eventSource, value: actual))
-        self.addPeriodicTimeObserver()
+        self.resumeTimeUpdates(landedAt: actual, source: eventSource)
         self.finishSilenceReplacementIntent()
         self.refreshSilenceBoundary()
-        if completed { await self.shortenSilenceIfNeeded() }
+        await self.saveCurrentTime(actual)
+        guard completed, self.isCurrent(eventSource) else { return }
+        await self.shortenSilenceIfNeeded()
       }
     }
+  }
+
+  func resumeTimeUpdates(landedAt time: CMTime, source: PodAVPlayerEventSource) {
+    latestSeekID = nil
+    resetDatabaseUpdateTime(to: time)
+    currentTimeContinuation.yield(PodAVPlayerEvent(source: source, value: time))
+    addPeriodicTimeObserver()
+  }
+
+  func resetDatabaseUpdateTime(to time: CMTime?) {
+    lastDatabaseUpdateTime = time
+    databaseUpdateEpoch = UUID()
   }
 
   func saveCurrentTime(_ currentTime: CMTime) async {
@@ -651,9 +663,10 @@ struct PodAVPlayerPlaybackSnapshot {
       return
     }
 
+    let epoch = databaseUpdateEpoch
     do {
       try await repo.updateCurrentTime(episodeID, currentTime: currentTime)
-      guard self.episodeID == episodeID else { return }
+      guard self.episodeID == episodeID, databaseUpdateEpoch == epoch else { return }
       lastDatabaseUpdateTime = currentTime
       Self.log.trace("saveCurrentTime: saved \(currentTime) for \(episodeID)")
     } catch {
@@ -670,6 +683,7 @@ struct PodAVPlayerPlaybackSnapshot {
   func savePlaybackTick(_ currentTime: CMTime, episodeID: Episode.ID) async -> Bool {
     guard self.episodeID == episodeID else { return false }
     let playedFrom = lastDatabaseUpdateTime ?? currentTime
+    let epoch = databaseUpdateEpoch
     do {
       try await repo.updatePlayback(
         episodeID,
@@ -678,7 +692,7 @@ struct PodAVPlayerPlaybackSnapshot {
         now: Date()
       )
       guard self.episodeID == episodeID else { return false }
-      lastDatabaseUpdateTime = currentTime
+      if databaseUpdateEpoch == epoch { lastDatabaseUpdateTime = currentTime }
       Self.log.trace(
         "savePlaybackTick: saved \(currentTime) (from \(playedFrom)) for \(episodeID)"
       )
@@ -698,17 +712,18 @@ struct PodAVPlayerPlaybackSnapshot {
     _ currentTime: CMTime,
     source: PodAVPlayerEventSource
   ) async {
-    guard isCurrent(source), latestSeekID == nil else { return }
+    guard isCurrent(source), publishesTimeUpdates else { return }
     if await shortenSilenceIfNeeded() { return }
-    guard isCurrent(source), latestSeekID == nil else { return }
+    guard isCurrent(source), publishesTimeUpdates else { return }
 
     // Publish before saving so a busy database writer can't hold back time updates.
     Self.log.trace("handleCurrentTimeChange to: \(currentTime) for \(source.episodeID)")
     currentTimeContinuation.yield(PodAVPlayerEvent(source: source, value: currentTime))
 
-    // `abs` guards against any future path that moves time backward without
-    // routing through `seek(to:)` (which resets `lastDatabaseUpdateTime`).
-    guard playbackTickSave == .idle,
+    // A pending cut saves the audio heard before it. `abs` guards against any
+    // future path that moves time backward without routing through `seek(to:)`
+    // (which resets `lastDatabaseUpdateTime`).
+    guard latestSeekID == nil, playbackTickSave == .idle,
       abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds)
         >= Double(Self.playbackTickSeconds)
     else { return }
@@ -716,6 +731,11 @@ struct PodAVPlayerPlaybackSnapshot {
     playbackTickSave = .saving
     await savePlaybackTick(currentTime, episodeID: source.episodeID)
     playbackTickSave = .idle
+  }
+
+  // Until its seek starts, a pending cut leaves the audio before it playing.
+  private var publishesTimeUpdates: Bool {
+    latestSeekID == nil || silenceState.pending == .cut
   }
 
   // MARK: - Transient State Tracking

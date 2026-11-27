@@ -12,14 +12,12 @@ import Testing
   @DynamicInjected(\.iTunesServiceSession) private var iTunesServiceSession
   @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
-  @DynamicInjected(\.podcastOPMLSession) private var podcastOPMLSession
   @DynamicInjected(\.opmlViewModel) private var opmlViewModel
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.shareService) private var shareService
 
   var itunesSession: FakeDataFetchable { iTunesServiceSession as! FakeDataFetchable }
   var feedSession: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
-  var opmlSession: FakeDataFetchable { podcastOPMLSession as! FakeDataFetchable }
 
   @Test(
     "that a new apple podcast URL is correctly imported",
@@ -285,7 +283,6 @@ import Testing
     let opmlURL = try sharedContainerURL()
       .appendingPathComponent("shared_file_\(UUID().uuidString).\(fileExtension)")
     let opmlData = PreviewBundle.loadAsset(named: "techdirt", in: .OPML)
-    await opmlSession.respond(to: opmlURL, data: opmlData)
     try await fakeFileManager.writeData(opmlData, to: opmlURL)
     #expect(opmlViewModel.opmlFile == nil)
 
@@ -343,7 +340,6 @@ import Testing
 
     #expect(fakeFileManager.removeItemCallCount(for: fileURL) == 1)
     #expect(!fakeFileManager.fileExists(at: fileURL))
-    #expect(await opmlSession.requests.isEmpty)
     #expect(await feedSession.requests.isEmpty)
     #expect(opmlViewModel.opmlFile == nil)
     #expect(navigation.settings.path.isEmpty)
@@ -369,9 +365,9 @@ import Testing
     let newFeedData = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     await feedSession.respond(to: newFeedURL, data: newFeedData)
     let opmlURL = URL(string: "https://attacker.example/list.opml")!
-    await opmlSession.respond(
-      to: opmlURL,
-      data: Data(
+    let fakeFileManager = Container.shared.fileManager() as! FakeFileManager
+    try await fakeFileManager.writeData(
+      Data(
         """
         <?xml version="1.0"?>
         <opml version="1.0">
@@ -383,7 +379,8 @@ import Testing
         </opml>
         """
         .utf8
-      )
+      ),
+      to: opmlURL
     )
 
     let error = try #require(
@@ -399,7 +396,6 @@ import Testing
         file with PodHaven or import it from Settings → OPML.
         """
     )
-    #expect(await opmlSession.requests.isEmpty)
     #expect(await feedSession.requests.isEmpty)
     #expect(opmlViewModel.opmlFile == nil)
     #expect(try await repo.allPodcasts(AppDB.noOp).map(\.id) == [libraryPodcast.id])
@@ -432,7 +428,6 @@ import Testing
     let fileURL = path.url(in: try sharedContainerURL())
     let opmlData = PreviewBundle.loadAsset(named: "techdirt", in: .OPML)
     try await fakeFileManager.writeData(opmlData, to: fileURL)
-    await opmlSession.respond(to: fileURL, data: opmlData)
 
     await #expect(throws: URLError.self) {
       try await self.shareService.handleIncomingURL(ShareHelpers.shareURL(with: fileURL))
@@ -441,7 +436,6 @@ import Testing
     #expect(fakeFileManager.removeItemCallCount(for: fileURL) == 0)
     #expect(fakeFileManager.removeItemCallCount(for: fileURL.standardizedFileURL) == 0)
     #expect(try await fakeFileManager.readData(from: fileURL) == opmlData)
-    #expect(await opmlSession.requests.isEmpty)
     #expect(opmlViewModel.opmlFile == nil)
     #expect(navigation.settings.path.isEmpty)
   }

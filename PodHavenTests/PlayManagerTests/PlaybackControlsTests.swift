@@ -422,10 +422,10 @@ import Testing
     try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
     fakeRepo.clearAllCalls()
-    fakeRepo.playbackUpdatesHeld(true)
+    fakeRepo.playbackUpdateHold.hold()
 
     avPlayer.advanceTime(to: .seconds(3))
-    try await fakeRepo.waitForPlaybackUpdateSuspended()
+    try await fakeRepo.playbackUpdateHold.waitForParked()
     try await PlayHelpers.waitFor(.seconds(3))
     for second in 4...7 {
       avPlayer.advanceTime(to: .seconds(Double(second)))
@@ -433,7 +433,7 @@ import Testing
     }
     #expect(fakeRepo.calls(of: PlaybackUpdate.self).map(\.parameters.currentTime) == [.seconds(3)])
 
-    await fakeRepo.releasePlaybackUpdates()
+    fakeRepo.playbackUpdateHold.release()
     try await Wait.until(
       { try await Container.shared.repo().episode(podcastEpisode.id)?.currentTime == .seconds(3) },
       { "Expected the held save to store 3 seconds" }
