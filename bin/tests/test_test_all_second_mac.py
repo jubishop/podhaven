@@ -8,7 +8,9 @@ closes the session's input when it exits."""
 import json
 import os
 from pathlib import Path
+import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -17,6 +19,7 @@ import unittest
 import hang_guard
 import service_guard
 from test_test_all import PHASES, TestAllFixture, make_container
+from test_validation_slot import BIN, driver
 
 SSH = r'''
 import json, os, pathlib, subprocess, sys, threading
@@ -89,6 +92,15 @@ assert sys.argv[1:] == ['isactive'], sys.argv
 sys.exit(0 if os.environ.get('TEST_FILEVAULT') else 1)
 '''
 HOST = "mini"
+# Holds the My Mac test lock as HOLDER until a line arrives on standard input.
+MY_MAC_LOCK = r'''
+import sys
+sys.path.insert(0, sys.argv[1])
+from _my_mac_lock import my_mac_lock
+with my_mac_lock(sys.argv[2]):
+    print("held", flush=True)
+    sys.stdin.readline()
+'''
 
 
 class SecondMacTests(TestAllFixture):
@@ -153,6 +165,56 @@ class SecondMacTests(TestAllFixture):
                 return
         self.fail("The run never started its My Mac tests:\n" + process.stderr.read())
 
+    def queue(self):
+        return sorted((self.base / "home/.cache/podhaven/validation-queue").iterdir())
+
+    def hold_slot(self, holder):
+        """Start a run that holds this Mac's only validation slot until its input closes."""
+        process = self.start(driver(holder), PODHAVEN_VALIDATION_SLOTS="1")
+        self.assertEqual(process.stdout.readline(), f"held {holder}\n")
+        return process
+
+    def release(self, process):
+        process.stdin.close()
+        self.assertEqual(hang_guard.wait(process), 0)
+
+    def hold_second_mac(self):
+        """Start a run that holds the second Mac's lane until the returned writer closes."""
+        other = self.base / "other"
+        shutil.copytree(self.repo, other, symlinks=True)
+        gate, writer = self.hold("remote-gate")
+        remote = self.start_all(other, TEST_REMOTE_HOLD_FIFO=str(gate))
+        self.started_tests(remote)
+        return remote, writer
+
+    def finish_second_mac(self, remote, writer):
+        self.close_hold(writer)
+        output, errors = hang_guard.finish(remote)
+        self.assertEqual(remote.returncode, 0, output + errors)
+
+    def wait_for_both_lanes(self, **env):
+        """Hold both Macs' lanes, then start a run that waits for either and a later focused run that waits for this
+        Mac's only validation slot, and return the holders and the waiting runs."""
+        remote, writer = self.hold_second_mac()
+        holder = self.hold_slot("holder")
+        waiter = self.start_all(self.repo, PODHAVEN_VALIDATION_SLOTS="1", **env)
+        self.assertTrue(waiter.stderr.readline().startswith("Waiting for the second Mac's lane, held by "))
+        later = self.start([sys.executable, "-B", str(BIN / "with-my-mac-lock"), "/bin/echo", "ran"],
+                           PODHAVEN_VALIDATION_SLOTS="1")
+        self.assertEqual(later.stderr.readline(),
+                         "Waiting for a validation slot (PODHAVEN_VALIDATION_SLOTS=1), held by:\n")
+        self.assertRegex(later.stderr.readline(), rf"^  slot 1: pid {holder.pid} since .+: holder\n$")
+        # The run waiting for both lanes holds the earlier of the queue's two tickets.
+        self.assertEqual(len(self.queue()), 2)
+        self.assertEqual(later.stderr.readline(), "Queued behind 1 earlier waiting run\n")
+        return remote, writer, holder, waiter, later
+
+    def assert_took_slot(self, process, output):
+        self.assertEqual(process.stderr.read(), "Took validation slot 1\n")
+        self.assertEqual(process.stdout.read(), output)
+        self.assertEqual(hang_guard.wait(process), 0)
+        self.assertEqual(self.queue(), [])
+
     def test_a_clean_run_goes_to_the_second_mac_and_its_evidence_counts_here(self):
         # A run there needs neither this Mac's validation slot nor its My Mac test lock.
         focused = self.hold_focused_run(PODHAVEN_VALIDATION_SLOTS="1")
@@ -216,7 +278,10 @@ class SecondMacTests(TestAllFixture):
                 waiter = self.start_all(self.repo)
                 self.assertRegex(waiter.stderr.readline(),
                                  r"^Waiting for the second Mac's lane, held by PodHaven bin/test-all from .+, or this "
-                                 rf"Mac's: its My Mac test lock is held by pid {focused.pid} since ")
+                                 r"Mac's, held by:\n$")
+                self.assertRegex(waiter.stderr.readline(), rf"^  validation slot 1: pid {focused.pid} since ")
+                self.assertEqual(waiter.stderr.readline(), "  validation slot 2: free\n")
+                self.assertRegex(waiter.stderr.readline(), rf"^  My Mac test lock: pid {focused.pid} since ")
                 if remote_first:
                     self.close_hold(writer)
                 else:
@@ -230,26 +295,100 @@ class SecondMacTests(TestAllFixture):
                 output, errors = hang_guard.finish(remote)
                 self.assertEqual(remote.returncode, 0, output + errors)
 
-    def test_a_run_waits_for_this_macs_validation_slot_when_the_second_mac_is_busy(self):
-        other = self.base / "other"
-        shutil.copytree(self.repo, other, symlinks=True)
-        gate, writer = self.hold("remote-gate")
-        remote = self.start_all(other, TEST_REMOTE_HOLD_FIFO=str(gate))
-        self.started_tests(remote)
-        slot = self.start([sys.executable, "-B", "-c", "import sys\nfrom _validation_slot import validation_slot\n"
-                           "with validation_slot('held by a test'):\n    print('held', flush=True)\n    sys.stdin.read()"],
-                          PYTHONPATH=str(self.repo / "bin"), PODHAVEN_VALIDATION_SLOTS="1")
-        self.assertEqual(slot.stdout.readline(), "held\n")
-        waiter = self.start_all(self.repo, PODHAVEN_VALIDATION_SLOTS="1")
-        self.assertRegex(waiter.stderr.readline(), r"^Waiting for the second Mac's lane, held by .+, or this Mac's: "
-                                                   r"all 1 of its validation slots are held\n$")
-        slot.stdin.close()
+    def test_a_run_waiting_for_both_lanes_takes_a_freed_slot_before_a_later_waiter(self):
+        # The run waits in its tooling phase once it starts here, until the test sees it hold the slot.
+        tooling = self.base / "tooling-gate"
+        remote, writer, holder, waiter, later = self.wait_for_both_lanes(TEST_HOLD_TOOLING=str(tooling))
+        self.release(holder)
+        self.assertRegex(later.stderr.readline(), rf"^Validation slot 1 is now held by pid {waiter.pid} since .+: "
+                                                  rf"bin/test-all in {re.escape(str(self.repo.resolve()))}\n$")
+        self.assertEqual(later.stderr.readline(), "Next in line for a validation slot\n")
+        tooling.touch()
         output, errors = hang_guard.finish(waiter)
         self.assertEqual(waiter.returncode, 0, output + errors)
+        self.assertRegex(output, r"^Running on this Mac: the second Mac's lane is held by PodHaven bin/test-all from "
+                                 r".+, and this Mac's is free\n")
         self.assertNotIn("remote", self.report())
+        self.assert_took_slot(later, "ran\n")
+        self.finish_second_mac(remote, writer)
+
+    def test_a_run_waiting_for_both_lanes_leaves_the_queue_when_the_second_mac_frees_first(self):
+        self.set_constants(REMOTE_POLL_SECONDS=0.2)
+        self.commit("Poll the second Mac often")
+        remote, writer, holder, waiter, later = self.wait_for_both_lanes()
         self.close_hold(writer)
-        output, errors = hang_guard.finish(remote)
-        self.assertEqual(remote.returncode, 0, output + errors)
+        self.assertEqual(later.stderr.readline(), "Next in line for a validation slot\n")
+        output, errors = hang_guard.finish(waiter)
+        self.assertEqual(waiter.returncode, 0, output + errors)
+        self.assertEqual(self.report()["remote"]["host"], HOST)
+        self.assertEqual(len(self.queue()), 1)
+        self.release(holder)
+        self.assert_took_slot(later, "ran\n")
+        self.finish_second_mac(remote, writer)
+
+    def test_a_run_waiting_for_both_lanes_leaves_the_queue_when_it_stops(self):
+        remote, writer, holder, waiter, later = self.wait_for_both_lanes()
+        os.kill(waiter.pid, signal.SIGKILL)
+        self.assertEqual(hang_guard.wait(waiter), -signal.SIGKILL)
+        self.assertEqual(later.stderr.readline(), "Next in line for a validation slot\n")
+        self.assertEqual(len(self.queue()), 1)
+        # A run that is interrupted removes its own ticket as it exits.
+        interrupted = self.start_all(self.repo, PODHAVEN_VALIDATION_SLOTS="1")
+        self.assertTrue(interrupted.stderr.readline().startswith("Waiting for the second Mac's lane, held by "))
+        self.assertEqual(len(self.queue()), 2)
+        os.kill(interrupted.pid, signal.SIGINT)
+        self.assertNotEqual(hang_guard.wait(interrupted), 0)
+        self.assertEqual(len(self.queue()), 1)
+        self.release(holder)
+        self.assert_took_slot(later, "ran\n")
+        self.finish_second_mac(remote, writer)
+
+    def test_a_run_waiting_for_both_lanes_reports_each_new_holder(self):
+        self.set_constants(REMOTE_POLL_SECONDS=0.2)
+        self.commit("Poll the second Mac often")
+        remote, writer = self.hold_second_mac()
+        first = self.hold_slot("first")
+        second = self.start(driver("second"), PODHAVEN_VALIDATION_SLOTS="1")
+        self.assertEqual(second.stderr.readline(),
+                         "Waiting for a validation slot (PODHAVEN_VALIDATION_SLOTS=1), held by:\n")
+        self.assertRegex(second.stderr.readline(), rf"^  slot 1: pid {first.pid} since .+: first\n$")
+        # The run waits in its tooling phase once it starts here, until the test sees it hold the slot.
+        tooling = self.base / "tooling-gate"
+        waiter = self.start_all(self.repo, PODHAVEN_VALIDATION_SLOTS="1", TEST_HOLD_TOOLING=str(tooling))
+        self.assertRegex(waiter.stderr.readline(), r"^Waiting for the second Mac's lane, held by PodHaven bin/test-all "
+                                                   r"from .+, or this Mac's, held by:\n$")
+        self.assertRegex(waiter.stderr.readline(), rf"^  validation slot 1: pid {first.pid} since .+: first\n$")
+        self.assertEqual(waiter.stderr.readline(), "  My Mac test lock: free\n")
+        self.assertEqual(waiter.stderr.readline(), "Queued behind 1 earlier waiting run\n")
+        nightly = "the host's nightly tests, pid 1, since 2026-11-27 03:00 PST"
+        self.lock.write_text(nightly + "\n")
+        self.assertEqual(waiter.stderr.readline(), f"The second Mac's lane is now held by {nightly}\n")
+        self.release(first)
+        self.assertEqual(second.stdout.readline(), "held second\n")
+        self.assertRegex(waiter.stderr.readline(), rf"^Validation slot 1 is now held by pid {second.pid} since .+: "
+                                                   r"second\n$")
+        self.assertEqual(waiter.stderr.readline(), "Next in line for a validation slot\n")
+        lock = self.start([sys.executable, "-B", "-c", MY_MAC_LOCK, str(BIN), "a focused run"])
+        self.assertEqual(lock.stdout.readline(), "held\n")
+        self.assertRegex(waiter.stderr.readline(),
+                         rf"^The My Mac test lock is now held by pid {lock.pid} since .+: a focused run\n$")
+        # This Mac's lane stays busy while its My Mac test lock is held, and the run keeps its place meanwhile.
+        self.release(second)
+        third = self.start(driver("third", "/bin/echo", "ran"), PODHAVEN_VALIDATION_SLOTS="1")
+        self.assertEqual(third.stderr.readline(),
+                         "Waiting for a validation slot (PODHAVEN_VALIDATION_SLOTS=1), held by:\n")
+        self.assertEqual(third.stderr.readline(), "  slot 1: free\n")
+        self.assertEqual(third.stderr.readline(), "Queued behind 1 earlier waiting run\n")
+        self.release(lock)
+        self.assertRegex(third.stderr.readline(), rf"^Validation slot 1 is now held by pid {waiter.pid} since ")
+        self.assertEqual(third.stderr.readline(), "Next in line for a validation slot\n")
+        tooling.touch()
+        output, errors = hang_guard.finish(waiter)
+        self.assertEqual(waiter.returncode, 0, output + errors)
+        self.assertTrue(output.startswith(f"Running on this Mac: the second Mac's lane is held by {nightly}, and this "
+                                          "Mac's is free\n"), output)
+        self.assert_took_slot(third, "held third\nran\n")
+        self.finish_second_mac(remote, writer)
 
     def test_runs_over_uncommitted_changes_stay_on_this_mac(self):
         (self.repo / "new.txt").write_text("uncommitted")

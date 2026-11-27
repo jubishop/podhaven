@@ -594,8 +594,9 @@ while four that began waiting later took slots ahead of it. A run that finds
 no slot free, or earlier runs still waiting, holds the lock on a numbered
 ticket in `~/.cache/podhaven/validation-queue/` until it takes a slot, so a
 waiter that exits or is killed leaves the queue at once, and the next run to
-look deletes its file. Only the oldest live waiter takes a free slot. A short
-lock, `~/.cache/podhaven/validation-queue.lock`, guards the queue; nothing
+look deletes its file. Only the oldest live waiter takes a free slot. A full
+run waiting for the [second Mac](#second-mac)'s lane too holds a ticket the
+same way. A short lock, `~/.cache/podhaven/validation-queue.lock`, guards the queue; nothing
 waits for anything else while holding it. A waiting run polls at a short
 interval and prints the holders and how many earlier runs wait ahead of it,
 then each slot's new holder and its new place whenever they change.
@@ -641,10 +642,18 @@ changes, one under `bin/with-my-mac-lock`, and focused runs stay here. So do
 run no tests.
 
 - **Choosing a lane:** a run takes the second Mac's lane when it is free,
-  otherwise this Mac's when it is, and otherwise waits, saying who holds each,
-  and takes whichever frees first. This Mac's lane is free when its My Mac test
-  lock is and a [validation slot](#validation-slots) is free with no run
-  waiting. The run prints which Mac it uses, and why when it stays here.
+  otherwise this Mac's when it is, and otherwise waits, saying who holds each
+  and then each new holder, and takes whichever frees first. This Mac's lane
+  is free when its My Mac test lock is and a
+  [validation slot](#validation-slots) is free with no earlier run waiting.
+  The run prints which Mac it uses, and why when it stays here.
+- **Waiting in the queue:** a run waiting for both lanes holds a ticket in the
+  validation queue, so no run that begins waiting later takes a slot here
+  first, and leaves the queue once it takes the second Mac's lane. While the
+  My Mac test lock alone keeps it waiting at the head of the queue, later runs
+  wait behind it, even for a free slot. On 2026-11-27, before this, two
+  focused runs that began waiting later took this Mac's slots ahead of a full
+  run waiting for both lanes (jubishop/podhaven#1103).
 - **The lane:** the run pushes its commit, and the tip of origin's default
   branch, to a mirror on the host,
   `~/Library/Caches/podhaven/test-lanes/mirror.git`, and runs
