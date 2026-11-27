@@ -395,10 +395,11 @@ final class PlayManager {
       } else {
         mediaServicesResetElapsed = nil
       }
-      let loaded = try await podAVPlayer.load(
+      var loaded = try await podAVPlayer.load(
         incoming,
         mediaServicesResetElapsed: mediaServicesResetElapsed
       )
+      if isOnDeckRecovery { loaded = try await latestOnDeckRecoveryEpisode(loaded) }
       try requireLoadTransitionOwnership(loadID)
       Self.log.debug(
         """

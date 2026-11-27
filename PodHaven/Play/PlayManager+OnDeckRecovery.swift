@@ -122,6 +122,14 @@ extension PlayManager {
     }
   }
 
+  // A recovery seek's save can land after the asset load reads the episode, so
+  // the reload resumes from the episode as the saves leave it.
+  func latestOnDeckRecoveryEpisode(_ loaded: PodcastEpisode) async throws -> PodcastEpisode {
+    guard let save = onDeckRecoveryPositionSave else { return loaded }
+    await save.value
+    return try await repo.podcastEpisode(loaded.id) ?? loaded
+  }
+
   func clearOnDeckRecoveryIfDeleted(_ episodeIDs: Set<Episode.ID>) {
     guard let episodeID = onDeckRecoveryEpisodeID, episodeIDs.contains(episodeID) else {
       return
