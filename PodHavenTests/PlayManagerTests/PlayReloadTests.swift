@@ -27,6 +27,8 @@ import Testing
   private var mpRemoteCommandCenter: FakeMPRemoteCommandCenter {
     Container.shared.mpRemoteCommandCenter() as! FakeMPRemoteCommandCenter
   }
+  private var repo: FakeRepo { Container.shared.repo() as! FakeRepo }
+  private var sleeper: FakeSleeper { Container.shared.sleeper() as! FakeSleeper }
 
   init() async throws {
     stateManager.start()
@@ -127,6 +129,58 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
     #expect(await episodeAssetLoader.responseCount(for: mediaURL) == loadCount + 1)
+  }
+
+  enum InFlightLoad: CaseIterable {
+    case idle, otherEpisode, recoveryReload
+  }
+
+  @Test(
+    "a play during a selection's recovery lookup plays the selection",
+    arguments: InFlightLoad.allCases,
+    [OnDeckRecoveryState.Cause.failedRestore, .mediaServicesReset]
+  )
+  func playDuringSelectionRecoveryLookupPlaysSelection(
+    inFlight: InFlightLoad,
+    cause: OnDeckRecoveryState.Cause
+  ) async throws {
+    _ = try await PlayHelpers.awaitOnDeckRecoveryReload(
+      cause,
+      duration: duration,
+      currentTime: savedTime
+    )
+    let (otherEpisode, selectedEpisode) = try await Create.twoPodcastEpisodes()
+    // The superseded load ends its configuration backoff when cancelled.
+    sleeper.throwsOnCancellation(true)
+    let inFlightLoad: Task<Void, any Error>?
+    switch inFlight {
+    case .idle:
+      inFlightLoad = nil
+    case .otherEpisode:
+      PlayHelpers.failAudioSessionConfiguration()
+      inFlightLoad = Task { try await playManager.play(otherEpisode) }
+    case .recoveryReload:
+      PlayHelpers.failAudioSessionConfiguration()
+      let reload = await playManager.play()
+      inFlightLoad = Task { await reload?.value }
+    }
+    if inFlightLoad != nil {
+      try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
+    }
+
+    repo.pendingPodcastEpisodeFetchSuspend(true)
+    let selection = Task { try await playManager.play(selectedEpisode) }
+    defer { selection.cancel() }
+    try await repo.waitForPodcastEpisodeFetchSuspended()
+
+    await playManager.play()
+    audioSession.configurationErrors([])
+    await repo.resumeAllPodcastEpisodeFetchSuspensions()
+
+    #expect(try await selection.value == .ready)
+    try await PlayHelpers.waitForOnDeck(selectedEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    try await inFlightLoad?.value
   }
 
   @Test(

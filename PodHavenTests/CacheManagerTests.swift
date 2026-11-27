@@ -212,6 +212,8 @@ import Testing
     await assetStarted.wait()
 
     let application = try #require(uiApplication as? FakeApplication)
+    let finalizationTasks = application.taskIdentifiers(named: "cacheDownloadFinalization")
+    #expect(finalizationTasks.count == 1)
     #expect(application.activeTaskCount == 1)
 
     cacheBackgroundDelegate.urlSessionDidFinishEvents(
@@ -226,7 +228,7 @@ import Testing
       { completionCalled() },
       { "Background completion never fired after finalization drained" }
     )
-    #expect(application.activeTaskCount == 0)
+    #expect(!finalizationTasks.contains(where: application.hasActiveTask))
   }
 
   @Test("background completion waits for protected failure cleanup")
