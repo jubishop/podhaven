@@ -7,7 +7,6 @@ import UniformTypeIdentifiers
 
 enum ShareLauncher {
   private static let log = Logger(subsystem: "PodHavenShare", category: "ShareLauncher")
-  private static let maximumFileBytes = 32 * 1024 * 1024
 
   static func execute(
     from application: UIApplication,
@@ -74,7 +73,7 @@ enum ShareLauncher {
 
     guard let fileSize = try sourceURL.resourceValues(forKeys: [.fileSizeKey]).fileSize
     else { throw ShareExtensionError.fileSizeUnavailable }
-    guard fileSize <= maximumFileBytes
+    guard fileSize <= ShareExtensionContract.opmlByteLimit
     else { throw ShareExtensionError.fileTooLarge(fileSize) }
 
     let fileExtension = sourceURL.pathExtension

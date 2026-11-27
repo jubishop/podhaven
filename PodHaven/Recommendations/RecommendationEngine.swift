@@ -85,8 +85,18 @@ struct RecommendationEngine: Sendable {
   // MARK: - Cached Scoring Context
 
   private let cache = ThreadSafe<ScoringContext?>(nil)
-  private let cacheDebounce = Debounce(duration: .seconds(5), priority: .utility)
-  private let recommendationsDebounce = Debounce(duration: .seconds(5), priority: .utility)
+  // A trigger lets a running rebuild finish and then reruns it once, so an
+  // embedding backfill's steady retriggers can't starve a slow rebuild.
+  private let cacheDebounce = Debounce(
+    duration: .seconds(5),
+    priority: .utility,
+    runningActionPolicy: .finishThenRerun
+  )
+  private let recommendationsDebounce = Debounce(
+    duration: .seconds(5),
+    priority: .utility,
+    runningActionPolicy: .finishThenRerun
+  )
   private let startOnce = Once()
 
   private let rescanGate = RescanGate()
@@ -410,9 +420,9 @@ struct RecommendationEngine: Sendable {
     }
   }
 
-  // Triggers funnel through `cacheDebounce` so bulk inserts and rapid onDeck
-  // transitions collapse into a single rebuild. The action re-fetches inputs
-  // at fire time so a write between trigger and fire isn't missed.
+  // Triggers funnel through `cacheDebounce` so bulk inserts and rapid episode
+  // changes collapse into a single rebuild. The action re-fetches inputs at
+  // fire time so a write between trigger and fire isn't missed.
   private func startObservations() {
     Task(priority: taskPriority(.utility)) {
       let embeddingRevision = contextualEmbedding.revision

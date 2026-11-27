@@ -11,14 +11,14 @@ import Testing
 @Suite("of OPMLViewModel tests", .container)
 @MainActor class OPMLViewModelTests {
   @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.fileManager) private var fileManager
   @DynamicInjected(\.opmlViewModel) private var opmlViewModel
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
-  @DynamicInjected(\.podcastOPMLSession) private var podcastOPMLSession
   @DynamicInjected(\.refreshManager) private var refreshManager
   @DynamicInjected(\.repo) private var repo
 
   var feedSession: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
-  var opmlSession: FakeDataFetchable { podcastOPMLSession as! FakeDataFetchable }
+  var fakeFileManager: FakeFileManager { fileManager as! FakeFileManager }
 
   // MARK: - Tests
 
@@ -32,7 +32,7 @@ import Testing
     )
     let newFeedURL = URL(string: "https://feeds.simplecast.com/l2i9YnTd")!
     let opmlURL = createTestOPMLURL()
-    await setupOPMLResponse(
+    try await writeOPMLFile(
       to: opmlURL,
       feeds: [
         (title: "Lenny's Podcast", url: libraryFeedURL.absoluteString),
@@ -70,7 +70,7 @@ import Testing
     )
     let newFeedURL = URL(string: "https://feeds.simplecast.com/l2i9YnTd")!
     let opmlURL = createTestOPMLURL()
-    await setupOPMLResponse(
+    try await writeOPMLFile(
       to: opmlURL,
       feeds: [
         (title: "Lenny's Podcast", url: libraryFeedURL.absoluteString),
@@ -100,7 +100,7 @@ import Testing
     let feed3URL = URL(string: "https://www.marketplace.org/feed/podcast/marketplace")!
 
     let opmlURL = createTestOPMLURL()
-    await setupOPMLResponse(
+    try await writeOPMLFile(
       to: opmlURL,
       feeds: [
         (title: "Lenny's Podcast", url: feed1URL.absoluteString),
@@ -151,7 +151,7 @@ import Testing
     let malformedFeed2URL = URL(string: "https://feeds.invalid.com/malformed2")!
 
     let opmlURL = createTestOPMLURL()
-    await setupOPMLResponse(
+    try await writeOPMLFile(
       to: opmlURL,
       feeds: [
         (title: "Lenny's Podcast", url: validFeed1URL.absoluteString),
@@ -198,7 +198,7 @@ import Testing
     let notFoundFeed2URL = URL(string: "https://feeds.invalid.com/notfound2")!
 
     let opmlURL = createTestOPMLURL()
-    await setupOPMLResponse(
+    try await writeOPMLFile(
       to: opmlURL,
       feeds: [
         (title: "Lenny's Podcast", url: validFeedURL.absoluteString),
@@ -238,7 +238,7 @@ import Testing
     let feed2URL = URL(string: "https://feeds.simplecast.com/l2i9YnTd")!
 
     let opmlURL = createTestOPMLURL()
-    await setupOPMLResponse(
+    try await writeOPMLFile(
       to: opmlURL,
       feeds: [
         (title: "Lenny's Podcast", url: feed1URL.absoluteString),
@@ -277,7 +277,7 @@ import Testing
     let notFoundFeed2URL = URL(string: "https://feeds.invalid.com/notfound2")!
 
     let opmlURL = createTestOPMLURL()
-    await setupOPMLResponse(
+    try await writeOPMLFile(
       to: opmlURL,
       feeds: [
         (title: "Lenny's Podcast", url: validFeedURL.absoluteString),
@@ -311,7 +311,7 @@ import Testing
   func importOPMLLogsSummary() async throws {
     let feedCount = 50
     let opmlURL = createTestOPMLURL()
-    await opmlSession.respond(to: opmlURL, data: SyntheticFeed.opml(feedCount: feedCount))
+    try await fakeFileManager.writeData(SyntheticFeed.opml(feedCount: feedCount), to: opmlURL)
     await SyntheticFeed.respond(feedSession, episodes: 1)
 
     let captured = try await LogCapture.withSink { sink in
@@ -338,7 +338,10 @@ import Testing
       )
     }
     let opmlURL = createTestOPMLURL()
-    await opmlSession.respond(to: opmlURL, data: SyntheticFeed.opml(feedCount: podcastCount))
+    try await fakeFileManager.writeData(
+      SyntheticFeed.opml(feedCount: podcastCount),
+      to: opmlURL
+    )
     await SyntheticFeed.respond(feedSession, episodes: 1)
 
     let captured = try await LogCapture.withSink { sink in
@@ -359,7 +362,7 @@ import Testing
   func stopOPMLImportLogsCancelledCount() async throws {
     let feedCount = 60
     let opmlURL = createTestOPMLURL()
-    await opmlSession.respond(to: opmlURL, data: SyntheticFeed.opml(feedCount: feedCount))
+    try await fakeFileManager.writeData(SyntheticFeed.opml(feedCount: feedCount), to: opmlURL)
     let gated = ThreadSafe(true)
     let release = AsyncSemaphore(value: 0)
     await SyntheticFeed.respond(feedSession, episodes: 1) { _ in
@@ -399,7 +402,7 @@ import Testing
   func importOPMLLeavesFetchedFeedsFresh() async throws {
     let feedCount = 3
     let opmlURL = createTestOPMLURL()
-    await opmlSession.respond(to: opmlURL, data: SyntheticFeed.opml(feedCount: feedCount))
+    try await fakeFileManager.writeData(SyntheticFeed.opml(feedCount: feedCount), to: opmlURL)
     await SyntheticFeed.respond(feedSession, episodes: 1)
     let neverFetched = try await repo.insertSeries(
       UnsavedPodcastSeries(
@@ -429,7 +432,7 @@ import Testing
   func importOPMLKeepsWaitingFeedsInOrder() async throws {
     let feedCount = 60
     let opmlURL = createTestOPMLURL()
-    await opmlSession.respond(to: opmlURL, data: SyntheticFeed.opml(feedCount: feedCount))
+    try await fakeFileManager.writeData(SyntheticFeed.opml(feedCount: feedCount), to: opmlURL)
     let release = AsyncSemaphore(value: 0)
     await SyntheticFeed.respond(feedSession, episodes: 1) { _ in
       try await release.waitUnlessCancelled()
@@ -463,7 +466,7 @@ import Testing
     let feed2URL = URL(string: "https://feeds.simplecast.com/l2i9YnTd")!
 
     let opmlURL = createTestOPMLURL()
-    await setupOPMLResponse(
+    try await writeOPMLFile(
       to: opmlURL,
       feeds: [
         (title: "Lenny's Podcast", url: feed1URL.absoluteString),
@@ -530,7 +533,7 @@ import Testing
     let newFeedURL = URL(string: "https://feeds.simplecast.com/l2i9YnTd")!
 
     let opmlURL = createTestOPMLURL()
-    await setupOPMLResponse(
+    try await writeOPMLFile(
       to: opmlURL,
       feeds: [
         (title: "Lenny's Podcast", url: existingFeedURL.absoluteString),
@@ -574,7 +577,7 @@ import Testing
 
     // Create OPML with the existing podcast
     let opmlURL = createTestOPMLURL()
-    await setupOPMLResponse(
+    try await writeOPMLFile(
       to: opmlURL,
       feeds: [(title: "Lenny's Podcast", url: existingFeedURL.absoluteString)]
     )
@@ -613,7 +616,7 @@ import Testing
     let lennyAliasURL = URL(string: "https://podcasts.example.com/lenny")!
     let hardForkAliasURL = URL(string: "https://podcasts.example.com/hard-fork")!
     let opmlURL = createTestOPMLURL()
-    await setupOPMLResponse(
+    try await writeOPMLFile(
       to: opmlURL,
       feeds: [
         (title: "Lenny's Podcast", url: lennyAliasURL.absoluteString),
@@ -643,7 +646,7 @@ import Testing
       try await repo.insertSeries(try podcastFeed.toUnsavedSeries())
     }
     let opmlURL = createTestOPMLURL()
-    await opmlSession.respond(to: opmlURL, data: SyntheticFeed.opml(feedCount: feedCount))
+    try await fakeFileManager.writeData(SyntheticFeed.opml(feedCount: feedCount), to: opmlURL)
     await SyntheticFeed.respond(feedSession, episodes: 1, moved: true)
 
     let captured = try await LogCapture.withSink { sink in
@@ -698,15 +701,15 @@ import Testing
     URL(string: "file:///test.opml")!
   }
 
-  // MARK: - Feed Response Setup Helpers
+  // MARK: - Setup Helpers
 
-  func setupOPMLResponse(
+  func writeOPMLFile(
     to opmlURL: URL,
     feeds: [(title: String, url: String)],
     title: String = "Test OPML Subscriptions"
-  ) async {
+  ) async throws {
     let opmlData = createTestOPML(title: title, feeds: feeds)
-    await opmlSession.respond(to: opmlURL, data: opmlData)
+    try await fakeFileManager.writeData(opmlData, to: opmlURL)
   }
 
   func setupValidFeedResponse(to feedURL: URL, assetName: String) async {
