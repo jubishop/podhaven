@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Observation
 import Testing
 
 @testable import PodHaven
@@ -260,6 +261,37 @@ import Testing
         "Expected the observation to load; got \(viewModel.loadingState)"
       }
     )
+  }
+
+  // Regression: the list reported loaded as soon as it handed the observed
+  // podcasts to its sorting PowerList, before the sorted rows landed, so it
+  // flashed "No podcasts match the filters." for a frame.
+  @Test("a podcast list reports loaded only once its sorted podcasts land")
+  func loadedWaitsForSortedPodcasts() async throws {
+    let podcastID =
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(title: "Sorted"))
+      )
+      .id
+    let viewModel = PodcastsListViewModel(title: "Sorted")
+    let entriesAtLoad = ThreadSafe<[Podcast.ID]?>(nil)
+    withObservationTracking {
+      _ = viewModel.loadingState
+    } onChange: {
+      // Runs synchronously as loadingState changes, so it sees the rows the
+      // view renders with the new state.
+      entriesAtLoad(MainActor.assumeIsolated { viewModel.podcastList.filteredEntryIDs })
+    }
+
+    let execution = Task { await viewModel.execute() }
+    defer { execution.cancel() }
+
+    try await Wait.until(
+      { entriesAtLoad() != nil },
+      { @MainActor in "loadingState never changed; got \(viewModel.loadingState)" }
+    )
+    #expect(viewModel.loadingState == .loaded)
+    #expect(entriesAtLoad() == [podcastID])
   }
 
   // MARK: - Subscribing a selection

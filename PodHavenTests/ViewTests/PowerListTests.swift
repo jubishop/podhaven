@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import FactoryKit
+import Foundation
 import IdentifiedCollections
 import Testing
 
@@ -76,5 +77,30 @@ import Testing
       { @MainActor in "filter never settled; got \(list.filteredEntries.ids.elements)" }
     )
     #expect(list.allEntries == entries)
+  }
+
+  // Regression: under approachable concurrency the nonisolated async helper
+  // ran on its main-actor caller, so every sort and filter blocked the main
+  // thread.
+  @Test("client filtering runs off the main thread")
+  func clientFilteringRunsOffMainThread() async throws {
+    let ranOnMainThread = ThreadSafe<[Bool]>([])
+    let list = PowerList<Item>(filterMethod: { _ in
+      ranOnMainThread { $0.append(Thread.isMainThread) }
+      return true
+    })
+
+    list.allEntries = IdentifiedArray(
+      uniqueElements: [
+        Item(id: 1, searchableString: "first"),
+        Item(id: 2, searchableString: "second"),
+      ]
+    )
+
+    try await Wait.until(
+      { @MainActor in list.filteredEntries.count == 2 },
+      { @MainActor in "filter never settled; got \(list.filteredEntries.ids.elements)" }
+    )
+    #expect(ranOnMainThread() == [false, false])
   }
 }
