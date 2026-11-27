@@ -204,6 +204,35 @@ import Testing
     }
   }
 
+  @Test("a replacement resumes time updates while its position save waits for the writer")
+  func replacementSaveWaits() async throws {
+    let (episode, player) = try await streaming()
+    let repo = try #require(Container.shared.repo() as? FakeRepo)
+    defer { repo.currentTimeUpdateHold.release() }
+    repo.currentTimeUpdateHold.hold()
+    PlayBarViewModel().selectSilenceMode(.balanced)
+    player.pause()
+    try await Wait.until(maxAttempts: 200) { @MainActor in
+      Container.shared.podAVPlayer().playbackSnapshot().isFromCache
+        && player.completedSeekCount == 1
+    } _: {
+      "Pausing did not switch to the downloaded file"
+    }
+    try await repo.currentTimeUpdateHold.waitForParked()
+    try await PlayHelpers.waitForPeriodicTimeObserver()
+    try await PlayHelpers.play()
+    player.advanceTime(to: .seconds(13))
+    try await PlayHelpers.waitFor(.seconds(13))
+
+    repo.currentTimeUpdateHold.release()
+    try await Wait.until(maxAttempts: 200) { @MainActor in
+      player.advanceTime(to: .seconds(15))
+      return try await Container.shared.repo().episode(episode.id)?.currentTime == .seconds(15)
+    } _: {
+      "Playback after the replacement did not save its position"
+    }
+  }
+
   @Test("failed cache positioning restores streaming and suppresses automatic retry")
   func failedReplacement() async throws {
     let (episode, player) = try await streaming()

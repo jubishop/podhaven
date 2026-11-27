@@ -99,10 +99,9 @@ def free_slot(paths):
     return None
 
 
-def leave(queue, place, ticket):
-    # Unlink before unlocking: once unlocked, the name can pass to a later waiter's ticket, which this would delete.
-    (queue / f"{place}.lock").unlink(missing_ok=True)
-    ticket.close()
+def held_by(holder):
+    """Describe a holder as holder_of returns it."""
+    return "free" if holder is None else holder or "another run"
 
 
 def queue_report(ahead):
@@ -111,41 +110,69 @@ def queue_report(ahead):
     return f"Queued behind {ahead} earlier waiting run{'s' if ahead > 1 else ''}"
 
 
-def take(paths, holder):
-    """Return the open file of a free slot, waiting without a time limit behind each live run that began waiting first.
+class Place:
+    """A run's place among the runs waiting for a validation slot, which it takes the first time it has to wait, and
+    again behind every run then waiting if it has to wait after leaving.
+
+    A run inside the live holder of a slot reuses that slot, so it takes no place and polls only its readiness."""
+
+    def __init__(self, holder):
+        self.paths = slot_paths()
+        self.holder = holder
+        self.directory = self.paths[0].parent
+        self.queue = self.directory / QUEUE_NAME
+        self.reused = inherited(self.directory)
+        self.ticket = self.number = self.slot = None
+        self.holders, self.ahead = (), 0
+
+    def poll(self, ready=lambda: True):
+        """Return whether the run holds its slot, in self.slot, taking a free one only when no live run that began
+        waiting earlier still waits and ready() allows it. Otherwise hold a place in the queue, and record each slot's
+        holder in self.holders and the number of runs waiting ahead in self.ahead."""
+        if self.reused:
+            return ready()
+        if self.slot:
+            return True
+        self.queue.mkdir(parents=True, exist_ok=True)
+        with (self.directory / f"{QUEUE_NAME}.lock").open("a") as gate:
+            fcntl.flock(gate, fcntl.LOCK_EX)
+            tickets = queued_tickets(self.queue)
+            self.ahead = sum(self.number is None or number < self.number for number in tickets)
+            self.slot = None if self.ahead or not ready() else free_slot(self.paths)
+            if self.slot:
+                self.leave()
+                return True
+            self.holders = tuple(holder_of(path) for path in self.paths)
+            if not self.ticket:
+                self.number = 1 + max(tickets, default=0)
+                self.ticket = (self.queue / f"{self.number}.lock").open("w")
+                fcntl.flock(self.ticket, fcntl.LOCK_EX)
+                self.ticket.write(record(self.holder))
+                self.ticket.flush()
+        return False
+
+    def leave(self):
+        if not self.ticket:
+            return
+        # Unlink before unlocking: once unlocked, the name can pass to a later waiter's ticket, which this would delete.
+        (self.queue / f"{self.number}.lock").unlink(missing_ok=True)
+        self.ticket.close()
+        self.ticket = self.number = None
+
+
+def take(place):
+    """Return the open file of the slot place takes, waiting without a time limit behind each live run that began
+    waiting first.
 
     Runs from checkouts that predate the queue skip it, but take slots through the same locks, so none is shared."""
-    directory = paths[0].parent
-    queue = directory / QUEUE_NAME
-    queue.mkdir(parents=True, exist_ok=True)
-    ticket = place = shown = None
+    shown = None
     try:
-        while True:
-            with (directory / f"{QUEUE_NAME}.lock").open("a") as gate:
-                fcntl.flock(gate, fcntl.LOCK_EX)
-                tickets = queued_tickets(queue)
-                ahead = sum(place is None or number < place for number in tickets)
-                taken = None if ahead else free_slot(paths)
-                if taken and ticket:
-                    leave(queue, place, ticket)
-                    ticket = None
-                elif not taken:
-                    holders = tuple(holder_of(path) for path in paths)
-                    if not ticket:
-                        place = 1 + max(tickets, default=0)
-                        ticket = (queue / f"{place}.lock").open("w")
-                        fcntl.flock(ticket, fcntl.LOCK_EX)
-                        ticket.write(record(holder))
-                        ticket.flush()
+        while not place.poll():
+            holders, ahead = place.holders, place.ahead
             # Report only after releasing the queue lock, which a write to a full output pipe could otherwise hold.
-            if taken:
-                if shown:
-                    print(f"Took validation slot {taken[0]}", file=sys.stderr, flush=True)
-                return taken[1]
             if not shown:
-                lines = [f"Waiting for a validation slot ({COUNT_VARIABLE}={len(paths)}), held by:",
-                         *(f"  slot {number}: {'free' if held is None else held or 'another run'}"
-                           for number, held in enumerate(holders, 1))]
+                lines = [f"Waiting for a validation slot ({COUNT_VARIABLE}={len(holders)}), held by:",
+                         *(f"  slot {number}: {held_by(held)}" for number, held in enumerate(holders, 1))]
                 lines += [queue_report(ahead)] if ahead else []
             elif all(holders) and (holders, ahead) != shown:
                 # A slot that changes hands is reported once its new holder has recorded itself.
@@ -159,39 +186,23 @@ def take(paths, holder):
                 shown = holders, ahead
             time.sleep(POLL_SECONDS)
     finally:
-        if ticket:
-            leave(queue, place, ticket)
-
-
-def busy():
-    """Return why a run would wait for a validation slot now, or None when it would take one at once."""
-    paths = slot_paths()
-    directory = paths[0].parent
-    if inherited(directory):
-        return None
-    queue = directory / QUEUE_NAME
-    queue.mkdir(parents=True, exist_ok=True)
-    with (directory / f"{QUEUE_NAME}.lock").open("a") as gate:
-        fcntl.flock(gate, fcntl.LOCK_EX)
-        waiting = len(queued_tickets(queue))
-        held = sum(map(locked, paths))
-    if waiting:
-        return f"its validation slots have {waiting} waiting run{'s' if waiting > 1 else ''}"
-    if held == len(paths):
-        return f"all {len(paths)} of its validation slots are held"
-    return None
+        place.leave()
+    if shown:
+        print(f"Took validation slot {place.slot[0]}", file=sys.stderr, flush=True)
+    return place.slot[1]
 
 
 @contextmanager
-def validation_slot(holder):
+def validation_slot(holder, place=None):
     """Hold a validation slot and yield its descriptor, or None inside a process that already holds one.
 
+    Takes the slot through place, when given, so a run that already waits keeps its place and a slot it took.
     Exports HOLDER_VARIABLE so that nested runs reuse the slot instead of waiting on it."""
-    paths = slot_paths()
-    if inherited(paths[0].parent):
+    place = place or Place(holder)
+    if place.reused:
         yield None
         return
-    with take(paths, holder) as lock:
+    with take(place) as lock:
         lock.truncate(0)
         lock.write(record(holder))
         lock.flush()

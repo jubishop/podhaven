@@ -23,7 +23,7 @@ sys.dont_write_bytecode = True
 from _my_mac_lock import current_holder, inherited, lock_path, my_mac_lock
 import _test_lane
 import _test_lane_host
-from _validation_slot import HOLDER_VARIABLE, busy, validation_slot
+from _validation_slot import HOLDER_VARIABLE, Place, held_by, queue_report, validation_slot
 from _worktrees import require_private_packages
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -447,14 +447,6 @@ def new_output(cache):
     return Path(tempfile.mkdtemp(prefix=datetime.now().strftime("%Y%m%d-%H%M%S-"), dir=cache))
 
 
-def local_lane_holder():
-    """Return what holds this Mac's lane, or None when a run here would start at once."""
-    holder = current_holder()
-    if holder is not None:
-        return f"its My Mac test lock is held by {holder or 'another run'}"
-    return busy()
-
-
 def second_mac(report):
     """Return the second Mac when podhaven.testHost names one this run can use, else None, saying why."""
     host = _test_lane.configured_host(ROOT, TEST_ENVIRONMENT)
@@ -475,15 +467,17 @@ def second_mac(report):
     return None
 
 
-def run_on_second_mac(lane, report, cache):
+def run_on_second_mac(lane, report, cache, place):
     """Take the second Mac's lane or this Mac's, whichever is free first, and run in the second Mac's if it is.
 
-    Return the second Mac's evidence folder and report once its run ends, or None to run here instead."""
+    While both are busy, wait for this Mac's in place, among the runs waiting for a validation slot here, so none that
+    began waiting later takes a slot first. This Mac's lane is free once place takes a slot while the My Mac test lock
+    is free. Return the second Mac's evidence folder and report once its run ends, or None to run here instead."""
     revision = report["checkout"]["revision"]
     # bin/check's whitespace check reads only the changes since origin's default branch, so the lane gets it too.
     base = subprocess.run(["git", "rev-parse", "--verify", "--quiet", "refs/remotes/origin/HEAD^{commit}"], cwd=ROOT,
                           env=TEST_ENVIRONMENT, capture_output=True, text=True).stdout.strip()
-    attempted = waiting = None
+    attempted = shown = None
     while True:
         if attempted is None or time.monotonic() - attempted >= REMOTE_POLL_SECONDS:
             attempted = time.monotonic()
@@ -492,20 +486,36 @@ def run_on_second_mac(lane, report, cache):
                 print(f"Running on this Mac: the second Mac, {lane.host}, can't run it: {failure}", flush=True)
                 return None
             output = new_output(cache)
-            attempt = lane.attempt(revision, base, output)
+            # A run there leaves the queue once it holds the lane, so it holds up no run here.
+            attempt = lane.attempt(revision, base, output, started=place.leave)
             if attempt:
                 prune_evidence(cache, output)
                 return second_mac_run(lane, report, output, *attempt)
             output.rmdir()
-        local = local_lane_holder()
-        if local is None:
+        if place.poll(ready=lambda: current_holder() is None):
             print(f"Running on this Mac: the second Mac's lane is held by {lane.holder}, and this Mac's is free",
                   flush=True)
             return None
-        if not waiting:
-            print(f"Waiting for the second Mac's lane, held by {lane.holder}, or this Mac's: {local}",
-                  file=sys.stderr, flush=True)
-            waiting = True
+        my_mac = current_holder()
+        holders = {"The second Mac's lane": lane.holder,
+                   **{f"Validation slot {number}": held for number, held in enumerate(place.holders, 1)},
+                   "The My Mac test lock": my_mac}
+        if not shown:
+            lines = [f"Waiting for the second Mac's lane, held by {lane.holder}, or this Mac's, held by:",
+                     *(f"  validation slot {number}: {held_by(held)}" for number, held in enumerate(place.holders, 1)),
+                     f"  My Mac test lock: {held_by(my_mac)}"]
+            lines += [queue_report(place.ahead)] if place.ahead else []
+            shown = holders, place.ahead
+        elif "" not in holders.values():
+            # Each new holder is reported once it has recorded itself; a lock or slot that frees is not.
+            lines = [f"{name} is now held by {held}"
+                     for name, held in holders.items() if held and held != shown[0][name]]
+            lines += [queue_report(place.ahead)] if place.ahead != shown[1] else []
+            shown = {name: held or shown[0][name] for name, held in holders.items()}, place.ahead
+        else:
+            lines = []
+        if lines:
+            print(*lines, sep="\n", file=sys.stderr, flush=True)
         time.sleep(LANE_POLL_SECONDS)
 
 
@@ -666,13 +676,16 @@ def main():
                 raise RuntimeError("No valid full local test evidence for this clean revision and toolchain; run bin/test-all")
         check_macro_pins()
         cache = ROOT / ".cache/test-all"
+        holder = f"bin/test-all in {ROOT}"
+        place = Place(holder)
+        held.callback(place.leave)
         lane = second_mac(report)
-        finished = run_on_second_mac(lane, report, cache) if lane else None
+        finished = run_on_second_mac(lane, report, cache, place) if lane else None
         if finished:
             output, remote = finished
             accept_second_mac_run(report, output, remote, lane.host)
         else:
-            held.enter_context(validation_slot(f"bin/test-all in {ROOT}"))
+            held.enter_context(validation_slot(holder, place))
             TEST_ENVIRONMENT[HOLDER_VARIABLE] = os.environ[HOLDER_VARIABLE]
             output = new_output(cache)
             print(f"Test evidence: {output}", flush=True)
