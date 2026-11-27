@@ -40,8 +40,15 @@ struct CachePurger: Sendable {
 
   // MARK: - State Management
 
+  // Accessed only on the main actor, where `BackgroundTask` lives.
+  private struct PurgeAssertion: Sendable {
+    var backgroundTask: BackgroundTask?
+    var latestSchedule = 0
+  }
+
   private let purgeLock = ThreadLock()
   private let purgeDebounce = Debounce(duration: purgeDelay, priority: .background)
+  private let purgeAssertion = ThreadSafe(PurgeAssertion())
   private let startOnce = Once()
   private let backgroundTaskScheduler: BackgroundTaskScheduler
 
@@ -63,20 +70,42 @@ struct CachePurger: Sendable {
       let cacheSizeLimits = userSettings.$cacheSizeLimitGB.stream()
       Task(priority: taskPriority(.background)) {
         for await _ in cacheSizeLimits.dropFirst() {
-          schedulePurge()
+          await schedulePurge()
         }
       }
     }
   }
 
-  func schedulePurge() {
+  // Holds a background task from a burst's first schedule until its debounced
+  // purge finishes, so iOS doesn't suspend a background launch before it.
+  @MainActor func schedulePurge() {
+    let (needsBackgroundTask, schedule) = purgeAssertion { assertion in
+      assertion.latestSchedule += 1
+      return (assertion.backgroundTask == nil, assertion.latestSchedule)
+    }
+    if needsBackgroundTask {
+      let backgroundTask = BackgroundTask.start(withName: "cachePurge") { [purgeAssertion] in
+        purgeAssertion { $0.backgroundTask = nil }
+      }
+      purgeAssertion { $0.backgroundTask = backgroundTask }
+    }
+
     purgeDebounce {
       do {
         try await executePurge()
       } catch {
         Self.log.caughtError("schedulePurge: purge failed", error)
       }
+      await endPurgeAssertion(after: schedule)
     }
+  }
+
+  @MainActor private func endPurgeAssertion(after schedule: Int) {
+    let backgroundTask = purgeAssertion { assertion -> BackgroundTask? in
+      guard assertion.latestSchedule == schedule else { return nil }
+      return assertion.backgroundTask.take()
+    }
+    backgroundTask?.end()
   }
 
   // MARK: - Background Task
