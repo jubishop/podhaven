@@ -39,6 +39,20 @@ struct PodcastOPMLTests {
     )
   }
 
+  @Test("parsing a remote URL is refused without reading it")
+  func parseRemoteURLIsRefused() async throws {
+    let url = URL(string: "https://example.com/subscriptions.opml")!
+    let fakeFileManager = Container.shared.fileManager() as! FakeFileManager
+    try await fakeFileManager.writeData(
+      PreviewBundle.loadAsset(named: "techdirt", in: .OPML),
+      to: url
+    )
+
+    await #expect(throws: RemoteOPMLError.self) {
+      try await PodcastOPML.parse(url)
+    }
+  }
+
   @Test("parsing invalid OPML file")
   func parseInvalidOPMLFile() async throws {
     let data = PreviewBundle.loadAsset(named: "invalid", in: .OPML)
