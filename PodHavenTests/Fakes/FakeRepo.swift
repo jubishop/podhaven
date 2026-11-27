@@ -838,15 +838,15 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
-  func markFinished(_ episodeIDs: [Episode.ID]) async throws -> Int {
+  func markFinished(_ episodeIDs: [Episode.ID], finishDate: FinishDateUpdate) async throws -> Int {
     recordCall(methodName: "markFinished", parameters: episodeIDs)
-    return try await repo.markFinished(episodeIDs)
+    return try await repo.markFinished(episodeIDs, finishDate: finishDate)
   }
 
   @discardableResult
-  func markFinished(_ episodeID: Episode.ID) async throws -> Bool {
+  func markFinished(_ episodeID: Episode.ID, finishDate: FinishDateUpdate) async throws -> Bool {
     recordCall(methodName: "markFinished", parameters: episodeID)
-    let marked = try await markFinished([episodeID]) > 0
+    let marked = try await markFinished([episodeID], finishDate: finishDate) > 0
     let afterMarkFinished = afterMarkFinishedHandler
     afterMarkFinishedHandler = nil
     if let afterMarkFinished {

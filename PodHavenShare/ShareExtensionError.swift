@@ -10,6 +10,9 @@ enum ShareExtensionError: Error, LocalizedError {
   case itemNotURL
   case fileSizeUnavailable
   case fileTooLarge(Int)
+  case appGroupIDMissing
+  case appGroupContainerUnavailable(String)
+  case applicationNotFound
 
   var errorDescription: String? {
     switch self {
@@ -27,6 +30,12 @@ enum ShareExtensionError: Error, LocalizedError {
       return "Could not determine the shared file's size"
     case .fileTooLarge(let fileSize):
       return "Shared file is too large: \(fileSize) bytes"
+    case .appGroupIDMissing:
+      return "App group ID not found for ShareLauncher"
+    case .appGroupContainerUnavailable(let appGroupID):
+      return "App group container not found for \(appGroupID)"
+    case .applicationNotFound:
+      return "UIApplication not found in responder chain"
     }
   }
 }

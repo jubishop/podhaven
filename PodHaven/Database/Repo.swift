@@ -309,7 +309,7 @@ struct Repo: Databasing {
       var insertedEpisodes = [Episode](capacity: unsavedEpisodes.count)
       var publisherTranscriptWorkCreated = false
 
-      let lastUpdateAssignment = Podcast.Columns.lastUpdate.set(to: Date())
+      let lastUpdateAssignment = Podcast.Columns.lastUpdate.set(to: now)
       if let updatedPodcast {
         try Podcast
           .withID(updatedPodcast.id)
@@ -938,30 +938,6 @@ struct Repo: Databasing {
   @discardableResult
   func updateRating(_ episodeID: Episode.ID, rating: EpisodeRating?) async throws -> Bool {
     try await updateRating([episodeID], rating: rating) > 0
-  }
-
-  @discardableResult
-  func markFinished(_ episodeIDs: [Episode.ID]) async throws -> Int {
-    Self.log.debug("markFinished: \(episodeIDs)")
-
-    guard !episodeIDs.isEmpty else { return 0 }
-
-    return try await writer.write { db in
-      try Episode
-        .withIDs(episodeIDs)
-        .updateAll(
-          db,
-          Episode.Columns.finishDate.set(to: Date()),
-          Episode.Columns.currentTime.set(to: 0),
-          Episode.Columns.maxPlaybackTime.set(to: 0),
-          Episode.Columns.playbackStarted.set(to: false)
-        )
-    }
-  }
-
-  @discardableResult
-  func markFinished(_ episodeID: Episode.ID) async throws -> Bool {
-    try await markFinished([episodeID]) > 0
   }
 
   // MARK: Private Helpers

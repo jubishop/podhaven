@@ -150,12 +150,19 @@ final class UserNotificationManager: Sendable {
         "scheduleNewEpisodeNotification: failed for \(podcast.title) (\(episodes.count) episodes)",
         error
       )
+      // The system takes an attachment's file only once it schedules the request.
+      for attachment in content.attachments {
+        removeStagedImage(at: attachment.url)
+      }
     }
   }
 
   // MARK: - Private Methods
 
   private func createImageAttachment(from imageURL: URL) async -> UNNotificationAttachment? {
+    let tempFile = fileManager.temporaryDirectory.appendingPathComponent(
+      UUID().uuidString + ".jpg"
+    )
     do {
       let image = try await imagePipeline.image(for: imageURL)
 
@@ -166,21 +173,32 @@ final class UserNotificationManager: Sendable {
 
       // UNNotificationAttachment requires a file URL — staged to a temp file
       // rather than passed inline.
-      let tempFile = fileManager.temporaryDirectory.appendingPathComponent(
-        UUID().uuidString + ".jpg"
-      )
       try await fileManager.writeData(data, to: tempFile)
+    } catch {
+      Self.log.caughtError("createImageAttachment: failed for \(imageURL)", error)
+      return nil
+    }
 
-      let attachment = try UNNotificationAttachment(
+    do {
+      return try UNNotificationAttachment(
         identifier: UUID().uuidString,
         url: tempFile,
         options: nil
       )
-
-      return attachment
     } catch {
-      Self.log.caughtError("createImageAttachment: failed for \(imageURL)", error)
+      Self.log.caughtError("createImageAttachment: failed to attach \(imageURL)", error)
+      removeStagedImage(at: tempFile)
       return nil
+    }
+  }
+
+  private func removeStagedImage(at url: URL) {
+    guard fileManager.fileExists(at: url) else { return }
+
+    do {
+      try fileManager.removeItem(at: url)
+    } catch {
+      Self.log.caughtError("removeStagedImage: failed to remove \(url)", error)
     }
   }
 

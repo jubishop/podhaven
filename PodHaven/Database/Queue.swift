@@ -318,10 +318,16 @@ struct Queue: Queueing {
     }
 
     let requestedCount = episodeIDs.count
-    let episodeIDs = try _uniqueExistingEpisodeIDs(db, from: episodeIDs)
+    // Episodes past the max queue length would be trimmed right after queueing.
+    let episodeIDs = Array(
+      try _uniqueExistingEpisodeIDs(db, from: episodeIDs)
+        .prefix(Container.shared.userSettings().maxQueueLength)
+    )
     let droppedCount = requestedCount - episodeIDs.count
     if droppedCount > 0 {
-      Self.log.debug("queue: unshift dropped \(droppedCount) duplicate or missing episode IDs")
+      Self.log.debug(
+        "queue: unshift dropped \(droppedCount) duplicate, missing, or over-limit episode IDs"
+      )
     }
     guard !episodeIDs.isEmpty else { return }
 
@@ -367,19 +373,22 @@ struct Queue: Queueing {
 
     Self.log.debug("queue: appending \(episodeIDs)")
 
-    // Must update queueDate BEFORE dequeueing — _dequeue clears the rows we'd otherwise key on.
-    try _updateQueueDate(db, episodeIDs)
-    try _dequeue(db, episodeIDs)
-
     let maxQueueLength = Container.shared.userSettings().maxQueueLength
-    let currentCount =
+    // The requested episodes leave their current positions before appending.
+    let remainingCount =
       try Episode
       .all()
       .queued()
+      .filter(!episodeIDs.contains(Episode.Columns.id))
       .fetchCount(db)
+    let availableSpace = max(maxQueueLength - remainingCount, 0)
+    let episodesToAppend = Array(episodeIDs.prefix(availableSpace))
 
-    let availableSpace = maxQueueLength - currentCount
-    guard availableSpace > 0 else {
+    // Must update queueDate BEFORE dequeueing — _dequeue clears the rows we'd otherwise key on.
+    try _updateQueueDate(db, episodesToAppend)
+    try _dequeue(db, episodeIDs)
+
+    guard !episodesToAppend.isEmpty else {
       Self.log.debug(
         """
         cannot append \(episodeIDs.count) episodes, \
@@ -389,7 +398,6 @@ struct Queue: Queueing {
       return
     }
 
-    let episodesToAppend = Array(episodeIDs.prefix(availableSpace))
     if episodesToAppend.count < episodeIDs.count {
       let skippedCount = episodeIDs.count - episodesToAppend.count
       Self.log.debug(
