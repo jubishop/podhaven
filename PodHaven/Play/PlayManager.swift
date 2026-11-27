@@ -88,6 +88,14 @@ final class PlayManager {
     return sharedState.onDeck?.id
   }
 
+  func onDeckReplacement(of episodeID: Episode.ID) -> OnDeckReplacement? {
+    guard let loadTransition,
+      loadTransition.loadingEpisodeID != episodeID || loadTransition.finishedIDs.contains(episodeID)
+    else { return nil }
+    guard loadTransition.loadingEpisodeID != nil, let loadTask else { return .clearing }
+    return .loading(loadTask)
+  }
+
   nonisolated static let log = Log.as(LogSubsystem.Play.manager)
 
   // MARK: - Configurable Constants

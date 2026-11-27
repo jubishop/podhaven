@@ -12,6 +12,13 @@ extension PlayManager {
     case pause
   }
 
+  // A newer transition replacing the episode on deck: another episode's load,
+  // or a stop or finalization clearing the deck.
+  enum OnDeckReplacement {
+    case clearing
+    case loading(Task<Bool, any Error>)
+  }
+
   // MARK: - Playback Recovery
 
   func handlePlaybackFailure(
@@ -26,6 +33,10 @@ extension PlayManager {
 
     guard let episodeID = sharedState.onDeck?.id else {
       Self.log.warning("handlePlaybackFailure: no episode on deck to recover")
+      return
+    }
+    guard onDeckReplacement(of: episodeID) == nil else {
+      Self.log.info("event=itemFailureYield outcome=recoverySkipped episodeID=\(episodeID)")
       return
     }
 
