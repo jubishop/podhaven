@@ -7,6 +7,7 @@ import Foundation
 import Logging
 import SwiftUI
 import Testing
+import UIKit
 
 @testable import PodHaven
 
@@ -20,8 +21,10 @@ import Testing
   @DynamicInjected(\.sleeper) private var sleeper
   @DynamicInjected(\.stateManager) private var stateManager
   @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
+  @DynamicInjected(\.uiApplication) private var uiApplication
   @DynamicInjected(\.userSettings) private var userSettings
 
+  private var application: FakeApplication { uiApplication as! FakeApplication }
   private var fakeBGTaskScheduler: FakeBGTaskScheduler {
     bgTaskScheduler as! FakeBGTaskScheduler
   }
@@ -29,6 +32,8 @@ import Testing
   private var fileManager: FakeFileManager {
     Container.shared.fileManager() as! FakeFileManager
   }
+
+  private nonisolated static let purgeTaskName = "cachePurge"
 
   // MARK: - Background Scheduling Tests
 
@@ -120,8 +125,8 @@ import Testing
 
   // MARK: - Triggered Purge Tests
 
-  @Test("lowering the cache size limit purges without a background task")
-  func loweringCacheSizeLimitPurgesWithoutBackgroundTask() async throws {
+  @Test("lowering the cache size limit purges without a background processing task")
+  func loweringCacheSizeLimitPurgesWithoutProcessingTask() async throws {
     let olderDownload = try await CacheHelpers.createCachedEpisode(
       title: "Older Download",
       cachedFilename: "older-download.mp3",
@@ -147,8 +152,8 @@ import Testing
     #expect(fakeBGTaskScheduler.registrations.isEmpty)
   }
 
-  @Test("a finished download purges without a background task")
-  func finishedDownloadPurgesWithoutBackgroundTask() async throws {
+  @Test("a finished download purges without a background processing task")
+  func finishedDownloadPurgesWithoutProcessingTask() async throws {
     let olderDownload = try await CacheHelpers.createCachedEpisode(
       title: "Older Download",
       cachedFilename: "older-download.mp3",
@@ -173,6 +178,111 @@ import Testing
     #expect(try await repo.episode(olderDownload.id)?.cacheStatus == .uncached)
     #expect(try await repo.episode(podcastEpisode.id)?.cacheStatus == .cached)
     #expect(fakeBGTaskScheduler.registrations.isEmpty)
+  }
+
+  @Test("a background download holds a background task until its purge finishes")
+  func backgroundDownloadHoldsBackgroundTaskUntilPurgeFinishes() async throws {
+    let application = application
+    let fakeRepo = try #require(repo as? FakeRepo)
+    application.applicationState = .background
+    let heldDuringPurge = ThreadSafe<[UIBackgroundTaskIdentifier]?>(nil)
+    await fakeRepo.beforeNextCachedEpisodesFetch { @MainActor [application] in
+      heldDuringPurge(
+        application.taskIdentifiers(named: Self.purgeTaskName).filter(application.hasActiveTask)
+      )
+    }
+
+    let olderCachedURL = try await finishDownloadOverCacheLimit()
+
+    let purgeTask = try purgeTask()
+    #expect(application.hasActiveTask(identifier: purgeTask))
+    #expect(heldDuringPurge() == nil)
+    let finalizationTask = try #require(
+      application.taskIdentifiers(named: "cacheDownloadFinalization").first
+    )
+    let purgeTaskBegan = try #require(
+      application.calls(of: MethodCall<String?>.self)
+        .first { $0.parameters == Self.purgeTaskName }
+    )
+    let finalizationTaskEnded = try #require(
+      application.calls(of: MethodCall<Int>.self)
+        .first { $0.parameters == finalizationTask.rawValue }
+    )
+    #expect(purgeTaskBegan.callOrder < finalizationTaskEnded.callOrder)
+
+    try await advancePastPurgeDelay()
+
+    try await CacheHelpers.waitForCachedFileRemoved(olderCachedURL)
+    try await waitForEnd(of: purgeTask)
+    #expect(heldDuringPurge() == [purgeTask])
+  }
+
+  @Test("a burst of downloads holds one background task and runs one purge")
+  func downloadBurstHoldsOneBackgroundTaskAndRunsOnePurge() async throws {
+    let fakeRepo = try #require(repo as? FakeRepo)
+    application.applicationState = .background
+    let olderDownload = try await CacheHelpers.createCachedEpisode(
+      title: "Older Download",
+      cachedFilename: "older-download.mp3",
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
+      downloadDate: Date.now.addingTimeInterval(-24 * 60 * 60)
+    )
+    let olderCachedURL = try #require(olderDownload.cachedURL)
+    stateManager.start()
+    cacheManager.start()
+    let (firstEpisode, secondEpisode) = try await Create.twoPodcastEpisodes()
+    let taskIDs = [
+      try await CacheHelpers.unshiftToQueue(firstEpisode.id),
+      try await CacheHelpers.unshiftToQueue(secondEpisode.id),
+    ]
+
+    for taskID in taskIDs {
+      try await CacheHelpers.simulateBackgroundFinish(
+        taskID,
+        data: Data(count: Int(Double(cachePurger.cacheSizeLimit) * 0.3))
+      )
+    }
+    try await fakeSleeper.waitForSleepRequests(for: CachePurger.purgeDelay, count: 2)
+    await fakeSleeper.advanceTime(by: CachePurger.purgeDelay)
+
+    try await CacheHelpers.waitForCachedFileRemoved(olderCachedURL)
+    try await waitForEnd(of: try purgeTask())
+    _ = try fakeRepo.expectCalls(methodName: "cachedEpisodes", count: 1)
+  }
+
+  @Test("an expired background task leaves its purge scheduled")
+  func expiredBackgroundTaskLeavesPurgeScheduled() async throws {
+    application.applicationState = .background
+    let olderCachedURL = try await finishDownloadOverCacheLimit()
+    let expiredTask = try purgeTask()
+
+    application.expireAllTasks()
+    #expect(!application.hasActiveTask(identifier: expiredTask))
+    try await advancePastPurgeDelay()
+
+    try await CacheHelpers.waitForCachedFileRemoved(olderCachedURL)
+  }
+
+  @Test("a purge scheduled after its background task expires begins a new one")
+  func purgeScheduledAfterExpirationBeginsNewBackgroundTask() async throws {
+    application.applicationState = .background
+    let olderCachedURL = try await finishDownloadOverCacheLimit()
+    let expiredTask = try purgeTask()
+    application.expireAllTasks()
+
+    cachePurger.schedulePurge()
+
+    let purgeTasks = application.taskIdentifiers(named: Self.purgeTaskName)
+    #expect(purgeTasks.count == 2)
+    let renewedTask = try #require(purgeTasks.last)
+    #expect(renewedTask != expiredTask)
+    #expect(application.hasActiveTask(identifier: renewedTask))
+
+    try await fakeSleeper.waitForSleepRequests(for: CachePurger.purgeDelay, count: 2)
+    await fakeSleeper.advanceTime(by: CachePurger.purgeDelay)
+
+    try await CacheHelpers.waitForCachedFileRemoved(olderCachedURL)
+    try await waitForEnd(of: renewedTask)
   }
 
   // MARK: - Cache Size Calculation Tests
@@ -714,5 +824,51 @@ import Testing
     // Episode without saveInCache should be deleted
     let updatedUnsaved = try await repo.episode(unsavedOldPlayed.id)
     #expect(updatedUnsaved?.cacheStatus == .uncached)
+  }
+
+  // MARK: - Helpers
+
+  // Downloads an episode that takes the cache over its limit, returning the
+  // older download's file that the purge should remove.
+  private func finishDownloadOverCacheLimit() async throws -> CachedURL {
+    let olderDownload = try await CacheHelpers.createCachedEpisode(
+      title: "Older Download",
+      cachedFilename: "older-download.mp3",
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
+      downloadDate: Date.now.addingTimeInterval(-24 * 60 * 60)
+    )
+    let olderCachedURL = try #require(olderDownload.cachedURL)
+    stateManager.start()
+    cacheManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(
+      taskID,
+      data: Data(count: Int(Double(cachePurger.cacheSizeLimit) * 0.6))
+    )
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
+    return olderCachedURL
+  }
+
+  private func advancePastPurgeDelay() async throws {
+    try await fakeSleeper.waitForSleepRequests(for: CachePurger.purgeDelay)
+    await fakeSleeper.advanceTime(by: CachePurger.purgeDelay)
+  }
+
+  private func purgeTask() throws -> UIBackgroundTaskIdentifier {
+    let identifiers = application.taskIdentifiers(named: Self.purgeTaskName)
+    try #require(
+      identifiers.count == 1,
+      "Expected one \(Self.purgeTaskName) task, got \(identifiers)"
+    )
+    return identifiers[0]
+  }
+
+  private func waitForEnd(of identifier: UIBackgroundTaskIdentifier) async throws {
+    try await Wait.until(
+      { @MainActor in !self.application.hasActiveTask(identifier: identifier) },
+      { @MainActor in "Expected \(Self.purgeTaskName) background task \(identifier) to end" }
+    )
+    #expect(application.endCallCount(for: identifier) == 1)
   }
 }
