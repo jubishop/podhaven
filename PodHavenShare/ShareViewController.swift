@@ -26,7 +26,7 @@ class ShareViewController: UIViewController {
       do {
         try await ShareLauncher.execute(from: application, with: extensionContext)
       } catch {
-        log.error("Share execution failed: \(error)")
+        log.error("Share execution failed: \(error, privacy: .public)")
       }
 
       extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
