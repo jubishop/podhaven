@@ -763,7 +763,7 @@ class PodcastDetailViewModel:
       }
     } catch {
       Self.log.caughtError("refreshSeries: failed for \(state.toString)", error)
-      guard !Task.isCancelled, !(error is CancellationError),
+      guard lifecycle.isOnScreen, !Task.isCancelled, !(error is CancellationError),
         (error as? URLError)?.code != .cancelled
       else { return }
       alert(ErrorKit.message(for: error))

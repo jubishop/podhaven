@@ -87,9 +87,29 @@ import Testing
     #expect(alert.config == nil)
   }
 
+  @Test(
+    "pull-to-refresh raises no alert when the screen disappears before the feed times out",
+    arguments: RefreshedPodcast.allCases
+  )
+  func offScreenTimeoutDoesNotAlert(podcast: RefreshedPodcast) async throws {
+    let viewModel = try await appearedViewModel(podcast)
+    let (started, finish) = await feedSession.releaseWaitRespond(
+      to: viewModel.podcast.feedURL.rawValue,
+      error: URLError(.timedOut)
+    )
+    let refresh = Task { await viewModel.refreshSeries() }
+    try await started.waitUnlessCancelled()
+
+    viewModel.disappear()
+    finish.signal()
+    await refresh.value
+
+    #expect(alert.config == nil)
+  }
+
   // MARK: - Helpers
 
-  // hardfork_short names a new feed URL, which refreshes then fetch.
+  // hardfork_short names a new feed URL, which later refreshes fetch instead of feedURL.
   private func appearedViewModel(_ podcast: RefreshedPodcast) async throws
     -> PodcastDetailViewModel
   {
