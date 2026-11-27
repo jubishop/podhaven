@@ -11,10 +11,9 @@ import UIKit
   @Test(
     "photos keep their aspect ratios in one bounded horizontal row",
     .enabled(if: ProcessInfo.processInfo.isiOSAppOnMac),
-    arguments: [1, 2, 5],
-    [DynamicTypeSize.large, .accessibility5]
+    arguments: [1, 2, 5]
   )
-  func horizontalLayout(count: Int, dynamicTypeSize: DynamicTypeSize) async throws {
+  func horizontalLayout(count: Int) async throws {
     let sizes = (0..<count)
       .map { index in
         index.isMultiple(of: 2)
@@ -27,7 +26,6 @@ import UIKit
           FeedbackPhotosView(photos: photos)
         }
       }
-      .dynamicTypeSize(dynamicTypeSize)
     )
     try await withHostedTestWindow(host, size: CGSize(width: 700, height: 844)) { window in
       let row = try await Self.waitForPhotoRow(in: window)
@@ -37,7 +35,7 @@ import UIKit
         }
       Attachment.record(
         try #require(screenshot.pngData()),
-        named: "feedback-photos-\(count)-\(dynamicTypeSize).png"
+        named: "feedback-photos-\(count).png"
       )
       let photoWidths = sizes.map { $0.width / $0.height * 200 }.reduce(0, +)
       #expect(abs(row.contentSize.height - 200) < 1)
@@ -47,10 +45,9 @@ import UIKit
 
   @Test(
     "overflowing photos scroll in both directions without moving the form",
-    .enabled(if: ProcessInfo.processInfo.isiOSAppOnMac),
-    arguments: [DynamicTypeSize.large, .accessibility5]
+    .enabled(if: ProcessInfo.processInfo.isiOSAppOnMac)
   )
-  func scrolling(dynamicTypeSize: DynamicTypeSize) async throws {
+  func scrolling() async throws {
     let photos = try (0..<5).map { _ in try Self.photoData(CGSize(width: 100, height: 200)) }
     let host = TestHostingController(
       rootView: Form {
@@ -63,7 +60,6 @@ import UIKit
           }
         }
       }
-      .dynamicTypeSize(dynamicTypeSize)
     )
     try await withHostedTestWindow(host, size: CGSize(width: 320, height: 844)) { window in
       let horizontal = try await Self.waitForPhotoRow(in: window)

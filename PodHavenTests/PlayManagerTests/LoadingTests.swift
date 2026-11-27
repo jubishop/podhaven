@@ -213,7 +213,7 @@ import Testing
     try await PlayHelpers.waitForAudioActive(false)
   }
 
-  @Test("loading an episode sets loading status")
+  @Test("loading an episode sets loading status", .timeLimit(.minutes(5)))
   func loadingEpisodeSetsLoadingStatus() async throws {
 
     await playManager.start()
@@ -229,7 +229,7 @@ import Testing
       loadTask.cancel()
       loadingSemaphore.signal()
     }
-    try await PlayHelpers.waitFor(.loading(podcastEpisode.episode.title))
+    try await PlayHelpers.awaitStatus(.loading(podcastEpisode.episode.title))
 
     loadingSemaphore.signal()
     #expect(try await loadTask.value == true)
@@ -433,7 +433,7 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
   }
 
-  @Test("new play survives cancellation cleanup from prior load")
+  @Test("new play survives cancellation cleanup from prior load", .timeLimit(.minutes(5)))
   func newPlaySurvivesCancellationCleanupFromPriorLoad() async throws {
     await playManager.start()
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
@@ -451,14 +451,14 @@ import Testing
       originalPlay.cancel()
       originalSemaphore.signal()
     }
-    try await PlayHelpers.waitFor(.loading(originalEpisode.episode.title))
+    try await PlayHelpers.awaitStatus(.loading(originalEpisode.episode.title))
 
     let incomingPlay = Task { try await playManager.play(incomingEpisode) }
     defer {
       incomingPlay.cancel()
       incomingSemaphore.signal()
     }
-    try await PlayHelpers.waitFor(.loading(incomingEpisode.episode.title))
+    try await PlayHelpers.awaitStatus(.loading(incomingEpisode.episode.title))
     await #expect(throws: (any Error).self) {
       try await originalPlay.value
     }
@@ -469,7 +469,7 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
   }
 
-  @Test("failed newer preflight terminates inherited load transition")
+  @Test("failed newer preflight terminates inherited load transition", .timeLimit(.minutes(5)))
   func failedNewerPreflightTerminatesInheritedLoadTransition() async throws {
     await playManager.start()
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
@@ -484,7 +484,7 @@ import Testing
       originalPlay.cancel()
       originalRelease.signal()
     }
-    try await PlayHelpers.waitFor(.loading(originalEpisode.episode.title))
+    try await PlayHelpers.awaitStatus(.loading(originalEpisode.episode.title))
     try await PlayHelpers.waitForAudioActive(true)
 
     try await PlayHelpers.failingAudioSessionConfiguration {
@@ -714,7 +714,7 @@ import Testing
     #expect(try await playManager.load(podcastEpisode) == false)
   }
 
-  @Test("earlier load failure does not stop newer load")
+  @Test("earlier load failure does not stop newer load", .timeLimit(.minutes(5)))
   func earlierLoadFailureDoesNotStopNewerLoad() async throws {
     await playManager.start()
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
@@ -732,13 +732,13 @@ import Testing
       originalLoad.cancel()
       originalSemaphore.signal()
     }
-    try await PlayHelpers.waitFor(.loading(originalEpisode.episode.title))
+    try await PlayHelpers.awaitStatus(.loading(originalEpisode.episode.title))
     let incomingLoad = Task { try await playManager.load(incomingEpisode) }
     defer {
       incomingLoad.cancel()
       incomingSemaphore.signal()
     }
-    try await PlayHelpers.waitFor(.loading(incomingEpisode.episode.title))
+    try await PlayHelpers.awaitStatus(.loading(incomingEpisode.episode.title))
     originalSemaphore.signal()
     await #expect(throws: (any Error).self) {
       try await originalLoad.value

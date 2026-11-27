@@ -34,6 +34,7 @@ import Testing
 
   @Test(
     "seeks and skips awaiting a recovery reload move the position Play resumes from",
+    .timeLimit(.minutes(5)),
     arguments: [OnDeckRecoveryState.Cause.failedRestore, .mediaServicesReset]
   )
   func seeksAndSkipsMoveResumePosition(cause: OnDeckRecoveryState.Cause) async throws {
@@ -51,7 +52,7 @@ import Testing
 
     await playManager.play()
 
-    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.awaitStatus(.playing)
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
     #expect(avPlayer.seekRequests.last == scrubTime)
     try await PlayHelpers.waitFor(scrubTime)

@@ -86,7 +86,10 @@ elif name == 'xcodebuild':
     if mode == 'starting':
         # A wrapper, such as one that waits for a build slot, starts xcodebuild late.
         time.sleep(seconds)
-    print('Command line invocation:', flush=True)
+    # xcodebuild's first line starts bin/test-all's build watch, and a loaded Mac can slow this fake's own work, such as
+    # starting its fake test host, past a short watch. So the line stays in the output buffer until the fake flushes
+    # its test output, or a mode below flushes the build it models once that build is set up.
+    print('Command line invocation:')
     lock_path = pathlib.Path.home() / '.cache/podhaven/my-mac-tests.lock'
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open('a') as lock:
@@ -115,10 +118,10 @@ elif name == 'xcodebuild':
     if mode in ('stall', 'deaf-stall'):
         # A shell's background job inherits SIGINT ignored, so set how this build answers it either way.
         signal.signal(signal.SIGINT, signal.SIG_IGN if mode == 'deaf-stall' else signal.default_int_handler)
-        print('SwiftDriver PodHavenWidget normal arm64 com.apple.xcode.tools.swift.compiler', flush=True)
         # The build service keeps what xcodebuild passed it, such as the My Mac test lock, and never ends.
         service = subprocess.Popen([sys.executable, '-c', 'import signal; signal.pause()'], close_fds=False)
         (base / 'build-stall').write_text(f'{os.getpid()} {service.pid}')
+        print('SwiftDriver PodHavenWidget normal arm64 com.apple.xcode.tools.swift.compiler', flush=True)
         try:
             signal.pause()
         except KeyboardInterrupt:
@@ -132,6 +135,7 @@ elif name == 'xcodebuild':
         # The fake ps reports one CPU second a second for the compiler the busy file names.
         compiler = subprocess.Popen([sys.executable, '-c', 'import signal; signal.pause()'])
         (base / 'busy').write_text(f'{compiler.pid} {time.time()}')
+        sys.stdout.flush()
         time.sleep(seconds)
         compiler.kill()
         compiler.wait()
@@ -154,14 +158,11 @@ elif name == 'xcodebuild':
         ended.wait()
         print(f"Test suite 'Selected tests' started on 'My Mac - PodHaven ({ended.pid})'")
         print('Restarting after unexpected exit, crash, or test timeout')
-        host = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+        # The host stalls until bin/test-all's second sample of it ends it.
+        host = subprocess.Popen([sys.executable, '-c', 'import signal; signal.pause()'])
         (base / 'stalled-host').write_text(str(host.pid))
         print(f"Test suite 'Selected tests' started on 'My Mac - PodHaven ({host.pid})'", flush=True)
-        try:
-            host.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            host.kill()
-            host.wait()
+        host.wait()
         print(f"Test case 'StalledTests/waits()' failed on 'My Mac - PodHaven ({host.pid})' (600.000 seconds)")
     if os.environ.get('TEST_HOST_BUSY') and not performance:
         quiet = float(os.environ['TEST_HOST_BUSY'])
@@ -356,6 +357,8 @@ class TestAllFixture(unittest.TestCase):
             if key.startswith(("GIT_", "PODHAVEN_")) or key.startswith("TEST_") and key != "TEST_ALL_FIXTURE":
                 self.env.pop(key)
         self.env.pop("SDKROOT", None)
+        # The fake xcodebuild holds its first line in its output buffer.
+        self.env.pop("PYTHONUNBUFFERED", None)
         self.git("init", "--quiet")
         self.commit("fixture")
 

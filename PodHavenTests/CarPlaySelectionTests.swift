@@ -256,21 +256,21 @@ import Testing
     #expect(controller.pushed.isEmpty)
   }
 
-  @Test("disconnect after playback handoff leaves shared playback running")
+  @Test("disconnect after playback handoff leaves shared playback running", .timeLimit(.minutes(5)))
   func disconnectLoad() async throws {
     let episode = try await Create.podcastEpisode()
     let (coordinator, controller, rows) = try await connect([episode])
     let gate = AsyncSemaphore(value: 0)
-    let entered = ThreadSafe(false)
+    let entered = AsyncLatch<Void>()
     await Container.shared.fakeEpisodeAssetLoader()
       .respond(to: episode.episode.mediaURL) { _ in
-        entered(true)
+        entered.open()
         await gate.wait()
         return (true, .seconds(60))
       }
     let count = ThreadSafe(0)
     rows[0].handler?(rows[0]) { count { $0 += 1 } }
-    try await Wait.until({ entered() }, { "Load must start" })
+    try await entered.wait()
     coordinator.disconnect(controller)
     #expect(count() == 1)
     gate.signal()
@@ -300,7 +300,10 @@ import Testing
     )
     #expect(Container.shared.sharedState().currentEpisodeID == nil)
   }
-  @Test("a new phone request promptly completes the older CarPlay spinner during a stalled load")
+  @Test(
+    "a new phone request promptly completes the older CarPlay spinner during a stalled load",
+    .timeLimit(.minutes(5))
+  )
   func phoneDuringLoad() async throws {
     let episode = try await Create.podcastEpisode()
     let phone = try await Create.podcastEpisode()
@@ -308,16 +311,16 @@ import Testing
     defer { coordinator.disconnect(controller) }
     let gate = AsyncSemaphore(value: 0)
     defer { gate.signal() }
-    let entered = ThreadSafe(false)
+    let entered = AsyncLatch<Void>()
     await Container.shared.fakeEpisodeAssetLoader()
       .respond(to: episode.episode.mediaURL) { _ in
-        entered(true)
+        entered.open()
         await gate.wait()
         throw URLError(.cannotLoadFromNetwork)
       }
     let count = ThreadSafe(0)
     rows[0].handler?(rows[0]) { count { $0 += 1 } }
-    try await Wait.until({ entered() }, { "Load must start" })
+    try await entered.wait()
     try await Container.shared.playManager().play(phone)
     try await Wait.until(
       { count() == 1 },
@@ -329,23 +332,26 @@ import Testing
     #expect(controller.alerts.isEmpty)
   }
 
-  @Test("a stalled accepted load ends its spinner at the deadline without stale navigation")
+  @Test(
+    "a stalled accepted load ends its spinner at the deadline without stale navigation",
+    .timeLimit(.minutes(5))
+  )
   func stalledMediaDeadline() async throws {
     let episode = try await Create.podcastEpisode()
     let (coordinator, controller, rows) = try await connect([episode])
     defer { coordinator.disconnect(controller) }
     let gate = AsyncSemaphore(value: 0)
     defer { gate.signal() }
-    let entered = ThreadSafe(false)
+    let entered = AsyncLatch<Void>()
     await Container.shared.fakeEpisodeAssetLoader()
       .respond(to: episode.episode.mediaURL) { _ in
-        entered(true)
+        entered.open()
         await gate.wait()
         return (true, .seconds(60))
       }
     let count = ThreadSafe(0)
     rows[0].handler?(rows[0]) { count { $0 += 1 } }
-    try await Wait.until({ entered() }, { "Media loading must start" })
+    try await entered.wait()
     let sleeper = Container.shared.sleeper() as! FakeSleeper
     try await sleeper.waitForSleepRequests(for: .seconds(30))
     await sleeper.advanceTime(by: .seconds(30))
