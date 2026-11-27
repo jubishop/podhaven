@@ -107,6 +107,7 @@ import Testing
 
   @Test(
     "a second play during a recovery reload's audio-session setup joins the reload",
+    .timeLimit(.minutes(5)),
     arguments: [OnDeckRecoveryState.Cause.failedRestore, .mediaServicesReset]
   )
   func secondPlayDuringRecoveryReloadJoinsIt(cause: OnDeckRecoveryState.Cause) async throws {
@@ -126,7 +127,7 @@ import Testing
 
     #expect(playManager.playbackRequestRevision == playRevision)
     try await PlayHelpers.recoverAudioSessionConfiguration()
-    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.awaitStatus(.playing)
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
     #expect(await episodeAssetLoader.responseCount(for: mediaURL) == loadCount + 1)
   }
