@@ -123,6 +123,7 @@ final class PlayManager {
   private var lastLoggedTime = Date.distantPast
   private var lastNowPlayingElapsedWrite: CMTime?
   var onDeckRecoveryState = OnDeckRecoveryState.none
+  var onDeckRecoveryLookup: (episodeID: Episode.ID, requestID: UUID)?
   var onDeckRecoveryPositionSave: Task<Void, Never>?
   var pendingPlaybackRequest = PendingPlaybackRequest.none
   var widgetRouteRecovery: WidgetRouteRecovery?
@@ -615,6 +616,13 @@ final class PlayManager {
   func play(origin: PlaybackRequestOrigin = .application, requestID: UUID = UUID()) async
     -> Task<Void, Never>?
   {
+    // A play joins a selection whose load hasn't claimed the transition yet.
+    if let lookup = onDeckRecoveryLookup, lookup.requestID == playbackRequestRevision,
+      case .play(lookup.episodeID) = pendingPlaybackRequest
+    {
+      Self.log.debug("play: episode \(lookup.episodeID) already plays once loaded")
+      return nil
+    }
     // A play during a load joins the load's request instead of superseding it.
     if let loadingEpisodeID = loadTransition?.loadingEpisodeID,
       loadingEpisodeID != sharedState.onDeck?.id || loadingEpisodeID == onDeckRecoveryEpisodeID

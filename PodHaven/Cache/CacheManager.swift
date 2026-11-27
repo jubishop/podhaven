@@ -307,7 +307,7 @@ struct CacheManager {
     )
     if case .installed(let cachedURL) = storage {
       excludeFromBackup(cachedURL.rawValue)
-      cachePurger.schedulePurge()
+      await cachePurger.schedulePurge()
     }
     return storage
   }
