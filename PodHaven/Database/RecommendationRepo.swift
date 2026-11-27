@@ -73,7 +73,8 @@ struct RecommendationRepo: Recommending {
   // live in a different space, so they neither join centroids nor count.
   // Older-recipe rows share the model's space and still join centroids, but
   // only current-recipe rows count, so re-embedding after a recipe bump, which
-  // rewrites rows in place, changes the count.
+  // rewrites rows in place, changes the count. The existence probe and count
+  // read a covering index rather than vector rows.
   static func scoringContextInputs(
     _ db: Database,
     embeddingRevision: Int,
@@ -95,7 +96,7 @@ struct RecommendationRepo: Recommending {
       ratedSignals: ratedSignals,
       partialSignals: partialSignals,
       signalEmbeddings: signalEmbeddings,
-      hasAnyEmbeddings: try !currentEmbeddings.isEmpty(db),
+      hasAnyEmbeddings: try !currentEmbeddings.select(EpisodeEmbedding.Columns.id).isEmpty(db),
       currentRecipeEmbeddingCount:
         try currentEmbeddings
         .filter(EpisodeEmbedding.Columns.recipeVersion == EmbeddingService.recipeVersion)

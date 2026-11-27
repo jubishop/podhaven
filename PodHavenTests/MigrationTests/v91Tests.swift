@@ -69,4 +69,26 @@ struct V91MigrationTests {
       )
     }
   }
+
+  @Test("v91 widens the embedding-needs covering index with the recipe version")
+  func widensCoveringIndexWithRecipeVersion() async throws {
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v91")
+
+    try await appDB.unsafeTestDB.read { db in
+      let indexes = try String.fetchSet(
+        db,
+        sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'episodeEmbedding'"
+      )
+      #expect(!indexes.contains("episodeEmbedding_on_episodeId_embeddingRevision_verificationDate"))
+
+      let columns = try String.fetchAll(
+        db,
+        sql: "SELECT name FROM pragma_index_info(?)",
+        arguments: [
+          "episodeEmbedding_on_episodeId_embeddingRevision_verificationDate_recipeVersion"
+        ]
+      )
+      #expect(columns == ["episodeId", "embeddingRevision", "verificationDate", "recipeVersion"])
+    }
+  }
 }
