@@ -92,6 +92,42 @@ import Testing
     #expect(try await repo.podcast(librarySeries.id)?.subscribed == false)
   }
 
+  @Test("stopping an OPML import before its first download subscribes to and fetches nothing")
+  func stoppingOPMLImportBeforeDownloadsImportsNothing() async throws {
+    let libraryFeedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
+    let librarySeries = try await insertPodcastSeries(
+      feedURL: libraryFeedURL,
+      assetName: "lenny",
+      subscribed: false
+    )
+    let newFeedURL = URL(string: "https://feeds.simplecast.com/l2i9YnTd")!
+    let opmlURL = createTestOPMLURL()
+    try await writeOPMLFile(
+      to: opmlURL,
+      feeds: [
+        (title: "Lenny's Podcast", url: libraryFeedURL.absoluteString),
+        (title: "Hard Fork", url: newFeedURL.absoluteString),
+      ]
+    )
+    await setupValidFeedResponse(to: newFeedURL, assetName: "hardfork_short")
+
+    let opmlFile = try await reviewOPML(from: opmlURL)
+    withObservationTracking {
+      _ = opmlFile.phase
+    } onChange: { [opmlViewModel] in
+      MainActor.assumeIsolated { opmlViewModel.stopDownloading() }
+    }
+    await opmlViewModel.importFeeds()
+    try await Wait.until(
+      { @MainActor in self.opmlViewModel.opmlFile == nil },
+      { "Stopping the import did not dismiss its sheet" }
+    )
+
+    #expect(await feedSession.requests.isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).count == 1)
+    #expect(try await repo.podcast(librarySeries.id)?.subscribed == false)
+  }
+
   @Test("importing OPML with all valid feeds")
   func importOPMLWithValidFeeds() async throws {
     // Setup: Create OPML with 3 valid feeds
@@ -383,6 +419,8 @@ import Testing
       )
       gated(false)
       await importTask.value
+      #expect(opmlFile.inProgressCount == 0)
+      #expect(opmlFile.totalCount == feedCount)
       return sink.captured()
     }
 
