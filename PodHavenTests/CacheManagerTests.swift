@@ -609,7 +609,7 @@ import Testing
 
   // MARK: - clearCache
 
-  @Test("clearCache stops in progress download")
+  @Test("clearCache stops in progress download", .timeLimit(.minutes(5)))
   func clearCacheStopsInProgressDownload() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
     let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
@@ -617,7 +617,7 @@ import Testing
     let clear = Task {
       try await cacheManager.clearCache(for: podcastEpisode.id)
     }
-    try await CacheHelpers.waitForCancelled(taskID)
+    try await CacheHelpers.awaitCancelled(taskID)
     try await CacheHelpers.simulateBackgroundFailure(taskID)
 
     _ = try await clear.value

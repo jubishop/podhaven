@@ -114,11 +114,10 @@ enum CacheHelpers {
     )
   }
 
-  static func waitForCancelled(_ taskID: URLSessionDownloadTask.ID) async throws {
-    try await Wait.until(
-      { await session.downloadTasks()[id: taskID]?.isCancelled() == true },
-      { "Task \(taskID) is not cancelled" }
-    )
+  // Awaits the cancellation instead of a poll budget, so callers need a time limit.
+  static func awaitCancelled(_ taskID: URLSessionDownloadTask.ID) async throws {
+    let task = try #require(await session.downloadTasks()[id: taskID])
+    try await task.cancelledLatch.wait()
   }
 
   // MARK: - Progress Status

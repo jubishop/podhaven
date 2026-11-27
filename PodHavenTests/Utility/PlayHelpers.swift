@@ -259,6 +259,16 @@ enum PlayHelpers {
     )
   }
 
+  // Awaits the broadcast instead of a poll budget, so callers need a time limit.
+  static func awaitStatus(_ status: PlaybackStatus) async throws {
+    for await current in sharedState.$playbackStatus.stream() where current == status {
+      return
+    }
+    throw TestError.waitUntilFailure(
+      "Status is: \(sharedState.playbackStatus), Expected: \(status)"
+    )
+  }
+
   static func waitForPlayRate(_ rate: Float) async throws {
     try await Wait.until(
       { Container.shared.sharedState().playRate == rate },
