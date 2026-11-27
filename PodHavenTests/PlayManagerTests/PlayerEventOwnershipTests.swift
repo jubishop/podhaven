@@ -169,23 +169,17 @@ import Testing
 
   @Test("end notification from retired item cannot finish replacement")
   func retiredEndNotificationCannotFinishReplacement() async throws {
-    let notificationSource = AcknowledgingNotificationSource()
-    Container.shared.notifications.context(.test) {
-      { name in notificationSource.stream(for: name) }
-    }
-
     let (retiredEpisode, replacementEpisode) = try await Create.twoPodcastEpisodes()
     let (nextEpisode, followingEpisode) = try await Create.twoPodcastEpisodes()
     let fakeRepo = try #require(repo as? FakeRepo)
+    let notifier = Container.shared.notifier()
     let endNotification = AVPlayerItem.didPlayToEndTimeNotification
 
     try await playManager.load(retiredEpisode)
     let retiredItem = try #require(avPlayer.current as? FakeAVPlayerItem)
-    await notificationSource.waitForStreamRequest(for: endNotification)
 
     try await playManager.load(replacementEpisode)
     let replacementItem = try #require(avPlayer.current as? FakeAVPlayerItem)
-    await notificationSource.waitForStreamRequest(for: endNotification)
     try await queue.replace([nextEpisode.id, followingEpisode.id])
     let nextEpisodeObserved = AsyncSemaphore(value: 0)
     let followingEpisodeObserved = AsyncSemaphore(value: 0)
@@ -206,18 +200,17 @@ import Testing
       name: endNotification,
       object: retiredItem
     )
-    notificationSource.continuation(for: endNotification).yield(retiredNotification)
+    notifier.continuation(for: endNotification).yield(retiredNotification)
 
     nonisolated(unsafe) let replacementNotification = Notification(
       name: endNotification,
       object: replacementItem
     )
-    notificationSource.continuation(for: endNotification).yield(replacementNotification)
+    notifier.continuation(for: endNotification).yield(replacementNotification)
 
     fakeRepo.clearAllCalls()
     playManager.startStreamConsumers()
     await nextEpisodeObserved.wait()
-    await notificationSource.waitForStreamRequest(for: endNotification)
     let followingEpisodePlaying = AsyncSemaphore(value: 0)
     let playbackStatusStream = sharedState.$playbackStatus.stream()
     let playbackStatusTask = Task {
@@ -234,7 +227,7 @@ import Testing
       name: endNotification,
       object: nextItem
     )
-    notificationSource.continuation(for: endNotification).yield(nextNotification)
+    notifier.continuation(for: endNotification).yield(nextNotification)
     await followingEpisodeObserved.wait()
     await followingEpisodePlaying.wait()
 
@@ -242,47 +235,5 @@ import Testing
       .filter { $0.methodName == "markFinished" }
       .map(\.parameters)
     #expect(finishedEpisodeIDs == [replacementEpisode.id, nextEpisode.id])
-  }
-}
-
-private final class AcknowledgingNotificationSource: Sendable {
-  private struct Channel {
-    let stream: AsyncStream<Notification>
-    let continuation: AsyncStream<Notification>.Continuation
-  }
-
-  private let channels = ThreadSafe<[Notification.Name: Channel]>([:])
-  private let streamRequests = ThreadSafe<[Notification.Name: AsyncSemaphore]>([:])
-
-  func stream(for name: Notification.Name) -> AsyncStream<Notification> {
-    let stream = channels { channels in
-      let (stream, continuation) = AsyncStream.makeStream(of: Notification.self)
-      channels[name] = Channel(stream: stream, continuation: continuation)
-      return stream
-    }
-    streamRequest(for: name).signal()
-    return stream
-  }
-
-  func continuation(for name: Notification.Name) -> AsyncStream<Notification>.Continuation {
-    guard let channel = channels()[name] else {
-      Assert.fatal("Notification stream for \(name) was never requested")
-    }
-    return channel.continuation
-  }
-
-  func waitForStreamRequest(for name: Notification.Name) async {
-    await streamRequest(for: name).wait()
-  }
-
-  private func streamRequest(for name: Notification.Name) -> AsyncSemaphore {
-    streamRequests { requests in
-      if let request = requests[name] {
-        return request
-      }
-      let request = AsyncSemaphore(value: 0)
-      requests[name] = request
-      return request
-    }
   }
 }

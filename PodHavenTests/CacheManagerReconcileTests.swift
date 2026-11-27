@@ -90,4 +90,26 @@ struct CacheManagerReconcileTests {
     _ = try await finalization
     _ = try await CacheHelpers.waitForCached(finalizing.id)
   }
+
+  // A recreated background session still lists a finished task whose events it
+  // hasn't delivered yet; reconciliation must leave that row for the delivery.
+  @Test("start() keeps a relaunched download that the session delivers afterward")
+  func keepsRelaunchedDownloadDeliveredAfterReconcile() async throws {
+    let restored = try await Create.podcastEpisode()
+    let restoredTaskID = try await CacheHelpers.downloadToCache(restored.id)
+    let observerBarrier = try await Create.podcastEpisode()
+
+    Container.shared.cacheManager.reset(.scope)
+    let relaunchedCacheManager = Container.shared.cacheManager()
+
+    sharedState.currentEpisodeID = observerBarrier.id
+    relaunchedCacheManager.start()
+    _ = try await CacheHelpers.waitForDownloadTask(observerBarrier.id)
+
+    let reconciledEpisode = try await repo.episode(restored.id)
+    #expect(reconciledEpisode?.downloading == true)
+
+    _ = try await CacheHelpers.simulateBackgroundFinish(restoredTaskID)
+    _ = try await CacheHelpers.waitForCached(restored.id)
+  }
 }

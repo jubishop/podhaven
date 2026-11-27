@@ -5,9 +5,10 @@ status: current
 # OPML import parse diagnostics
 
 `PodcastOPML.parse(_:)` (`PodHaven/Feed/Models/PodcastOPML.swift`) reports a
-parse failure to Sentry after the download passes session validation. Download
-failures are outside this path. The error is rethrown unchanged, so the import
-alert and `OPMLViewModel` behave as before.
+parse failure to Sentry after it reads the local file. A remote URL, a file over
+`ShareExtensionContract.opmlByteLimit`, and a failed read are outside this path.
+The error is rethrown unchanged, so the import alert and `OPMLViewModel` behave
+as before.
 
 Before decoding, `parse(_:)` rejects a file whose elements nest deeper than
 `maximumNestingDepth` with `PodcastOPMLError.tooDeeplyNested`. XMLCoder decodes

@@ -13,9 +13,9 @@ import Testing
 // main-thread work cannot count against its budgets.
 @Suite("of large OPML imports", .container)
 @MainActor struct OPMLLargeImportTests {
+  @DynamicInjected(\.fileManager) private var fileManager
   @DynamicInjected(\.opmlViewModel) private var opmlViewModel
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
-  @DynamicInjected(\.podcastOPMLSession) private var podcastOPMLSession
   @DynamicInjected(\.repo) private var repo
 
   private static let feedCount = 5_000
@@ -98,11 +98,11 @@ import Testing
   private func respondToFeeds(
     after delay: @escaping @Sendable (Int) async throws -> Void
   ) async throws {
-    let opmlSession = try #require(podcastOPMLSession as? FakeDataFetchable)
+    let fakeFileManager = try #require(fileManager as? FakeFileManager)
     let feedSession = try #require(podcastFeedSession as? FakeDataFetchable)
-    await opmlSession.respond(
-      to: Self.opmlURL,
-      data: SyntheticFeed.opml(feedCount: Self.feedCount)
+    try await fakeFileManager.writeData(
+      SyntheticFeed.opml(feedCount: Self.feedCount),
+      to: Self.opmlURL
     )
     let requests = ThreadSafe(0)
     await SyntheticFeed.respond(feedSession, episodes: Self.episodesPerFeed) { _ in
