@@ -107,8 +107,17 @@ where Item.ID: Sendable {
 
   @ObservationIgnored private var entriesTask: Task<Void, Never>?
 
+  // Returns once filteredEntries reflects the latest entries, sort, filter,
+  // and search terms, including any update scheduled while it waits.
+  func waitForFilteredEntries() async {
+    while let entriesTask {
+      await entriesTask.value
+    }
+  }
+
   private func scheduleEntriesUpdate() {
     entriesTask?.cancel()
+    entriesTask = nil
 
     guard !baselineEntries.isEmpty else {
       _allEntries = []
@@ -135,10 +144,11 @@ where Item.ID: Sendable {
 
       self._allEntries = allEntries
       self.filteredEntries = filteredEntries
+      self.entriesTask = nil
     }
   }
 
-  private nonisolated static func computeEntries(
+  @concurrent private nonisolated static func computeEntries(
     baselineEntries: IdentifiedArrayOf<Item>,
     sortMethod: (@Sendable (Item, Item) -> Bool)?,
     filterMethod: (@Sendable (Item) -> Bool)?,
