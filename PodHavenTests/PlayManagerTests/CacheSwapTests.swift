@@ -15,6 +15,17 @@ import Testing
     case pause, buffering, seek
   }
 
+  enum CacheFailure: CaseIterable {
+    case badContent, transient
+
+    var error: any Error {
+      switch self {
+      case .badContent: AVError(.fileFormatNotRecognized)
+      case .transient: CocoaError(.fileReadNoPermission)
+      }
+    }
+  }
+
   init() {
     Container.shared.stateManager().start()
     Container.shared.cacheManager().start()
@@ -36,19 +47,27 @@ import Testing
     return (try #require(try await Container.shared.repo().podcastEpisode(episode.id)), player)
   }
 
-  @Test("remote fallback preserves the active item and transport", arguments: Trigger.allCases)
-  func remoteFallbackPreservesStream(trigger: Trigger) async throws {
+  @Test(
+    "a failed cached load keeps the active stream without loading it again",
+    arguments: Trigger.allCases,
+    CacheFailure.allCases
+  )
+  func failedCacheLoadPreservesStream(trigger: Trigger, failure: CacheFailure) async throws {
     try await LogCapture.withSink { sink in
       let (episode, player) = try await streaming()
       let cachedURL = try #require(episode.episode.cachedURL)
+      let mediaURL = episode.episode.mediaURL
       let originalItem = try #require(player.current)
       let podPlayer = Container.shared.podAVPlayer()
+      let repo = Container.shared.repo()
       let originalSource = podPlayer.playbackSnapshot().source
       let originalSeeks = player.seekRequests.count
       let loader = Container.shared.fakeEpisodeAssetLoader()
       let cachedLoads = await loader.responseCount(for: cachedURL)
-      let remoteLoads = await loader.responseCount(for: episode.episode.mediaURL)
-      await loader.respond(to: cachedURL, error: AVError(.fileFormatNotRecognized))
+      let remoteLoads = await loader.responseCount(for: mediaURL)
+      let remoteDuration = CMTime.seconds(episode.episode.duration.seconds + 60)
+      await loader.respond(to: cachedURL, error: failure.error)
+      await loader.respond(to: mediaURL, data: (true, remoteDuration))
 
       switch trigger {
       case .pause:
@@ -59,12 +78,14 @@ import Testing
         await Container.shared.playManager().seek(to: .seconds(20))
       }
       try await Wait.until {
-        sink.captured()
-          .contains {
-            $0.message == "swapToCached: swapped to cached version"
-              || $0.message
-                == "swapToCached: keeping active stream because loaded item is not local"
-          }
+        await loader.responseCount(for: mediaURL) > remoteLoads
+          || sink.captured()
+            .contains {
+              $0.message == "swapToCached: swapped to cached version"
+                || $0.message.hasPrefix(
+                  "swapToCached: keeping active stream because the cached asset is unavailable"
+                )
+            }
       } _: {
         "Cache swap did not finish"
       }
@@ -86,20 +107,33 @@ import Testing
       case .seek: #expect(player.timeControlStatus == .playing)
       }
       #expect(!sink.captured().contains { $0.message == "swapToCached: swapped to cached version" })
-      #expect(try await Container.shared.repo().episode(episode.id)?.cachedURL == nil)
-      let files = try #require(Container.shared.fileManager() as? FakeFileManager)
-      #expect(!files.fileExists(at: cachedURL.rawValue))
-      try await CacheHelpers.waitForDownloading(episode.id)
-      _ = try await CacheHelpers.waitForDownloadTask(episode.id)
       #expect(await loader.responseCount(for: cachedURL) == cachedLoads + 1)
-      #expect(await loader.responseCount(for: episode.episode.mediaURL) == remoteLoads + 1)
+      #expect(await loader.responseCount(for: mediaURL) == remoteLoads)
+      #expect(try await repo.episode(episode.id)?.duration == episode.episode.duration)
+      let files = try #require(Container.shared.fileManager() as? FakeFileManager)
+      switch failure {
+      case .badContent:
+        #expect(try await repo.episode(episode.id)?.cachedURL == nil)
+        #expect(!files.fileExists(at: cachedURL.rawValue))
+        try await CacheHelpers.waitForDownloading(episode.id)
+        _ = try await CacheHelpers.waitForDownloadTask(episode.id)
+      case .transient:
+        let stored = try #require(try await repo.episode(episode.id))
+        #expect(stored.cachedURL == cachedURL)
+        #expect(!stored.downloading)
+        #expect(files.fileExists(at: cachedURL.rawValue))
+      }
 
       await Container.shared.playManager().seek(to: .seconds(24))
       try await PlayHelpers.waitFor(.seconds(24))
       try await PlayHelpers.waitForPeriodicTimeObserver()
       #expect(player.current === originalItem)
-      #expect(await loader.responseCount(for: cachedURL) == cachedLoads + 1)
-      #expect(await loader.responseCount(for: episode.episode.mediaURL) == remoteLoads + 1)
+      #expect(
+        await loader.responseCount(for: cachedURL)
+          == cachedLoads + (failure == .transient ? 2 : 1)
+      )
+      #expect(await loader.responseCount(for: mediaURL) == remoteLoads)
+      #expect(try await repo.episode(episode.id)?.duration == episode.episode.duration)
     }
   }
 

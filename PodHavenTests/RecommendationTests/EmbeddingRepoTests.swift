@@ -54,6 +54,7 @@ class EmbeddingRepoTests {
       vector: UnsavedEpisodeEmbedding.vectorData(from: [1.0, 0.0, 0.0]),
       sourceHash: "test-hash",
       embeddingRevision: revision,
+      recipeVersion: EmbeddingService.recipeVersion,
       dimension: 3,
       verificationDate: Date()
     )
@@ -608,6 +609,7 @@ class EmbeddingRepoTests {
       vector: UnsavedEpisodeEmbedding.vectorData(from: [1.0, 0.0, 0.0]),
       sourceHash: "test-hash",
       embeddingRevision: 1,
+      recipeVersion: EmbeddingService.recipeVersion,
       dimension: 3,
       verificationDate: Date()
     )
@@ -768,6 +770,7 @@ class EmbeddingRepoTests {
         vector: UnsavedEpisodeEmbedding.vectorData(from: [1.0, 0.0, 0.0]),
         sourceHash: "test-hash",
         embeddingRevision: 1,
+        recipeVersion: EmbeddingService.recipeVersion,
         dimension: 3,
         verificationDate: verificationDate
       )

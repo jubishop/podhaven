@@ -299,6 +299,61 @@ import Testing
     }
   }
 
+  @Test("an unreadable download keeps the paused stream without loading it again")
+  func unreadableDownloadKeepsStream() async throws {
+    try await LogCapture.withSink { sink in
+      let episode = try await Create.podcastEpisode()
+      let manager = Container.shared.playManager()
+      try await manager.play(episode)
+      try await PlayHelpers.waitFor(.playing)
+      let player = Container.shared.avPlayer() as! FakeAVPlayer
+      let originalItem = try #require(player.current)
+      await manager.pause()
+      let download = try await CacheHelpers.waitForDownloadTask(episode.id)
+      try await CacheHelpers.simulateBackgroundFinish(download)
+      let cachedURL = try await CacheHelpers.waitForCached(episode.id)
+      try await Wait.until(maxAttempts: 200) { @MainActor in
+        Container.shared.sharedState().onDeck?.cacheStatus == .cached
+      } _: {
+        "On-deck episode was not marked cached"
+      }
+      let repo = Container.shared.repo()
+      let mediaURL = episode.episode.mediaURL
+      let storedDuration = try #require(try await repo.episode(episode.id)).duration
+      let loader = Container.shared.fakeEpisodeAssetLoader()
+      let cachedLoads = await loader.responseCount(for: cachedURL)
+      let remoteLoads = await loader.responseCount(for: mediaURL)
+      await loader.respond(to: cachedURL, error: CocoaError(.fileReadNoPermission))
+      await loader.respond(to: mediaURL, data: (true, .seconds(storedDuration.seconds + 60)))
+
+      Container.shared.userSettings().$silenceMode.new(.gentle)
+      try await Wait.until(maxAttempts: 200) {
+        await loader.responseCount(for: mediaURL) > remoteLoads
+          || sink.captured()
+            .contains {
+              $0.message.hasPrefix(
+                "activateCachedSilence: keeping active stream because the cached asset is unavailable"
+              )
+            }
+      } _: {
+        "Switching to the unreadable download did not finish"
+      }
+
+      #expect(await loader.responseCount(for: cachedURL) > cachedLoads)
+      #expect(await loader.responseCount(for: mediaURL) == remoteLoads)
+      let stored = try #require(try await repo.episode(episode.id))
+      #expect(stored.duration == storedDuration)
+      #expect(stored.cachedURL == cachedURL)
+      #expect(player.current === originalItem)
+      #expect(!Container.shared.podAVPlayer().playbackSnapshot().isFromCache)
+      #expect(player.timeControlStatus == .paused)
+      #expect(
+        !sink.captured()
+          .contains { $0.message.hasPrefix("Could not activate cached silence playback") }
+      )
+    }
+  }
+
   private func changeRoute(
     to outputs: [AVAudioSession.Port],
     reason: AVAudioSession.RouteChangeReason
