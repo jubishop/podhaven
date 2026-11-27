@@ -51,6 +51,8 @@ if command == ["issue", "unresolve"]:
     state = {"status": "unresolved", "statusDetails": {}}
 elif command == ["issue", "archive"] and args[3:] == ["--until", "auto"]:
     state = {"status": "ignored", "statusDetails": {}}
+elif command == ["issue", "resolve"] and args[3:] == []:
+    state = {"status": "resolved", "statusDetails": {}}
 elif command == ["issue", "resolve"] and args[3:] == ["--in", "@next"]:
     if mode == "next-fails":
         sys.exit("Error: Sentry request failed.")
@@ -118,8 +120,15 @@ with open(state_path, "w") as stream:
         self.assertEqual(self.final_state()["status"], "ignored")
         self.assertIn("archived until it escalates", result.stdout)
 
+    def test_resolve_resolves_a_feedback_item_plainly(self):
+        result = self.close("7001", "--resolve")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.writes(), [["issue", "resolve", ISSUE]])
+        self.assertEqual(self.final_state(), {"status": "resolved", "statusDetails": {}})
+        self.assertIn("7001 is resolved.", result.stdout)
+
     def test_a_closure_sentry_did_not_record_fails(self):
-        for arguments in (("--commit", COMMIT), ("--next",), ("--archive",)):
+        for arguments in (("--commit", COMMIT), ("--next",), ("--archive",), ("--resolve",)):
             with self.subTest(arguments=arguments):
                 result = self.close("7001", *arguments, mode="ignored-writes")
                 self.assertNotEqual(result.returncode, 0)
@@ -137,7 +146,8 @@ with open(state_path, "w") as stream:
 
     def test_invalid_arguments_change_nothing(self):
         for arguments in ((), ("7001",), ("PODHAVEN-6J", "--next"), ("7001", "--next", "--archive"),
-                          ("7001", "--commit", COMMIT[:8]), ("7001", "--commit"), ("7001", "8001", "--next")):
+                          ("7001", "--resolve", "--next"), ("7001", "--commit", COMMIT[:8]), ("7001", "--commit"),
+                          ("7001", "8001", "--next")):
             with self.subTest(arguments=arguments):
                 result = self.close(*arguments)
                 self.assertNotEqual(result.returncode, 0)
@@ -146,7 +156,7 @@ with open(state_path, "w") as stream:
     def test_help_names_every_mode(self):
         result = self.close("--help")
         self.assertEqual(result.returncode, 0, result.stderr)
-        for mode in ("--commit", "--next", "--archive"):
+        for mode in ("--commit", "--next", "--archive", "--resolve"):
             self.assertIn(mode, result.stdout)
         self.assertFalse(self.calls.exists())
 
