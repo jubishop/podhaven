@@ -440,8 +440,8 @@ class PodcastDetailViewModel:
   var tags: IdentifiedArrayOf<Tag> { state.savedSeries?.tags ?? [] }
   var allTags: IdentifiedArrayOf<Tag> { sharedState.tags }
 
-  var mostRecentEpisodeDate: Date {
-    episodeList.allEntries.map(\.pubDate).max() ?? Date.epoch
+  var mostRecentEpisodeDate: Date? {
+    episodeList.allEntries.map(\.pubDate).max()
   }
 
   // MARK: - Share

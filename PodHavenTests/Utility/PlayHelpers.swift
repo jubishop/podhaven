@@ -102,6 +102,76 @@ enum PlayHelpers {
     return podcastEpisode
   }
 
+  // MARK: - Interruption and Route Helpers
+
+  static func beginAudioInterruption() async throws {
+    let pauseCount = avPlayer.pauseCallCount
+    Container.shared.notifier()
+      .continuation(for: AVAudioSession.interruptionNotification)
+      .yield(
+        Notification(
+          name: AVAudioSession.interruptionNotification,
+          userInfo: [
+            AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.began.rawValue
+          ]
+        )
+      )
+    try await Wait.until(
+      { @MainActor in avPlayer.pauseCallCount > pauseCount },
+      { "Expected the interruption to pause playback" }
+    )
+  }
+
+  static func endAudioInterruption(shouldResume: Bool) {
+    let options: AVAudioSession.InterruptionOptions = shouldResume ? .shouldResume : []
+    Container.shared.notifier()
+      .continuation(for: AVAudioSession.interruptionNotification)
+      .yield(
+        Notification(
+          name: AVAudioSession.interruptionNotification,
+          userInfo: [
+            AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.ended.rawValue,
+            AVAudioSessionInterruptionOptionKey: options.rawValue,
+          ]
+        )
+      )
+  }
+
+  // Loses the route of active playback, which AVPlayer answers by pausing.
+  static func loseAudioRoute(playerPausesFirst: Bool = false) async throws {
+    try await waitFor(.playing)
+    let revision = playManager.playbackRequestRevision
+    if playerPausesFirst {
+      avPlayer.pause()
+      try await waitFor(.paused)
+    }
+    try await sendAudioRouteLoss()
+    if !playerPausesFirst { avPlayer.pause() }
+    try await Wait.until(
+      { @MainActor in playManager.playbackRequestRevision != revision },
+      { "Expected the route-loss pause to count as the latest playback request" }
+    )
+  }
+
+  static func sendAudioRouteLoss() async throws {
+    let routeChangeID = await playManager.latestAudioRouteChange?.id
+    Container.shared.notifier()
+      .continuation(for: AVAudioSession.routeChangeNotification)
+      .yield(
+        Notification(
+          name: AVAudioSession.routeChangeNotification,
+          userInfo: [
+            AVAudioSessionRouteChangeReasonKey:
+              AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue
+          ]
+        )
+      )
+    try await Wait.until(
+      { @MainActor in await playManager.latestAudioRouteChange?.id != routeChangeID },
+      { "Expected the route change to be handled" }
+    )
+  }
+
   // MARK: - Audio Session Helpers
 
   static let audioSessionRetryDelays: [Duration] = [
@@ -186,6 +256,16 @@ enum PlayHelpers {
         Expected: \(status)
         """
       }
+    )
+  }
+
+  // Awaits the broadcast instead of a poll budget, so callers need a time limit.
+  static func awaitStatus(_ status: PlaybackStatus) async throws {
+    for await current in sharedState.$playbackStatus.stream() where current == status {
+      return
+    }
+    throw TestError.waitUntilFailure(
+      "Status is: \(sharedState.playbackStatus), Expected: \(status)"
     )
   }
 

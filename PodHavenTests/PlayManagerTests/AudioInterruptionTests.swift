@@ -13,12 +13,15 @@ import Testing
 @Suite("of audio interruption tests", .container)
 @MainActor struct AudioInterruptionTests {
   enum PlayingInterruption: CaseIterable {
-    case reported, playerPausedFirst, reportedTwice, itemFailedDuring
+    case reported, playerPausedFirst, reportedTwice, itemFailedDuring, routeLostWhilePlaying
   }
   enum DeclinedResume: CaseIterable {
     case pausedBefore, pausedDuring, toggledDuring, earlierEndDeclined
   }
   enum PendingPlayback: CaseIterable { case selection, advanceResolving, advanceLoading }
+  enum SystemPause: CaseIterable {
+    case routeLost, routeLostAfterPlayerPaused, routeLostAfterUnendedInterruption
+  }
 
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.notifier) private var notifier
@@ -45,17 +48,26 @@ import Testing
 
     switch interruption {
     case .reported:
-      try await beginInterruption()
+      try await PlayHelpers.beginAudioInterruption()
     case .playerPausedFirst:
       // AVPlayer pauses itself for an interruption, possibly before its notification arrives.
       avPlayer.pause()
       try await PlayHelpers.waitFor(.paused)
-      try await beginInterruption()
+      try await PlayHelpers.beginAudioInterruption()
     case .reportedTwice:
-      try await beginInterruption()
-      try await beginInterruption()
+      try await PlayHelpers.beginAudioInterruption()
+      try await PlayHelpers.beginAudioInterruption()
+    case .routeLostWhilePlaying:
+      // A route whose loss leaves AVPlayer playing keeps its resume, even
+      // through a later pause AVPlayer makes before an interruption arrives.
+      try await PlayHelpers.sendAudioRouteLoss()
+      let associationWindow = await playManager.routeChangeAssociationWindow
+      Container.shared.fakeDate().freeze(at: Date().addingTimeInterval(associationWindow + 1))
+      avPlayer.pause()
+      try await PlayHelpers.waitFor(.paused)
+      try await PlayHelpers.beginAudioInterruption()
     case .itemFailedDuring:
-      try await beginInterruption()
+      try await PlayHelpers.beginAudioInterruption()
       let failedItem = try #require(avPlayer.current as? FakeAVPlayerItem)
       failedItem.setStatus(.failed)
       try await Wait.until(
@@ -73,7 +85,7 @@ import Testing
       value: 0.0
     )
 
-    endInterruption(shouldResume: true)
+    PlayHelpers.endAudioInterruption(shouldResume: true)
     try await PlayHelpers.waitFor(.playing)
     try await PlayHelpers.waitForNowPlayingInfo(
       key: MPNowPlayingInfoPropertyPlaybackRate,
@@ -94,25 +106,55 @@ import Testing
     switch declined {
     case .pausedBefore:
       try await PlayHelpers.pause()
-      try await beginInterruption()
+      try await PlayHelpers.beginAudioInterruption()
     case .pausedDuring:
-      try await beginInterruption()
+      try await PlayHelpers.beginAudioInterruption()
       await playManager.pause()
     case .toggledDuring:
-      try await beginInterruption()
+      try await PlayHelpers.beginAudioInterruption()
       await playManager.toggle()
       await playManager.toggle()
     case .earlierEndDeclined:
-      try await beginInterruption()
-      endInterruption(shouldResume: false)
-      try await beginInterruption()
+      try await PlayHelpers.beginAudioInterruption()
+      PlayHelpers.endAudioInterruption(shouldResume: false)
+      try await PlayHelpers.beginAudioInterruption()
     }
     let playCount = avPlayer.playCallCount
 
-    endInterruption(shouldResume: true)
+    PlayHelpers.endAudioInterruption(shouldResume: true)
     // Notifications are handled in order, so a later interruption's pause shows
     // the end was fully handled.
-    try await beginInterruption()
+    try await PlayHelpers.beginAudioInterruption()
+
+    #expect(avPlayer.playCallCount == playCount)
+  }
+
+  @Test(
+    "an interruption ending with shouldResume leaves a system pause paused",
+    arguments: SystemPause.allCases
+  )
+  func interruptionLeavesSystemPausePaused(pause: SystemPause) async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+
+    switch pause {
+    case .routeLost:
+      try await PlayHelpers.loseAudioRoute()
+    case .routeLostAfterPlayerPaused:
+      try await PlayHelpers.loseAudioRoute(playerPausesFirst: true)
+    case .routeLostAfterUnendedInterruption:
+      // iOS doesn't promise an end for every interruption that begins.
+      try await PlayHelpers.beginAudioInterruption()
+      try await PlayHelpers.play()
+      try await PlayHelpers.loseAudioRoute()
+    }
+    let playCount = avPlayer.playCallCount
+
+    try await PlayHelpers.beginAudioInterruption()
+    PlayHelpers.endAudioInterruption(shouldResume: true)
+    try await PlayHelpers.beginAudioInterruption()
 
     #expect(avPlayer.playCallCount == playCount)
   }
@@ -161,13 +203,13 @@ import Testing
     defer { selection?.cancel() }
     await phaseStarted.wait()
 
-    try await beginInterruption()
+    try await PlayHelpers.beginAudioInterruption()
     finishPhase.signal()
     if let selection { #expect(try await selection.value == .superseded) }
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
     try await PlayHelpers.waitFor(.paused)
 
-    endInterruption(shouldResume: true)
+    PlayHelpers.endAudioInterruption(shouldResume: true)
     try await PlayHelpers.waitFor(.playing)
   }
 
@@ -177,7 +219,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
     try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
-    try await beginInterruption()
+    try await PlayHelpers.beginAudioInterruption()
     try await PlayHelpers.waitFor(.paused)
     let playCount = avPlayer.playCallCount
 
@@ -193,43 +235,10 @@ import Testing
     )
     // Notifications are handled in order, so a later interruption's pause shows
     // the malformed ones were handled.
-    try await beginInterruption()
+    try await PlayHelpers.beginAudioInterruption()
     #expect(avPlayer.playCallCount == playCount)
 
-    endInterruption(shouldResume: true)
+    PlayHelpers.endAudioInterruption(shouldResume: true)
     try await PlayHelpers.waitFor(.playing)
-  }
-
-  // MARK: - Helpers
-
-  private func beginInterruption() async throws {
-    let pauseCount = avPlayer.pauseCallCount
-    notifier.continuation(for: AVAudioSession.interruptionNotification)
-      .yield(
-        Notification(
-          name: AVAudioSession.interruptionNotification,
-          userInfo: [
-            AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.began.rawValue
-          ]
-        )
-      )
-    try await Wait.until(
-      { @MainActor in avPlayer.pauseCallCount > pauseCount },
-      { "Expected the interruption to pause playback" }
-    )
-  }
-
-  private func endInterruption(shouldResume: Bool) {
-    let options: AVAudioSession.InterruptionOptions = shouldResume ? .shouldResume : []
-    notifier.continuation(for: AVAudioSession.interruptionNotification)
-      .yield(
-        Notification(
-          name: AVAudioSession.interruptionNotification,
-          userInfo: [
-            AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.ended.rawValue,
-            AVAudioSessionInterruptionOptionKey: options.rawValue,
-          ]
-        )
-      )
   }
 }

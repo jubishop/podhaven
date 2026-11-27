@@ -66,14 +66,7 @@ extension PlayManager {
         "event=mediaServicesResetItemFailure outcome=preservingPlayback episodeID=\(episodeID)"
       )
     case .failed(.other):
-      let intent: PlaybackFailureIntent
-      if case .play(let pendingEpisodeID) = pendingPlaybackRequest, pendingEpisodeID == episodeID {
-        intent = .play
-      } else if await podAVPlayer.playbackRequestID == playbackRequestRevision {
-        intent = .play
-      } else {
-        intent = .pause
-      }
+      let intent: PlaybackFailureIntent = await playbackRequested() ? .play : .pause
       Self.log.warning(
         "handleItemStatusChange: item failed for \(episodeID), recovering with intent: \(intent.rawValue)"
       )
@@ -397,6 +390,7 @@ extension PlayManager {
         )
 
         guard sharedState.onDeck != nil else { continue }
+        if reason == .oldDeviceUnavailable { recordRouteLoss() }
         await podAVPlayer.savePosition()
         await podAVPlayer.audioRouteChanged()
       }
@@ -671,6 +665,7 @@ extension PlayManager {
           Assert.fatal("\(controlStatus) from PodAVPlayer?")
         }
         await handleWidgetRouteRecoveryStatus(event)
+        await pairRouteLoss(with: controlStatus)
       }
     }
 

@@ -101,6 +101,20 @@ import Testing
     #expect(viewModel.saved)
   }
 
+  @Test("a podcast with no episodes has no latest-episode date while loading or once empty")
+  func noEpisodesHaveNoMostRecentEpisodeDate() async throws {
+    let viewModel = try unsavedViewModel()
+    let feedURL = viewModel.podcast.feedURL.rawValue
+    await feedSession.respond(to: feedURL, data: PreviewFeed.rss(for: feedURL, episodeCount: 0))
+    #expect(viewModel.episodesState == .loading)
+    #expect(viewModel.mostRecentEpisodeDate == nil)
+
+    try await finishFirstLoad(viewModel)
+
+    #expect(viewModel.episodesState == .empty)
+    #expect(viewModel.mostRecentEpisodeDate == nil)
+  }
+
   // MARK: - Helpers
 
   private func unsavedViewModel() throws -> PodcastDetailViewModel {

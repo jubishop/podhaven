@@ -123,7 +123,10 @@ import Testing
     #expect(avPlayer.seekRequests.filter { $0 == startCMTime }.count == 1)
   }
 
-  @Test("a shared start time superseded by other playback does not seek on the next appear")
+  @Test(
+    "a shared start time superseded by other playback does not seek on the next appear",
+    .timeLimit(.minutes(5))
+  )
   func sharedStartTimeSupersededByOtherPlaybackDoesNotSeekOnNextAppear() async throws {
     stateManager.start()
     PlayHelpers.setupCommandHandling()
@@ -144,7 +147,7 @@ import Testing
 
     try await LogCapture.withSink { sink in
       viewModel.appear()
-      try await PlayHelpers.waitFor(.loading(sharedEpisode.episode.title))
+      try await PlayHelpers.awaitStatus(.loading(sharedEpisode.episode.title))
 
       try await playManager.load(otherEpisode)
       try await Wait.until(

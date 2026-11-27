@@ -473,7 +473,7 @@ import Testing
   }
 
   @Test(
-    "an unsuccessful recovery becomes stably paused after one timeout",
+    "an unsuccessful recovery stays paused after one timeout, even through an interruption",
     arguments: [false, true]
   )
   func unsuccessfulRecoveryBecomesPaused(hasRecentRouteChange: Bool) async throws {
@@ -511,6 +511,13 @@ import Testing
       #expect(
         sink.captured().count { $0.message.contains("event=widgetRouteRecoveryAttempt") } == 1
       )
+
+      try await PlayHelpers.beginAudioInterruption()
+      PlayHelpers.endAudioInterruption(shouldResume: true)
+      // Notifications are handled in order, so a later interruption's pause shows
+      // the end was fully handled.
+      try await PlayHelpers.beginAudioInterruption()
+      #expect(avPlayer.playCallCount == 2)
     }
   }
 
