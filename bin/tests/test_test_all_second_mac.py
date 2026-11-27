@@ -92,6 +92,12 @@ assert sys.argv[1:] == ['isactive'], sys.argv
 sys.exit(0 if os.environ.get('TEST_FILEVAULT') else 1)
 '''
 HOST = "mini"
+# Runs a command with SIGINT's default action, which Python answers by raising KeyboardInterrupt.
+ANSWER_SIGINT = r'''
+import os, signal, sys
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+os.execv(sys.argv[1], sys.argv[1:])
+'''
 # Holds the My Mac test lock as HOLDER until a line arrives on standard input.
 MY_MAC_LOCK = r'''
 import sys
@@ -332,8 +338,10 @@ class SecondMacTests(TestAllFixture):
         self.assertEqual(hang_guard.wait(waiter), -signal.SIGKILL)
         self.assertEqual(later.stderr.readline(), "Next in line for a validation slot\n")
         self.assertEqual(len(self.queue()), 1)
-        # A run that is interrupted removes its own ticket as it exits.
-        interrupted = self.start_all(self.repo, PODHAVEN_VALIDATION_SLOTS="1")
+        # A run that is interrupted removes its own ticket as it exits. A shell's background job inherits SIGINT
+        # ignored, so the run starts answering it either way.
+        interrupted = self.start([sys.executable, "-B", "-c", ANSWER_SIGINT, sys.executable, "-B",
+                                  str(self.repo / "bin/test-all")], PODHAVEN_VALIDATION_SLOTS="1")
         self.assertTrue(interrupted.stderr.readline().startswith("Waiting for the second Mac's lane, held by "))
         self.assertEqual(len(self.queue()), 2)
         os.kill(interrupted.pid, signal.SIGINT)
