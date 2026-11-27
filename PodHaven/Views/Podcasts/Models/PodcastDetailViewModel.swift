@@ -412,7 +412,30 @@ class PodcastDetailViewModel:
   // nil means the row falls back to the plain date icon.
   private(set) var resolvedFreshnessCadence: FreshnessCadence?
 
-  var episodesLoaded: Bool { !episodeList.allEntries.isEmpty }
+  enum EpisodesState: Equatable {
+    case loading
+    case loaded
+    case empty
+    case failed(String)
+  }
+
+  // `episodeList` sorts off the main actor, so its entries can trail `state`;
+  // a finished load reads as loading until its episodes land.
+  var episodesState: EpisodesState {
+    if !episodeList.allEntries.isEmpty { return .loaded }
+    switch episodesLoad {
+    case .pending: return .loading
+    case .finished: return state.episodeCount == 0 ? .empty : .loading
+    case .failed(let message): return .failed(message)
+    }
+  }
+
+  var episodesLoaded: Bool {
+    switch episodesState {
+    case .loaded, .empty: return true
+    case .loading, .failed: return false
+    }
+  }
 
   var tags: IdentifiedArrayOf<Tag> { state.savedSeries?.tags ?? [] }
   var allTags: IdentifiedArrayOf<Tag> { sharedState.tags }
@@ -527,6 +550,13 @@ class PodcastDetailViewModel:
   private(set) var state: PodcastDetailState
   @ObservationIgnored private var stateRevision = 0
 
+  private enum EpisodesLoad {
+    case pending
+    case finished
+    case failed(String)
+  }
+  private var episodesLoad = EpisodesLoad.pending
+
   @ObservationIgnored private let lifecycle = DetailLifecycle()
 
   func appear() {
@@ -550,6 +580,19 @@ class PodcastDetailViewModel:
       Self.log.debug("performAppear: exiting, duration=\(duration)")
     }
 
+    if case .failed = episodesLoad { episodesLoad = .pending }
+    do {
+      try await loadSeries()
+    } catch {
+      if case .pending = episodesLoad, shouldShow(error) {
+        episodesLoad = .failed(ErrorKit.message(for: error))
+      }
+      throw error
+    }
+    episodesLoad = .finished
+  }
+
+  private func loadSeries() async throws {
     try Task.checkCancellation()
 
     let observationAlreadyActive = lifecycle.observationTask?.isCancelled == false
@@ -684,13 +727,14 @@ class PodcastDetailViewModel:
         try await loadPresentationFromFeed()
         try Task.checkCancellation()
         guard lifecycle.isOnScreen else { return }
+        episodesLoad = .finished
       }
     } catch {
       Self.log.caughtError("refreshSeries: failed for \(state.toString)", error)
-      guard lifecycle.isOnScreen, !Task.isCancelled, !(error is CancellationError),
-        (error as? URLError)?.code != .cancelled
-      else { return }
-      alert(ErrorKit.message(for: error))
+      guard shouldShow(error) else { return }
+      let message = ErrorKit.message(for: error)
+      if case .failed = episodesLoad { episodesLoad = .failed(message) }
+      alert(message)
     }
   }
 
@@ -821,6 +865,12 @@ class PodcastDetailViewModel:
   }
 
   // MARK: - Private Helpers
+
+  // Cancellation, as when the screen goes away, is no failure to show.
+  private func shouldShow(_ error: any Error) -> Bool {
+    lifecycle.isOnScreen && !Task.isCancelled && !(error is CancellationError)
+      && (error as? URLError)?.code != .cancelled
+  }
 
   private func transition(to newState: PodcastDetailState) async {
     stateRevision += 1
