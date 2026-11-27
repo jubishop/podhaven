@@ -338,17 +338,19 @@ struct PodcastDetailView: View {
 
   var metadataRow: some View {
     HStack {
-      if let cadence = viewModel.resolvedFreshnessCadence {
-        FreshnessMetadataItem(
-          cadence: cadence,
-          value: viewModel.mostRecentEpisodeDate.usShortWithTime,
-          style: .detailed
-        )
-      } else {
-        DetailedMetadataItem(
-          appIcon: .publishDate,
-          value: viewModel.mostRecentEpisodeDate.usShortWithTime
-        )
+      if let mostRecentEpisodeDate = viewModel.mostRecentEpisodeDate {
+        if let cadence = viewModel.resolvedFreshnessCadence {
+          FreshnessMetadataItem(
+            cadence: cadence,
+            value: mostRecentEpisodeDate.usShortWithTime,
+            style: .detailed
+          )
+        } else {
+          DetailedMetadataItem(
+            appIcon: .publishDate,
+            value: mostRecentEpisodeDate.usShortWithTime
+          )
+        }
       }
 
       Spacer()
@@ -502,17 +504,18 @@ private struct PodcastDetailEpisodesStatePreview: View {
   }
 
   let feed: Feed
-  @State private var podcast: UnsavedPodcast?
+  var displayingAboutSection = false
+  @State private var viewModel: PodcastDetailViewModel?
 
   var body: some View {
     NavigationStack {
-      if let podcast {
-        PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: DisplayedPodcast(podcast)))
+      if let viewModel {
+        PodcastDetailView(viewModel: viewModel)
       }
     }
     .preview()
     .task {
-      guard podcast == nil else { return }
+      guard viewModel == nil else { return }
 
       let imageURL = URL(string: "https://example.com/\(feed)-podcast.png")!
       Container.shared.fakeDataLoader()
@@ -537,17 +540,27 @@ private struct PodcastDetailEpisodesStatePreview: View {
           )
       }
 
-      podcast = try! Create.unsavedPodcast(
-        feedURL: FeedURL(feedURL),
-        title: "Preview Podcast",
-        image: imageURL
+      let viewModel = PodcastDetailViewModel(
+        podcast: DisplayedPodcast(
+          try! Create.unsavedPodcast(
+            feedURL: FeedURL(feedURL),
+            title: "Preview Podcast",
+            image: imageURL
+          )
+        )
       )
+      viewModel.displayingAboutSection = displayingAboutSection
+      self.viewModel = viewModel
     }
   }
 }
 
 #Preview("No Episodes") {
   PodcastDetailEpisodesStatePreview(feed: .empty)
+}
+
+#Preview("No Episodes, About") {
+  PodcastDetailEpisodesStatePreview(feed: .empty, displayingAboutSection: true)
 }
 
 #Preview("No Episodes, Largest Text") {
