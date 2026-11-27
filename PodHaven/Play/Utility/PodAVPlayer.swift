@@ -28,12 +28,15 @@ extension Container {
 
 enum PodAVPlayerError: Error, LocalizedError {
   case notPlayable(Episode.ID, details: String)
+  case cachedAssetUnavailable(Episode.ID, details: String)
   case episodeNotFoundAfterUpdate(Episode.ID, details: String)
 
   var errorDescription: String? {
     switch self {
     case .notPlayable(let id, let details):
       return "Episode \(id) media is not playable\n\(details)"
+    case .cachedAssetUnavailable(let id, let details):
+      return "Episode \(id) cached asset is unavailable\n\(details)"
     case .episodeNotFoundAfterUpdate(let id, let details):
       return "Episode \(id) not found after duration update\n\(details)"
     }
@@ -73,6 +76,11 @@ struct PodAVPlayerPlaybackSnapshot {
 }
 
 @MainActor class PodAVPlayer {
+  enum AssetLoadMode {
+    case cacheOrRemote
+    case cacheOnly
+  }
+
   private enum EpisodeAssetSource: String {
     case cache
     case remote
@@ -163,6 +171,7 @@ struct PodAVPlayerPlaybackSnapshot {
 
     let (podcastEpisode, playableItem, content) = try await loadAsset(
       for: podcastEpisode,
+      mode: .cacheOrRemote,
       mediaServicesResetElapsed: mediaServicesResetElapsed
     )
     try Task.checkCancellation()
@@ -191,6 +200,7 @@ struct PodAVPlayerPlaybackSnapshot {
 
   func loadAsset(
     for podcastEpisode: PodcastEpisode,
+    mode: AssetLoadMode,
     mediaServicesResetElapsed: TimeInterval?
   ) async throws
     -> (
@@ -201,6 +211,7 @@ struct PodAVPlayerPlaybackSnapshot {
 
     let episodeAsset: EpisodeAsset = try await performLoadAsset(
       for: podcastEpisode,
+      mode: mode,
       mediaServicesResetElapsed: mediaServicesResetElapsed
     )
 
@@ -232,26 +243,31 @@ struct PodAVPlayerPlaybackSnapshot {
   }
   private func performLoadAsset(
     for podcastEpisode: PodcastEpisode,
+    mode: AssetLoadMode,
     mediaServicesResetElapsed: TimeInterval?
   ) async throws
     -> EpisodeAsset
   {
+    func loadRemoteAsset(instead reason: String) async throws -> EpisodeAsset {
+      switch mode {
+      case .cacheOrRemote:
+        Self.log.debug("performLoadAsset: loading from remote (\(reason))")
+        return try await performEpisodeAssetLoad(
+          from: podcastEpisode.episode.mediaURL.rawValue,
+          source: .remote,
+          episodeID: podcastEpisode.id,
+          mediaServicesResetElapsed: mediaServicesResetElapsed
+        )
+      case .cacheOnly:
+        throw PodAVPlayerError.cachedAssetUnavailable(podcastEpisode.id, details: reason)
+      }
+    }
+
     guard let cachedURL = podcastEpisode.episode.cachedURL else {
-      Self.log.debug("performLoadAsset: loading from remote (no cache)")
-      return try await performEpisodeAssetLoad(
-        from: podcastEpisode.episode.mediaURL.rawValue,
-        source: .remote,
-        episodeID: podcastEpisode.id,
-        mediaServicesResetElapsed: mediaServicesResetElapsed
-      )
+      return try await loadRemoteAsset(instead: "no cache")
     }
     if !(await permitsAutomaticCacheReplacement(podcastEpisode)) {
-      return try await performEpisodeAssetLoad(
-        from: podcastEpisode.episode.mediaURL.rawValue,
-        source: .remote,
-        episodeID: podcastEpisode.id,
-        mediaServicesResetElapsed: mediaServicesResetElapsed
-      )
+      return try await loadRemoteAsset(instead: "cache replacement not permitted")
     }
     do {
       Self.log.debug("performLoadAsset: loading from cache: \(cachedURL)")
@@ -298,9 +314,14 @@ struct PodAVPlayerPlaybackSnapshot {
       throw CancellationError()
     } catch {
       try Task.checkCancellation()
+      let fallback =
+        switch mode {
+        case .cacheOrRemote: "falling back to remote"
+        case .cacheOnly: "skipping the remote fallback"
+        }
       if Self.isBadCachedContent(error) {
         Self.log.caughtError(
-          "performLoadAsset: cached file is unplayable, discarding it and falling back to remote",
+          "performLoadAsset: cached file is unplayable, discarding it and \(fallback)",
           error,
           level: .warning
         )
@@ -328,17 +349,12 @@ struct PodAVPlayerPlaybackSnapshot {
         }
       } else {
         Self.log.caughtError(
-          "performLoadAsset: cache load failed, keeping cached file and falling back to remote",
+          "performLoadAsset: cache load failed, keeping cached file and \(fallback)",
           error,
           level: .warning
         )
       }
-      return try await performEpisodeAssetLoad(
-        from: podcastEpisode.episode.mediaURL.rawValue,
-        source: .remote,
-        episodeID: podcastEpisode.id,
-        mediaServicesResetElapsed: mediaServicesResetElapsed
-      )
+      return try await loadRemoteAsset(instead: "cached load failed")
     }
   }
 
@@ -483,8 +499,14 @@ struct PodAVPlayerPlaybackSnapshot {
     do {
       (_, playableItem, content) = try await loadAsset(
         for: podcastEpisode,
+        mode: .cacheOnly,
         mediaServicesResetElapsed: nil
       )
+    } catch PodAVPlayerError.cachedAssetUnavailable(_, let details) {
+      Self.log.debug(
+        "swapToCached: keeping active stream because the cached asset is unavailable (\(details))"
+      )
+      return false
     } catch {
       Self.log.caughtError(
         "swapToCached: failed to load cached asset for \(podcastEpisode.toString)",
@@ -494,10 +516,6 @@ struct PodAVPlayerPlaybackSnapshot {
     }
     guard isCurrent(source), latestSeekID == startingSeekID else {
       Self.log.debug("swapToCached: source retired while loading cached item for \(episodeID)")
-      return false
-    }
-    guard let urlAsset = playableItem.asset as? AVURLAsset, urlAsset.url.isFileURL else {
-      Self.log.debug("swapToCached: keeping active stream because loaded item is not local")
       return false
     }
 
