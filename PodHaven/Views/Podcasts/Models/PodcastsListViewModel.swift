@@ -135,7 +135,12 @@ class PodcastsListViewModel:
         Self.log.debug("Updating \(podcastsWithEpisodeMetadata.count) observed podcasts")
 
         podcastList.allEntries = IdentifiedArray(uniqueElements: podcastsWithEpisodeMetadata)
-        loadingState = .loaded
+        if loadingState != .loaded {
+          // Sorted rows land after a hop, so wait for them rather than show an
+          // empty list.
+          await podcastList.waitForFilteredEntries()
+          loadingState = .loaded
+        }
       }
     } catch {
       Self.log.caughtError("execute: observation failed for podcast list '\(title)'", error)

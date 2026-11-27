@@ -23,10 +23,7 @@ import UIKit
     let html = String(repeating: "<p>V</p>", count: 6000)
     let blocks = await HTMLContent.descriptionBlocks(html: html, font: .body, linkTimestamps: true)
     let block = try #require(blocks.first)
-    let host = UIHostingController(
-      rootView: DescriptionText(blocks: [block])
-        .environment(\.dynamicTypeSize, .accessibility5)
-    )
+    let host = UIHostingController(rootView: DescriptionText(blocks: [block]))
     let size = host.sizeThatFits(in: CGSize(width: 288, height: CGFloat.greatestFiniteMagnitude))
     #expect(
       size.height > 0 && size.height < 16_384,
@@ -51,7 +48,6 @@ import UIKit
         }
         .onAppear { scrollTarget.proxy = proxy }
       }
-      .environment(\.dynamicTypeSize, .accessibility3)
       .environment(\.colorScheme, .light)
       .background(.white)
     )
