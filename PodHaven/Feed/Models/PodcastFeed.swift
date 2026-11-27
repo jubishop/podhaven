@@ -159,6 +159,14 @@ struct EpisodeFeed: Sendable, Equatable {
   }
 }
 
+// MARK: - FeedEpisodeMatch
+
+struct FeedEpisodeMatch: Sendable {
+  fileprivate let episodeFeed: EpisodeFeed
+  let unsavedEpisode: UnsavedEpisode
+  let storedEpisode: FeedMergeEpisode?
+}
+
 // MARK: - PodcastFeedError
 
 enum PodcastFeedError: Error, LocalizedError, CustomNSError, Sendable {
@@ -362,43 +370,74 @@ struct PodcastFeed: Sendable, Stringable {
   func toUnsavedEpisodes(merging episodes: [FeedMergeEpisode] = [])
     -> IdentifiedArrayOf<UnsavedEpisode>
   {
-    let existingEpisodesByMediaURL = Dictionary(
-      uniqueKeysWithValues: episodes.map { ($0.mediaURL, $0) }
+    IdentifiedArrayOf(uniqueElements: toEpisodeMatches(merging: episodes).map(\.unsavedEpisode))
+  }
+
+  // An item matches the stored episode holding its media URL, else the one
+  // holding its GUID unless another item's media URL claims it, so no stored
+  // episode matches two items.
+  func toEpisodeMatches(merging storedEpisodes: [FeedMergeEpisode]) -> [FeedEpisodeMatch] {
+    let storedEpisodesByMediaURL = Dictionary(
+      uniqueKeysWithValues: storedEpisodes.map { ($0.mediaURL, $0) }
     )
-    let existingEpisodesByGUID = Dictionary(
-      uniqueKeysWithValues: episodes.map { ($0.guid, $0) }
+    let storedEpisodesByGUID = Dictionary(
+      uniqueKeysWithValues: storedEpisodes.map { ($0.guid, $0) }
     )
 
-    let allEpisodes =
-      episodeFeeds.compactMap { episodeFeed -> UnsavedEpisode? in
-        do {
-          return try episodeFeed.toUnsavedEpisode(
-            merging: existingEpisodesByMediaURL[episodeFeed.mediaURL]
-              ?? existingEpisodesByGUID[episodeFeed.guid]
-          )
-        } catch {
-          Self.log.caughtError(
-            "Failed to convert episode feed to unsaved episode: \(episodeFeed.mediaGUID)",
-            error,
-            level: Container.shared.feedItemProblems().level(in: sourceURL)
-          )
-          return nil
-        }
+    let allMatches =
+      episodeFeeds.compactMap { episodeFeed in
+        episodeMatch(
+          for: episodeFeed,
+          merging: storedEpisodesByMediaURL[episodeFeed.mediaURL]
+            ?? storedEpisodesByGUID[episodeFeed.guid]
+        )
       }
-      .sorted { $0.pubDate > $1.pubDate }
+      .sorted { $0.unsavedEpisode.pubDate > $1.unsavedEpisode.pubDate }
 
-    var seenGUIDs = Set<GUID>(capacity: allEpisodes.count)
-    var seenMediaURLs = Set<MediaURL>(capacity: allEpisodes.count)
-    return IdentifiedArrayOf<UnsavedEpisode>(
-      uniqueElements: allEpisodes.compactMap { episode in
-        if seenGUIDs.contains(episode.guid) || seenMediaURLs.contains(episode.mediaURL) {
-          return nil
-        }
-
-        seenGUIDs.insert(episode.guid)
-        seenMediaURLs.insert(episode.mediaURL)
-        return episode
+    var seenGUIDs = Set<GUID>(capacity: allMatches.count)
+    var seenMediaURLs = Set<MediaURL>(capacity: allMatches.count)
+    let uniqueMatches = allMatches.filter { match in
+      let episode = match.unsavedEpisode
+      if seenGUIDs.contains(episode.guid) || seenMediaURLs.contains(episode.mediaURL) {
+        return false
       }
+
+      seenGUIDs.insert(episode.guid)
+      seenMediaURLs.insert(episode.mediaURL)
+      return true
+    }
+
+    let mediaURLClaims = Set(
+      uniqueMatches.compactMap { storedEpisodesByMediaURL[$0.unsavedEpisode.mediaURL]?.id }
+    )
+    return uniqueMatches.compactMap { match in
+      guard let storedEpisode = match.storedEpisode,
+        storedEpisode.mediaURL != match.unsavedEpisode.mediaURL,
+        mediaURLClaims.contains(storedEpisode.id)
+      else { return match }
+
+      return episodeMatch(for: match.episodeFeed, merging: nil)
+    }
+  }
+
+  private func episodeMatch(for episodeFeed: EpisodeFeed, merging storedEpisode: FeedMergeEpisode?)
+    -> FeedEpisodeMatch?
+  {
+    let unsavedEpisode: UnsavedEpisode
+    do {
+      unsavedEpisode = try episodeFeed.toUnsavedEpisode(merging: storedEpisode)
+    } catch {
+      Self.log.caughtError(
+        "Failed to convert episode feed to unsaved episode: \(episodeFeed.mediaGUID)",
+        error,
+        level: Container.shared.feedItemProblems().level(in: sourceURL)
+      )
+      return nil
+    }
+    return FeedEpisodeMatch(
+      episodeFeed: episodeFeed,
+      unsavedEpisode: unsavedEpisode,
+      storedEpisode: storedEpisode
     )
   }
 
