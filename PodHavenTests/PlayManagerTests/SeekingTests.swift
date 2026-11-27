@@ -210,6 +210,139 @@ import Testing
     )
   }
 
+  @Test("time updates resume after a seek lands while its save waits for the writer")
+  func timeUpdatesResumeWhileSeekSaveWaits() async throws {
+    let (podcastEpisode, fakeRepo) = try await playing()
+    defer { fakeRepo.currentTimeUpdateHold.release() }
+    fakeRepo.currentTimeUpdateHold.hold()
+
+    let seekTime = CMTime.seconds(120)
+    await playManager.seek(to: seekTime)
+    try await fakeRepo.currentTimeUpdateHold.waitForParked()
+    try await PlayHelpers.waitForPeriodicTimeObserver()
+    avPlayer.advanceTime(to: .seconds(122))
+    try await PlayHelpers.waitFor(.seconds(122))
+    #expect(try await repo.episode(podcastEpisode.id)?.currentTime == .zero)
+
+    fakeRepo.currentTimeUpdateHold.release()
+    try await PlayHelpers.waitForEpisode(
+      podcastEpisode.id,
+      attribute: \.currentTime,
+      toBe: seekTime
+    )
+    try await waitForTickSave(at: .seconds(123), count: 1, fakeRepo)
+    #expect(fakeRepo.calls(of: PlaybackUpdate.self).map(\.parameters.playedFrom) == [seekTime])
+  }
+
+  @Test("a tick save that finishes after a seek lands can't pull the heard range back")
+  func lateTickSaveKeepsSeekPosition() async throws {
+    let (podcastEpisode, fakeRepo) = try await playing()
+    defer {
+      fakeRepo.currentTimeUpdateHold.release()
+      fakeRepo.playbackUpdateHold.release()
+    }
+    fakeRepo.playbackUpdateHold.hold()
+    fakeRepo.currentTimeUpdateHold.hold()
+    avPlayer.advanceTime(to: .seconds(3))
+    try await fakeRepo.playbackUpdateHold.waitForParked()
+
+    let seekTime = CMTime.seconds(120)
+    await playManager.seek(to: seekTime)
+    try await fakeRepo.currentTimeUpdateHold.waitForParked()
+    // The writer finishes saves in the order they started.
+    fakeRepo.playbackUpdateHold.releaseFirst()
+    try await PlayHelpers.waitForEpisode(
+      podcastEpisode.id,
+      attribute: \.currentTime,
+      toBe: .seconds(3)
+    )
+    try await waitForTickSave(at: .seconds(123), count: 2, fakeRepo)
+    #expect(
+      fakeRepo.calls(of: PlaybackUpdate.self).map(\.parameters.playedFrom) == [.zero, seekTime]
+    )
+
+    fakeRepo.currentTimeUpdateHold.release()
+    try await PlayHelpers.waitForEpisode(
+      podcastEpisode.id,
+      attribute: \.currentTime,
+      toBe: seekTime
+    )
+    fakeRepo.playbackUpdateHold.release()
+    try await PlayHelpers.waitForEpisode(
+      podcastEpisode.id,
+      attribute: \.currentTime,
+      toBe: .seconds(123)
+    )
+  }
+
+  @Test("a pause save that finishes after a seek lands can't pull the heard range back")
+  func latePauseSaveKeepsSeekPosition() async throws {
+    let (podcastEpisode, fakeRepo) = try await playing()
+    defer {
+      fakeRepo.currentTimeUpdateHold.release()
+      fakeRepo.playbackUpdateHold.release()
+    }
+    avPlayer.advanceTime(to: .seconds(2))
+    try await PlayHelpers.waitFor(.seconds(2))
+    fakeRepo.playbackUpdateHold.hold()
+    fakeRepo.currentTimeUpdateHold.hold()
+    let pausing = Task { await playManager.pause() }
+    try await fakeRepo.currentTimeUpdateHold.waitForParked()
+
+    let seekTime = CMTime.seconds(120)
+    await playManager.seek(to: seekTime)
+    try await fakeRepo.currentTimeUpdateHold.waitForParked(count: 2)
+    // The writer finishes saves in the order they started.
+    fakeRepo.currentTimeUpdateHold.releaseFirst()
+    await pausing.value
+    try await PlayHelpers.play()
+    try await waitForTickSave(at: .seconds(123), count: 1, fakeRepo)
+    #expect(fakeRepo.calls(of: PlaybackUpdate.self).map(\.parameters.playedFrom) == [seekTime])
+
+    fakeRepo.currentTimeUpdateHold.release()
+    try await PlayHelpers.waitForEpisode(
+      podcastEpisode.id,
+      attribute: \.currentTime,
+      toBe: seekTime
+    )
+    fakeRepo.playbackUpdateHold.release()
+    try await PlayHelpers.waitForEpisode(
+      podcastEpisode.id,
+      attribute: \.currentTime,
+      toBe: .seconds(123)
+    )
+  }
+
+  private typealias PlaybackUpdate = MethodCall<
+    (episodeID: Episode.ID, currentTime: CMTime, playedFrom: CMTime, now: Date)
+  >
+
+  private func playing() async throws -> (PodcastEpisode, FakeRepo) {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let fakeRepo = try #require(repo as? FakeRepo)
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, .seconds(240))
+    )
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+    fakeRepo.clearAllCalls()
+    return (podcastEpisode, fakeRepo)
+  }
+
+  // Keeps ticking, as playback does, until a tick starts its save.
+  private func waitForTickSave(at time: CMTime, count: Int, _ fakeRepo: FakeRepo) async throws {
+    let avPlayer = avPlayer
+    try await Wait.until(
+      { @MainActor in
+        avPlayer.advanceTime(to: time)
+        return fakeRepo.calls(of: PlaybackUpdate.self).count >= count
+      },
+      { "Expected \(count) playback saves by \(time)" }
+    )
+  }
+
   @Test("seek cache swap cannot replace a newer episode")
   func seekCacheSwapCannotReplaceNewerEpisode() async throws {
     await playManager.start()
