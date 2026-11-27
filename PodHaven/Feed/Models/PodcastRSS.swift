@@ -155,11 +155,7 @@ struct PodcastRSS: Decodable, Sendable {
 
     var pubDate: Date? {
       guard let pubDateString = values.pubDateString else { return nil }
-      guard let date = Date.parseFeedDate(pubDateString) else {
-        PodcastRSS.log.warning("Unparseable pubDate '\(pubDateString)' for \(values.title)")
-        return nil
-      }
-      return date
+      return Date.parseFeedDate(pubDateString)
     }
 
     // MARK: - Meta
@@ -194,7 +190,7 @@ struct PodcastRSS: Decodable, Sendable {
         }
       }
       let title: String
-      let description: String
+      let description: String?
       let contentEncoded: String?
       let link: String?  // URL?
       let atomLinks: [AtomLink]
@@ -212,6 +208,14 @@ struct PodcastRSS: Decodable, Sendable {
       case item
     }
 
+    private enum ChannelImageKey: String, CodingKey {
+      case image
+    }
+
+    private struct ChannelImage: Decodable {
+      let url: String?
+    }
+
     private struct DecodedEpisode: Decodable {
       let result: Result<Episode, any Error>
 
@@ -220,13 +224,18 @@ struct PodcastRSS: Decodable, Sendable {
       }
     }
 
+    struct DroppedItems: Sendable {
+      let count: Int
+      let total: Int
+      let firstError: any Error
+    }
+
     let episodes: [Episode]
+    let droppedItems: DroppedItems?
+    let image: URL
 
     struct ITunesNamespace: Decodable, Sendable {
-      struct Image: Decodable, Sendable {
-        let href: URL
-      }
-      let image: Image
+      let image: Episode.ITunesNamespace.Image?
       private let newFeedURLString: String?
       let summary: String?
 
@@ -252,7 +261,7 @@ struct PodcastRSS: Decodable, Sendable {
       if let summary = iTunes.summary, !summary.isEmpty {
         return summary
       }
-      return values.description
+      return values.description ?? ""
     }
 
     var feedURL: FeedURL? {
@@ -276,6 +285,24 @@ struct PodcastRSS: Decodable, Sendable {
       values = try TopLevelValues(from: decoder)
       iTunes = try ITunesNamespace(from: decoder)
 
+      if let href = iTunes.image?.href {
+        image = href
+      } else {
+        let channelImage = try decoder.container(keyedBy: ChannelImageKey.self)
+          .decodeIfPresent(ChannelImage.self, forKey: .image)
+        guard let url = PodcastRSS.url(from: channelImage?.url)
+        else {
+          throw DecodingError.keyNotFound(
+            ChannelImageKey.image,
+            DecodingError.Context(
+              codingPath: decoder.codingPath,
+              debugDescription: "No itunes:image href or channel image url"
+            )
+          )
+        }
+        image = url
+      }
+
       let items = try decoder.container(keyedBy: ItemKey.self)
         .decode([DecodedEpisode].self, forKey: .item)
       var episodes: [Episode] = []
@@ -288,11 +315,13 @@ struct PodcastRSS: Decodable, Sendable {
       }
       if let firstFailure = failures.first {
         guard !episodes.isEmpty else { throw firstFailure }
-        PodcastRSS.log.caughtError(
-          "Dropped \(failures.count) of \(items.count) undecodable RSS items in '\(values.title)'",
-          firstFailure,
-          level: .warning
+        droppedItems = DroppedItems(
+          count: failures.count,
+          total: items.count,
+          firstError: firstFailure
         )
+      } else {
+        droppedItems = nil
       }
       self.episodes = episodes
     }

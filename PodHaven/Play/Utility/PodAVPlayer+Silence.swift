@@ -310,7 +310,11 @@ extension PodAVPlayer {
         if latestSeekID == id { cancelAutomaticSilenceWork() }
         return
       }
-      let (_, item, content) = try await loadAsset(for: episode, mediaServicesResetElapsed: nil)
+      let (_, item, content) = try await loadAsset(
+        for: episode,
+        mode: .cacheOnly,
+        mediaServicesResetElapsed: nil
+      )
       guard latestSeekID == id, isCurrent(source) else { return }
       guard let content, automaticSilenceMode != .off else {
         cancelAutomaticSilenceWork()
@@ -339,6 +343,14 @@ extension PodAVPlayer {
         id: id,
         streamingFallback: streamingItem
       )
+    } catch PodAVPlayerError.cachedAssetUnavailable(_, let details) {
+      Self.log.debug(
+        """
+        activateCachedSilence: keeping active stream because the cached asset is \
+        unavailable (\(details))
+        """
+      )
+      if latestSeekID == id { cancelAutomaticSilenceWork() }
     } catch {
       Self.log.caughtError("Could not activate cached silence playback", error)
       if latestSeekID == id { cancelAutomaticSilenceWork() }

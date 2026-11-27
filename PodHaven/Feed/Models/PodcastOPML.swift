@@ -165,7 +165,7 @@ struct PodcastOPML: Codable, Sendable {
 
   fileprivate struct Body: Codable, Sendable {
     fileprivate struct Outline: Codable, Sendable, DynamicNodeEncoding {
-      let text: String
+      let text: String?
       let title: String?
       let xmlUrl: String?
       let type: String?
@@ -177,6 +177,11 @@ struct PodcastOPML: Codable, Sendable {
         self.xmlUrl = xmlUrl
         self.type = type
         self.outlines = nil
+      }
+
+      var name: String? {
+        [text, title].compactMap { $0 }
+          .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
       }
 
       var flattenedOutlines: [Outline] {
@@ -204,7 +209,7 @@ struct PodcastOPML: Codable, Sendable {
     let title: String?
   }
 
-  private let head: Head
+  private let head: Head?
   private let body: Body
 
   // MARK: - Data Accessors
@@ -232,7 +237,7 @@ struct PodcastOPML: Codable, Sendable {
 
       guard let url = URL(string: xmlUrl)
       else {
-        Self.log.info("Unparseable feed URL '\(xmlUrl)' for outline '\(outline.text)'")
+        Self.log.info("Unparseable feed URL '\(xmlUrl)' for outline '\(outline.name ?? "")'")
         skippedCount += 1
         continue
       }
@@ -242,17 +247,19 @@ struct PodcastOPML: Codable, Sendable {
         feedURL = try FeedURL(url).convertToHTTPSURL()
       } catch {
         Self.log.caughtError(
-          "Invalid feed URL '\(xmlUrl)' for outline '\(outline.text)'",
+          "Invalid feed URL '\(xmlUrl)' for outline '\(outline.name ?? "")'",
           error,
           level: .info
         )
         skippedCount += 1
         continue
       }
-      feeds.append((feedURL: feedURL, title: outline.text))
+      feeds.append(
+        (feedURL: feedURL, title: outline.name ?? feedURL.rawValue.host() ?? feedURL.absoluteString)
+      )
     }
     return RSSFeeds(feeds: feeds, skippedCount: skippedCount)
   }
 
-  var title: String? { head.title }
+  var title: String? { head?.title }
 }
