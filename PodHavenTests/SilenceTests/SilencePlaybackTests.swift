@@ -299,9 +299,21 @@ import Testing
     }
   }
 
-  @Test("an unreadable download keeps the paused stream without loading it again")
+  @Test(
+    "an unreadable download keeps the paused stream without loading it again",
+    .timeLimit(.minutes(5))
+  )
   func unreadableDownloadKeepsStream() async throws {
-    try await LogCapture.withSink { sink in
+    let keptStream = AsyncLatch<Bool>()
+    try await LogCapture.withSink(
+      onCapture: { entry in
+        if entry.message.hasPrefix(
+          "activateCachedSilence: keeping active stream because the cached asset is unavailable"
+        ) {
+          keptStream.open(true)
+        }
+      }
+    ) { sink in
       let episode = try await Create.podcastEpisode()
       let manager = Container.shared.playManager()
       try await manager.play(episode)
@@ -324,20 +336,16 @@ import Testing
       let cachedLoads = await loader.responseCount(for: cachedURL)
       let remoteLoads = await loader.responseCount(for: mediaURL)
       await loader.respond(to: cachedURL, error: CocoaError(.fileReadNoPermission))
-      await loader.respond(to: mediaURL, data: (true, .seconds(storedDuration.seconds + 60)))
+      await loader.respond(to: mediaURL) { _ in
+        keptStream.open(false)
+        return (true, .seconds(storedDuration.seconds + 60))
+      }
 
       Container.shared.userSettings().$silenceMode.new(.gentle)
-      try await Wait.until(maxAttempts: 200) {
-        await loader.responseCount(for: mediaURL) > remoteLoads
-          || sink.captured()
-            .contains {
-              $0.message.hasPrefix(
-                "activateCachedSilence: keeping active stream because the cached asset is unavailable"
-              )
-            }
-      } _: {
-        "Switching to the unreadable download did not finish"
-      }
+      #expect(
+        try await keptStream.wait(),
+        "Switching to the unreadable download reloaded the stream"
+      )
 
       #expect(await loader.responseCount(for: cachedURL) > cachedLoads)
       #expect(await loader.responseCount(for: mediaURL) == remoteLoads)
@@ -509,7 +517,10 @@ import Testing
     #expect(Container.shared.userSettings().silenceMode == .off)
   }
 
-  @Test("media-services recovery preserves the same playback's temporary mode")
+  @Test(
+    "media-services recovery preserves the same playback's temporary mode",
+    .timeLimit(.minutes(5))
+  )
   func recovery() async throws {
     let (episode, player) = try await prepared()
     let viewModel = PlayBarViewModel()
@@ -530,7 +541,7 @@ import Testing
     )
     try await PlayHelpers.waitFor(.paused)
     await Container.shared.playManager().play()
-    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.awaitStatus(.playing)
     #expect(Container.shared.sharedState().currentEpisodeID == episode.id)
     #expect(viewModel.silenceMode == .aggressive)
     #expect(viewModel.quietAudioProtection == .medium)

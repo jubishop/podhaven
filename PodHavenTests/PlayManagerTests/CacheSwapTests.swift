@@ -180,6 +180,65 @@ import Testing
     #expect(try await Container.shared.repo().episode(episode.id)?.currentTime == .seconds(20))
   }
 
+  @Test("a seek publishes its target while its cache swap loads the cached file")
+  func seekPublishesTargetDuringCacheSwap() async throws {
+    let (episode, player) = try await streaming()
+    let cachedURL = try #require(episode.episode.cachedURL)
+    let originalSeeks = player.seekRequests.count
+    let loadStarted = AsyncSemaphore(value: 0)
+    let finishLoad = AsyncSemaphore(value: 0)
+    await Container.shared.fakeEpisodeAssetLoader()
+      .respond(to: cachedURL) { _ in
+        loadStarted.signal()
+        await finishLoad.wait()
+        return (true, .seconds(60))
+      }
+    let seekTime = CMTime.seconds(20)
+    let seek = Task { await Container.shared.playManager().seek(to: seekTime) }
+    defer {
+      seek.cancel()
+      finishLoad.signal()
+    }
+    await loadStarted.wait()
+
+    try await PlayHelpers.waitFor(seekTime)
+    #expect(player.seekRequests.count == originalSeeks)
+
+    finishLoad.signal()
+    await seek.value
+    try await PlayHelpers.waitForCurrentItem(cachedURL)
+    try await PlayHelpers.waitForPeriodicTimeObserver()
+    #expect(player.currentTime() == seekTime)
+  }
+
+  @Test("a seek lands while its cache swap's duration save waits for the writer")
+  func seekLandsWhileCacheSwapDurationSaveWaits() async throws {
+    let (episode, player) = try await streaming()
+    let cachedURL = try #require(episode.episode.cachedURL)
+    let cachedDuration = CMTime.seconds(episode.episode.duration.seconds + 60)
+    await Container.shared.fakeEpisodeAssetLoader()
+      .respond(to: cachedURL, data: (true, cachedDuration))
+    let repo = try #require(Container.shared.repo() as? FakeRepo)
+    repo.durationUpdateHold.hold()
+    defer { repo.durationUpdateHold.release() }
+    let seekTime = CMTime.seconds(20)
+    let seek = Task { await Container.shared.playManager().seek(to: seekTime) }
+    try await repo.durationUpdateHold.waitForParked()
+
+    try await PlayHelpers.waitFor(seekTime)
+    try await PlayHelpers.waitForCurrentItem(cachedURL)
+    try await Wait.until(
+      { @MainActor in player.currentTime() == seekTime },
+      { @MainActor in "Expected the seek to land at \(seekTime), got \(player.currentTime())" }
+    )
+    await seek.value
+    try await PlayHelpers.waitForPeriodicTimeObserver()
+    #expect(try await repo.episode(episode.id)?.duration == episode.episode.duration)
+
+    repo.durationUpdateHold.release()
+    try await PlayHelpers.waitForEpisode(episode.id, attribute: \.duration, toBe: cachedDuration)
+  }
+
   @Test("valid local swaps still work when optional silence metadata fails")
   func localSwapWithoutSilenceMetadata() async throws {
     try await LogCapture.withSink { sink in

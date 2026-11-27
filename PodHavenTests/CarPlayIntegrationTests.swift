@@ -154,14 +154,15 @@ import Testing
   }
 
   @Test(
-    "media-services reset recovers through CarPlay and shared Play without a phone alert action"
+    "media-services reset recovers through CarPlay and shared Play without a phone alert action",
+    .timeLimit(.minutes(5))
   )
   func mediaServicesRecovery() async throws {
     PlayHelpers.setupCommandHandling()
     let episode = try await Create.podcastEpisode(Create.unsavedEpisode(currentTime: .seconds(12)))
     await Container.shared.appLauncher().prepareForPlayback()
     try await Container.shared.playManager().play(episode)
-    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.awaitStatus(.playing)
     let scene = try CarPlayPodcastScene()
     defer { scene.stop() }
     let initialPlayer = Container.shared.avPlayer() as! FakeAVPlayer
@@ -192,7 +193,7 @@ import Testing
     let remote = Container.shared.mpRemoteCommandCenter() as! FakeMPRemoteCommandCenter
     #expect(remote.play.isEnabled)
     remote.firePlay()
-    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.awaitStatus(.playing)
     try await PlayHelpers.waitFor(.seconds(12))
     #expect(scene.controller.alerts.isEmpty)
     #expect(Container.shared.sharedState().currentEpisodeID == episode.id)
