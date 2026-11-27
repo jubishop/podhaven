@@ -172,9 +172,8 @@ Keep the feedback unresolved in Sentry while this issue remains open.
 
 - When this issue's work is done, resolve [Sentry feedback `<slug>`](<permalink>)
   (`<shortId>`, numeric issue ID `<numeric-id>`) with
-  `sentry issue resolve <numeric-id>`. Read it back with
-  `sentry issue view <numeric-id> --fresh --json --fields id,status,statusDetails`
-  and verify `status: resolved` before reporting completion.
+  `.agents/scripts/sentry-cli/close_sentry_issue.sh <numeric-id> --resolve`,
+  which fails unless Sentry recorded the resolution.
 - <one bullet per related Sentry issue the fix also resolves, if any> Also
   close [Sentry issue `<related shortId>`](<related permalink>) (numeric
   issue ID `<related numeric-id>`) with
