@@ -33,6 +33,7 @@ extension Container {
   var opmlImporting = false
   var opmlFile: OPMLFile?
 
+  @ObservationIgnored private var importTask: Task<Void, any Error>?
   private let downloadManager: DownloadManager
 
   fileprivate init() {
@@ -98,10 +99,13 @@ extension Container {
 
   func importFeeds() async {
     guard let opmlFile, opmlFile.phase == .reviewing else { return }
+    let importTask = Task { try await downloadOPMLFile(opmlFile) }
+    // Stored before the phase changes, so a stop that the change prompts cancels it.
+    self.importTask = importTask
     opmlFile.phase = .importing
 
     do {
-      try await downloadOPMLFile(opmlFile)
+      try await importTask.value
     } catch {
       Self.log.caughtError("importFeeds: failed to import feeds from '\(opmlFile.title)'", error)
       guard ErrorKit.isRemarkable(error) else { return }
@@ -110,6 +114,7 @@ extension Container {
   }
 
   func stopDownloading() {
+    importTask?.cancel()
     Task { [weak self] in
       guard let self else { return }
       await downloadManager.cancelAllDownloads()
@@ -141,6 +146,7 @@ extension Container {
         newOutlines.append(outline)
       }
     }
+    try Task.checkCancellation()
     let resubscribedCount = try await repo.markSubscribed(unsubscribedIDs, level: .trace)
 
     for outline in libraryOutlines { outline.status = .finished }
@@ -159,9 +165,9 @@ extension Container {
         group.addTask { [weak self, opmlFile, outline] in
           guard let self = self else { return .cancelled }
 
-          let downloadTask = await downloadManager.addURL(outline.feedURL.rawValue)
-
           do {
+            try Task.checkCancellation()
+            let downloadTask = await downloadManager.addURL(outline.feedURL.rawValue)
             try await downloadTask.downloadBegan()
             await updateOutlineStatus(outline, in: opmlFile, to: .downloading)
             let podcastFeed = try await PodcastFeed.parse(downloadTask.downloadFinished())
@@ -173,6 +179,7 @@ extension Container {
             }
             .value
 
+            try Task.checkCancellation()
             do {
               try await repo.insertSeries(
                 UnsavedPodcastSeries(
@@ -189,6 +196,7 @@ extension Container {
               )
               guard let libraryPodcast = libraryPodcasts.first else { throw error }
               if !libraryPodcast.subscribed {
+                try Task.checkCancellation()
                 try await repo.markSubscribed(libraryPodcast.id, level: .trace)
               }
               await updateOutlineStatus(outline, in: opmlFile, to: .finished)
@@ -256,6 +264,7 @@ extension Container {
       opmlFile.downloading.remove(outline)
       opmlFile.finished.append(outline)
     case .failed:
+      opmlFile.waiting.remove(outline)
       opmlFile.downloading.remove(outline)
       opmlFile.failed.append(outline)
     case .downloading:
