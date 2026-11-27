@@ -47,8 +47,8 @@ class MinimumThresholdTests {
   @Test("returns empty when signals exist but none have embeddings yet")
   func signalsWithoutEmbeddings() async throws {
     // 3 rated signals but no embeddings yet — transient state during initial
-    // embedding-pipeline warmup. embeddingCount is non-zero (from candidates)
-    // so the early hasAnyEmbeddings gate passes, but buildCentroids returns
+    // embedding-pipeline warmup. Candidates have embeddings, so the early
+    // hasAnyEmbeddings gate passes, but buildCentroids returns
     // nil because no signal embedding is available to seed the positive
     // centroid.
     _ = try await RecommendationHelpers.createPodcastWithEpisodes(

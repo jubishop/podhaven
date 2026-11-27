@@ -21,6 +21,7 @@ struct UnsavedEpisodeEmbedding:
   let vector: Data
   let sourceHash: String
   let embeddingRevision: Int
+  let recipeVersion: Int
   let dimension: Int
   let verificationDate: Date
 
@@ -44,6 +45,7 @@ struct EpisodeEmbedding: Equatable, Saved, VectorStorable {
     static let vector = Column("vector")
     static let sourceHash = Column("sourceHash")
     static let embeddingRevision = Column("embeddingRevision")
+    static let recipeVersion = Column("recipeVersion")
     static let dimension = Column("dimension")
     static let creationDate = Column("creationDate")
     static let verificationDate = Column("verificationDate")

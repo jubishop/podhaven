@@ -71,6 +71,10 @@ struct RecommendationRepo: Recommending {
   // a real fetcher, so partial listens land in the engine through that loop.
   // Embeddings from other revisions are left out: vectors from another model
   // live in a different space, so they neither join centroids nor count.
+  // Older-recipe rows share the model's space and still join centroids, but
+  // only current-recipe rows count, so re-embedding after a recipe bump, which
+  // rewrites rows in place, changes the count. The existence probe and count
+  // read a covering index rather than vector rows.
   static func scoringContextInputs(
     _ db: Database,
     embeddingRevision: Int,
@@ -92,7 +96,11 @@ struct RecommendationRepo: Recommending {
       ratedSignals: ratedSignals,
       partialSignals: partialSignals,
       signalEmbeddings: signalEmbeddings,
-      embeddingCount: try currentEmbeddings.fetchCount(db),
+      hasAnyEmbeddings: try !currentEmbeddings.select(EpisodeEmbedding.Columns.id).isEmpty(db),
+      currentRecipeEmbeddingCount:
+        try currentEmbeddings
+        .filter(EpisodeEmbedding.Columns.recipeVersion == EmbeddingService.recipeVersion)
+        .fetchCount(db),
       freshnessCadences: try Self.resolveFreshnessCadences(db)
     )
   }

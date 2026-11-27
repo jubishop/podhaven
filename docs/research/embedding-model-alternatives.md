@@ -134,7 +134,7 @@ The realistic large move past `NLContextualEmbedding` is bundling a contrastive-
 | `BGE-base-en-v1.5` | 768 | ~110 MB | ~55 | Real quality jump; bundle size becomes a concern |
 | `Qwen3-Embedding-0.6B` | up to 1024 | ~600 MB | ~64 | 2026 leader at small scale; brutal bundle size for an iOS app |
 
-Realistic first move would be MiniLM-L6 as a proof-point — smallest bundle, existing port — followed by sizing up to BGE-small or BGE-base if discrimination is good but we want more headroom. The current decone machinery (cached transform, `recipeVersion`-keyed invalidation) carries over unchanged: even Sentence-BERT vectors are *near*-isotropic, not perfectly, and centering still helps at the margin. A `recipeVersion` bump on swap auto-invalidates the cached transform against the new model.
+Realistic first move would be MiniLM-L6 as a proof-point — smallest bundle, existing port — followed by sizing up to BGE-small or BGE-base if discrimination is good but we want more headroom. The current decone machinery (the cached whitening transform, recomputed as re-embedding grows the corpus) carries over unchanged: even Sentence-BERT vectors are *near*-isotropic, not perfectly, and centering still helps at the margin. The swap must change `embeddingRevision`, not only `recipeVersion`: scoring and the transform keep rows from older recipes of the current revision, which share its model's space, and leave out only other revisions' rows.
 
 ### Hybrid (server-precomputed embeddings)
 
