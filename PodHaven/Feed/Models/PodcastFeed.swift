@@ -19,6 +19,23 @@ extension Container {
     }
     .scope(.cached)
   }
+
+  var feedItemProblems: Factory<FeedItemProblems> {
+    Factory(self) { FeedItemProblems() }.scope(.cached)
+  }
+}
+
+// MARK: - FeedItemProblems
+
+// A feed's item problems recur on every refresh, so only its first warns per process.
+struct FeedItemProblems: Sendable {
+  private let warnedFeeds = ThreadSafe<Set<URL>>([])
+
+  fileprivate init() {}
+
+  func level(in feedURL: FeedURL) -> Logger.Level {
+    warnedFeeds { $0.insert(feedURL.rawValue).inserted } ? .warning : .notice
+  }
 }
 
 // MARK: - EpisodeFeed
@@ -33,10 +50,12 @@ struct EpisodeFeed: Sendable, Equatable {
   let publisherTranscriptReferences: [PublisherTranscriptReference]
 
   private let rssEpisode: PodcastRSS.Episode
+  private let pubDate: Date?
   private let link: URL?
   private let image: URL?
 
-  fileprivate init?(rssEpisode: PodcastRSS.Episode, podcastLanguage: String?, baseURL: URL) {
+  fileprivate init?(rssEpisode: PodcastRSS.Episode, podcastLanguage: String?, from: FeedURL) {
+    let baseURL = from.rawValue
     guard let mediaURL = rssEpisode.enclosure?.url else {
       Self.log.debug("Missing enclosure URL for \(rssEpisode.title); skipping")
       return nil
@@ -49,12 +68,21 @@ struct EpisodeFeed: Sendable, Equatable {
       Self.log.caughtError(
         "Invalid MediaURL: \(mediaURL) for '\(rssEpisode.title)'",
         error,
-        level: .warning
+        level: Container.shared.feedItemProblems().level(in: from)
       )
       return nil
     }
 
+    let pubDate = rssEpisode.pubDate
+    if pubDate == nil, let pubDateString = rssEpisode.pubDateString {
+      Self.log.log(
+        level: Container.shared.feedItemProblems().level(in: from),
+        "Unparseable pubDate '\(pubDateString)' for \(rssEpisode.title)"
+      )
+    }
+
     self.rssEpisode = rssEpisode
+    self.pubDate = pubDate
     self.guid = rssEpisode.guid ?? GUID(validatedMediaURL.absoluteString)
     self.mediaURL = validatedMediaURL
     self.link = PodcastFeed.contentURL(
@@ -97,7 +125,7 @@ struct EpisodeFeed: Sendable, Equatable {
       guid: guid,
       mediaURL: mediaURL,
       title: rssEpisode.title,
-      pubDate: rssEpisode.pubDate ?? episode?.pubDate,
+      pubDate: pubDate ?? episode?.pubDate,
       duration: duration ?? episode?.duration,
       description: rssEpisode.description ?? episode?.description,
       link: link ?? episode?.link,
@@ -209,6 +237,7 @@ struct PodcastFeed: Sendable, Stringable {
   let feedURL: FeedURL
   let updatedFeedURL: FeedURL
 
+  private let sourceURL: FeedURL
   private let fetchDate: Date
   private let rssPodcast: PodcastRSS.Podcast
   private let link: URL?
@@ -218,11 +247,13 @@ struct PodcastFeed: Sendable, Stringable {
   var episodeMediaGUIDs: [MediaGUID] { episodeFeeds.map(\.mediaGUID) }
 
   private init(rssPodcast: PodcastRSS.Podcast, from: FeedURL, fetchDate: Date) throws {
+    self.sourceURL = from
     self.fetchDate = fetchDate
     self.rssPodcast = rssPodcast
-    let feedURL = try Self.absoluteHTTPSURL(rssPodcast.feedURL) ?? from.convertToHTTPSURL()
+    let feedURL =
+      try Self.absoluteHTTPSURL(rssPodcast.feedURL, in: from) ?? from.convertToHTTPSURL()
     self.feedURL = feedURL
-    self.updatedFeedURL = Self.absoluteHTTPSURL(rssPodcast.iTunes.newFeedURL) ?? feedURL
+    self.updatedFeedURL = Self.absoluteHTTPSURL(rssPodcast.iTunes.newFeedURL, in: from) ?? feedURL
     let baseURL = from.rawValue
     self.link = Self.contentURL(
       rssPodcast.link,
@@ -231,18 +262,25 @@ struct PodcastFeed: Sendable, Stringable {
       title: rssPodcast.title
     )
     do {
-      self.image = try rssPodcast.iTunes.image.href.convertToHTTPSURL(relativeTo: baseURL)
+      self.image = try rssPodcast.image.convertToHTTPSURL(relativeTo: baseURL)
     } catch {
       throw DecodingError.dataCorrupted(
         DecodingError.Context(
           codingPath: [],
-          debugDescription: "Invalid itunes:image URL: \(rssPodcast.iTunes.image.href)",
+          debugDescription: "Invalid podcast image URL: \(rssPodcast.image)",
           underlyingError: error
         )
       )
     }
+    if let droppedItems = rssPodcast.droppedItems {
+      Self.log.caughtError(
+        "Dropped \(droppedItems.count) of \(droppedItems.total) undecodable RSS items in '\(rssPodcast.title)'",
+        droppedItems.firstError,
+        level: Container.shared.feedItemProblems().level(in: from)
+      )
+    }
     self.episodeFeeds = rssPodcast.episodes.compactMap {
-      EpisodeFeed(rssEpisode: $0, podcastLanguage: rssPodcast.language, baseURL: baseURL)
+      EpisodeFeed(rssEpisode: $0, podcastLanguage: rssPodcast.language, from: from)
     }
   }
 
@@ -262,17 +300,24 @@ struct PodcastFeed: Sendable, Stringable {
     }
   }
 
-  private static func absoluteHTTPSURL(_ feedURL: FeedURL?) -> FeedURL? {
+  private static func absoluteHTTPSURL(_ feedURL: FeedURL?, in source: FeedURL) -> FeedURL? {
     guard let feedURL else { return nil }
     guard feedURL.rawValue.scheme != nil else {
-      log.warning("Ignoring relative feed URL: \(feedURL)")
+      log.log(
+        level: Container.shared.feedItemProblems().level(in: source),
+        "Ignoring relative feed URL: \(feedURL)"
+      )
       return nil
     }
 
     do {
       return try feedURL.convertToHTTPSURL()
     } catch {
-      log.caughtError("Ignoring invalid feed URL: \(feedURL)", error, level: .warning)
+      log.caughtError(
+        "Ignoring invalid feed URL: \(feedURL)",
+        error,
+        level: Container.shared.feedItemProblems().level(in: source)
+      )
       return nil
     }
   }
@@ -335,7 +380,7 @@ struct PodcastFeed: Sendable, Stringable {
           Self.log.caughtError(
             "Failed to convert episode feed to unsaved episode: \(episodeFeed.mediaGUID)",
             error,
-            level: .warning
+            level: Container.shared.feedItemProblems().level(in: sourceURL)
           )
           return nil
         }

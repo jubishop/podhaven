@@ -20,7 +20,7 @@ import Testing
   func failedParseSendsOneEvent() async throws {
     let captured = captureDiagnostics()
     let url = URL(string: "file:///PodcastAddict_OPML_export.opml")!
-    let data = brokenOPML(validOutlines: 1)
+    let data = brokenOPML()
     await opmlSession.respond(to: url, data: data)
 
     await opmlViewModel.importOPMLFromURL(url: url)
@@ -35,8 +35,8 @@ import Testing
     #expect(context.attachedBytes == data.count)
     #expect(!context.truncated)
     #expect(context.error.contains("[DecodingError.keyNotFound]"))
-    #expect(context.error.contains("Missing key: text"))
-    #expect(context.error.contains("Coding path: body.outline[1]"))
+    #expect(context.error.contains("Missing key: body"))
+    #expect(context.error.contains("Coding path: body"))
     #expect(event.attachments.count == 1)
     let attachment = try #require(event.attachments.first)
     #expect(attachment.data == data)
@@ -159,22 +159,13 @@ import Testing
     return captured
   }
 
-  private func brokenOPML(validOutlines: Int = 0, padding: Int = 0) -> Data {
-    let outlines = (0..<validOutlines)
-      .map { index in
-        #"<outline type="rss" text="Show \#(index)" xmlUrl="https://example.com/\#(index).rss"/>"#
-      }
-      .joined(separator: "\n")
-    return Data(
+  private func brokenOPML(padding: Int = 0) -> Data {
+    Data(
       """
       <?xml version="1.0" encoding="UTF-8"?>
       <opml version="2.0">
       <head><title>Broken</title></head>
       <!-- \(String(repeating: "x", count: padding)) -->
-      <body>
-      \(outlines)
-      <outline type="rss" xmlUrl="https://example.com/missing-text.rss"/>
-      </body>
       </opml>
       """
       .utf8
