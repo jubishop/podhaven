@@ -420,9 +420,9 @@ struct RecommendationEngine: Sendable {
     }
   }
 
-  // Triggers funnel through `cacheDebounce` so bulk inserts and rapid onDeck
-  // transitions collapse into a single rebuild. The action re-fetches inputs
-  // at fire time so a write between trigger and fire isn't missed.
+  // Triggers funnel through `cacheDebounce` so bulk inserts and rapid episode
+  // changes collapse into a single rebuild. The action re-fetches inputs at
+  // fire time so a write between trigger and fire isn't missed.
   private func startObservations() {
     Task(priority: taskPriority(.utility)) {
       let embeddingRevision = contextualEmbedding.revision
