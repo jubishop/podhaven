@@ -89,7 +89,8 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let suspendedUpdateLastUpdatesCount = ThreadSafe<Int>(0)
   private var updateLastUpdatesSuspensions: [CheckedContinuation<Void, Never>] = []
 
-  // Park `updateCurrentTime` and `updatePlayback` calls before they write.
+  // Park `updateDuration`, `updateCurrentTime`, and `updatePlayback` calls before they write.
+  nonisolated let durationUpdateHold = CallHold()
   nonisolated let currentTimeUpdateHold = CallHold()
   nonisolated let playbackUpdateHold = CallHold()
 
@@ -505,6 +506,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   @discardableResult
   func updateDuration(_ episodeID: Episode.ID, duration: CMTime) async throws -> Bool {
     recordCall(methodName: "updateDuration", parameters: (episodeID: episodeID, duration: duration))
+    await durationUpdateHold.park()
     return try await repo.updateDuration(episodeID, duration: duration)
   }
 
