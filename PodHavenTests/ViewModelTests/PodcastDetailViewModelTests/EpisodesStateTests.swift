@@ -46,6 +46,36 @@ import Testing
     #expect(viewModel.episodeList.allEntries.count == 2)
   }
 
+  @Test("pull-to-refresh after a failed first load finds the saved podcast its feed moved to")
+  func refreshAfterFailedFirstLoadFindsMovedSavedPodcast() async throws {
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: FeedURL(SyntheticFeed.movedURL(0))),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    let feedURL = SyntheticFeed.url(0)
+    let viewModel = PodcastDetailViewModel(
+      podcast: DisplayedPodcast(try Create.unsavedPodcast(feedURL: FeedURL(feedURL)))
+    )
+    await feedSession.respond(to: feedURL, error: URLError(.timedOut))
+    try await finishFirstLoad(viewModel)
+    #expect(viewModel.episodesState == .failed(ErrorKit.message(for: URLError(.timedOut))))
+
+    await feedSession.respond(
+      to: feedURL,
+      data: SyntheticFeed.rss(index: 0, episodes: 2, moved: true)
+    )
+    await viewModel.refreshSeries()
+
+    #expect(viewModel.saved)
+    #expect(viewModel.podcast.feedURL == savedSeries.podcast.feedURL)
+    try await Wait.until(
+      { @MainActor in viewModel.episodesState == .loaded },
+      { @MainActor in "Expected the saved podcast's episodes, got \(viewModel.episodesState)" }
+    )
+  }
+
   @Test("a first load of a feed with no episodes ends in the empty state")
   func emptyFeedEndsEmpty() async throws {
     let viewModel = try unsavedViewModel()

@@ -713,7 +713,13 @@ class PodcastDetailViewModel:
   func refreshSeries() async {
     guard lifecycle.isOnScreen else { return }
     do {
-      if let series = state.savedSeries,
+      if case .failed = episodesState {
+        Self.log.debug("retrying failed first load of \(state.toString)")
+        try await loadSeries()
+        try Task.checkCancellation()
+        guard lifecycle.isOnScreen else { return }
+        episodesLoad = .finished
+      } else if let series = state.savedSeries,
         let podcast = try await repo.podcast(series.id)
       {
         try Task.checkCancellation()
