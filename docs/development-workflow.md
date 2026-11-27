@@ -597,9 +597,10 @@ waiter that exits or is killed leaves the queue at once, and the next run to
 look deletes its file. Only the oldest live waiter takes a free slot. A full
 run waiting for the [second Mac](#second-mac)'s lane too holds a ticket the
 same way. A short lock, `~/.cache/podhaven/validation-queue.lock`, guards the
-queue; nothing waits for anything else while holding it. A waiting run polls at a short
-interval and prints the holders and how many earlier runs wait ahead of it,
-then each slot's new holder and its new place whenever they change.
+queue; nothing waits for anything else while holding it. A waiting run polls
+at a short interval and prints the holders and how many earlier runs wait
+ahead of it, then each slot's new holder and its new place whenever they
+change.
 
 A run from a checkout that predates the queue ignores it and can still take a
 freed slot ahead of the queue, but every run takes a slot through the same
