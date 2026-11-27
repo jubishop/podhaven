@@ -66,7 +66,8 @@ actor ObservatoryScoringContextInputsTests {
   private func upsertEmbedding(
     for episode: Episode,
     vector: [Float] = [1, 0, 0],
-    revision: Int = embeddingRevision
+    revision: Int = embeddingRevision,
+    recipeVersion: Int = EmbeddingService.recipeVersion
   ) async throws {
     let data = UnsavedEpisodeEmbedding.vectorData(from: vector)
     try await recommendationRepo.upsertEmbeddings([
@@ -75,6 +76,7 @@ actor ObservatoryScoringContextInputsTests {
         vector: data,
         sourceHash: "hash-\(episode.id)",
         embeddingRevision: revision,
+        recipeVersion: recipeVersion,
         dimension: vector.count,
         verificationDate: Date()
       )
@@ -88,7 +90,8 @@ actor ObservatoryScoringContextInputsTests {
     let inputs = try await scoringContextInputs().get()
     #expect(inputs.ratedSignals.isEmpty)
     #expect(inputs.signalEmbeddings.isEmpty)
-    #expect(inputs.embeddingCount == 0)
+    #expect(!inputs.hasAnyEmbeddings)
+    #expect(inputs.currentRecipeEmbeddingCount == 0)
     #expect(inputs.freshnessCadences.isEmpty)
   }
 
@@ -260,7 +263,7 @@ actor ObservatoryScoringContextInputsTests {
     #expect(lovedEmbedding.dimension == 3)
     #expect(lovedEmbedding.floatVector == [1, 0, 0])
     #expect(inputs.signalEmbeddings[id: finished.id] == nil)
-    #expect(inputs.embeddingCount == 1)
+    #expect(inputs.currentRecipeEmbeddingCount == 1)
   }
 
   @Test("an episode with a real playback bitmap appears as a partial signal in the rebuild path")
@@ -393,8 +396,8 @@ actor ObservatoryScoringContextInputsTests {
     try await emissionCount.wait(for: 2)
   }
 
-  @Test("embeddingCount counts non-signal episodes too")
-  func embeddingCountCoversCandidatesToo() async throws {
+  @Test("currentRecipeEmbeddingCount counts non-signal episodes too")
+  func currentRecipeEmbeddingCountCoversCandidatesToo() async throws {
     let podcast = try await insertPodcast()
     let candidate = try await upsertEpisode(podcast: podcast, title: "Candidate")
     try await upsertEmbedding(for: candidate)
@@ -402,7 +405,8 @@ actor ObservatoryScoringContextInputsTests {
     let inputs = try await scoringContextInputs().get()
     #expect(inputs.ratedSignals.isEmpty)
     #expect(inputs.signalEmbeddings.isEmpty)
-    #expect(inputs.embeddingCount == 1)
+    #expect(inputs.hasAnyEmbeddings)
+    #expect(inputs.currentRecipeEmbeddingCount == 1)
   }
 
   @Test("leaves out embeddings from other revisions")
@@ -418,7 +422,34 @@ actor ObservatoryScoringContextInputsTests {
     let inputs = try await scoringContextInputs().get()
     #expect(inputs.ratedSignals.map(\.id) == [staleSignal.id])
     #expect(inputs.signalEmbeddings.isEmpty)
-    #expect(inputs.embeddingCount == 1)
+    #expect(inputs.currentRecipeEmbeddingCount == 1)
+  }
+
+  @Test("keeps older-recipe embeddings but counts only current-recipe rows")
+  func countsOnlyCurrentRecipeEmbeddings() async throws {
+    let podcast = try await insertPodcast()
+    let olderSignal = try await upsertEpisode(podcast: podcast, title: "Loved", rating: .loved)
+    try await upsertEmbedding(
+      for: olderSignal,
+      recipeVersion: EmbeddingService.recipeVersion - 1
+    )
+    let olderCandidate = try await upsertEpisode(podcast: podcast, title: "Older")
+    try await upsertEmbedding(
+      for: olderCandidate,
+      recipeVersion: EmbeddingService.recipeVersion - 1
+    )
+
+    let olderOnly = try await scoringContextInputs().get()
+    #expect(olderOnly.signalEmbeddings.ids.elements == [olderSignal.id])
+    #expect(olderOnly.hasAnyEmbeddings)
+    #expect(olderOnly.currentRecipeEmbeddingCount == 0)
+
+    let currentCandidate = try await upsertEpisode(podcast: podcast, title: "Current")
+    try await upsertEmbedding(for: currentCandidate)
+
+    let mixed = try await scoringContextInputs().get()
+    #expect(mixed.signalEmbeddings.ids.elements == [olderSignal.id])
+    #expect(mixed.currentRecipeEmbeddingCount == 1)
   }
 
   @Test("re-emits when a row is re-embedded under the current revision")
@@ -431,7 +462,30 @@ actor ObservatoryScoringContextInputsTests {
     Task {
       do {
         for try await inputs in scoringContextInputs() {
-          await embeddingCount(inputs.embeddingCount)
+          await embeddingCount(inputs.currentRecipeEmbeddingCount)
+        }
+      } catch {
+        Issue.record(error)
+      }
+    }
+    try await embeddingCount.wait(for: 0)
+
+    try await upsertEmbedding(for: candidate)
+
+    try await embeddingCount.wait(for: 1)
+  }
+
+  @Test("re-emits when a row is re-embedded in place under the current recipe")
+  func reEmitsOnRecipeReembedding() async throws {
+    let podcast = try await insertPodcast()
+    let candidate = try await upsertEpisode(podcast: podcast, title: "Candidate")
+    try await upsertEmbedding(for: candidate, recipeVersion: EmbeddingService.recipeVersion - 1)
+
+    let embeddingCount = Counter(initialValue: -1)
+    Task {
+      do {
+        for try await inputs in scoringContextInputs() {
+          await embeddingCount(inputs.currentRecipeEmbeddingCount)
         }
       } catch {
         Issue.record(error)

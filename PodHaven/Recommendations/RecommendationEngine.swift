@@ -100,14 +100,14 @@ struct RecommendationEngine: Sendable {
   private static let whiteningCountGrowthMax: Float = 1.25
   private static let whiteningCountShrinkMin: Float = 0.8
 
-  // Invalidated by any of: model revision change, recipeVersion bump, the
-  // current revision's embedding count moving outside [shrink, growth], or
-  // the user enabling exploratory mode when the cached transform was computed
+  // Invalidated by any of: model revision change, the current revision's
+  // current-recipe embedding count moving outside [shrink, growth], or the
+  // user enabling exploratory mode when the cached transform was computed
   // with fewer PCs.
   private let cachedWhiteningTransform = ThreadSafe<
     (
-      transform: WhiteningTransform, revision: Int, recipeVersion: Int,
-      count: Int, principalComponentCount: Int
+      transform: WhiteningTransform, revision: Int, count: Int,
+      principalComponentCount: Int
     )?
   >(nil)
 
@@ -487,7 +487,7 @@ struct RecommendationEngine: Sendable {
         )
         let deconeMode = Container.shared.userSettings().recommendationDeconeMode
         let whiteningTransform = try await currentWhiteningTransform(
-          embeddingCount: inputs.embeddingCount,
+          for: inputs,
           currentRevision: embeddingRevision,
           principalComponentCount: Self.principalComponentStripCount(for: deconeMode)
         )
@@ -905,24 +905,26 @@ struct RecommendationEngine: Sendable {
 
   // Hot path: cached transform read. Cold path: one streaming corpus scan
   // plus power iteration. See `cachedWhiteningTransform` for invalidation.
-  // `embeddingCount` counts only `currentRevision` rows, so the transform is
-  // recomputed as re-embedding after a revision change grows that corpus.
+  // The scan covers every `currentRevision` row, older recipes' included, but
+  // the cache keys on the current-recipe count, so the transform is recomputed
+  // as re-embedding after a revision change or recipe bump grows that count.
   private func currentWhiteningTransform(
-    embeddingCount: Int,
+    for inputs: ScoringContextInputs,
     currentRevision: Int,
     principalComponentCount: Int
   ) async throws -> WhiteningTransform? {
-    guard embeddingCount > 0 else { return nil }
-    let currentRecipeVersion = EmbeddingService.recipeVersion
+    guard inputs.hasAnyEmbeddings else { return nil }
+    let count = inputs.currentRecipeEmbeddingCount
     if let cached = cachedWhiteningTransform(),
       cached.revision == currentRevision,
-      cached.recipeVersion == currentRecipeVersion,
-      cached.count > 0,
       cached.principalComponentCount >= principalComponentCount
     {
-      let ratio = Float(embeddingCount) / Float(cached.count)
-      if ratio >= Self.whiteningCountShrinkMin, ratio <= Self.whiteningCountGrowthMax {
-        return cached.transform
+      if count == cached.count { return cached.transform }
+      if cached.count > 0 {
+        let ratio = Float(count) / Float(cached.count)
+        if ratio >= Self.whiteningCountShrinkMin, ratio <= Self.whiteningCountGrowthMax {
+          return cached.transform
+        }
       }
     }
 
@@ -936,16 +938,15 @@ struct RecommendationEngine: Sendable {
     Self.log.debug(
       """
       perf: whiteningTransform recomputed in \(continuousClockNow() - computeStart) \
-      (count=\(embeddingCount), revision=\(currentRevision), \
-      recipeVersion=\(currentRecipeVersion), pcs=\(fresh.principalComponents.count))
+      (currentRecipeCount=\(count), revision=\(currentRevision), \
+      recipeVersion=\(EmbeddingService.recipeVersion), pcs=\(fresh.principalComponents.count))
       """
     )
     cachedWhiteningTransform(
       (
         transform: fresh,
         revision: currentRevision,
-        recipeVersion: currentRecipeVersion,
-        count: embeddingCount,
+        count: count,
         principalComponentCount: principalComponentCount
       )
     )

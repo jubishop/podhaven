@@ -52,6 +52,18 @@ struct EpisodeQueryPlanTests {
     #expect(plans.contains { $0.contains("episode_covered_on_id") }, "\(plans)")
   }
 
+  @Test("the recommendation rebuild counts embeddings without reading their vectors")
+  func scoringContextInputsCountsEmbeddingsFromIndex() async throws {
+    let plans = try await queryPlans {
+      _ = try await recommendationRepo.allScoringContextInputs(embeddingRevision: 1)
+    }
+
+    let embeddingReads = plans.flatMap { $0.split(separator: "\n") }
+      .filter { $0.contains("episodeEmbedding") }
+    #expect(!embeddingReads.isEmpty, "\(plans)")
+    #expect(embeddingReads.allSatisfy { $0.contains("COVERING INDEX") }, "\(plans)")
+  }
+
   // MARK: - Helpers
 
   private func firstSmartListPage(
