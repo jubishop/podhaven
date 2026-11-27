@@ -159,6 +159,25 @@ import Testing
     #expect(avPlayer.playCallCount == playCount)
   }
 
+  @Test("a route lost during an interruption leaves playback paused after a shouldResume end")
+  func routeLossDuringInterruptionLeavesPlaybackPaused() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+    try await PlayHelpers.beginAudioInterruption()
+    try await PlayHelpers.waitFor(.paused)
+    try await PlayHelpers.sendAudioRouteLoss()
+    let playCount = avPlayer.playCallCount
+
+    PlayHelpers.endAudioInterruption(shouldResume: true)
+    // Notifications are handled in order, so a later interruption's pause shows
+    // the end was fully handled.
+    try await PlayHelpers.beginAudioInterruption()
+
+    #expect(avPlayer.playCallCount == playCount)
+  }
+
   @Test(
     "an interruption that began before pending playback started resumes it",
     arguments: PendingPlayback.allCases

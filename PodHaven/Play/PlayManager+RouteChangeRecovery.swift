@@ -145,6 +145,12 @@ extension PlayManager {
   }
 
   func recordRouteLoss() {
+    // No pause can confirm a route lost while an interruption holds playback
+    // paused, so the loss alone forfeits the interruption's resume.
+    if interruptedPlayback == .resumable {
+      interruptedPlayback = .none
+      Self.log.info("event=interruptedResumeForfeited reason=routeLoss")
+    }
     let revision = playbackRequestRevision
     guard case .awaitingRouteLoss(revision) = routeLossPause else {
       routeLossPause = .awaitingPause(revision: revision, routeLostAt: dateProvider.now)

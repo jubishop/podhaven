@@ -38,7 +38,7 @@ final class PlayManager {
     case requested(origin: PlaybackRequestOrigin, requestID: UUID)
   }
 
-  private enum InterruptedPlayback {
+  enum InterruptedPlayback {
     case none
     case resumable
   }
@@ -117,7 +117,7 @@ final class PlayManager {
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
   private(set) var ignoreRemoteScrubCommands = false
-  private var interruptedPlayback = InterruptedPlayback.none
+  var interruptedPlayback = InterruptedPlayback.none
   private var restartScrubCommandsTask: Task<Void, any Error>?
   var onDeckBecameCurrentAt: Date?
   private var lastLoggedTime = Date.distantPast
