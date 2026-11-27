@@ -90,9 +90,10 @@ enum EmbeddingService {
   }
 
   // Bump when any recipe knob below changes. Folded into source hashes so
-  // cached vectors invalidate on tuning, and read by RecommendationEngine
-  // as a whitening-mean cache key — recipe bumps rewrite every vector in
-  // place without changing count or model revision.
+  // cached vectors invalidate on tuning, and recorded on each episode
+  // embedding so the whitening cache can count the rows re-embedded under it,
+  // since recipe bumps rewrite every vector in place without changing the row
+  // count or model revision.
   static let recipeVersion = 2
 
   // Title weighs more than description to avoid boilerplate dominance.
@@ -643,6 +644,7 @@ enum EmbeddingService {
       vector: UnsavedEpisodeEmbedding.vectorData(from: vector),
       sourceHash: hash,
       embeddingRevision: embedding.revision,
+      recipeVersion: recipeVersion,
       dimension: vector.count,
       verificationDate: verificationDate
     )
