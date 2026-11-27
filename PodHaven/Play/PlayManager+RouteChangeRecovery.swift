@@ -144,7 +144,16 @@ extension PlayManager {
     scheduleWidgetRouteRecoveryFromWaiting(recovery)
   }
 
-  func recordRouteLoss() {
+  func recordRouteLoss(currentOutputs: [AVAudioSession.Port]) {
+    // No pause can confirm a route lost while an interruption holds playback
+    // paused, so a loss that leaves only the device's own outputs forfeits the
+    // resume; a call's Bluetooth profile switch keeps a private output.
+    if interruptedPlayback == .resumable,
+      currentOutputs.allSatisfy({ $0 == .builtInSpeaker || $0 == .builtInReceiver })
+    {
+      interruptedPlayback = .none
+      Self.log.info("event=interruptedResumeForfeited reason=routeLoss")
+    }
     let revision = playbackRequestRevision
     guard case .awaitingRouteLoss(revision) = routeLossPause else {
       routeLossPause = .awaitingPause(revision: revision, routeLostAt: dateProvider.now)

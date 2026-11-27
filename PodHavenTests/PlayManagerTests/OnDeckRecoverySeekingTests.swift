@@ -92,6 +92,41 @@ import Testing
     try await waitForPosition(nearEnd, of: podcastEpisode)
   }
 
+  @Test(
+    "a reload resumes from the latest recovery seek whose save lands after the asset load",
+    .timeLimit(.minutes(5)),
+    arguments: [OnDeckRecoveryState.Cause.failedRestore, .mediaServicesReset]
+  )
+  func reloadResumesFromLatestSeekSavedAfterAssetLoad(cause: OnDeckRecoveryState.Cause)
+    async throws
+  {
+    let podcastEpisode = try await awaitRecoveryReload(cause)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    defer { fakeRepo.currentTimeUpdateHold.release() }
+    fakeRepo.currentTimeUpdateHold.hold()
+    PlayHelpers.failAudioSessionConfiguration()
+    let reload = await playManager.play()
+    try await PlayHelpers.waitForFailedAudioSessionConfigurationAttempt()
+
+    let firstSeek = Task { await playManager.seek(to: .seconds(130)) }
+    try await fakeRepo.currentTimeUpdateHold.waitForParked()
+    let latestTime = CMTime.seconds(160)
+    let secondSeek = Task { await playManager.seek(to: latestTime) }
+    try await PlayHelpers.waitFor(latestTime)
+
+    try await PlayHelpers.recoverAudioSessionConfiguration()
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
+    fakeRepo.currentTimeUpdateHold.release()
+    await firstSeek.value
+    await secondSeek.value
+    await reload?.value
+
+    try await PlayHelpers.awaitStatus(.playing)
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    #expect(avPlayer.seekRequests.last == latestTime)
+    try await waitForPosition(latestTime, of: podcastEpisode)
+  }
+
   // MARK: - Helpers
 
   private func awaitRecoveryReload(_ cause: OnDeckRecoveryState.Cause) async throws

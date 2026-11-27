@@ -38,7 +38,7 @@ final class PlayManager {
     case requested(origin: PlaybackRequestOrigin, requestID: UUID)
   }
 
-  private enum InterruptedPlayback {
+  enum InterruptedPlayback {
     case none
     case resumable
   }
@@ -88,6 +88,14 @@ final class PlayManager {
     return sharedState.onDeck?.id
   }
 
+  func onDeckReplacement(of episodeID: Episode.ID) -> OnDeckReplacement? {
+    guard let loadTransition,
+      loadTransition.loadingEpisodeID != episodeID || loadTransition.finishedIDs.contains(episodeID)
+    else { return nil }
+    guard loadTransition.loadingEpisodeID != nil, let loadTask else { return .clearing }
+    return .loading(loadTask)
+  }
+
   nonisolated static let log = Log.as(LogSubsystem.Play.manager)
 
   // MARK: - Configurable Constants
@@ -117,7 +125,7 @@ final class PlayManager {
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
   private(set) var ignoreRemoteScrubCommands = false
-  private var interruptedPlayback = InterruptedPlayback.none
+  var interruptedPlayback = InterruptedPlayback.none
   private var restartScrubCommandsTask: Task<Void, any Error>?
   var onDeckBecameCurrentAt: Date?
   private var lastLoggedTime = Date.distantPast
@@ -387,10 +395,11 @@ final class PlayManager {
       } else {
         mediaServicesResetElapsed = nil
       }
-      let loaded = try await podAVPlayer.load(
+      var loaded = try await podAVPlayer.load(
         incoming,
         mediaServicesResetElapsed: mediaServicesResetElapsed
       )
+      if isOnDeckRecovery { loaded = try await latestOnDeckRecoveryEpisode(loaded) }
       try requireLoadTransitionOwnership(loadID)
       Self.log.debug(
         """

@@ -57,15 +57,24 @@ extension PlayManager {
     return true
   }
 
-  private func handleItemStatusChange(status: PodAVPlayerItemStatus, episodeID: Episode.ID) async {
-    Self.log.debug("handleItemStatusChange: \(status) for episode \(episodeID)")
+  private func handleItemStatusChange(_ event: PodAVPlayerEvent<PodAVPlayerItemStatus>) async {
+    let episodeID = event.source.episodeID
+    Self.log.debug("handleItemStatusChange: \(event.value) for episode \(episodeID)")
 
-    switch status {
+    switch event.value {
     case .failed(.mediaServicesWereReset):
       Self.log.info(
         "event=mediaServicesResetItemFailure outcome=preservingPlayback episodeID=\(episodeID)"
       )
     case .failed(.other):
+      // Another episode's load can still fail before it replaces the failed one.
+      var awaitedLoad: Task<Bool, any Error>?
+      while case .loading(let load)? = onDeckReplacement(of: episodeID), load != awaitedLoad {
+        Self.log.info("event=itemFailureYield outcome=awaitingLoad episodeID=\(episodeID)")
+        awaitedLoad = load
+        _ = await load.result
+        guard await isCurrentPlayerEvent(event.source) else { return }
+      }
       let intent: PlaybackFailureIntent = await playbackRequested() ? .play : .pause
       Self.log.warning(
         "handleItemStatusChange: item failed for \(episodeID), recovering with intent: \(intent.rawValue)"
@@ -374,7 +383,8 @@ extension PlayManager {
           notification.userInfo?[AVAudioSessionRouteChangePreviousRouteKey]
           as? AVAudioSessionRouteDescription
         let previousOutputs = previousRoute?.outputs.map(\.portType.rawValue) ?? []
-        let currentOutputs = audioSession.currentRouteOutputs.map(\.rawValue)
+        let currentRoute = audioSession.currentRouteOutputs
+        let currentOutputs = currentRoute.map(\.rawValue)
         Self.log.info(
           """
           Audio route changed
@@ -390,7 +400,7 @@ extension PlayManager {
         )
 
         guard sharedState.onDeck != nil else { continue }
-        if reason == .oldDeviceUnavailable { recordRouteLoss() }
+        if reason == .oldDeviceUnavailable { recordRouteLoss(currentOutputs: currentRoute) }
         await podAVPlayer.savePosition()
         await podAVPlayer.audioRouteChanged()
       }
@@ -624,10 +634,7 @@ extension PlayManager {
       guard let self else { return }
       for await event in await podAVPlayer.itemStatusStream
       where await isCurrentPlayerEvent(event.source) {
-        await handleItemStatusChange(
-          status: event.value,
-          episodeID: event.source.episodeID
-        )
+        await handleItemStatusChange(event)
       }
     }
 

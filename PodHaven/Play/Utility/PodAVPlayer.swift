@@ -116,6 +116,8 @@ struct PodAVPlayerPlaybackSnapshot {
   private var databaseUpdateEpoch = UUID()
   private var playbackTickSave = PlaybackTickSave.idle
   var latestSeekID: UUID?
+  // Until a manual seek lands, its target stands in for the player's time.
+  private var pendingSeekTarget: (seekID: UUID, time: CMTime)?
   var silenceState = SilencePlaybackState()
   var selectedRate: Float = 1
 
@@ -431,7 +433,10 @@ struct PodAVPlayerPlaybackSnapshot {
   }
 
   func currentTime() -> CMTime {
-    avPlayer.currentTime()
+    if let pendingSeekTarget, pendingSeekTarget.seekID == latestSeekID {
+      return pendingSeekTarget.time
+    }
+    return avPlayer.currentTime()
   }
 
   func playbackStatus() -> PlaybackStatus? {
@@ -635,6 +640,7 @@ struct PodAVPlayerPlaybackSnapshot {
     let seekID = UUID()
     cancelAutomaticSilenceWork()
     latestSeekID = seekID
+    pendingSeekTarget = (seekID, time)
     silenceState.consumedInterval = nil
     // Publish before the cache swap, so its loading can't hold back the target.
     currentTimeContinuation.yield(PodAVPlayerEvent(source: seekingSource, value: time))
