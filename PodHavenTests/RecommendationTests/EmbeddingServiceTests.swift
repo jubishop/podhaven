@@ -150,7 +150,7 @@ class EmbeddingServiceTests {
 
   // MARK: - Source Hash Invalidation
 
-  @Test("stale sourceHash triggers recomputation")
+  @Test("stale sourceHash triggers recomputation under the current recipe")
   func sourceHashInvalidation() async throws {
     let podcastEpisode = try await makePodcastEpisode(
       podcastDescription: "",
@@ -175,6 +175,7 @@ class EmbeddingServiceTests {
       vector: UnsavedEpisodeEmbedding.vectorData(from: staleVector),
       sourceHash: "stale-hash",
       embeddingRevision: 1,
+      recipeVersion: EmbeddingService.recipeVersion - 1,
       dimension: 3,
       verificationDate: Date()
     )
@@ -193,6 +194,7 @@ class EmbeddingServiceTests {
     let refreshed = try await recommendationRepo.embedding(for: episode.id)!
     #expect(refreshed.sourceHash == correctHash)
     #expect(refreshed.floatVector == correctVector)
+    #expect(refreshed.unsaved.recipeVersion == EmbeddingService.recipeVersion)
   }
 
   @Test("embedding revision changes trigger recomputation")
@@ -329,6 +331,7 @@ class EmbeddingServiceTests {
       vector: UnsavedEpisodeEmbedding.vectorData(from: [1.0, 0.0, 0.0]),
       sourceHash: "episode-hash-1",
       embeddingRevision: 1,
+      recipeVersion: EmbeddingService.recipeVersion,
       dimension: 3,
       verificationDate: Date()
     )
@@ -337,6 +340,7 @@ class EmbeddingServiceTests {
       vector: UnsavedEpisodeEmbedding.vectorData(from: [0.0, 1.0, 0.0]),
       sourceHash: "episode-hash-2",
       embeddingRevision: 2,
+      recipeVersion: EmbeddingService.recipeVersion,
       dimension: 3,
       verificationDate: Date()
     )
